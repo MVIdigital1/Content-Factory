@@ -8,48 +8,48 @@ import { ru } from "date-fns/locale";
 import { useTranslations, useLocale } from "next-intl";
 import { useSearchParams, useRouter } from "next/navigation";
 
-function getStatusConfig(
-  t: ReturnType<typeof useTranslations>,
-): Record<string, { label: string; bg: string; text: string; dot: string }> {
-  return {
-    draft: {
-      label: t("status.draft"),
-      bg: "bg-gray-100",
-      text: "text-gray-500",
-      dot: "bg-gray-400",
-    },
-    generated: {
-      label: t("status.generated", { default: "Готово" }),
-      bg: "bg-amber-50",
-      text: "text-amber-600",
-      dot: "bg-amber-400",
-    },
-    approved: {
-      label: t("status.approved", { default: "Одобрено" }),
-      bg: "bg-blue-50",
-      text: "text-blue-600",
-      dot: "bg-blue-400",
-    },
-    scheduled: {
-      label: t("status.scheduled", { default: "Запланировано" }),
-      bg: "bg-purple-50",
-      text: "text-purple-600",
-      dot: "bg-purple-400",
-    },
-    published: {
-      label: t("status.published", { default: "Опубликовано" }),
-      bg: "bg-[#E1F5EE]",
-      text: "text-[#1D9E75]",
-      dot: "bg-[#1D9E75]",
-    },
-    failed: {
-      label: t("status.failed", { default: "Ошибка" }),
-      bg: "bg-red-50",
-      text: "text-red-500",
-      dot: "bg-red-400",
-    },
-  };
-}
+// Статические стили — без t(), т.к. t() недоступен на уровне модуля
+const STATUS_CONFIG: Record<
+  string,
+  { labelKey: string; bg: string; text: string; dot: string }
+> = {
+  draft: {
+    labelKey: "status.draft",
+    bg: "bg-gray-100",
+    text: "text-gray-500",
+    dot: "bg-gray-400",
+  },
+  generated: {
+    labelKey: "status.generated",
+    bg: "bg-amber-50",
+    text: "text-amber-600",
+    dot: "bg-amber-400",
+  },
+  approved: {
+    labelKey: "status.approved",
+    bg: "bg-blue-50",
+    text: "text-blue-600",
+    dot: "bg-blue-400",
+  },
+  scheduled: {
+    labelKey: "status.scheduled",
+    bg: "bg-purple-50",
+    text: "text-purple-600",
+    dot: "bg-purple-400",
+  },
+  published: {
+    labelKey: "status.published",
+    bg: "bg-[#E1F5EE]",
+    text: "text-[#1D9E75]",
+    dot: "bg-[#1D9E75]",
+  },
+  failed: {
+    labelKey: "status.failed",
+    bg: "bg-red-50",
+    text: "text-red-500",
+    dot: "bg-red-400",
+  },
+};
 
 const COLUMNS = [
   "draft",
@@ -75,11 +75,9 @@ export default function HistoryPage() {
   const supabase = createClient();
   const queryClient = useQueryClient();
   const t = useTranslations("history");
-  const statusT = useTranslations("status");
   const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const STATUS_CONFIG = getStatusConfig(statusT);
 
   const [selected, setSelected] = useState<any>(null);
   const [copied, setCopied] = useState(false);
@@ -183,7 +181,8 @@ export default function HistoryPage() {
                   <div className="flex items-center gap-2 mb-3 px-1">
                     <div className={`w-2 h-2 rounded-full ${cfg.dot}`} />
                     <span className="text-xs font-semibold text-gray-600">
-                      {cfg.label}
+                      {/* ✅ t() вызывается внутри компонента */}
+                      {t(cfg.labelKey as any)}
                     </span>
                     <span className="ml-auto text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
                       {items.length}
@@ -251,8 +250,9 @@ export default function HistoryPage() {
                   {selected.title}
                 </p>
                 <div className="flex items-center gap-2 mt-1">
+                  {/* ✅ STATUS_CONFIG вместо несуществующего STATUS_BG */}
                   <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATUS_BG[selected.status]?.bg} ${STATUS_BG[selected.status]?.text}`}
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATUS_CONFIG[selected.status]?.bg} ${STATUS_CONFIG[selected.status]?.text}`}
                   >
                     {t(`status.${selected.status}` as any)}
                   </span>
