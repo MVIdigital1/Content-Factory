@@ -41,8 +41,8 @@ export default function ProjectsPage() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [errorDetail, setErrorDetail] = useState("");
 
-  // Загрузка проектов
   const { data: projects, isLoading } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
@@ -56,27 +56,31 @@ export default function ProjectsPage() {
     },
   });
 
-  // Создание проекта
   const createMutation = useMutation({
     mutationFn: async (values: typeof EMPTY_FORM) => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+      if (!user) throw new Error("Не авторизован");
+
       const { error } = await supabase.from("projects").insert({
         ...values,
-        user_id: user!.id,
+        user_id: user.id,
         products: [],
       });
-      if (error) throw error;
+      if (error) throw new Error(`${error.code}: ${error.message}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       setShowForm(false);
       setForm(EMPTY_FORM);
+      setErrorDetail("");
+    },
+    onError: (error: any) => {
+      setErrorDetail(error.message);
     },
   });
 
-  // Удаление проекта
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
@@ -90,6 +94,7 @@ export default function ProjectsPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorDetail("");
     createMutation.mutate(form);
   };
 
@@ -98,7 +103,6 @@ export default function ProjectsPage() {
 
   return (
     <div className="p-4 md:p-6 max-w-4xl w-full">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Проекты / бренды</h1>
@@ -114,7 +118,6 @@ export default function ProjectsPage() {
         </button>
       </div>
 
-      {/* Create form */}
       {showForm && (
         <div className="bg-white rounded-xl border border-gray-200 p-5 mb-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
@@ -234,9 +237,10 @@ export default function ProjectsPage() {
               </div>
             </div>
 
-            {createMutation.error && (
+            {(createMutation.error || errorDetail) && (
               <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-600">
-                Ошибка при создании проекта
+                <p className="font-medium">Ошибка при создании проекта:</p>
+                <p className="text-xs mt-1 font-mono">{errorDetail}</p>
               </div>
             )}
 
@@ -260,7 +264,6 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {/* Projects list */}
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
@@ -301,15 +304,13 @@ export default function ProjectsPage() {
                   </p>
                 )}
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button
-                  onClick={() => deleteMutation.mutate(p.id)}
-                  disabled={deleteMutation.isPending}
-                  className="p-2 text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-colors text-sm"
-                >
-                  🗑
-                </button>
-              </div>
+              <button
+                onClick={() => deleteMutation.mutate(p.id)}
+                disabled={deleteMutation.isPending}
+                className="p-2 text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-colors text-sm"
+              >
+                🗑
+              </button>
             </div>
           ))}
         </div>
