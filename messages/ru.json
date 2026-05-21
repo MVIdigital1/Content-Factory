@@ -1,0 +1,260 @@
+{
+  "nav": {
+    "dashboard": "Главная",
+    "projects": "Проекты",
+    "create": "Создать контент",
+    "calendar": "Календарь",
+    "telegram": "Telegram",
+    "logout": "Выйти",
+    "history": "История",
+    "analytics": "Аналитика"
+  },
+  "dashboard": {
+    "title": "Главная панель",
+    "welcome": "Добро пожаловать, {name}!",
+    "createBtn": "Создать контент",
+    "stats": {
+      "projects": "Проектов",
+      "generations": "Генераций",
+      "scheduled": "Запланировано",
+      "published": "Опубликовано"
+    },
+    "myProjects": "Мои проекты",
+    "allProjects": "Все →",
+    "recentGenerations": "Последние генерации",
+    "allHistory": "Все →",
+    "noProjects": "Нет проектов",
+    "createFirstProject": "+ Создать первый проект",
+    "noGenerations": "Нет генераций",
+    "createContent": "+ Создать контент",
+    "charts": {
+      "activity": "Активность за 7 дней",
+      "platforms": "По платформам",
+      "types": "По типу контента",
+      "noData": "Пока нет данных"
+    }
+  },
+  "projects": {
+    "title": "Проекты / бренды",
+    "subtitle": "Управляйте брендами для генерации контента",
+    "newProject": "+ Новый проект",
+    "form": {
+      "title": "Новый проект",
+      "name": "Название проекта *",
+      "namePlaceholder": "Название вашего бренда",
+      "niche": "Ниша",
+      "nicheDefault": "Выберите нишу",
+      "description": "Описание бренда",
+      "descriptionPlaceholder": "Кратко о том, чем занимается бренд...",
+      "audience": "Целевая аудитория",
+      "audiencePlaceholder": "Кто ваши клиенты и подписчики",
+      "tone": "Тон",
+      "language": "Язык",
+      "save": "Сохранить",
+      "saving": "Сохраняем...",
+      "cancel": "Отмена",
+      "error": "Ошибка при создании проекта:"
+    },
+    "noNiche": "Без ниши",
+    "empty": {
+      "title": "Нет проектов",
+      "subtitle": "Создайте первый бренд чтобы начать генерацию",
+      "btn": "+ Создать проект"
+    }
+  },
+  "create": {
+    "title": "Создать контент ✦",
+    "subtitle": "AI генерация контента для соцсетей",
+    "steps": {
+      "settings": "Настройки",
+      "generating": "Генерация",
+      "result": "Результат"
+    },
+    "form": {
+      "project": "Проект *",
+      "projectDefault": "Выберите проект",
+      "platform": "Платформа",
+      "contentType": "Тип контента",
+      "goal": "Цель *",
+      "goalDefault": "Выберите цель",
+      "topic": "Тема / идея *",
+      "topicPlaceholder": "Опишите тему, продукт или идею для контента...",
+      "image": "Картинка",
+      "imageOptional": "(необязательно)",
+      "imageHint": "Нажмите или перетащите картинку",
+      "imageFormats": "PNG, JPG, WEBP — до 10 МБ",
+      "generateBtn": "✦ Сгенерировать контент",
+      "fillAll": "Заполните все поля"
+    },
+    "goals": {
+      "sales": "Продажи / лиды",
+      "awareness": "Осведомлённость о бренде",
+      "engagement": "Вовлечённость аудитории",
+      "traffic": "Трафик на сайт",
+      "promo": "Новый продукт / акция"
+    },
+    "generating": {
+      "title": "Генерируем контент...",
+      "subtitle": "Claude AI создаёт контент для вашего бренда"
+    },
+    "result": {
+      "hook": "🎣 Крючок",
+      "caption": "📝 Текст поста",
+      "copy": "Копировать",
+      "copied": "✓ Скопировано",
+      "cta": "🎯 Призыв к действию",
+      "script": "🎬 Сценарий",
+      "generated": "Сгенерировано",
+      "scheduleSuccess": "✓ Пост запланирован! Он появится в календаре.",
+      "scheduleTitle": "Запланировать публикацию",
+      "scheduleDate": "Дата *",
+      "scheduleTime": "Время",
+      "scheduleBtn": "Запланировать",
+      "scheduleSaving": "Сохраняем...",
+      "scheduleCancel": "Отмена",
+      "noChannels": "Нет подключённых каналов.",
+      "connectTelegram": "Подключить Telegram →",
+      "createMore": "← Создать ещё",
+      "schedulePost": "📅 Запланировать",
+      "history": "История →"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Войдите в аккаунт",
+      "email": "Email",
+      "password": "Пароль",
+      "forgot": "Забыли?",
+      "btn": "Войти",
+      "loading": "Входим...",
+      "noAccount": "Нет аккаунта?",
+      "register": "Зарегистрироваться"
+    },
+    "register": {
+      "title": "Создайте аккаунт",
+      "name": "Имя",
+      "email": "Email",
+      "password": "Пароль",
+      "btn": "Зарегистрироваться",
+      "loading": "Создаём...",
+      "hasAccount": "Уже есть аккаунт?",
+      "login": "Войти"
+    }
+  },
+  "common": {
+    "noNiche": "Без ниши",
+    "loading": "Загрузка...",
+    "error": "Ошибка",
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "delete": "Удалить"
+  },
+  "langSwitcher": {
+    "label": "Язык"
+  },
+  "history": {
+    "title": "История",
+    "subtitle": "Все сгенерированные материалы",
+    "noHistory": "Нет истории",
+    "noContent": "Сгенерированный контент появится здесь",
+    "copy": "Копировать",
+    "delete": "Удалить",
+    "deleting": "Удаляем...",
+    "save": "Сохранить",
+    "saving": "Сохраняем...",
+    "edit": "Изменить",
+    "cancel": "Отмена",
+    "hook": "Крючок",
+    "text": "Текст",
+    "stats": "Статистика",
+    "views": "Просмотры",
+    "reactions": "Реакции",
+    "activity": "Активность",
+    "openPost": "Открыть →",
+    "empty": "Пусто",
+    "status": {
+      "draft": "Черновик",
+      "generated": "Готово",
+      "approved": "Одобрено",
+      "scheduled": "Запланировано",
+      "published": "Опубликовано",
+      "failed": "Ошибка"
+    },
+    "filters": {
+      "all": "Все",
+      "generated": "Сгенерировано",
+      "scheduled": "Запланировано",
+      "published": "Опубликовано",
+      "draft": "Черновики"
+    }
+  },
+  "integrations": {
+    "title": "Telegram",
+    "subtitle": "Автопостинг в каналы",
+    "addChannel": "+ Добавить канал",
+    "successMsg": "✓ Канал подключён успешно!",
+    "howToConnect": "Как подключить:",
+    "connectBtn": "Подключить первый канал",
+    "form": {
+      "title": "Новый канал",
+      "token": "Токен бота *",
+      "check": "Проверить",
+      "channelId": "ID канала *",
+      "channelName": "Название канала",
+      "save": "Подключить канал",
+      "saving": "Сохраняем..."
+    },
+    "active": "Активен",
+    "inactive": "Отключён",
+    "connected": "Подключённые каналы"
+  },
+  "calendar": {
+    "title": "Календарь",
+    "subtitle": "Расписание публикаций",
+    "today": "Сегодня",
+    "noPosts": "Нет публикаций",
+    "status": {
+      "published": "Опубликовано",
+      "failed": "Ошибка",
+      "pending": "Ожидает"
+    }
+  },
+  "tones": {
+    "friendly": "Дружелюбный",
+    "expert": "Экспертный",
+    "viral": "Вирусный",
+    "premium": "Премиум"
+  },
+  "langs": {
+    "ru": "Русский",
+    "uz": "Узбекский",
+    "en": "Английский"
+  },
+  "contentTypes": {
+    "post": "Пост",
+    "video": "Видео",
+    "stories": "Stories",
+    "ad": "Реклама"
+  },
+  "statuses": {
+    "draft": "Черновик",
+    "generated": "Сгенерировано",
+    "scheduled": "Запланировано",
+    "published": "Опубликовано",
+    "failed": "Ошибка",
+    "ready": "Готово"
+  },
+  "analytics": {
+    "title": "Аналитика",
+    "subtitle": "Статистика по всему контенту",
+    "totalGenerations": "Всего генераций",
+    "scheduled": "Запланировано",
+    "published": "Опубликовано",
+    "errors": "Ошибок",
+    "activity7": "Активность за 7 дней",
+    "trend30": "Тренд за 30 дней",
+    "byPlatform": "По платформам",
+    "byType": "По типу контента",
+    "byStatus": "По статусам"
+  }
+}

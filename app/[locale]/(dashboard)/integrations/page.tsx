@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { useTranslations } from "next-intl";
 
 export default function IntegrationsPage() {
   const supabase = createClient();
   const queryClient = useQueryClient();
+  const t = useTranslations("integrations");
   const [showForm, setShowForm] = useState(false);
-
   const [form, setForm] = useState({
     token: "",
     channelId: "",
@@ -54,24 +55,16 @@ export default function IntegrationsPage() {
         `https://api.telegram.org/bot${form.token}/getMe`,
       );
       const data = await res.json();
-      if (data.ok) {
-        setForm((p) => ({
-          ...p,
-          testing: false,
-          testResult: `✓ Бот найден: @${data.result.username}`,
-        }));
-      } else {
-        setForm((p) => ({
-          ...p,
-          testing: false,
-          testResult: "✗ Неверный токен",
-        }));
-      }
+      setForm((p) => ({
+        ...p,
+        testing: false,
+        testResult: data.ok ? `✓ @${data.result.username}` : "✗ Invalid token",
+      }));
     } catch {
       setForm((p) => ({
         ...p,
         testing: false,
-        testResult: "✗ Ошибка соединения",
+        testResult: "✗ Connection error",
       }));
     }
   };
@@ -83,14 +76,16 @@ export default function IntegrationsPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      const { error } = await supabase.from("integrations").insert({
-        user_id: user!.id,
-        platform: "telegram",
-        token: form.token,
-        channel_id: form.channelId,
-        channel_name: form.channelName || form.channelId,
-        is_active: true,
-      });
+      const { error } = await supabase
+        .from("integrations")
+        .insert({
+          user_id: user!.id,
+          platform: "telegram",
+          token: form.token,
+          channel_id: form.channelId,
+          channel_name: form.channelName || form.channelId,
+          is_active: true,
+        });
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["integrations"] });
       setForm((p) => ({
@@ -116,29 +111,27 @@ export default function IntegrationsPage() {
     <div className="p-4 md:p-6 max-w-2xl">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Telegram</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Автопостинг в каналы</p>
+          <h1 className="text-xl font-bold text-gray-900">{t("title")}</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{t("subtitle")}</p>
         </div>
         <button
           onClick={() => setShowForm((v) => !v)}
           className="flex items-center gap-2 px-4 py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors"
         >
-          + Добавить канал
+          {t("addChannel")}
         </button>
       </div>
 
-      {/* Success */}
       {form.success && (
         <div className="bg-[#E1F5EE] border border-[#1D9E75] border-opacity-30 rounded-xl px-4 py-3 text-sm text-[#1D9E75] font-medium mb-4">
-          ✓ Канал подключён успешно!
+          {t("successMsg")}
         </div>
       )}
 
-      {/* Instructions — только когда нет каналов */}
       {!hasChannels && !showForm && (
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-5">
           <p className="text-sm font-semibold text-blue-800 mb-2">
-            Как подключить:
+            {t("howToConnect")}
           </p>
           <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
             <li>
@@ -169,38 +162,28 @@ export default function IntegrationsPage() {
             onClick={() => setShowForm(true)}
             className="mt-3 w-full py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors"
           >
-            Подключить первый канал
+            {t("connectBtn")}
           </button>
         </div>
       )}
 
-      {/* Connect form */}
       {showForm && (
         <div className="bg-white rounded-xl border border-gray-200 p-5 mb-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-gray-900">Новый канал</h3>
+            <h3 className="text-sm font-semibold text-gray-900">
+              {t("form.title")}
+            </h3>
             <button
               onClick={() => setShowForm(false)}
-              className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              className="text-gray-400 hover:text-gray-600 text-xl"
             >
               ×
             </button>
           </div>
-
-          {/* Instructions compact */}
-          <div className="bg-gray-50 rounded-lg p-3 mb-4 text-xs text-gray-500 space-y-1">
-            <p>
-              1. Создайте бота через{" "}
-              <span className="font-mono">@BotFather</span>
-            </p>
-            <p>2. Добавьте бота в канал как администратора</p>
-            <p>3. Вставьте токен и ID канала</p>
-          </div>
-
           <form onSubmit={handleSave} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                Токен бота *
+                {t("form.token")}
               </label>
               <div className="flex gap-2">
                 <input
@@ -220,9 +203,9 @@ export default function IntegrationsPage() {
                   type="button"
                   onClick={testBot}
                   disabled={!form.token || form.testing}
-                  className="px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50 whitespace-nowrap"
+                  className="px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
                 >
-                  {form.testing ? "..." : "Проверить"}
+                  {form.testing ? "..." : t("form.check")}
                 </button>
               </div>
               {form.testResult && (
@@ -233,10 +216,9 @@ export default function IntegrationsPage() {
                 </p>
               )}
             </div>
-
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                ID канала *
+                {t("form.channelId")}
               </label>
               <input
                 value={form.channelId}
@@ -248,10 +230,9 @@ export default function IntegrationsPage() {
                 className={inputClass}
               />
             </div>
-
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                Название канала
+                {t("form.channelName")}
               </label>
               <input
                 value={form.channelName}
@@ -262,29 +243,26 @@ export default function IntegrationsPage() {
                 className={inputClass}
               />
             </div>
-
             {form.error && (
               <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-600">
                 {form.error}
               </div>
             )}
-
             <button
               type="submit"
               disabled={form.loading}
               className="w-full py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60"
             >
-              {form.loading ? "Сохраняем..." : "Подключить канал"}
+              {form.loading ? t("form.saving") : t("form.save")}
             </button>
           </form>
         </div>
       )}
 
-      {/* Connected channels */}
       {hasChannels && (
         <div>
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-            Подключённые каналы ({integrations.length})
+            {t("connected")} ({integrations.length})
           </h3>
           <div className="space-y-2">
             {integrations.map((i: any) => (
@@ -316,7 +294,7 @@ export default function IntegrationsPage() {
                   <span
                     className={`text-xs px-2 py-0.5 rounded-full font-medium ${i.is_active ? "bg-[#E1F5EE] text-[#1D9E75]" : "bg-gray-100 text-gray-400"}`}
                   >
-                    {i.is_active ? "Активен" : "Отключён"}
+                    {i.is_active ? t("active") : t("inactive")}
                   </span>
                   <button
                     onClick={() => deleteMutation.mutate(i.id)}

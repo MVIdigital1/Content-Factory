@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useTranslations, useLocale } from "next-intl";
+import LangSwitcher from "@/components/features/LangSwitcher";
 
 const Icons = {
   dashboard: (
@@ -96,6 +98,21 @@ const Icons = {
       <path d="M3 3v5h5" />
     </svg>
   ),
+  analytics: (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 3v18h18" />
+      <path d="M7 16l4-4 4 4 4-4" />
+    </svg>
+  ),
   logout: (
     <svg
       width="16"
@@ -140,14 +157,14 @@ const Icons = {
   ),
 };
 
-const NAV = [
-  { href: "/dashboard", icon: Icons.dashboard, label: "Главная" },
-  { href: "/projects", icon: Icons.projects, label: "Проекты" },
-  { href: "/create", icon: Icons.create, label: "Создать контент" },
-  { href: "/calendar", icon: Icons.calendar, label: "Календарь" },
-  { href: "/integrations", icon: Icons.telegram, label: "Telegram" },
-  { href: "/history", icon: Icons.history, label: "История" },
-];
+const NAV_ITEMS = [
+  { key: "dashboard", href: "/dashboard", icon: "dashboard" },
+  { key: "projects", href: "/projects", icon: "projects" },
+  { key: "create", href: "/create", icon: "create" },
+  { key: "calendar", href: "/calendar", icon: "calendar" },
+  { key: "history", href: "/history", icon: "history" },
+  { key: "analytics", href: "/analytics", icon: "analytics" },
+] as const;
 
 function NavContent({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
@@ -155,19 +172,30 @@ function NavContent({ onClose }: { onClose?: () => void }) {
   const supabase = createClient();
   const [isPending, startTransition] = useTransition();
   const [activeHref, setActiveHref] = useState<string | null>(null);
+  const t = useTranslations("nav");
+  const locale = useLocale();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.push("/auth/login");
+    router.push(`/${locale}/auth/login`);
     router.refresh();
   };
 
   const handleNav = (href: string) => {
     setActiveHref(href);
     startTransition(() => {
-      router.push(href);
+      router.push(`/${locale}${href}`);
     });
     onClose?.();
+  };
+
+  const NAV_LABELS: Record<string, string> = {
+    dashboard: t("dashboard"),
+    projects: t("projects"),
+    create: t("create"),
+    calendar: t("calendar"),
+    history: t("history") || "История",
+    analytics: t("analytics") || "Аналитика",
   };
 
   return (
@@ -206,14 +234,15 @@ function NavContent({ onClose }: { onClose?: () => void }) {
       </div>
 
       <nav className="flex-1 py-3 px-2 overflow-y-auto">
-        {NAV.map((item) => {
-          // Оптимистичный активный стейт — сразу при клике
+        {NAV_ITEMS.map((item) => {
+          const fullHref = `/${locale}${item.href}`;
           const isActive =
             activeHref === item.href ||
             (!activeHref &&
-              (pathname === item.href ||
-                (item.href !== "/dashboard" &&
-                  pathname.startsWith(item.href))));
+              (pathname === fullHref ||
+                (item.href !== "/dashboard" && pathname.startsWith(fullHref))));
+
+          const icon = Icons[item.icon as keyof typeof Icons];
 
           return (
             <button
@@ -226,9 +255,9 @@ function NavContent({ onClose }: { onClose?: () => void }) {
               }`}
             >
               <span className={isActive ? "text-[#1D9E75]" : "text-gray-400"}>
-                {item.icon}
+                {icon}
               </span>
-              <span className="flex-1">{item.label}</span>
+              <span className="flex-1">{NAV_LABELS[item.key]}</span>
               {isActive && !isPending && (
                 <div className="w-1.5 h-1.5 rounded-full bg-[#1D9E75]" />
               )}
@@ -240,14 +269,26 @@ function NavContent({ onClose }: { onClose?: () => void }) {
         })}
       </nav>
 
-      <div className="px-2 py-3 border-t border-gray-100">
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-        >
-          {Icons.logout}
-          Выйти
-        </button>
+      <div className="border-t border-gray-100">
+        <LangSwitcher />
+        <div className="px-2 py-1">
+          <button
+            onClick={() => handleNav("/integrations")}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+          >
+            {Icons.telegram}
+            <span className="flex-1">Telegram</span>
+          </button>
+        </div>
+        <div className="px-2 py-2">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+          >
+            {Icons.logout}
+            {t("logout")}
+          </button>
+        </div>
       </div>
     </>
   );
@@ -255,11 +296,16 @@ function NavContent({ onClose }: { onClose?: () => void }) {
 
 export default function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   return (
     <>
+      {/* Mobile top bar */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-100 flex items-center gap-3 px-4 py-3">
-        <button onClick={() => setMobileOpen(true)} className="text-gray-600">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="text-gray-600 cursor-pointer"
+        >
           {Icons.menu}
         </button>
         <div className="flex items-center gap-2">
@@ -283,6 +329,7 @@ export default function Sidebar() {
         </div>
       </div>
 
+      {/* Mobile drawer */}
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           <div
@@ -295,8 +342,49 @@ export default function Sidebar() {
         </div>
       )}
 
-      <aside className="hidden md:flex w-56 flex-shrink-0 flex-col h-screen bg-white border-r border-gray-100">
-        <NavContent />
+      {/* Desktop sidebar */}
+      <aside
+        className={`hidden md:flex flex-shrink-0 flex-col h-screen bg-white border-r border-gray-100 transition-all duration-200 ${collapsed ? "w-14" : "w-56"}`}
+      >
+        {collapsed ? (
+          /* Collapsed — only icons */
+          <div className="flex flex-col h-full py-3">
+            <div className="flex justify-center mb-4 px-2">
+              <button
+                onClick={() => setCollapsed(false)}
+                title="Развернуть"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-colors cursor-pointer"
+              >
+                {Icons.menu}
+              </button>
+            </div>
+            <div className="flex-1" />
+          </div>
+        ) : (
+          /* Expanded — full sidebar */
+          <div className="flex flex-col h-full relative">
+            {/* Collapse toggle button */}
+            <button
+              onClick={() => setCollapsed(true)}
+              title="Свернуть"
+              className="absolute top-4 right-3 w-6 h-6 flex items-center justify-center rounded-md text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors cursor-pointer z-10"
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+            </button>
+            <NavContent />
+          </div>
+        )}
       </aside>
     </>
   );

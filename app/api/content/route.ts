@@ -12,12 +12,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await request.json();
-    const { projectId, platform, contentType, goal, topic } = body;
+    const { projectId, platform, contentType, goal, topic, imageUrl } = body;
 
+    if (!projectId || !platform || !contentType || !goal || !topic) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 },
+      );
+    }
+
+    // Rate limiting — max 20 generations per hour per user
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count: recentCount } = await supabase
+      .from("contents")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .gte("created_at", oneHourAgo);
+
+    if ((recentCount ?? 0) >= 20) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded. Max 20 generations per hour." },
+        { status: 429 },
+      );
+    }
+
+    // Verify project belongs to current user — security fix
     const { data: project } = await supabase
       .from("projects")
       .select("*")
       .eq("id", projectId)
+      .eq("user_id", user.id) // ← защита от чужих проектов
       .single();
 
     if (!project)
@@ -34,11 +58,13 @@ export async function POST(request: Request) {
       contentType,
       goal,
       topic,
+      imageUrl,
     });
 
     const { data: content, error: insertError } = await supabase
       .from("contents")
       .insert({
+        user_id: user.id,
         project_id: projectId,
         type: contentType,
         platform,
@@ -52,6 +78,7 @@ export async function POST(request: Request) {
         caption: generated.caption,
         hashtags: generated.hashtags,
         cta: generated.cta,
+        source_image_url: imageUrl || null,
         status: "generated",
         ai_model: "claude-sonnet-4-20250514",
         ai_tokens: 1500,

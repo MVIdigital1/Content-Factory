@@ -1,52 +1,63 @@
+import createMiddleware from "next-intl/middleware";
+import { defineRouting } from "next-intl/routing";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
+
+const routing = defineRouting({
+  locales: ["ru", "uz", "en"],
+  defaultLocale: "ru",
+  localePrefix: "always",
+});
+
+const intlMiddleware = createMiddleware(routing);
 
 export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request });
+  const { pathname } = request.nextUrl;
+
+  if (pathname.startsWith("/api") || pathname.startsWith("/auth/callback")) {
+    return NextResponse.next();
+  }
+
+  const response = intlMiddleware(request);
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value),
-          );
-          supabaseResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options),
-          );
+        getAll: () => request.cookies.getAll(),
+        setAll: (cookiesToSet) => {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
         },
       },
     },
   );
 
-  // Обновляем сессию — важно для передачи куки
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { pathname } = request.nextUrl;
-  const publicRoutes = ["/auth/login", "/auth/register", "/auth/callback"];
-  const isPublic = publicRoutes.some((r) => pathname.startsWith(r));
+  const isProtected =
+    /^\/(ru|uz|en)\/(dashboard|projects|create|calendar|integrations|history|analytics)/.test(
+      pathname,
+    );
+  const isAuthPage = /^\/(ru|uz|en)\/auth/.test(pathname);
 
-  if (!user && !isPublic) {
-    return NextResponse.redirect(new URL("/auth/login", request.url));
+  if (isProtected && !user) {
+    const locale = pathname.split("/")[1] || "ru";
+    return NextResponse.redirect(new URL(`/${locale}/auth/login`, request.url));
   }
 
-  if (user && (pathname === "/auth/login" || pathname === "/auth/register")) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+  if (isAuthPage && user) {
+    const locale = pathname.split("/")[1] || "ru";
+    return NextResponse.redirect(new URL(`/${locale}/dashboard`, request.url));
   }
 
-  return supabaseResponse;
+  return response;
 }
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
+  matcher: ["/((?!_next|_vercel|.*\\..*).*)"],
 };

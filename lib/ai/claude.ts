@@ -70,7 +70,17 @@ export async function generateContent({
   const message = await client.messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 1500,
-    messages: [{ role: "user", content: prompt }],
+    messages: [
+      {
+        role: "user",
+        content: imageUrl
+          ? [
+              { type: "image", source: { type: "url", url: imageUrl } },
+              { type: "text", text: prompt },
+            ]
+          : prompt,
+      },
+    ],
   });
 
   const raw = (message.content[0] as { text: string }).text;

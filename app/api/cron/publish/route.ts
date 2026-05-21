@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
+  // Cron secret protection
   const authHeader = request.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -11,7 +12,9 @@ export async function GET(request: Request) {
 
   const { data: posts, error } = await supabase
     .from("scheduled_posts")
-    .select("*, contents(title, caption, hashtags, platform)")
+    .select(
+      "*, contents(id, title, caption, hashtags, platform, project_id, user_id)",
+    )
     .eq("status", "pending")
     .lte("scheduled_at", new Date().toISOString())
     .limit(10);
@@ -26,15 +29,18 @@ export async function GET(request: Request) {
   for (const post of posts) {
     try {
       const content = post.contents as any;
+
       if (post.platform === "telegram") {
+        // Get integration for the specific user who owns this content
         const { data: integration } = await supabase
           .from("integrations")
           .select("token, channel_id")
           .eq("platform", "telegram")
           .eq("is_active", true)
+          .eq("user_id", content?.user_id) // ← только канал владельца контента
           .single();
 
-        if (!integration) throw new Error("Нет активного Telegram канала");
+        if (!integration) throw new Error("No active Telegram channel");
 
         const text =
           `${content?.caption || ""}\n\n${(content?.hashtags || []).join(" ")}`.trim();
@@ -68,9 +74,11 @@ export async function GET(request: Request) {
           .from("contents")
           .update({ status: "published" })
           .eq("id", post.content_id);
+
         published++;
       }
     } catch (err: any) {
+      console.error(`Failed to publish post ${post.id}:`, err.message);
       await supabase
         .from("scheduled_posts")
         .update({

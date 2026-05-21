@@ -1,0 +1,260 @@
+{
+  "nav": {
+    "dashboard": "Bosh sahifa",
+    "projects": "Loyihalar",
+    "create": "Kontent yaratish",
+    "calendar": "Kalendar",
+    "telegram": "Telegram",
+    "logout": "Chiqish",
+    "history": "Tarix",
+    "analytics": "Analitika"
+  },
+  "dashboard": {
+    "title": "Bosh panel",
+    "welcome": "Xush kelibsiz, {name}!",
+    "createBtn": "Kontent yaratish",
+    "stats": {
+      "projects": "Loyihalar",
+      "generations": "Generatsiyalar",
+      "scheduled": "Rejalashtirilgan",
+      "published": "Nashr etilgan"
+    },
+    "myProjects": "Mening loyihalarim",
+    "allProjects": "Hammasi →",
+    "recentGenerations": "So'nggi generatsiyalar",
+    "allHistory": "Hammasi →",
+    "noProjects": "Loyihalar yo'q",
+    "createFirstProject": "+ Birinchi loyiha yaratish",
+    "noGenerations": "Generatsiyalar yo'q",
+    "createContent": "+ Kontent yaratish",
+    "charts": {
+      "activity": "7 kunlik faollik",
+      "platforms": "Platformalar bo'yicha",
+      "types": "Kontent turi bo'yicha",
+      "noData": "Hozircha ma'lumot yo'q"
+    }
+  },
+  "projects": {
+    "title": "Loyihalar / brendlar",
+    "subtitle": "Kontent generatsiyasi uchun brendlarni boshqaring",
+    "newProject": "+ Yangi loyiha",
+    "form": {
+      "title": "Yangi loyiha",
+      "name": "Loyiha nomi *",
+      "namePlaceholder": "Brendingiz nomi",
+      "niche": "Nisha",
+      "nicheDefault": "Nishani tanlang",
+      "description": "Brend tavsifi",
+      "descriptionPlaceholder": "Brend haqida qisqacha...",
+      "audience": "Maqsadli auditoriya",
+      "audiencePlaceholder": "Mijozlaringiz va obunachilaring",
+      "tone": "Ohang",
+      "language": "Til",
+      "save": "Saqlash",
+      "saving": "Saqlanmoqda...",
+      "cancel": "Bekor qilish",
+      "error": "Loyiha yaratishda xatolik:"
+    },
+    "noNiche": "Nisha yo'q",
+    "empty": {
+      "title": "Loyihalar yo'q",
+      "subtitle": "Generatsiyani boshlash uchun birinchi brendni yarating",
+      "btn": "+ Loyiha yaratish"
+    }
+  },
+  "create": {
+    "title": "Kontent yaratish ✦",
+    "subtitle": "Ijtimoiy tarmoqlar uchun AI kontent generatsiyasi",
+    "steps": {
+      "settings": "Sozlamalar",
+      "generating": "Generatsiya",
+      "result": "Natija"
+    },
+    "form": {
+      "project": "Loyiha *",
+      "projectDefault": "Loyihani tanlang",
+      "platform": "Platforma",
+      "contentType": "Kontent turi",
+      "goal": "Maqsad *",
+      "goalDefault": "Maqsadni tanlang",
+      "topic": "Mavzu / g'oya *",
+      "topicPlaceholder": "Kontent uchun mavzu, mahsulot yoki g'oyani tasvirlang...",
+      "image": "Rasm",
+      "imageOptional": "(ixtiyoriy)",
+      "imageHint": "Bosing yoki rasmni torting",
+      "imageFormats": "PNG, JPG, WEBP — 10 MBgacha",
+      "generateBtn": "✦ Kontent yaratish",
+      "fillAll": "Barcha maydonlarni to'ldiring"
+    },
+    "goals": {
+      "sales": "Sotuvlar / lidlar",
+      "awareness": "Brend xabardorligi",
+      "engagement": "Auditoriya ishtiroki",
+      "traffic": "Saytga trafik",
+      "promo": "Yangi mahsulot / aksiya"
+    },
+    "generating": {
+      "title": "Kontent yaratilmoqda...",
+      "subtitle": "Claude AI brendingiz uchun kontent yaratmoqda"
+    },
+    "result": {
+      "hook": "🎣 Ilmoq",
+      "caption": "📝 Post matni",
+      "copy": "Nusxa olish",
+      "copied": "✓ Nusxalandi",
+      "cta": "🎯 Harakat chaqiruvi",
+      "script": "🎬 Ssenariy",
+      "generated": "Yaratildi",
+      "scheduleSuccess": "✓ Post rejalashtirildi! U kalendarida ko'rinadi.",
+      "scheduleTitle": "Nashrni rejalashtirish",
+      "scheduleDate": "Sana *",
+      "scheduleTime": "Vaqt",
+      "scheduleBtn": "Rejalashtirish",
+      "scheduleSaving": "Saqlanmoqda...",
+      "scheduleCancel": "Bekor qilish",
+      "noChannels": "Ulangan kanallar yo'q.",
+      "connectTelegram": "Telegramni ulash →",
+      "createMore": "← Yana yaratish",
+      "schedulePost": "📅 Rejalashtirish",
+      "history": "Tarix →"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Hisobingizga kiring",
+      "email": "Email",
+      "password": "Parol",
+      "forgot": "Unutdingizmi?",
+      "btn": "Kirish",
+      "loading": "Kirilmoqda...",
+      "noAccount": "Hisobingiz yo'qmi?",
+      "register": "Ro'yxatdan o'tish"
+    },
+    "register": {
+      "title": "Hisob yarating",
+      "name": "Ism",
+      "email": "Email",
+      "password": "Parol",
+      "btn": "Ro'yxatdan o'tish",
+      "loading": "Yaratilmoqda...",
+      "hasAccount": "Hisobingiz bormi?",
+      "login": "Kirish"
+    }
+  },
+  "common": {
+    "noNiche": "Nisha yo'q",
+    "loading": "Yuklanmoqda...",
+    "error": "Xatolik",
+    "save": "Saqlash",
+    "cancel": "Bekor qilish",
+    "delete": "O'chirish"
+  },
+  "langSwitcher": {
+    "label": "Til"
+  },
+  "history": {
+    "title": "Tarix",
+    "subtitle": "Barcha yaratilgan materiallar",
+    "noHistory": "Tarix yo'q",
+    "noContent": "Yaratilgan kontent bu yerda ko'rinadi",
+    "copy": "Nusxa olish",
+    "delete": "O'chirish",
+    "deleting": "O'chirilmoqda...",
+    "save": "Saqlash",
+    "saving": "Saqlanmoqda...",
+    "edit": "O'zgartirish",
+    "cancel": "Bekor qilish",
+    "hook": "Ilmoq",
+    "text": "Matn",
+    "stats": "Statistika",
+    "views": "Ko'rishlar",
+    "reactions": "Reaktsiyalar",
+    "activity": "Faollik",
+    "openPost": "Ochish →",
+    "empty": "Bo'sh",
+    "status": {
+      "draft": "Qoralama",
+      "generated": "Tayyor",
+      "approved": "Tasdiqlangan",
+      "scheduled": "Rejalashtirilgan",
+      "published": "Nashr etilgan",
+      "failed": "Xatolik"
+    },
+    "filters": {
+      "all": "Hammasi",
+      "generated": "Yaratildi",
+      "scheduled": "Rejalashtirildi",
+      "published": "Nashr etildi",
+      "draft": "Qoralamalar"
+    }
+  },
+  "integrations": {
+    "title": "Telegram",
+    "subtitle": "Kanallarga avtopublishing",
+    "addChannel": "+ Kanal qo'shish",
+    "successMsg": "✓ Kanal muvaffaqiyatli ulandi!",
+    "howToConnect": "Qanday ulash:",
+    "connectBtn": "Birinchi kanalni ulash",
+    "form": {
+      "title": "Yangi kanal",
+      "token": "Bot tokeni *",
+      "check": "Tekshirish",
+      "channelId": "Kanal ID *",
+      "channelName": "Kanal nomi",
+      "save": "Kanalni ulash",
+      "saving": "Saqlanmoqda..."
+    },
+    "active": "Faol",
+    "inactive": "O'chirilgan",
+    "connected": "Ulangan kanallar"
+  },
+  "calendar": {
+    "title": "Kalendar",
+    "subtitle": "Nashrlar jadvali",
+    "today": "Bugun",
+    "noPosts": "Nashrlar yo'q",
+    "status": {
+      "published": "Nashr etildi",
+      "failed": "Xatolik",
+      "pending": "Kutmoqda"
+    }
+  },
+  "tones": {
+    "friendly": "Do'stona",
+    "expert": "Ekspert",
+    "viral": "Viral",
+    "premium": "Premium"
+  },
+  "langs": {
+    "ru": "Ruscha",
+    "uz": "O'zbekcha",
+    "en": "Inglizcha"
+  },
+  "contentTypes": {
+    "post": "Post",
+    "video": "Video",
+    "stories": "Stories",
+    "ad": "Reklama"
+  },
+  "statuses": {
+    "draft": "Qoralama",
+    "generated": "Yaratildi",
+    "scheduled": "Rejalashtirildi",
+    "published": "Nashr etildi",
+    "failed": "Xatolik",
+    "ready": "Tayyor"
+  },
+  "analytics": {
+    "title": "Analitika",
+    "subtitle": "Barcha kontent statistikasi",
+    "totalGenerations": "Jami generatsiyalar",
+    "scheduled": "Rejalashtirilgan",
+    "published": "Nashr etilgan",
+    "errors": "Xatoliklar",
+    "activity7": "7 kunlik faollik",
+    "trend30": "30 kunlik trend",
+    "byPlatform": "Platformalar bo'yicha",
+    "byType": "Kontent turi bo'yicha",
+    "byStatus": "Statuslar bo'yicha"
+  }
+}

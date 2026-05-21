@@ -1,0 +1,260 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "projects": "Projects",
+    "create": "Create Content",
+    "calendar": "Calendar",
+    "telegram": "Telegram",
+    "logout": "Log out",
+    "history": "History",
+    "analytics": "Analytics"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome, {name}!",
+    "createBtn": "Create Content",
+    "stats": {
+      "projects": "Projects",
+      "generations": "Generations",
+      "scheduled": "Scheduled",
+      "published": "Published"
+    },
+    "myProjects": "My Projects",
+    "allProjects": "All →",
+    "recentGenerations": "Recent Generations",
+    "allHistory": "All →",
+    "noProjects": "No projects yet",
+    "createFirstProject": "+ Create first project",
+    "noGenerations": "No generations yet",
+    "createContent": "+ Create content",
+    "charts": {
+      "activity": "Activity last 7 days",
+      "platforms": "By platform",
+      "types": "By content type",
+      "noData": "No data yet"
+    }
+  },
+  "projects": {
+    "title": "Projects / Brands",
+    "subtitle": "Manage your brands for content generation",
+    "newProject": "+ New Project",
+    "form": {
+      "title": "New Project",
+      "name": "Project name *",
+      "namePlaceholder": "Your brand name",
+      "niche": "Niche",
+      "nicheDefault": "Select a niche",
+      "description": "Brand description",
+      "descriptionPlaceholder": "Brief description of what your brand does...",
+      "audience": "Target audience",
+      "audiencePlaceholder": "Who are your customers and followers",
+      "tone": "Tone",
+      "language": "Language",
+      "save": "Save",
+      "saving": "Saving...",
+      "cancel": "Cancel",
+      "error": "Error creating project:"
+    },
+    "noNiche": "No niche",
+    "empty": {
+      "title": "No projects",
+      "subtitle": "Create your first brand to start generating content",
+      "btn": "+ Create project"
+    }
+  },
+  "create": {
+    "title": "Create Content ✦",
+    "subtitle": "AI content generation for social media",
+    "steps": {
+      "settings": "Settings",
+      "generating": "Generating",
+      "result": "Result"
+    },
+    "form": {
+      "project": "Project *",
+      "projectDefault": "Select a project",
+      "platform": "Platform",
+      "contentType": "Content type",
+      "goal": "Goal *",
+      "goalDefault": "Select a goal",
+      "topic": "Topic / idea *",
+      "topicPlaceholder": "Describe the topic, product or idea for your content...",
+      "image": "Image",
+      "imageOptional": "(optional)",
+      "imageHint": "Click or drag an image here",
+      "imageFormats": "PNG, JPG, WEBP — up to 10 MB",
+      "generateBtn": "✦ Generate Content",
+      "fillAll": "Please fill in all required fields"
+    },
+    "goals": {
+      "sales": "Sales / leads",
+      "awareness": "Brand awareness",
+      "engagement": "Audience engagement",
+      "traffic": "Website traffic",
+      "promo": "New product / promotion"
+    },
+    "generating": {
+      "title": "Generating content...",
+      "subtitle": "Claude AI is creating content for your brand"
+    },
+    "result": {
+      "hook": "🎣 Hook",
+      "caption": "📝 Post text",
+      "copy": "Copy",
+      "copied": "✓ Copied",
+      "cta": "🎯 Call to action",
+      "script": "🎬 Script",
+      "generated": "Generated",
+      "scheduleSuccess": "✓ Post scheduled! It will appear in the calendar.",
+      "scheduleTitle": "Schedule publication",
+      "scheduleDate": "Date *",
+      "scheduleTime": "Time",
+      "scheduleBtn": "Schedule",
+      "scheduleSaving": "Saving...",
+      "scheduleCancel": "Cancel",
+      "noChannels": "No connected channels.",
+      "connectTelegram": "Connect Telegram →",
+      "createMore": "← Create more",
+      "schedulePost": "📅 Schedule",
+      "history": "History →"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Sign in to your account",
+      "email": "Email",
+      "password": "Password",
+      "forgot": "Forgot?",
+      "btn": "Sign in",
+      "loading": "Signing in...",
+      "noAccount": "Don't have an account?",
+      "register": "Sign up"
+    },
+    "register": {
+      "title": "Create an account",
+      "name": "Name",
+      "email": "Email",
+      "password": "Password",
+      "btn": "Sign up",
+      "loading": "Creating...",
+      "hasAccount": "Already have an account?",
+      "login": "Sign in"
+    }
+  },
+  "common": {
+    "noNiche": "No niche",
+    "loading": "Loading...",
+    "error": "Error",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete"
+  },
+  "langSwitcher": {
+    "label": "Language"
+  },
+  "history": {
+    "title": "History",
+    "subtitle": "All generated content",
+    "noHistory": "No history yet",
+    "noContent": "Generated content will appear here",
+    "copy": "Copy",
+    "delete": "Delete",
+    "deleting": "Deleting...",
+    "save": "Save",
+    "saving": "Saving...",
+    "edit": "Edit",
+    "cancel": "Cancel",
+    "hook": "Hook",
+    "text": "Text",
+    "stats": "Statistics",
+    "views": "Views",
+    "reactions": "Reactions",
+    "activity": "Activity",
+    "openPost": "Open →",
+    "empty": "Empty",
+    "status": {
+      "draft": "Draft",
+      "generated": "Ready",
+      "approved": "Approved",
+      "scheduled": "Scheduled",
+      "published": "Published",
+      "failed": "Failed"
+    },
+    "filters": {
+      "all": "All",
+      "generated": "Generated",
+      "scheduled": "Scheduled",
+      "published": "Published",
+      "draft": "Drafts"
+    }
+  },
+  "integrations": {
+    "title": "Telegram",
+    "subtitle": "Auto-posting to channels",
+    "addChannel": "+ Add channel",
+    "successMsg": "✓ Channel connected successfully!",
+    "howToConnect": "How to connect:",
+    "connectBtn": "Connect first channel",
+    "form": {
+      "title": "New channel",
+      "token": "Bot token *",
+      "check": "Test",
+      "channelId": "Channel ID *",
+      "channelName": "Channel name",
+      "save": "Connect channel",
+      "saving": "Saving..."
+    },
+    "active": "Active",
+    "inactive": "Inactive",
+    "connected": "Connected channels"
+  },
+  "calendar": {
+    "title": "Calendar",
+    "subtitle": "Publication schedule",
+    "today": "Today",
+    "noPosts": "No publications",
+    "status": {
+      "published": "Published",
+      "failed": "Failed",
+      "pending": "Pending"
+    }
+  },
+  "tones": {
+    "friendly": "Friendly",
+    "expert": "Expert",
+    "viral": "Viral",
+    "premium": "Premium"
+  },
+  "langs": {
+    "ru": "Russian",
+    "uz": "Uzbek",
+    "en": "English"
+  },
+  "contentTypes": {
+    "post": "Post",
+    "video": "Video",
+    "stories": "Stories",
+    "ad": "Ad"
+  },
+  "statuses": {
+    "draft": "Draft",
+    "generated": "Generated",
+    "scheduled": "Scheduled",
+    "published": "Published",
+    "failed": "Failed",
+    "ready": "Ready"
+  },
+  "analytics": {
+    "title": "Analytics",
+    "subtitle": "Statistics for all content",
+    "totalGenerations": "Total generations",
+    "scheduled": "Scheduled",
+    "published": "Published",
+    "errors": "Errors",
+    "activity7": "Activity last 7 days",
+    "trend30": "Trend last 30 days",
+    "byPlatform": "By platform",
+    "byType": "By content type",
+    "byStatus": "By status"
+  }
+}
