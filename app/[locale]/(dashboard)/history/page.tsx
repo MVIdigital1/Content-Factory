@@ -13,7 +13,7 @@ const STATUS_CONFIG: Record<
   { label: string; bg: string; text: string; dot: string }
 > = {
   draft: {
-    label: t("status.draft"),
+    label: "status.draft",
     bg: "bg-gray-100",
     text: "text-gray-500",
     dot: "bg-gray-400",
