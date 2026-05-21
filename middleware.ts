@@ -25,18 +25,22 @@ export async function middleware(request: NextRequest) {
     },
   );
 
+  // Обновляем сессию — важно для передачи куки
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
   const { pathname } = request.nextUrl;
-  const publicRoutes = ["/auth/login", "/auth/register"];
+  const publicRoutes = ["/auth/login", "/auth/register", "/auth/callback"];
   const isPublic = publicRoutes.some((r) => pathname.startsWith(r));
 
-  // Auth protection disabled temporarily
-  // if (!user && !isPublic)
-  //   return NextResponse.redirect(new URL("/auth/login", request.url));
-  if (user && isPublic)
+  if (!user && !isPublic) {
+    return NextResponse.redirect(new URL("/auth/login", request.url));
+  }
+
+  if (user && (pathname === "/auth/login" || pathname === "/auth/register")) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
 
   return supabaseResponse;
 }
