@@ -4,9 +4,12 @@ import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
   try {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await request.json();
     const { projectId, platform, contentType, goal, topic } = body;
@@ -17,7 +20,8 @@ export async function POST(request: Request) {
       .eq("id", projectId)
       .single();
 
-    if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    if (!project)
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
     const generated = await generateContent({
       projectName: project.name,

@@ -26,7 +26,6 @@ export async function GET(request: Request) {
   for (const post of posts) {
     try {
       const content = post.contents as any;
-
       if (post.platform === "telegram") {
         const { data: integration } = await supabase
           .from("integrations")
@@ -37,9 +36,8 @@ export async function GET(request: Request) {
 
         if (!integration) throw new Error("Нет активного Telegram канала");
 
-        const caption = content?.caption || "";
-        const hashtags = (content?.hashtags || []).join(" ");
-        const text = `${caption}\n\n${hashtags}`.trim();
+        const text =
+          `${content?.caption || ""}\n\n${(content?.hashtags || []).join(" ")}`.trim();
 
         const res = await fetch(
           `https://api.telegram.org/bot${integration.token}/sendMessage`,
@@ -70,11 +68,9 @@ export async function GET(request: Request) {
           .from("contents")
           .update({ status: "published" })
           .eq("id", post.content_id);
-
         published++;
       }
     } catch (err: any) {
-      console.error(`Failed post ${post.id}:`, err.message);
       await supabase
         .from("scheduled_posts")
         .update({
