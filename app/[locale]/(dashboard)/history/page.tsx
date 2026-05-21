@@ -8,47 +8,48 @@ import { ru } from "date-fns/locale";
 import { useTranslations, useLocale } from "next-intl";
 import { useSearchParams, useRouter } from "next/navigation";
 
-const STATUS_CONFIG: Record<
-  string,
-  { label: string; bg: string; text: string; dot: string }
-> = {
-  draft: {
-    label: "status.draft",
-    bg: "bg-gray-100",
-    text: "text-gray-500",
-    dot: "bg-gray-400",
-  },
-  generated: {
-    label: "Готово",
-    bg: "bg-amber-50",
-    text: "text-amber-600",
-    dot: "bg-amber-400",
-  },
-  approved: {
-    label: "Одобрено",
-    bg: "bg-blue-50",
-    text: "text-blue-600",
-    dot: "bg-blue-400",
-  },
-  scheduled: {
-    label: "Запланировано",
-    bg: "bg-purple-50",
-    text: "text-purple-600",
-    dot: "bg-purple-400",
-  },
-  published: {
-    label: "Опубликовано",
-    bg: "bg-[#E1F5EE]",
-    text: "text-[#1D9E75]",
-    dot: "bg-[#1D9E75]",
-  },
-  failed: {
-    label: "Ошибка",
-    bg: "bg-red-50",
-    text: "text-red-500",
-    dot: "bg-red-400",
-  },
-};
+function getStatusConfig(
+  t: ReturnType<typeof useTranslations>,
+): Record<string, { label: string; bg: string; text: string; dot: string }> {
+  return {
+    draft: {
+      label: t("status.draft"),
+      bg: "bg-gray-100",
+      text: "text-gray-500",
+      dot: "bg-gray-400",
+    },
+    generated: {
+      label: t("status.generated", { default: "Готово" }),
+      bg: "bg-amber-50",
+      text: "text-amber-600",
+      dot: "bg-amber-400",
+    },
+    approved: {
+      label: t("status.approved", { default: "Одобрено" }),
+      bg: "bg-blue-50",
+      text: "text-blue-600",
+      dot: "bg-blue-400",
+    },
+    scheduled: {
+      label: t("status.scheduled", { default: "Запланировано" }),
+      bg: "bg-purple-50",
+      text: "text-purple-600",
+      dot: "bg-purple-400",
+    },
+    published: {
+      label: t("status.published", { default: "Опубликовано" }),
+      bg: "bg-[#E1F5EE]",
+      text: "text-[#1D9E75]",
+      dot: "bg-[#1D9E75]",
+    },
+    failed: {
+      label: t("status.failed", { default: "Ошибка" }),
+      bg: "bg-red-50",
+      text: "text-red-500",
+      dot: "bg-red-400",
+    },
+  };
+}
 
 const COLUMNS = [
   "draft",
@@ -74,9 +75,11 @@ export default function HistoryPage() {
   const supabase = createClient();
   const queryClient = useQueryClient();
   const t = useTranslations("history");
+  const statusT = useTranslations("status");
   const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const STATUS_CONFIG = getStatusConfig(statusT);
 
   const [selected, setSelected] = useState<any>(null);
   const [copied, setCopied] = useState(false);
