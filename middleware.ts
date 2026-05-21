@@ -32,8 +32,9 @@ export async function middleware(request: NextRequest) {
   const publicRoutes = ["/auth/login", "/auth/register"];
   const isPublic = publicRoutes.some((r) => pathname.startsWith(r));
 
-  if (!user && !isPublic)
-    return NextResponse.redirect(new URL("/auth/login", request.url));
+  // Auth protection disabled temporarily
+  // if (!user && !isPublic)
+  //   return NextResponse.redirect(new URL("/auth/login", request.url));
   if (user && isPublic)
     return NextResponse.redirect(new URL("/dashboard", request.url));
 
