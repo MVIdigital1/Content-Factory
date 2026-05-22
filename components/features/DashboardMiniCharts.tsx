@@ -123,7 +123,7 @@ export default function DashboardMiniCharts({
                 <Tooltip
                   cursor={{ fill: "#F9FAFB" }}
                   contentStyle={tooltipStyle}
-                  formatter={(v: number) => [`${v}`, ""]}
+                  formatter={(v: any) => [`${v}`, ""]}
                 />
                 <Bar dataKey="count" radius={[3, 3, 0, 0]}>
                   {(activityData.length > 0
