@@ -42,7 +42,7 @@ export async function generateContent({
   };
 
   const imageInstruction = imageUrl
-    ? "\nИЗОБРАЖЕНИЕ: Пользователь прикрепил картинку. Используй её как основу и вдохновение для контента."
+    ? `\nИЗОБРАЖЕНИЕ: К посту прикреплена картинка (${imageUrl}). Учти это при создании контента — пиши текст который дополняет визуал.`
     : "";
 
   const prompt = `Ты — профессиональный SMM-копирайтер. Создай контент для бренда.
@@ -73,30 +73,13 @@ export async function generateContent({
   "screen_text": "текст на экране"
 }`;
 
-  // Build message content — with or without image
-  const messageContent: Anthropic.MessageParam["content"] = imageUrl
-    ? [
-        {
-          type: "image" as const,
-          source: {
-            type: "url" as const,
-            url: imageUrl,
-          },
-        },
-        {
-          type: "text" as const,
-          text: prompt,
-        },
-      ]
-    : prompt;
-
   const message = await client.messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 1500,
     messages: [
       {
         role: "user",
-        content: messageContent,
+        content: prompt,
       },
     ],
   });
