@@ -87,7 +87,7 @@ export default function DashboardCharts({
                   borderRadius: 8,
                   boxShadow: "none",
                 }}
-                formatter={(v: number) => [`${v}`, ""]}
+                formatter={(v: any) => [`${v}`, ""]}
               />
               <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                 {activityData.map((entry, i) => (
