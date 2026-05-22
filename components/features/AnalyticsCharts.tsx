@@ -14,7 +14,6 @@ import {
   Pie,
   Legend,
 } from "recharts";
-import { useTranslations } from "next-intl";
 
 type Props = {
   days7: { date: string; count: number }[];
@@ -22,13 +21,6 @@ type Props = {
   platformCounts: Record<string, number>;
   typeCounts: Record<string, number>;
   statusCounts: Record<string, number>;
-  labels: {
-    activity7: string;
-    trend30: string;
-    byPlatform: string;
-    byType: string;
-    byStatus: string;
-  };
 };
 
 const COLORS = ["#1D9E75", "#3B82F6", "#F59E0B", "#8B5CF6", "#EC4899"];
@@ -43,7 +35,19 @@ const PLATFORM_LABELS: Record<string, string> = {
   telegram: "Telegram",
   instagram: "Instagram",
   tiktok: "TikTok",
-  vk: "VK",
+};
+const TYPE_LABELS: Record<string, string> = {
+  post: "Пост",
+  video: "Видео",
+  stories: "Stories",
+  ad: "Реклама",
+};
+const STATUS_LABELS: Record<string, string> = {
+  draft: "Черновик",
+  generated: "Готово",
+  scheduled: "Запланировано",
+  published: "Опубликовано",
+  failed: "Ошибка",
 };
 
 const tooltipStyle = {
@@ -53,6 +57,7 @@ const tooltipStyle = {
   boxShadow: "none",
   background: "#fff",
 };
+
 const EMPTY_7 = Array.from({ length: 7 }, (_, i) => ({
   date: `${i + 1}`,
   count: 0,
@@ -84,36 +89,7 @@ export default function AnalyticsCharts({
   platformCounts,
   typeCounts,
   statusCounts,
-  labels,
 }: Props) {
-  const tHistory = useTranslations("history");
-
-  const TYPE_LABELS: Record<string, string> = {
-    post:
-      tHistory("status.draft") === "Черновик"
-        ? "Пост"
-        : tHistory("status.draft") === "Qoralama"
-          ? "Post"
-          : "Post",
-    video: tHistory("status.draft") === "Черновик" ? "Видео" : "Video",
-    stories: "Stories",
-    ad:
-      tHistory("status.draft") === "Черновик"
-        ? "Реклама"
-        : tHistory("status.draft") === "Qoralama"
-          ? "Reklama"
-          : "Ad",
-  };
-
-  const STATUS_LABELS: Record<string, string> = {
-    draft: tHistory("status.draft"),
-    generated: tHistory("status.generated"),
-    approved: tHistory("status.approved"),
-    scheduled: tHistory("status.scheduled"),
-    published: tHistory("status.published"),
-    failed: tHistory("status.failed"),
-  };
-
   const platformArr = Object.entries(platformCounts).map(([k, v], i) => ({
     name: PLATFORM_LABELS[k] || k,
     value: v,
@@ -135,8 +111,9 @@ export default function AnalyticsCharts({
 
   return (
     <div className="space-y-4">
+      {/* Row 1: bar + line */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card title={labels.activity7}>
+        <Card title="Активность за 7 дней">
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={days7.length > 0 ? days7 : EMPTY_7} barSize={20}>
               <XAxis
@@ -149,7 +126,7 @@ export default function AnalyticsCharts({
               <Tooltip
                 cursor={{ fill: "#F9FAFB" }}
                 contentStyle={tooltipStyle}
-                formatter={(v: number) => [`${v}`, ""]}
+                formatter={(v: any) => [`${v} ген.`, ""]}
               />
               <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                 {(days7.length > 0 ? days7 : EMPTY_7).map((entry, i) => (
@@ -163,7 +140,7 @@ export default function AnalyticsCharts({
           </ResponsiveContainer>
         </Card>
 
-        <Card title={labels.trend30}>
+        <Card title="Тренд за 30 дней">
           <ResponsiveContainer width="100%" height={180}>
             <LineChart data={days30.length > 0 ? days30 : EMPTY_30}>
               <XAxis
@@ -176,7 +153,7 @@ export default function AnalyticsCharts({
               <YAxis hide allowDecimals={false} />
               <Tooltip
                 contentStyle={tooltipStyle}
-                formatter={(v: number) => [`${v}`, ""]}
+                formatter={(v: any) => [`${v} ген.`, ""]}
               />
               <Line
                 type="monotone"
@@ -190,8 +167,9 @@ export default function AnalyticsCharts({
         </Card>
       </div>
 
+      {/* Row 2: three charts */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card title={labels.byPlatform}>
+        <Card title="По платформам">
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie
@@ -221,7 +199,7 @@ export default function AnalyticsCharts({
           </ResponsiveContainer>
         </Card>
 
-        <Card title={labels.byType}>
+        <Card title="По типу контента">
           <ResponsiveContainer width="100%" height={200}>
             <BarChart
               data={hasTypes ? typeArr : [{ name: "—", value: 0 }]}
@@ -252,7 +230,7 @@ export default function AnalyticsCharts({
           </ResponsiveContainer>
         </Card>
 
-        <Card title={labels.byStatus}>
+        <Card title="По статусам">
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie
