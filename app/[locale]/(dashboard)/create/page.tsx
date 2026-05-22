@@ -27,6 +27,80 @@ type GeneratedContent = {
   id?: string;
 };
 
+// Custom dropdown in site style
+function CustomSelect({
+  value,
+  onChange,
+  options,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((o) => o.value === value);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-left flex items-center justify-between bg-white hover:border-[#1D9E75] focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] outline-none transition-colors cursor-pointer"
+      >
+        <span className={selected ? "text-gray-900" : "text-gray-400"}>
+          {selected?.label || placeholder || "Выберите..."}
+        </span>
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={`transition-transform flex-shrink-0 text-gray-400 ${open ? "rotate-180" : ""}`}
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+            {placeholder && (
+              <button
+                type="button"
+                onClick={() => {
+                  onChange("");
+                  setOpen(false);
+                }}
+                className="w-full px-3 py-2.5 text-sm text-left text-gray-400 hover:bg-gray-50 cursor-pointer"
+              >
+                {placeholder}
+              </button>
+            )}
+            {options.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => {
+                  onChange(o.value);
+                  setOpen(false);
+                }}
+                className={`w-full px-3 py-2.5 text-sm text-left transition-colors cursor-pointer ${value === o.value ? "bg-[#E1F5EE] text-[#1D9E75] font-medium" : "text-gray-700 hover:bg-[#E1F5EE] hover:text-[#1D9E75]"}`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function CreatePage() {
   const router = useRouter();
   const supabase = createClient();
@@ -73,6 +147,8 @@ export default function CreatePage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [selectedChannelId, setSelectedChannelId] = useState<string>("");
+  const [showChannelSidebar, setShowChannelSidebar] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("12:00");
@@ -100,6 +176,20 @@ export default function CreatePage() {
         .eq("is_active", true);
       return data || [];
     },
+  });
+
+  const { data: allChannels } = useQuery({
+    queryKey: ["channels", form.platform],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("integrations")
+        .select("*")
+        .eq("platform", form.platform)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      return data || [];
+    },
+    enabled: !!form.platform,
   });
 
   const uploadImage = async (file: File): Promise<string | null> => {
@@ -172,7 +262,11 @@ export default function CreatePage() {
       const res = await fetch("/api/content/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, imageUrl }),
+        body: JSON.stringify({
+          ...form,
+          imageUrl,
+          channelId: selectedChannelId,
+        }),
       });
       const data = await res.json();
       clearInterval(interval);
@@ -204,417 +298,518 @@ export default function CreatePage() {
     "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white";
 
   return (
-    <div className="p-4 md:p-6 max-w-2xl w-full">
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900">{t("title")}</h1>
-        <p className="text-sm text-gray-500 mt-0.5">{t("subtitle")}</p>
-      </div>
-
-      {/* Steps */}
-      <div className="flex items-center gap-2 mb-6">
-        {[1, 2, 3].map((s) => (
-          <div key={s} className="flex items-center gap-2">
-            <div
-              className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${step >= s ? "bg-[#1D9E75] text-white" : "bg-gray-100 text-gray-400"}`}
-            >
-              {step > s ? "✓" : s}
-            </div>
-            {s < 3 && (
-              <div
-                className={`w-8 h-px ${step > s ? "bg-[#1D9E75]" : "bg-gray-200"}`}
-              />
-            )}
-          </div>
-        ))}
-        <div className="ml-2 text-xs text-gray-400">
-          {step === 1
-            ? t("steps.settings")
-            : step === 2
-              ? t("steps.generating")
-              : t("steps.result")}
+    <div className="flex gap-0 min-h-screen">
+      <div className="p-4 md:p-6 max-w-2xl w-full flex-1">
+        <div className="mb-6">
+          <h1 className="text-xl font-bold text-gray-900">{t("title")}</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{t("subtitle")}</p>
         </div>
-      </div>
 
-      {/* STEP 1 */}
-      {step === 1 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">
-              {t("form.project")}
-            </label>
-            <select
-              value={form.projectId}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, projectId: e.target.value }))
-              }
-              className={inputClass}
-            >
-              <option value="">{t("form.projectDefault")}</option>
-              {projects?.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">
-              {t("form.platform")}
-            </label>
-            <div className="flex gap-2">
-              {PLATFORMS.map((p) => (
-                <button
-                  key={p.value}
-                  onClick={() => setForm((f) => ({ ...f, platform: p.value }))}
-                  className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${form.platform === p.value ? "border-[#1D9E75] bg-[#E1F5EE] text-[#1D9E75]" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">
-              {t("form.contentType")}
-            </label>
-            <div className="grid grid-cols-4 gap-2">
-              {CONTENT_TYPES.map((ct) => (
-                <button
-                  key={ct.value}
-                  onClick={() =>
-                    setForm((f) => ({ ...f, contentType: ct.value }))
-                  }
-                  className={`py-2 rounded-lg border text-xs font-medium transition-colors ${form.contentType === ct.value ? "border-[#1D9E75] bg-[#E1F5EE] text-[#1D9E75]" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
-                >
-                  {ct.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">
-              {t("form.goal")}
-            </label>
-            <select
-              value={form.goal}
-              onChange={(e) => setForm((p) => ({ ...p, goal: e.target.value }))}
-              className={inputClass}
-            >
-              <option value="">{t("form.goalDefault")}</option>
-              {GOALS.map((g) => (
-                <option key={g.value} value={g.value}>
-                  {g.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">
-              {t("form.topic")}
-            </label>
-            <textarea
-              value={form.topic}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, topic: e.target.value }))
-              }
-              placeholder={t("form.topicPlaceholder")}
-              rows={3}
-              className={`${inputClass} resize-none`}
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">
-              {t("form.image")}{" "}
-              <span className="text-gray-400 font-normal">
-                {t("form.imageOptional")}
-              </span>
-            </label>
-            {imagePreview ? (
-              <div className="relative rounded-lg overflow-hidden border border-gray-200">
-                <img
-                  src={imagePreview}
-                  alt="Preview"
-                  className="w-full max-h-40 object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setImageFile(null);
-                    setImagePreview(null);
-                  }}
-                  className="absolute top-2 right-2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center text-xs"
-                >
-                  ✕
-                </button>
-                <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-0.5 rounded">
-                  {imageFile?.name}
-                </div>
-              </div>
-            ) : (
+        {/* Steps */}
+        <div className="flex items-center gap-2 mb-6">
+          {[1, 2, 3].map((s) => (
+            <div key={s} className="flex items-center gap-2">
               <div
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragOver(true);
-                }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setDragOver(false);
-                  const f = e.dataTransfer.files[0];
-                  if (f) handleFileSelect(f);
-                }}
-                onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition-colors ${dragOver ? "border-[#1D9E75] bg-[#E1F5EE]" : "border-gray-200 hover:border-[#1D9E75] hover:bg-gray-50"}`}
+                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${step >= s ? "bg-[#1D9E75] text-white" : "bg-gray-100 text-gray-400"}`}
               >
-                <div className="text-xl mb-1">🖼️</div>
-                <p className="text-xs text-gray-500 font-medium">
-                  {t("form.imageHint")}
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {t("form.imageFormats")}
-                </p>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) =>
-                    e.target.files?.[0] && handleFileSelect(e.target.files[0])
-                  }
-                />
+                {step > s ? "✓" : s}
               </div>
-            )}
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-600">
-              {error}
+              {s < 3 && (
+                <div
+                  className={`w-8 h-px ${step > s ? "bg-[#1D9E75]" : "bg-gray-200"}`}
+                />
+              )}
             </div>
-          )}
-
-          <button
-            onClick={handleGenerate}
-            disabled={!form.projectId || !form.topic || !form.goal}
-            className="w-full py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {t("form.generateBtn")}
-          </button>
-        </div>
-      )}
-
-      {/* STEP 2 */}
-      {step === 2 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-          <div className="text-4xl mb-4">⚡</div>
-          <h3 className="text-base font-semibold text-gray-900 mb-2">
-            {t("generating.title")}
-          </h3>
-          <p className="text-sm text-gray-400 mb-6">
-            {t("generating.subtitle")}
-          </p>
-          <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
-            <div
-              className="bg-[#1D9E75] h-2 rounded-full transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
+          ))}
+          <div className="ml-2 text-xs text-gray-400">
+            {step === 1
+              ? t("steps.settings")
+              : step === 2
+                ? t("steps.generating")
+                : t("steps.result")}
           </div>
-          <p className="text-xs text-gray-400">{progress}%</p>
         </div>
-      )}
 
-      {/* STEP 3 */}
-      {step === 3 && result && (
-        <div className="space-y-4">
-          {imagePreview && (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <img
-                src={imagePreview}
-                alt="Post image"
-                className="w-full max-h-48 object-cover"
+        {/* STEP 1 */}
+        {step === 1 && (
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                {t("form.project")}
+              </label>
+              <CustomSelect
+                value={form.projectId}
+                onChange={(v) => setForm((p) => ({ ...p, projectId: v }))}
+                options={(projects || []).map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                }))}
+                placeholder={t("form.projectDefault")}
               />
             </div>
-          )}
 
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className="text-base font-bold text-gray-900 mb-1">
-                  {result.title}
-                </h3>
-                <p className="text-sm text-gray-500">{result.idea}</p>
-              </div>
-              <span className="text-xs px-2 py-1 bg-[#E1F5EE] text-[#1D9E75] rounded-full font-medium flex-shrink-0">
-                {t("result.generated")}
-              </span>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-              {t("result.hook")}
-            </p>
-            <p className="text-sm text-gray-700">{result.hook}</p>
-          </div>
-
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                {t("result.caption")}
-              </p>
-              <button
-                onClick={copyCaption}
-                className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${copied ? "border-[#1D9E75] bg-[#E1F5EE] text-[#1D9E75]" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
-              >
-                {copied ? t("result.copied") : t("result.copy")}
-              </button>
-            </div>
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">
-              {result.caption}
-            </p>
-            <div className="flex flex-wrap gap-1.5 mt-3">
-              {result.hashtags?.map((h) => (
-                <span
-                  key={h}
-                  className="text-xs text-[#1D9E75] bg-[#E1F5EE] px-2 py-0.5 rounded-full"
-                >
-                  {h}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-              {t("result.cta")}
-            </p>
-            <p className="text-sm text-gray-700">{result.cta}</p>
-          </div>
-
-          {result.script && result.script.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                {t("result.script")}
-              </p>
-              <div className="space-y-2">
-                {result.script.map((s) => (
-                  <div key={s.scene} className="flex gap-3">
-                    <span className="text-xs font-bold text-[#1D9E75] bg-[#E1F5EE] px-2 py-0.5 rounded flex-shrink-0 h-fit">
-                      {s.scene}
-                    </span>
-                    <div>
-                      <p className="text-sm text-gray-700">{s.text}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {s.duration}
-                      </p>
-                    </div>
-                  </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                {t("form.platform")}
+              </label>
+              <div className="flex gap-2">
+                {PLATFORMS.map((p) => (
+                  <button
+                    key={p.value}
+                    onClick={() => {
+                      setForm((f) => ({ ...f, platform: p.value }));
+                      setSelectedChannelId("");
+                      setShowChannelSidebar(true);
+                    }}
+                    className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${form.platform === p.value ? "border-[#1D9E75] bg-[#E1F5EE] text-[#1D9E75]" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
+                  >
+                    {p.label}
+                  </button>
                 ))}
               </div>
             </div>
-          )}
 
-          {scheduleSuccess && (
-            <div className="bg-[#E1F5EE] border border-[#1D9E75] border-opacity-30 rounded-xl px-4 py-3 text-sm text-[#1D9E75] font-medium">
-              {t("result.scheduleSuccess")}
-            </div>
-          )}
-
-          {showSchedule && (
-            <div className="bg-white rounded-xl border border-[#1D9E75] border-opacity-30 p-5 space-y-3">
-              <h4 className="text-sm font-semibold text-gray-900">
-                {t("result.scheduleTitle")}
-              </h4>
-              {integrations && integrations.length === 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
-                  {t("result.noChannels")}{" "}
-                  <a
-                    href={`/${locale}/integrations`}
-                    className="font-semibold underline"
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                {t("form.contentType")}
+              </label>
+              <div className="grid grid-cols-4 gap-2">
+                {CONTENT_TYPES.map((ct) => (
+                  <button
+                    key={ct.value}
+                    onClick={() =>
+                      setForm((f) => ({ ...f, contentType: ct.value }))
+                    }
+                    className={`py-2 rounded-lg border text-xs font-medium transition-colors ${form.contentType === ct.value ? "border-[#1D9E75] bg-[#E1F5EE] text-[#1D9E75]" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
                   >
-                    {t("result.connectTelegram")}
-                  </a>
+                    {ct.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                {t("form.goal")}
+              </label>
+              <CustomSelect
+                value={form.goal}
+                onChange={(v) => setForm((p) => ({ ...p, goal: v }))}
+                options={GOALS}
+                placeholder={t("form.goalDefault")}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                {t("form.topic")}
+              </label>
+              <textarea
+                value={form.topic}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, topic: e.target.value }))
+                }
+                placeholder={t("form.topicPlaceholder")}
+                rows={3}
+                className={`${inputClass} resize-none`}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                {t("form.image")}{" "}
+                <span className="text-gray-400 font-normal">
+                  {t("form.imageOptional")}
+                </span>
+              </label>
+              {imagePreview ? (
+                <div className="relative rounded-lg overflow-hidden border border-gray-200">
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    className="w-full max-h-40 object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImageFile(null);
+                      setImagePreview(null);
+                    }}
+                    className="absolute top-2 right-2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center text-xs"
+                  >
+                    ✕
+                  </button>
+                  <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-0.5 rounded">
+                    {imageFile?.name}
+                  </div>
+                </div>
+              ) : (
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                  }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOver(false);
+                    const f = e.dataTransfer.files[0];
+                    if (f) handleFileSelect(f);
+                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition-colors ${dragOver ? "border-[#1D9E75] bg-[#E1F5EE]" : "border-gray-200 hover:border-[#1D9E75] hover:bg-gray-50"}`}
+                >
+                  <div className="text-xl mb-1">🖼️</div>
+                  <p className="text-xs text-gray-500 font-medium">
+                    {t("form.imageHint")}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {t("form.imageFormats")}
+                  </p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) =>
+                      e.target.files?.[0] && handleFileSelect(e.target.files[0])
+                    }
+                  />
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
+            </div>
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-600">
+                {error}
+              </div>
+            )}
+
+            <button
+              onClick={handleGenerate}
+              disabled={!form.projectId || !form.topic || !form.goal}
+              className="w-full py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {t("form.generateBtn")}
+            </button>
+          </div>
+        )}
+
+        {/* STEP 2 */}
+        {step === 2 && (
+          <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+            <div className="text-4xl mb-4">⚡</div>
+            <h3 className="text-base font-semibold text-gray-900 mb-2">
+              {t("generating.title")}
+            </h3>
+            <p className="text-sm text-gray-400 mb-6">
+              {t("generating.subtitle")}
+            </p>
+            <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
+              <div
+                className="bg-[#1D9E75] h-2 rounded-full transition-all duration-500"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="text-xs text-gray-400">{progress}%</p>
+          </div>
+        )}
+
+        {/* STEP 3 */}
+        {step === 3 && result && (
+          <div className="space-y-4">
+            {imagePreview && (
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <img
+                  src={imagePreview}
+                  alt="Post image"
+                  className="w-full max-h-48 object-cover"
+                />
+              </div>
+            )}
+
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <div className="flex items-start justify-between gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                    {t("result.scheduleDate")}
-                  </label>
-                  <input
-                    type="date"
-                    value={scheduleDate}
-                    min={new Date().toISOString().split("T")[0]}
-                    onChange={(e) => setScheduleDate(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white"
-                  />
+                  <h3 className="text-base font-bold text-gray-900 mb-1">
+                    {result.title}
+                  </h3>
+                  <p className="text-sm text-gray-500">{result.idea}</p>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                    {t("result.scheduleTime")}
-                  </label>
-                  <input
-                    type="time"
-                    value={scheduleTime}
-                    onChange={(e) => setScheduleTime(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white"
-                  />
+                <span className="text-xs px-2 py-1 bg-[#E1F5EE] text-[#1D9E75] rounded-full font-medium flex-shrink-0">
+                  {t("result.generated")}
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                {t("result.hook")}
+              </p>
+              <p className="text-sm text-gray-700">{result.hook}</p>
+            </div>
+
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                  {t("result.caption")}
+                </p>
+                <button
+                  onClick={copyCaption}
+                  className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${copied ? "border-[#1D9E75] bg-[#E1F5EE] text-[#1D9E75]" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
+                >
+                  {copied ? t("result.copied") : t("result.copy")}
+                </button>
+              </div>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                {result.caption}
+              </p>
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {result.hashtags?.map((h) => (
+                  <span
+                    key={h}
+                    className="text-xs text-[#1D9E75] bg-[#E1F5EE] px-2 py-0.5 rounded-full"
+                  >
+                    {h}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                {t("result.cta")}
+              </p>
+              <p className="text-sm text-gray-700">{result.cta}</p>
+            </div>
+
+            {result.script && result.script.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                  {t("result.script")}
+                </p>
+                <div className="space-y-2">
+                  {result.script.map((s) => (
+                    <div key={s.scene} className="flex gap-3">
+                      <span className="text-xs font-bold text-[#1D9E75] bg-[#E1F5EE] px-2 py-0.5 rounded flex-shrink-0 h-fit">
+                        {s.scene}
+                      </span>
+                      <div>
+                        <p className="text-sm text-gray-700">{s.text}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {s.duration}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-              <div className="grid grid-cols-4 gap-2">
+            )}
+
+            {scheduleSuccess && (
+              <div className="bg-[#E1F5EE] border border-[#1D9E75] border-opacity-30 rounded-xl px-4 py-3 text-sm text-[#1D9E75] font-medium">
+                {t("result.scheduleSuccess")}
+              </div>
+            )}
+
+            {showSchedule && (
+              <div className="bg-white rounded-xl border border-[#1D9E75] border-opacity-30 p-5 space-y-3">
+                <h4 className="text-sm font-semibold text-gray-900">
+                  {t("result.scheduleTitle")}
+                </h4>
+                {integrations && integrations.length === 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
+                    {t("result.noChannels")}{" "}
+                    <a
+                      href={`/${locale}/integrations`}
+                      className="font-semibold underline"
+                    >
+                      {t("result.connectTelegram")}
+                    </a>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                      {t("result.scheduleDate")}
+                    </label>
+                    <input
+                      type="date"
+                      value={scheduleDate}
+                      min={new Date().toISOString().split("T")[0]}
+                      onChange={(e) => setScheduleDate(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                      {t("result.scheduleTime")}
+                    </label>
+                    <input
+                      type="time"
+                      value={scheduleTime}
+                      onChange={(e) => setScheduleTime(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  <button
+                    onClick={() => scheduleMutation.mutate()}
+                    disabled={!scheduleDate || scheduleMutation.isPending}
+                    className="flex-1 py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {scheduleMutation.isPending
+                      ? t("result.scheduleSaving")
+                      : t("result.scheduleBtn")}
+                  </button>
+                  <button
+                    onClick={() => setShowSchedule(false)}
+                    className="px-4 py-2.5 border border-gray-200 text-gray-500 text-sm rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    {t("result.scheduleCancel")}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setStep(1);
+                  setResult(null);
+                  setShowSchedule(false);
+                  setScheduleSuccess(false);
+                  setImageFile(null);
+                  setImagePreview(null);
+                  setForm((p) => ({ ...p, topic: "" }));
+                }}
+                className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                {t("result.createMore")}
+              </button>
+              {!scheduleSuccess && (
                 <button
-                  onClick={() => scheduleMutation.mutate()}
-                  disabled={!scheduleDate || scheduleMutation.isPending}
-                  className="flex-1 py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+                  onClick={() => setShowSchedule((v) => !v)}
+                  className="flex-1 py-2.5 border border-[#1D9E75] text-[#1D9E75] text-sm font-semibold rounded-lg hover:bg-[#E1F5EE] transition-colors"
                 >
-                  {scheduleMutation.isPending
-                    ? t("result.scheduleSaving")
-                    : t("result.scheduleBtn")}
+                  {t("result.schedulePost")}
                 </button>
-                <button
-                  onClick={() => setShowSchedule(false)}
-                  className="px-4 py-2.5 border border-gray-200 text-gray-500 text-sm rounded-lg hover:bg-gray-50 transition-colors"
+              )}
+              <button
+                onClick={() => router.push(`/${locale}/history`)}
+                className="flex-1 py-2.5 bg-[#1D9E75] text-white text-sm font-semibold rounded-lg hover:bg-[#0F6E56] transition-colors"
+              >
+                {t("result.history")}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Channel Sidebar */}
+      {showChannelSidebar && (
+        <div className="w-72 flex-shrink-0 bg-white border-l border-gray-100 flex flex-col overflow-hidden h-screen sticky top-0">
+          <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">
+                {form.platform === "telegram"
+                  ? "Telegram"
+                  : form.platform === "instagram"
+                    ? "Instagram"
+                    : form.platform === "vk"
+                      ? "VK"
+                      : "TikTok"}{" "}
+                каналы
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Выберите канал для публикации
+              </p>
+            </div>
+            <button
+              onClick={() => setShowChannelSidebar(false)}
+              className="text-gray-300 hover:text-gray-500 cursor-pointer p-1"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            {!allChannels || allChannels.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="text-3xl mb-3">📡</div>
+                <p className="text-xs font-medium text-gray-700 mb-1">
+                  Нет подключённых каналов
+                </p>
+                <p className="text-xs text-gray-400 mb-4">
+                  Подключите канал чтобы публиковать посты
+                </p>
+                <a
+                  href={`/${locale}/integrations`}
+                  className="text-xs text-[#1D9E75] font-semibold hover:underline cursor-pointer"
                 >
-                  {t("result.scheduleCancel")}
-                </button>
+                  Подключить Telegram →
+                </a>
+              </div>
+            ) : (
+              allChannels.map((ch: any) => (
+                <div
+                  key={ch.id}
+                  onClick={() => {
+                    setSelectedChannelId(ch.id);
+                    setShowChannelSidebar(false);
+                  }}
+                  className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                    selectedChannelId === ch.id
+                      ? "border-[#1D9E75] bg-[#E1F5EE]"
+                      : "border-gray-100 hover:border-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#2AABEE"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={`text-xs font-semibold truncate ${selectedChannelId === ch.id ? "text-[#1D9E75]" : "text-gray-900"}`}
+                    >
+                      {ch.channel_name || ch.channel_id}
+                    </p>
+                    <p className="text-[10px] text-gray-400 truncate">
+                      {ch.channel_id}
+                    </p>
+                  </div>
+                  {selectedChannelId === ch.id && (
+                    <span className="text-[#1D9E75] text-sm flex-shrink-0">
+                      ✓
+                    </span>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+          {selectedChannelId && (
+            <div className="p-3 border-t border-gray-100">
+              <div className="bg-[#E1F5EE] rounded-lg px-3 py-2">
+                <p className="text-xs text-[#1D9E75] font-medium">
+                  ✓ Канал выбран —{" "}
+                  {allChannels?.find((c: any) => c.id === selectedChannelId)
+                    ?.channel_name || ""}
+                </p>
               </div>
             </div>
           )}
-
-          <div className="flex gap-3">
-            <button
-              onClick={() => {
-                setStep(1);
-                setResult(null);
-                setShowSchedule(false);
-                setScheduleSuccess(false);
-                setImageFile(null);
-                setImagePreview(null);
-                setForm((p) => ({ ...p, topic: "" }));
-              }}
-              className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              {t("result.createMore")}
-            </button>
-            {!scheduleSuccess && (
-              <button
-                onClick={() => setShowSchedule((v) => !v)}
-                className="flex-1 py-2.5 border border-[#1D9E75] text-[#1D9E75] text-sm font-semibold rounded-lg hover:bg-[#E1F5EE] transition-colors"
-              >
-                {t("result.schedulePost")}
-              </button>
-            )}
-            <button
-              onClick={() => router.push(`/${locale}/history`)}
-              className="flex-1 py-2.5 bg-[#1D9E75] text-white text-sm font-semibold rounded-lg hover:bg-[#0F6E56] transition-colors"
-            >
-              {t("result.history")}
-            </button>
-          </div>
         </div>
       )}
     </div>

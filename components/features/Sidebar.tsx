@@ -155,6 +155,21 @@ const Icons = {
       <path d="M18 6L6 18M6 6l12 12" />
     </svg>
   ),
+  admin: (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="11" width="18" height="11" rx="2" />
+      <path d="M7 11V7a5 5 0 0110 0v4" />
+    </svg>
+  ),
 };
 
 const NAV_ITEMS = [
@@ -172,8 +187,19 @@ function NavContent({ onClose }: { onClose?: () => void }) {
   const supabase = createClient();
   const [isPending, startTransition] = useTransition();
   const [activeHref, setActiveHref] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const t = useTranslations("nav");
   const locale = useLocale();
+
+  // Check if current user is admin
+  useState(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+      if (adminEmail && user?.email === adminEmail) {
+        setIsAdmin(true);
+      }
+    });
+  });
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -271,6 +297,19 @@ function NavContent({ onClose }: { onClose?: () => void }) {
 
       <div className="border-t border-gray-100">
         <LangSwitcher />
+        {isAdmin && (
+          <div className="px-2 py-1">
+            <button
+              onClick={() => {
+                window.location.href = "/admin";
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-amber-500 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+            >
+              {Icons.admin}
+              <span className="flex-1">Admin</span>
+            </button>
+          </div>
+        )}
         <div className="px-2 py-1">
           <button
             onClick={() => handleNav("/integrations")}

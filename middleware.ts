@@ -18,6 +18,23 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Admin panel protection — now inside [locale]
+  const isAdminDashboard = /^\/(ru|uz|en)\/admin\/dashboard/.test(pathname);
+  const isAdminLogin = /^\/(ru|uz|en)\/admin$/.test(pathname);
+
+  if (isAdminDashboard) {
+    const adminToken = request.cookies.get("admin_token");
+    if (adminToken?.value !== process.env.ADMIN_SECRET) {
+      const locale = pathname.split("/")[1] || "ru";
+      return NextResponse.redirect(new URL(`/${locale}/admin`, request.url));
+    }
+    return intlMiddleware(request);
+  }
+
+  if (isAdminLogin) {
+    return intlMiddleware(request);
+  }
+
   const response = intlMiddleware(request);
 
   const supabase = createServerClient(

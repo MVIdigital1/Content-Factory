@@ -3,23 +3,29 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
-import { useTranslations } from "next-intl";
+
+const BOT_USERNAME = "postcentro_bot";
+
+type Integration = {
+  id: string;
+  channel_id: string;
+  channel_name: string;
+  is_active: boolean;
+};
 
 export default function IntegrationsPage() {
   const supabase = createClient();
   const queryClient = useQueryClient();
-  const t = useTranslations("integrations");
+
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    token: "",
-    channelId: "",
-    channelName: "",
-    loading: false,
-    error: "",
-    success: false,
-    testing: false,
-    testResult: "",
-  });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [channelId, setChannelId] = useState("");
+  const [channelName, setChannelName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState("");
 
   const { data: integrations, isLoading } = useQuery({
     queryKey: ["integrations"],
@@ -29,7 +35,7 @@ export default function IntegrationsPage() {
         .select("*")
         .eq("platform", "telegram")
         .order("created_at", { ascending: false });
-      return data || [];
+      return (data || []) as Integration[];
     },
   });
 
@@ -43,139 +49,268 @@ export default function IntegrationsPage() {
         .eq("id", id);
       if (error) throw error;
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["integrations"] });
+      if (editingId) setEditingId(null);
+    },
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: async ({
+      id,
+      is_active,
+    }: {
+      id: string;
+      is_active: boolean;
+    }) => {
+      const { error } = await supabase
+        .from("integrations")
+        .update({ is_active })
+        .eq("id", id);
+      if (error) throw error;
+    },
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["integrations"] }),
   });
 
-  const testBot = async () => {
-    if (!form.token) return;
-    setForm((p) => ({ ...p, testing: true, testResult: "" }));
+  const updateMutation = useMutation({
+    mutationFn: async ({
+      id,
+      channel_id,
+      channel_name,
+    }: {
+      id: string;
+      channel_id: string;
+      channel_name: string;
+    }) => {
+      const { error } = await supabase
+        .from("integrations")
+        .update({ channel_id, channel_name })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["integrations"] });
+      setEditingId(null);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    },
+  });
+
+  const testChannel = async (cId: string, setCb: (v: string) => void) => {
+    if (!cId) return;
+    setTesting(true);
+    setCb("");
     try {
       const res = await fetch(
-        `https://api.telegram.org/bot${form.token}/getMe`,
+        `https://api.telegram.org/bot${process.env.NEXT_PUBLIC_BOT_TOKEN}/getChat`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: cId }),
+        },
       );
       const data = await res.json();
-      setForm((p) => ({
-        ...p,
-        testing: false,
-        testResult: data.ok ? `✓ @${data.result.username}` : "✗ Invalid token",
-      }));
+      if (data.ok) {
+        setCb(`✓ Канал найден: ${data.result.title || cId}`);
+      } else {
+        setCb(
+          "✗ Канал не найден. Убедитесь что бот добавлен как администратор",
+        );
+      }
     } catch {
-      setForm((p) => ({
-        ...p,
-        testing: false,
-        testResult: "✗ Connection error",
-      }));
+      setCb("✗ Ошибка проверки");
     }
+    setTesting(false);
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setForm((p) => ({ ...p, loading: true, error: "" }));
+    setLoading(true);
+    setError("");
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      const { error } = await supabase
-        .from("integrations")
-        .insert({
-          user_id: user!.id,
-          platform: "telegram",
-          token: form.token,
-          channel_id: form.channelId,
-          channel_name: form.channelName || form.channelId,
-          is_active: true,
-        });
+      const { error } = await supabase.from("integrations").insert({
+        user_id: user!.id,
+        platform: "telegram",
+        token: process.env.NEXT_PUBLIC_BOT_TOKEN || "",
+        channel_id: channelId,
+        channel_name: channelName || channelId,
+        is_active: true,
+      });
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["integrations"] });
-      setForm((p) => ({
-        ...p,
-        loading: false,
-        success: true,
-        token: "",
-        channelId: "",
-        channelName: "",
-        testResult: "",
-      }));
+      setChannelId("");
+      setChannelName("");
+      setTestResult("");
       setShowForm(false);
-      setTimeout(() => setForm((p) => ({ ...p, success: false })), 3000);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
     } catch {
-      setForm((p) => ({ ...p, loading: false, error: "Ошибка сохранения" }));
+      setError("Ошибка сохранения. Попробуйте ещё раз.");
     }
+    setLoading(false);
   };
 
   const inputClass =
     "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white";
 
+  // Edit panel component
+  const EditPanel = ({ item }: { item: Integration }) => {
+    const [editCId, setEditCId] = useState(item.channel_id);
+    const [editCName, setEditCName] = useState(item.channel_name);
+    const [editTestResult, setEditTestResult] = useState("");
+
+    return (
+      <div className="border-t border-gray-100 mt-3 pt-4 space-y-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1.5">
+            ID канала
+          </label>
+          <div className="flex gap-2">
+            <input
+              value={editCId}
+              onChange={(e) => {
+                setEditCId(e.target.value);
+                setEditTestResult("");
+              }}
+              className={`${inputClass} flex-1`}
+              placeholder="@mychannel"
+            />
+            <button
+              type="button"
+              onClick={() => testChannel(editCId, setEditTestResult)}
+              disabled={!editCId || testing}
+              className="px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+            >
+              {testing ? "..." : "Проверить"}
+            </button>
+          </div>
+          {editTestResult && (
+            <p
+              className={`text-xs mt-1.5 font-medium ${editTestResult.startsWith("✓") ? "text-[#1D9E75]" : "text-red-500"}`}
+            >
+              {editTestResult}
+            </p>
+          )}
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1.5">
+            Название канала
+          </label>
+          <input
+            value={editCName}
+            onChange={(e) => setEditCName(e.target.value)}
+            className={inputClass}
+            placeholder="Мой канал"
+          />
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() =>
+              updateMutation.mutate({
+                id: item.id,
+                channel_id: editCId,
+                channel_name: editCName || editCId,
+              })
+            }
+            disabled={updateMutation.isPending}
+            className="flex-1 py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-60"
+          >
+            {updateMutation.isPending ? "Сохраняем..." : "Сохранить"}
+          </button>
+          <button
+            onClick={() =>
+              toggleMutation.mutate({ id: item.id, is_active: !item.is_active })
+            }
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${item.is_active ? "border-amber-200 text-amber-600 hover:bg-amber-50" : "border-[#1D9E75] text-[#1D9E75] hover:bg-[#E1F5EE]"}`}
+          >
+            {item.is_active ? "Отключить" : "Включить"}
+          </button>
+          <button
+            onClick={() => deleteMutation.mutate(item.id)}
+            className="px-3 py-2 border border-red-200 text-red-500 text-xs font-semibold rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+          >
+            🗑
+          </button>
+        </div>
+        <button
+          onClick={() => setEditingId(null)}
+          className="w-full text-xs text-gray-400 hover:text-gray-600 py-1 cursor-pointer"
+        >
+          Отмена
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className="p-4 md:p-6 max-w-2xl">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">{t("title")}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{t("subtitle")}</p>
+          <h1 className="text-xl font-bold text-gray-900">Telegram</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Автопостинг в каналы</p>
         </div>
         <button
-          onClick={() => setShowForm((v) => !v)}
-          className="flex items-center gap-2 px-4 py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors"
+          onClick={() => {
+            setShowForm((v) => !v);
+            setEditingId(null);
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer"
         >
-          {t("addChannel")}
+          + Добавить канал
         </button>
       </div>
 
-      {form.success && (
-        <div className="bg-[#E1F5EE] border border-[#1D9E75] border-opacity-30 rounded-xl px-4 py-3 text-sm text-[#1D9E75] font-medium mb-4">
-          {t("successMsg")}
+      {success && (
+        <div className="bg-[#E1F5EE] border border-[#1D9E75]/30 rounded-xl px-4 py-3 text-sm text-[#1D9E75] font-medium mb-4">
+          ✓ Сохранено успешно!
         </div>
       )}
 
-      {!hasChannels && !showForm && (
-        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-5">
-          <p className="text-sm font-semibold text-blue-800 mb-2">
-            {t("howToConnect")}
-          </p>
-          <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
-            <li>
-              Напишите{" "}
-              <span className="font-mono bg-blue-100 px-1 rounded">
-                @BotFather
-              </span>{" "}
-              в Telegram
-            </li>
-            <li>
-              Отправьте{" "}
-              <span className="font-mono bg-blue-100 px-1 rounded">
-                /newbot
-              </span>{" "}
-              и создайте бота
-            </li>
-            <li>Скопируйте токен и вставьте ниже</li>
-            <li>Добавьте бота в канал как администратора</li>
-            <li>
-              Вставьте ID канала (например{" "}
-              <span className="font-mono bg-blue-100 px-1 rounded">
-                @mychannel
-              </span>
-              )
-            </li>
-          </ol>
-          <button
-            onClick={() => setShowForm(true)}
-            className="mt-3 w-full py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors"
-          >
-            {t("connectBtn")}
-          </button>
+      {/* Bot info */}
+      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-5">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#1D9E75] flex items-center justify-center flex-shrink-0 text-white font-bold text-sm">
+            P
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-gray-900 mb-0.5">
+              @{BOT_USERNAME}
+            </p>
+            <p className="text-xs text-gray-500 mb-3">
+              Официальный бот PostCentro для автопостинга
+            </p>
+            <div className="bg-white rounded-lg p-3 border border-blue-100">
+              <p className="text-xs font-semibold text-gray-700 mb-2">
+                Как подключить канал:
+              </p>
+              <ol className="text-xs text-gray-600 space-y-1.5 list-decimal list-inside">
+                <li>
+                  Добавьте{" "}
+                  <span className="font-mono bg-gray-100 px-1 rounded">
+                    @{BOT_USERNAME}
+                  </span>{" "}
+                  в канал как администратора
+                </li>
+                <li>Дайте боту права на публикацию сообщений</li>
+                <li>Нажмите "Добавить канал" и введите ID канала</li>
+              </ol>
+            </div>
+          </div>
         </div>
-      )}
+      </div>
 
+      {/* Add form */}
       {showForm && (
         <div className="bg-white rounded-xl border border-gray-200 p-5 mb-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-gray-900">
-              {t("form.title")}
-            </h3>
+            <h3 className="text-sm font-semibold text-gray-900">Новый канал</h3>
             <button
               onClick={() => setShowForm(false)}
-              className="text-gray-400 hover:text-gray-600 text-xl"
+              className="text-gray-400 hover:text-gray-600 text-xl cursor-pointer"
             >
               ×
             </button>
@@ -183,140 +318,137 @@ export default function IntegrationsPage() {
           <form onSubmit={handleSave} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                {t("form.token")}
+                ID канала *
               </label>
               <div className="flex gap-2">
                 <input
-                  value={form.token}
-                  onChange={(e) =>
-                    setForm((p) => ({
-                      ...p,
-                      token: e.target.value,
-                      testResult: "",
-                    }))
-                  }
-                  placeholder="7123456789:AAFxxx..."
+                  value={channelId}
+                  onChange={(e) => {
+                    setChannelId(e.target.value);
+                    setTestResult("");
+                  }}
+                  placeholder="@mychannel или -1001234567890"
                   required
                   className={`${inputClass} flex-1`}
                 />
                 <button
                   type="button"
-                  onClick={testBot}
-                  disabled={!form.token || form.testing}
-                  className="px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                  onClick={() => testChannel(channelId, setTestResult)}
+                  disabled={!channelId || testing}
+                  className="px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 cursor-pointer whitespace-nowrap"
                 >
-                  {form.testing ? "..." : t("form.check")}
+                  {testing ? "..." : "Проверить"}
                 </button>
               </div>
-              {form.testResult && (
+              {testResult && (
                 <p
-                  className={`text-xs mt-1.5 font-medium ${form.testResult.startsWith("✓") ? "text-[#1D9E75]" : "text-red-500"}`}
+                  className={`text-xs mt-1.5 font-medium ${testResult.startsWith("✓") ? "text-[#1D9E75]" : "text-red-500"}`}
                 >
-                  {form.testResult}
+                  {testResult}
                 </p>
               )}
+              <p className="text-xs text-gray-400 mt-1.5">
+                Убедитесь что <span className="font-mono">@{BOT_USERNAME}</span>{" "}
+                уже добавлен как администратор
+              </p>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                {t("form.channelId")}
+                Название канала
               </label>
               <input
-                value={form.channelId}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, channelId: e.target.value }))
-                }
-                placeholder="@mychannel или -1001234567890"
-                required
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                {t("form.channelName")}
-              </label>
-              <input
-                value={form.channelName}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, channelName: e.target.value }))
-                }
+                value={channelName}
+                onChange={(e) => setChannelName(e.target.value)}
                 placeholder="Мой канал"
                 className={inputClass}
               />
             </div>
-            {form.error && (
+            {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-600">
-                {form.error}
+                {error}
               </div>
             )}
             <button
               type="submit"
-              disabled={form.loading}
-              className="w-full py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60"
+              disabled={loading}
+              className="w-full py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60 cursor-pointer"
             >
-              {form.loading ? t("form.saving") : t("form.save")}
+              {loading ? "Сохраняем..." : "Подключить канал"}
             </button>
           </form>
         </div>
       )}
 
+      {/* Channels list */}
       {hasChannels && (
         <div>
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-            {t("connected")} ({integrations.length})
+            Подключённые каналы ({integrations.length})
           </h3>
           <div className="space-y-2">
-            {integrations.map((i: any) => (
+            {integrations.map((i) => (
               <div
                 key={i.id}
-                className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3"
+                className={`bg-white rounded-xl border p-4 transition-all ${editingId === i.id ? "border-[#1D9E75] shadow-sm" : "border-gray-100 hover:border-gray-200"}`}
               >
-                <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#2AABEE"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
-                  </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900">
-                    {i.channel_name || i.channel_id}
-                  </p>
-                  <p className="text-xs text-gray-400">{i.channel_id}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${i.is_active ? "bg-[#E1F5EE] text-[#1D9E75]" : "bg-gray-100 text-gray-400"}`}
-                  >
-                    {i.is_active ? t("active") : t("inactive")}
-                  </span>
-                  <button
-                    onClick={() => deleteMutation.mutate(i.id)}
-                    className="p-1.5 text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-colors"
-                  >
+                <div
+                  className="flex items-center gap-3 cursor-pointer"
+                  onClick={() => setEditingId(editingId === i.id ? null : i.id)}
+                >
+                  <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
                     <svg
-                      width="14"
-                      height="14"
+                      width="16"
+                      height="16"
                       viewBox="0 0 24 24"
                       fill="none"
-                      stroke="currentColor"
+                      stroke="#2AABEE"
                       strokeWidth="1.5"
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     >
-                      <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                      <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
                     </svg>
-                  </button>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">
+                      {i.channel_name || i.channel_id}
+                    </p>
+                    <p className="text-xs text-gray-400">{i.channel_id}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full font-medium ${i.is_active ? "bg-[#E1F5EE] text-[#1D9E75]" : "bg-gray-100 text-gray-400"}`}
+                    >
+                      {i.is_active ? "Активен" : "Отключён"}
+                    </span>
+                    <span className="text-gray-300 text-sm">
+                      {editingId === i.id ? "▲" : "▼"}
+                    </span>
+                  </div>
                 </div>
+
+                {editingId === i.id && <EditPanel item={i} />}
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {!hasChannels && !showForm && !isLoading && (
+        <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
+          <div className="text-3xl mb-3">📡</div>
+          <p className="text-sm font-medium text-gray-900 mb-1">
+            Нет подключённых каналов
+          </p>
+          <p className="text-xs text-gray-400 mb-4">
+            Добавьте первый канал чтобы начать автопостинг
+          </p>
+          <button
+            onClick={() => setShowForm(true)}
+            className="px-4 py-2 bg-[#1D9E75] text-white text-sm font-semibold rounded-lg hover:bg-[#0F6E56] transition-colors cursor-pointer"
+          >
+            + Добавить канал
+          </button>
         </div>
       )}
 
