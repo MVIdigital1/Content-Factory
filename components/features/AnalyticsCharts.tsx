@@ -14,6 +14,7 @@ import {
   Pie,
   Legend,
 } from "recharts";
+import { useTranslations } from "next-intl";
 
 type Props = {
   days7: { date: string; count: number }[];
@@ -35,19 +36,7 @@ const PLATFORM_LABELS: Record<string, string> = {
   telegram: "Telegram",
   instagram: "Instagram",
   tiktok: "TikTok",
-};
-const TYPE_LABELS: Record<string, string> = {
-  post: "Пост",
-  video: "Видео",
-  stories: "Stories",
-  ad: "Реклама",
-};
-const STATUS_LABELS: Record<string, string> = {
-  draft: "Черновик",
-  generated: "Готово",
-  scheduled: "Запланировано",
-  published: "Опубликовано",
-  failed: "Ошибка",
+  vk: "VK",
 };
 
 const tooltipStyle = {
@@ -57,7 +46,6 @@ const tooltipStyle = {
   boxShadow: "none",
   background: "#fff",
 };
-
 const EMPTY_7 = Array.from({ length: 7 }, (_, i) => ({
   date: `${i + 1}`,
   count: 0,
@@ -90,6 +78,25 @@ export default function AnalyticsCharts({
   typeCounts,
   statusCounts,
 }: Props) {
+  const t = useTranslations("analytics");
+  const tHistory = useTranslations("history");
+
+  const TYPE_LABELS: Record<string, string> = {
+    post: "Пост",
+    video: "Видео",
+    stories: "Stories",
+    ad: "Реклама",
+  };
+
+  const STATUS_LABELS: Record<string, string> = {
+    draft: tHistory("status.draft"),
+    generated: tHistory("status.generated"),
+    approved: tHistory("status.approved"),
+    scheduled: tHistory("status.scheduled"),
+    published: tHistory("status.published"),
+    failed: tHistory("status.failed"),
+  };
+
   const platformArr = Object.entries(platformCounts).map(([k, v], i) => ({
     name: PLATFORM_LABELS[k] || k,
     value: v,
@@ -111,9 +118,8 @@ export default function AnalyticsCharts({
 
   return (
     <div className="space-y-4">
-      {/* Row 1: bar + line */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card title="Активность за 7 дней">
+        <Card title={t("activity7")}>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={days7.length > 0 ? days7 : EMPTY_7} barSize={20}>
               <XAxis
@@ -126,7 +132,7 @@ export default function AnalyticsCharts({
               <Tooltip
                 cursor={{ fill: "#F9FAFB" }}
                 contentStyle={tooltipStyle}
-                formatter={(v: any) => [`${v} ген.`, ""]}
+                formatter={(v: any) => [`${v}`, ""]}
               />
               <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                 {(days7.length > 0 ? days7 : EMPTY_7).map((entry, i) => (
@@ -140,7 +146,7 @@ export default function AnalyticsCharts({
           </ResponsiveContainer>
         </Card>
 
-        <Card title="Тренд за 30 дней">
+        <Card title={t("trend30")}>
           <ResponsiveContainer width="100%" height={180}>
             <LineChart data={days30.length > 0 ? days30 : EMPTY_30}>
               <XAxis
@@ -153,7 +159,7 @@ export default function AnalyticsCharts({
               <YAxis hide allowDecimals={false} />
               <Tooltip
                 contentStyle={tooltipStyle}
-                formatter={(v: any) => [`${v} ген.`, ""]}
+                formatter={(v: any) => [`${v}`, ""]}
               />
               <Line
                 type="monotone"
@@ -167,9 +173,8 @@ export default function AnalyticsCharts({
         </Card>
       </div>
 
-      {/* Row 2: three charts */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card title="По платформам">
+        <Card title={t("byPlatform")}>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie
@@ -199,7 +204,7 @@ export default function AnalyticsCharts({
           </ResponsiveContainer>
         </Card>
 
-        <Card title="По типу контента">
+        <Card title={t("byType")}>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart
               data={hasTypes ? typeArr : [{ name: "—", value: 0 }]}
@@ -230,7 +235,7 @@ export default function AnalyticsCharts({
           </ResponsiveContainer>
         </Card>
 
-        <Card title="По статусам">
+        <Card title={t("byStatus")}>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie

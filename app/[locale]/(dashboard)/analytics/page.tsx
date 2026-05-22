@@ -159,13 +159,6 @@ export default async function AnalyticsPage() {
         platformCounts={platformCounts}
         typeCounts={typeCounts}
         statusCounts={statusCounts}
-        labels={{
-          activity7: t("activity7"),
-          trend30: t("trend30"),
-          byPlatform: t("byPlatform"),
-          byType: t("byType"),
-          byStatus: t("byStatus"),
-        }}
       />
     </div>
   );
