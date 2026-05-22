@@ -250,7 +250,6 @@ export default function HistoryPage() {
                   {selected.title}
                 </p>
                 <div className="flex items-center gap-2 mt-1">
-                  {/* ✅ STATUS_CONFIG вместо несуществующего STATUS_BG */}
                   <span
                     className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATUS_CONFIG[selected.status]?.bg} ${STATUS_CONFIG[selected.status]?.text}`}
                   >
