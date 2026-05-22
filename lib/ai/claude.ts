@@ -15,6 +15,7 @@ export async function generateContent({
   contentType,
   goal,
   topic,
+  imageUrl,
 }: {
   projectName: string;
   niche: string;
@@ -26,6 +27,7 @@ export async function generateContent({
   contentType: string;
   goal: string;
   topic: string;
+  imageUrl?: string | null;
 }) {
   const langMap: Record<string, string> = {
     ru: "русском",
