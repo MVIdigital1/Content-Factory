@@ -16,6 +16,7 @@ const NICHES = [
   "Спорт",
   "Другое",
 ];
+
 const EMPTY_FORM = {
   name: "",
   niche: "",
@@ -25,7 +26,6 @@ const EMPTY_FORM = {
   language: "ru",
 };
 
-// Custom select component
 function CustomSelect({
   value,
   onChange,
@@ -88,6 +88,127 @@ function CustomSelect({
   );
 }
 
+// ✅ ProjectForm вынесен ЗА пределы ProjectsPage — это исправляет потерю фокуса
+function ProjectForm({
+  values,
+  setValues,
+  onSubmit,
+  onCancel,
+  isPending,
+  labels,
+  toneOptions,
+  langOptions,
+  nicheOptions,
+}: {
+  values: typeof EMPTY_FORM;
+  setValues: (fn: (p: typeof EMPTY_FORM) => typeof EMPTY_FORM) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  onCancel: () => void;
+  isPending: boolean;
+  labels: Record<string, string>;
+  toneOptions: { value: string; label: string }[];
+  langOptions: { value: string; label: string }[];
+  nicheOptions: { value: string; label: string }[];
+}) {
+  const inputClass =
+    "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white";
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1.5">
+            {labels.name}
+          </label>
+          <input
+            value={values.name}
+            onChange={(e) => setValues((p) => ({ ...p, name: e.target.value }))}
+            placeholder={labels.namePlaceholder}
+            required
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1.5">
+            {labels.niche}
+          </label>
+          <CustomSelect
+            value={values.niche}
+            onChange={(v) => setValues((p) => ({ ...p, niche: v }))}
+            options={nicheOptions}
+            placeholder={labels.nicheDefault}
+          />
+        </div>
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1.5">
+          {labels.description}
+        </label>
+        <textarea
+          value={values.description}
+          onChange={(e) =>
+            setValues((p) => ({ ...p, description: e.target.value }))
+          }
+          placeholder={labels.descriptionPlaceholder}
+          rows={2}
+          className={`${inputClass} resize-none`}
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1.5">
+          {labels.audience}
+        </label>
+        <input
+          value={values.audience}
+          onChange={(e) =>
+            setValues((p) => ({ ...p, audience: e.target.value }))
+          }
+          placeholder={labels.audiencePlaceholder}
+          className={inputClass}
+        />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1.5">
+            {labels.tone}
+          </label>
+          <CustomSelect
+            value={values.tone}
+            onChange={(v) => setValues((p) => ({ ...p, tone: v }))}
+            options={toneOptions}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1.5">
+            {labels.language}
+          </label>
+          <CustomSelect
+            value={values.language}
+            onChange={(v) => setValues((p) => ({ ...p, language: v }))}
+            options={langOptions}
+          />
+        </div>
+      </div>
+      <div className="flex gap-3 pt-1">
+        <button
+          type="submit"
+          disabled={isPending}
+          className="px-4 py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60 cursor-pointer"
+        >
+          {isPending ? labels.saving : labels.save}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+        >
+          {labels.cancel}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function ProjectsPage() {
   const supabase = createClient();
   const queryClient = useQueryClient();
@@ -113,6 +234,22 @@ export default function ProjectsPage() {
     { value: "en", label: langs("en") },
   ];
   const NICHE_OPTIONS = NICHES.map((n) => ({ value: n, label: n }));
+
+  const FORM_LABELS = {
+    name: t("form.name"),
+    namePlaceholder: t("form.namePlaceholder"),
+    niche: t("form.niche"),
+    nicheDefault: t("form.nicheDefault"),
+    description: t("form.description"),
+    descriptionPlaceholder: t("form.descriptionPlaceholder"),
+    audience: t("form.audience"),
+    audiencePlaceholder: t("form.audiencePlaceholder"),
+    tone: t("form.tone"),
+    language: t("form.language"),
+    saving: t("form.saving"),
+    save: t("form.save"),
+    cancel: t("form.cancel"),
+  };
 
   const { data: projects, isLoading } = useQuery({
     queryKey: ["projects"],
@@ -178,112 +315,6 @@ export default function ProjectsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["projects"] }),
   });
 
-  const inputClass =
-    "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white";
-
-  const ProjectForm = ({
-    values,
-    setValues,
-    onSubmit,
-    onCancel,
-    isPending,
-  }: any) => (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1.5">
-            {t("form.name")}
-          </label>
-          <input
-            value={values.name}
-            onChange={(e) =>
-              setValues((p: any) => ({ ...p, name: e.target.value }))
-            }
-            placeholder={t("form.namePlaceholder")}
-            required
-            className={inputClass}
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1.5">
-            {t("form.niche")}
-          </label>
-          <CustomSelect
-            value={values.niche}
-            onChange={(v) => setValues((p: any) => ({ ...p, niche: v }))}
-            options={NICHE_OPTIONS}
-            placeholder={t("form.nicheDefault")}
-          />
-        </div>
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1.5">
-          {t("form.description")}
-        </label>
-        <textarea
-          value={values.description}
-          onChange={(e) =>
-            setValues((p: any) => ({ ...p, description: e.target.value }))
-          }
-          placeholder={t("form.descriptionPlaceholder")}
-          rows={2}
-          className={`${inputClass} resize-none`}
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1.5">
-          {t("form.audience")}
-        </label>
-        <input
-          value={values.audience}
-          onChange={(e) =>
-            setValues((p: any) => ({ ...p, audience: e.target.value }))
-          }
-          placeholder={t("form.audiencePlaceholder")}
-          className={inputClass}
-        />
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1.5">
-            {t("form.tone")}
-          </label>
-          <CustomSelect
-            value={values.tone}
-            onChange={(v) => setValues((p: any) => ({ ...p, tone: v }))}
-            options={TONES}
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1.5">
-            {t("form.language")}
-          </label>
-          <CustomSelect
-            value={values.language}
-            onChange={(v) => setValues((p: any) => ({ ...p, language: v }))}
-            options={LANGS}
-          />
-        </div>
-      </div>
-      <div className="flex gap-3 pt-1">
-        <button
-          type="submit"
-          disabled={isPending}
-          className="px-4 py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60 cursor-pointer"
-        >
-          {isPending ? t("form.saving") : t("form.save")}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
-        >
-          {t("form.cancel")}
-        </button>
-      </div>
-    </form>
-  );
-
   return (
     <div className="p-4 md:p-6 max-w-4xl w-full">
       <div className="flex items-center justify-between mb-6">
@@ -302,7 +333,6 @@ export default function ProjectsPage() {
         </button>
       </div>
 
-      {/* Create form */}
       {showForm && (
         <div className="bg-white rounded-xl border border-gray-200 p-5 mb-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
@@ -325,18 +355,21 @@ export default function ProjectsPage() {
           <ProjectForm
             values={form}
             setValues={setForm}
-            onSubmit={(e: any) => {
+            onSubmit={(e) => {
               e.preventDefault();
               setErrorDetail("");
               createMutation.mutate(form);
             }}
             onCancel={() => setShowForm(false)}
             isPending={createMutation.isPending}
+            labels={FORM_LABELS}
+            toneOptions={TONES}
+            langOptions={LANGS}
+            nicheOptions={NICHE_OPTIONS}
           />
         </div>
       )}
 
-      {/* Projects list */}
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
@@ -377,12 +410,16 @@ export default function ProjectsPage() {
                   <ProjectForm
                     values={editForm}
                     setValues={setEditForm}
-                    onSubmit={(e: any) => {
+                    onSubmit={(e) => {
                       e.preventDefault();
                       updateMutation.mutate({ id: p.id, values: editForm });
                     }}
                     onCancel={() => setEditingId(null)}
                     isPending={updateMutation.isPending}
+                    labels={FORM_LABELS}
+                    toneOptions={TONES}
+                    langOptions={LANGS}
+                    nicheOptions={NICHE_OPTIONS}
                   />
                 </div>
               ) : (
