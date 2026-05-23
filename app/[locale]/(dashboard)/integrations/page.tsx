@@ -8,10 +8,21 @@ const BOT_USERNAME = "postcentro_bot";
 
 type Integration = {
   id: string;
+  platform: "telegram" | "instagram";
   channel_id: string;
   channel_name: string;
   is_active: boolean;
 };
+
+function connectInstagram() {
+  const params = new URLSearchParams({
+    client_id: process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID!,
+    redirect_uri: process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI!,
+    scope: "instagram_basic,instagram_content_publish,pages_read_engagement",
+    response_type: "code",
+  });
+  window.location.href = `https://www.facebook.com/v19.0/dialog/oauth?${params}`;
+}
 
 export default function IntegrationsPage() {
   const supabase = createClient();
@@ -33,13 +44,16 @@ export default function IntegrationsPage() {
       const { data } = await supabase
         .from("integrations")
         .select("*")
-        .eq("platform", "telegram")
         .order("created_at", { ascending: false });
       return (data || []) as Integration[];
     },
   });
 
-  const hasChannels = integrations && integrations.length > 0;
+  const telegramIntegrations =
+    integrations?.filter((i) => i.platform === "telegram") || [];
+  const instagramIntegration = integrations?.find(
+    (i) => i.platform === "instagram",
+  );
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -157,7 +171,6 @@ export default function IntegrationsPage() {
   const inputClass =
     "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white";
 
-  // Edit panel component
   const EditPanel = ({ item }: { item: Integration }) => {
     const [editCId, setEditCId] = useState(item.channel_id);
     const [editCName, setEditCName] = useState(item.channel_name);
@@ -247,146 +260,208 @@ export default function IntegrationsPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-2xl">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Telegram</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Автопостинг в каналы</p>
-        </div>
-        <button
-          onClick={() => {
-            setShowForm((v) => !v);
-            setEditingId(null);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer"
-        >
-          + Добавить канал
-        </button>
+    <div className="p-4 md:p-6 max-w-2xl space-y-8">
+      <div>
+        <h1 className="text-xl font-bold text-gray-900">Интеграции</h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Подключите соцсети для автопостинга
+        </p>
       </div>
 
       {success && (
-        <div className="bg-[#E1F5EE] border border-[#1D9E75]/30 rounded-xl px-4 py-3 text-sm text-[#1D9E75] font-medium mb-4">
+        <div className="bg-[#E1F5EE] border border-[#1D9E75]/30 rounded-xl px-4 py-3 text-sm text-[#1D9E75] font-medium">
           ✓ Сохранено успешно!
         </div>
       )}
 
-      {/* Bot info */}
-      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-5">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#1D9E75] flex items-center justify-center flex-shrink-0 text-white font-bold text-sm">
-            P
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-gray-900 mb-0.5">
-              @{BOT_USERNAME}
-            </p>
-            <p className="text-xs text-gray-500 mb-3">
-              Официальный бот PostCentro для автопостинга
-            </p>
-            <div className="bg-white rounded-lg p-3 border border-blue-100">
-              <p className="text-xs font-semibold text-gray-700 mb-2">
-                Как подключить канал:
+      {/* ───── INSTAGRAM ───── */}
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 flex items-center justify-center">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Instagram</p>
+              <p className="text-xs text-gray-400">
+                Business или Creator аккаунт
               </p>
-              <ol className="text-xs text-gray-600 space-y-1.5 list-decimal list-inside">
-                <li>
-                  Добавьте{" "}
-                  <span className="font-mono bg-gray-100 px-1 rounded">
-                    @{BOT_USERNAME}
-                  </span>{" "}
-                  в канал как администратора
-                </li>
-                <li>Дайте боту права на публикацию сообщений</li>
-                <li>Нажмите "Добавить канал" и введите ID канала</li>
-              </ol>
             </div>
           </div>
+          {instagramIntegration ? (
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-[#E1F5EE] text-[#1D9E75]">
+              Подключён
+            </span>
+          ) : null}
         </div>
-      </div>
 
-      {/* Add form */}
-      {showForm && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5 mb-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-gray-900">Новый канал</h3>
-            <button
-              onClick={() => setShowForm(false)}
-              className="text-gray-400 hover:text-gray-600 text-xl cursor-pointer"
-            >
-              ×
-            </button>
-          </div>
-          <form onSubmit={handleSave} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                ID канала *
-              </label>
+        {instagramIntegration ? (
+          <div className="bg-white rounded-xl border border-gray-100 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">
+                  {instagramIntegration.channel_name}
+                </p>
+                <p className="text-xs text-gray-400">
+                  ID: {instagramIntegration.channel_id}
+                </p>
+              </div>
               <div className="flex gap-2">
-                <input
-                  value={channelId}
-                  onChange={(e) => {
-                    setChannelId(e.target.value);
-                    setTestResult("");
-                  }}
-                  placeholder="@mychannel или -1001234567890"
-                  required
-                  className={`${inputClass} flex-1`}
-                />
                 <button
-                  type="button"
-                  onClick={() => testChannel(channelId, setTestResult)}
-                  disabled={!channelId || testing}
-                  className="px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                  onClick={() =>
+                    toggleMutation.mutate({
+                      id: instagramIntegration.id,
+                      is_active: !instagramIntegration.is_active,
+                    })
+                  }
+                  className={`text-xs px-3 py-1.5 rounded-lg border font-medium cursor-pointer transition-colors ${instagramIntegration.is_active ? "border-amber-200 text-amber-600 hover:bg-amber-50" : "border-[#1D9E75] text-[#1D9E75] hover:bg-[#E1F5EE]"}`}
                 >
-                  {testing ? "..." : "Проверить"}
+                  {instagramIntegration.is_active ? "Отключить" : "Включить"}
+                </button>
+                <button
+                  onClick={() => deleteMutation.mutate(instagramIntegration.id)}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 cursor-pointer transition-colors"
+                >
+                  Удалить
                 </button>
               </div>
-              {testResult && (
-                <p
-                  className={`text-xs mt-1.5 font-medium ${testResult.startsWith("✓") ? "text-[#1D9E75]" : "text-red-500"}`}
-                >
-                  {testResult}
-                </p>
-              )}
-              <p className="text-xs text-gray-400 mt-1.5">
-                Убедитесь что <span className="font-mono">@{BOT_USERNAME}</span>{" "}
-                уже добавлен как администратор
-              </p>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={connectInstagram}
+            className="w-full py-3 rounded-xl border-2 border-dashed border-gray-200 text-sm text-gray-500 hover:border-pink-300 hover:text-pink-500 hover:bg-pink-50 transition-all cursor-pointer font-medium"
+          >
+            + Подключить Instagram
+          </button>
+        )}
+      </section>
+
+      {/* ───── TELEGRAM ───── */}
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-[#2AABEE] flex items-center justify-center">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="white"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
+              </svg>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                Название канала
-              </label>
-              <input
-                value={channelName}
-                onChange={(e) => setChannelName(e.target.value)}
-                placeholder="Мой канал"
-                className={inputClass}
-              />
+              <p className="text-sm font-semibold text-gray-900">Telegram</p>
+              <p className="text-xs text-gray-400">Автопостинг в каналы</p>
             </div>
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-600">
-                {error}
-              </div>
-            )}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60 cursor-pointer"
-            >
-              {loading ? "Сохраняем..." : "Подключить канал"}
-            </button>
-          </form>
+          </div>
+          <button
+            onClick={() => {
+              setShowForm((v) => !v);
+              setEditingId(null);
+            }}
+            className="flex items-center gap-1 px-3 py-1.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+          >
+            + Добавить канал
+          </button>
         </div>
-      )}
 
-      {/* Channels list */}
-      {hasChannels && (
-        <div>
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-            Подключённые каналы ({integrations.length})
-          </h3>
+        {/* Bot info */}
+        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-3">
+          <p className="text-xs text-gray-500 mb-2">
+            Добавьте{" "}
+            <span className="font-mono bg-white px-1 rounded">
+              @{BOT_USERNAME}
+            </span>{" "}
+            в канал как администратора, затем укажите ID канала ниже.
+          </p>
+        </div>
+
+        {/* Add form */}
+        {showForm && (
+          <div className="bg-white rounded-xl border border-gray-200 p-5 mb-3 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-900">
+                Новый канал
+              </h3>
+              <button
+                onClick={() => setShowForm(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl cursor-pointer"
+              >
+                ×
+              </button>
+            </div>
+            <form onSubmit={handleSave} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  ID канала *
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    value={channelId}
+                    onChange={(e) => {
+                      setChannelId(e.target.value);
+                      setTestResult("");
+                    }}
+                    placeholder="@mychannel или -1001234567890"
+                    required
+                    className={`${inputClass} flex-1`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => testChannel(channelId, setTestResult)}
+                    disabled={!channelId || testing}
+                    className="px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                  >
+                    {testing ? "..." : "Проверить"}
+                  </button>
+                </div>
+                {testResult && (
+                  <p
+                    className={`text-xs mt-1.5 font-medium ${testResult.startsWith("✓") ? "text-[#1D9E75]" : "text-red-500"}`}
+                  >
+                    {testResult}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  Название канала
+                </label>
+                <input
+                  value={channelName}
+                  onChange={(e) => setChannelName(e.target.value)}
+                  placeholder="Мой канал"
+                  className={inputClass}
+                />
+              </div>
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-600">
+                  {error}
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60 cursor-pointer"
+              >
+                {loading ? "Сохраняем..." : "Подключить канал"}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* Channels list */}
+        {telegramIntegrations.length > 0 && (
           <div className="space-y-2">
-            {integrations.map((i) => (
+            {telegramIntegrations.map((i) => (
               <div
                 key={i.id}
                 className={`bg-white rounded-xl border p-4 transition-all ${editingId === i.id ? "border-[#1D9E75] shadow-sm" : "border-gray-100 hover:border-gray-200"}`}
@@ -395,20 +470,6 @@ export default function IntegrationsPage() {
                   className="flex items-center gap-3 cursor-pointer"
                   onClick={() => setEditingId(editingId === i.id ? null : i.id)}
                 >
-                  <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#2AABEE"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
-                    </svg>
-                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-900">
                       {i.channel_name || i.channel_id}
@@ -426,44 +487,18 @@ export default function IntegrationsPage() {
                     </span>
                   </div>
                 </div>
-
                 {editingId === i.id && <EditPanel item={i} />}
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
 
-      {!hasChannels && !showForm && !isLoading && (
-        <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
-          <div className="text-3xl mb-3">📡</div>
-          <p className="text-sm font-medium text-gray-900 mb-1">
-            Нет подключённых каналов
-          </p>
-          <p className="text-xs text-gray-400 mb-4">
-            Добавьте первый канал чтобы начать автопостинг
-          </p>
-          <button
-            onClick={() => setShowForm(true)}
-            className="px-4 py-2 bg-[#1D9E75] text-white text-sm font-semibold rounded-lg hover:bg-[#0F6E56] transition-colors cursor-pointer"
-          >
-            + Добавить канал
-          </button>
-        </div>
-      )}
-
-      {isLoading && (
-        <div className="space-y-2">
-          {[1, 2].map((i) => (
-            <div
-              key={i}
-              className="bg-white rounded-xl border border-gray-100 p-4 animate-pulse"
-            >
-              <div className="h-4 bg-gray-100 rounded w-1/3" />
-            </div>
-          ))}
-        </div>
-      )}
+        {telegramIntegrations.length === 0 && !showForm && !isLoading && (
+          <div className="text-center py-8 bg-white rounded-xl border border-gray-100">
+            <p className="text-sm text-gray-400">Нет подключённых каналов</p>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

@@ -155,6 +155,21 @@ const Icons = {
       <path d="M18 6L6 18M6 6l12 12" />
     </svg>
   ),
+  integrations: (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+    </svg>
+  ),
   admin: (
     <svg
       width="16"
@@ -179,6 +194,7 @@ const NAV_ITEMS = [
   { key: "calendar", href: "/calendar", icon: "calendar" },
   { key: "history", href: "/history", icon: "history" },
   { key: "analytics", href: "/analytics", icon: "analytics" },
+  { key: "integrations", href: "/integrations", icon: "integrations" },
 ] as const;
 
 function NavContent({ onClose }: { onClose?: () => void }) {
@@ -222,6 +238,7 @@ function NavContent({ onClose }: { onClose?: () => void }) {
     calendar: t("calendar"),
     history: t("history") || "История",
     analytics: t("analytics") || "Аналитика",
+    integrations: t("integrations") || "Интеграции",
   };
 
   return (
@@ -310,15 +327,6 @@ function NavContent({ onClose }: { onClose?: () => void }) {
             </button>
           </div>
         )}
-        <div className="px-2 py-1">
-          <button
-            onClick={() => handleNav("/integrations")}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
-          >
-            {Icons.telegram}
-            <span className="flex-1">Telegram</span>
-          </button>
-        </div>
         <div className="px-2 py-2">
           <button
             onClick={handleLogout}

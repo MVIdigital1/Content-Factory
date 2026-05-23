@@ -27,7 +27,6 @@ type GeneratedContent = {
   id?: string;
 };
 
-// Custom dropdown in site style
 function CustomSelect({
   value,
   onChange,
@@ -101,6 +100,314 @@ function CustomSelect({
   );
 }
 
+// Post preview component
+function PostPreview({
+  platform,
+  result,
+  imagePreview,
+}: {
+  platform: string;
+  result: GeneratedContent;
+  imagePreview: string | null;
+}) {
+  const text = `${result.caption}\n\n${result.hashtags?.join(" ")}`.trim();
+
+  if (platform === "telegram") {
+    return (
+      <div className="bg-[#E6EBF0] rounded-xl p-4">
+        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-3">
+          Предпросмотр — Telegram
+        </p>
+        <div className="bg-white rounded-xl overflow-hidden shadow-sm max-w-sm mx-auto">
+          <div className="bg-[#2AABEE] px-3 py-2 flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="white"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
+              </svg>
+            </div>
+            <span className="text-xs font-medium text-white">Ваш канал</span>
+          </div>
+          {imagePreview && (
+            <img
+              src={imagePreview}
+              alt="Post"
+              className="w-full max-h-48 object-cover"
+            />
+          )}
+          <div className="p-3">
+            <p className="text-xs text-gray-800 leading-relaxed whitespace-pre-wrap">
+              {text}
+            </p>
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-[10px] text-gray-400">Сейчас</span>
+              <div className="flex items-center gap-1">
+                <svg
+                  width="11"
+                  height="11"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#9CA3AF"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                <span className="text-[10px] text-gray-400">0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (platform === "instagram") {
+    return (
+      <div className="bg-white rounded-xl p-4 border border-gray-100">
+        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-3">
+          Предпросмотр — Instagram
+        </p>
+        <div className="border border-gray-200 rounded-xl overflow-hidden max-w-sm mx-auto">
+          <div className="px-3 py-2 flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 p-0.5">
+              <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-[10px] font-bold text-gray-700">
+                ВК
+              </div>
+            </div>
+            <span className="text-xs font-semibold text-gray-900">
+              your_account
+            </span>
+          </div>
+          {imagePreview ? (
+            <img
+              src={imagePreview}
+              alt="Post"
+              className="w-full aspect-square object-cover"
+            />
+          ) : (
+            <div className="w-full aspect-square bg-gray-100 flex items-center justify-center">
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#D1D5DB"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <path d="M21 15l-5-5L5 21" />
+              </svg>
+            </div>
+          )}
+          <div className="px-3 py-2">
+            <div className="flex gap-3 mb-2">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#1a1a1a"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#1a1a1a"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </div>
+            <p className="text-xs text-gray-800 line-clamp-3 leading-relaxed">
+              <span className="font-semibold">your_account</span>{" "}
+              {result.caption}
+            </p>
+            <p className="text-xs text-[#3897f0] mt-1">
+              {result.hashtags?.join(" ")}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (platform === "vk") {
+    return (
+      <div className="bg-[#EDEEF0] rounded-xl p-4">
+        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-3">
+          Предпросмотр — VK
+        </p>
+        <div className="bg-white rounded-xl overflow-hidden shadow-sm max-w-sm mx-auto">
+          <div className="px-4 py-3 flex items-center gap-2 border-b border-gray-100">
+            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">
+              VK
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-900">
+                Ваше сообщество
+              </p>
+              <p className="text-[10px] text-gray-400">Сейчас</p>
+            </div>
+          </div>
+          {imagePreview && (
+            <img
+              src={imagePreview}
+              alt="Post"
+              className="w-full max-h-48 object-cover"
+            />
+          )}
+          <div className="px-4 py-3">
+            <p className="text-xs text-gray-800 leading-relaxed whitespace-pre-wrap line-clamp-4">
+              {result.caption}
+            </p>
+            <p className="text-xs text-[#4986CC] mt-1">
+              {result.hashtags?.join(" ")}
+            </p>
+            <div className="flex gap-4 mt-3 pt-3 border-t border-gray-100">
+              <button className="flex items-center gap-1 text-[10px] text-gray-400">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z" />
+                  <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+                </svg>
+                Нравится
+              </button>
+              <button className="flex items-center gap-1 text-[10px] text-gray-400">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+                Комментировать
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (platform === "tiktok") {
+    return (
+      <div className="bg-black rounded-xl p-4">
+        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-3">
+          Предпросмотр — TikTok
+        </p>
+        <div
+          className="relative max-w-[200px] mx-auto bg-gray-900 rounded-xl overflow-hidden"
+          style={{ aspectRatio: "9/16" }}
+        >
+          {imagePreview ? (
+            <img
+              src={imagePreview}
+              alt="Post"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#4D4D4D"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polygon points="23 7 16 12 23 17 23 7" />
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+              </svg>
+            </div>
+          )}
+          <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+            <p className="text-[10px] text-white font-semibold mb-1">
+              @your_account
+            </p>
+            <p className="text-[9px] text-white/80 line-clamp-2 leading-relaxed">
+              {result.caption}
+            </p>
+            <p className="text-[9px] text-white/60 mt-1">
+              {result.hashtags?.slice(0, 3).join(" ")}
+            </p>
+          </div>
+          <div className="absolute right-2 bottom-16 flex flex-col gap-3">
+            <div className="flex flex-col items-center gap-0.5">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="white"
+                stroke="white"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
+              <span className="text-[8px] text-white">0</span>
+            </div>
+            <div className="flex flex-col items-center gap-0.5">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="white"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              <span className="text-[8px] text-white">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 export default function CreatePage() {
   const router = useRouter();
   const supabase = createClient();
@@ -153,6 +460,11 @@ export default function CreatePage() {
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("12:00");
   const [scheduleSuccess, setScheduleSuccess] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishSuccess, setPublishSuccess] = useState(false);
+  const [channelForSchedule, setChannelForSchedule] = useState<string>("");
+  const [publishError, setPublishError] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
 
   const { data: projects } = useQuery({
     queryKey: ["projects"],
@@ -227,6 +539,7 @@ export default function CreatePage() {
         platform: form.platform,
         scheduled_at: scheduledAt,
         status: "pending",
+        channel_id: channelForSchedule || undefined,
       });
       if (error) throw error;
     },
@@ -235,6 +548,26 @@ export default function CreatePage() {
       setShowSchedule(false);
     },
   });
+
+  // Publish now — direct Telegram publish
+  const handlePublishNow = async () => {
+    if (!result?.id) return;
+    setPublishing(true);
+    setPublishError("");
+    try {
+      const res = await fetch("/api/content/publish-now", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentId: result.id, platform: form.platform }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Ошибка публикации");
+      setPublishSuccess(true);
+    } catch (e: any) {
+      setPublishError(e.message);
+    }
+    setPublishing(false);
+  };
 
   const handleGenerate = async () => {
     if (!form.projectId || !form.topic || !form.goal) {
@@ -245,6 +578,8 @@ export default function CreatePage() {
     setGenerating(true);
     setStep(2);
     setProgress(0);
+    setPublishSuccess(false);
+    setPublishError("");
 
     const interval = setInterval(() => {
       setProgress((p) => {
@@ -347,12 +682,11 @@ export default function CreatePage() {
                 placeholder={t("form.projectDefault")}
               />
             </div>
-
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">
                 {t("form.platform")}
               </label>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 {PLATFORMS.map((p) => (
                   <button
                     key={p.value}
@@ -361,14 +695,13 @@ export default function CreatePage() {
                       setSelectedChannelId("");
                       setShowChannelSidebar(true);
                     }}
-                    className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${form.platform === p.value ? "border-[#1D9E75] bg-[#E1F5EE] text-[#1D9E75]" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
+                    className={`py-2 rounded-lg border text-sm font-medium transition-colors ${form.platform === p.value ? "border-[#1D9E75] bg-[#E1F5EE] text-[#1D9E75]" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
                   >
                     {p.label}
                   </button>
                 ))}
               </div>
             </div>
-
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">
                 {t("form.contentType")}
@@ -387,7 +720,6 @@ export default function CreatePage() {
                 ))}
               </div>
             </div>
-
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">
                 {t("form.goal")}
@@ -399,7 +731,6 @@ export default function CreatePage() {
                 placeholder={t("form.goalDefault")}
               />
             </div>
-
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">
                 {t("form.topic")}
@@ -414,7 +745,6 @@ export default function CreatePage() {
                 className={`${inputClass} resize-none`}
               />
             </div>
-
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">
                 {t("form.image")}{" "}
@@ -435,7 +765,7 @@ export default function CreatePage() {
                       setImageFile(null);
                       setImagePreview(null);
                     }}
-                    className="absolute top-2 right-2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center text-xs"
+                    className="absolute top-2 right-2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center text-xs cursor-pointer"
                   >
                     ✕
                   </button>
@@ -459,7 +789,21 @@ export default function CreatePage() {
                   onClick={() => fileInputRef.current?.click()}
                   className={`border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition-colors ${dragOver ? "border-[#1D9E75] bg-[#E1F5EE]" : "border-gray-200 hover:border-[#1D9E75] hover:bg-gray-50"}`}
                 >
-                  <div className="text-xl mb-1">🖼️</div>
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#9CA3AF"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="mx-auto mb-2"
+                  >
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <path d="M21 15l-5-5L5 21" />
+                  </svg>
                   <p className="text-xs text-gray-500 font-medium">
                     {t("form.imageHint")}
                   </p>
@@ -478,17 +822,15 @@ export default function CreatePage() {
                 </div>
               )}
             </div>
-
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-600">
                 {error}
               </div>
             )}
-
             <button
               onClick={handleGenerate}
               disabled={!form.projectId || !form.topic || !form.goal}
-              className="w-full py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               {t("form.generateBtn")}
             </button>
@@ -498,7 +840,20 @@ export default function CreatePage() {
         {/* STEP 2 */}
         {step === 2 && (
           <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-            <div className="text-4xl mb-4">⚡</div>
+            <div className="w-12 h-12 bg-[#E1F5EE] rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#1D9E75"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+              </svg>
+            </div>
             <h3 className="text-base font-semibold text-gray-900 mb-2">
               {t("generating.title")}
             </h3>
@@ -518,14 +873,36 @@ export default function CreatePage() {
         {/* STEP 3 */}
         {step === 3 && result && (
           <div className="space-y-4">
-            {imagePreview && (
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <img
-                  src={imagePreview}
-                  alt="Post image"
-                  className="w-full max-h-48 object-cover"
-                />
-              </div>
+            {/* Preview toggle */}
+            <button
+              onClick={() => setShowPreview((v) => !v)}
+              className={`w-full py-2.5 rounded-xl border text-sm font-medium transition-all cursor-pointer flex items-center justify-center gap-2 ${showPreview ? "border-[#1D9E75] bg-[#E1F5EE] text-[#1D9E75]" : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"}`}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              {showPreview
+                ? "Скрыть предпросмотр"
+                : `Предпросмотр в ${PLATFORMS.find((p) => p.value === form.platform)?.label}`}
+            </button>
+
+            {/* Post preview */}
+            {showPreview && (
+              <PostPreview
+                platform={form.platform}
+                result={result}
+                imagePreview={imagePreview}
+              />
             )}
 
             <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -542,12 +919,14 @@ export default function CreatePage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-                {t("result.hook")}
-              </p>
-              <p className="text-sm text-gray-700">{result.hook}</p>
-            </div>
+            {result.hook && (
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                  {t("result.hook")}
+                </p>
+                <p className="text-sm text-gray-700">{result.hook}</p>
+              </div>
+            )}
 
             <div className="bg-white rounded-xl border border-gray-200 p-5">
               <div className="flex items-center justify-between mb-3">
@@ -556,7 +935,7 @@ export default function CreatePage() {
                 </p>
                 <button
                   onClick={copyCaption}
-                  className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${copied ? "border-[#1D9E75] bg-[#E1F5EE] text-[#1D9E75]" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
+                  className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors cursor-pointer ${copied ? "border-[#1D9E75] bg-[#E1F5EE] text-[#1D9E75]" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
                 >
                   {copied ? t("result.copied") : t("result.copy")}
                 </button>
@@ -576,12 +955,14 @@ export default function CreatePage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-                {t("result.cta")}
-              </p>
-              <p className="text-sm text-gray-700">{result.cta}</p>
-            </div>
+            {result.cta && (
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                  {t("result.cta")}
+                </p>
+                <p className="text-sm text-gray-700">{result.cta}</p>
+              </div>
+            )}
 
             {result.script && result.script.length > 0 && (
               <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -606,14 +987,27 @@ export default function CreatePage() {
               </div>
             )}
 
+            {/* Publish now success/error */}
+            {publishSuccess && (
+              <div className="bg-[#E1F5EE] border border-[#1D9E75]/30 rounded-xl px-4 py-3 text-sm text-[#1D9E75] font-medium">
+                ✓ Пост опубликован в{" "}
+                {PLATFORMS.find((p) => p.value === form.platform)?.label}!
+              </div>
+            )}
+            {publishError && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
+                {publishError}
+              </div>
+            )}
+
             {scheduleSuccess && (
-              <div className="bg-[#E1F5EE] border border-[#1D9E75] border-opacity-30 rounded-xl px-4 py-3 text-sm text-[#1D9E75] font-medium">
+              <div className="bg-[#E1F5EE] border border-[#1D9E75]/30 rounded-xl px-4 py-3 text-sm text-[#1D9E75] font-medium">
                 {t("result.scheduleSuccess")}
               </div>
             )}
 
             {showSchedule && (
-              <div className="bg-white rounded-xl border border-[#1D9E75] border-opacity-30 p-5 space-y-3">
+              <div className="bg-white rounded-xl border border-[#1D9E75]/30 p-5 space-y-3">
                 <h4 className="text-sm font-semibold text-gray-900">
                   {t("result.scheduleTitle")}
                 </h4>
@@ -628,6 +1022,52 @@ export default function CreatePage() {
                     </a>
                   </div>
                 )}
+                {/* Channel selector */}
+                {allChannels && allChannels.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                      Канал для публикации
+                    </label>
+                    <div className="space-y-1.5">
+                      {allChannels.map((ch: any) => (
+                        <div
+                          key={ch.id}
+                          onClick={() => setChannelForSchedule(ch.id)}
+                          className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${channelForSchedule === ch.id ? "border-[#1D9E75] bg-[#E1F5EE]" : "border-gray-200 hover:border-gray-300"}`}
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="#2AABEE"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p
+                              className={`text-xs font-semibold truncate ${channelForSchedule === ch.id ? "text-[#1D9E75]" : "text-gray-900"}`}
+                            >
+                              {ch.channel_name || ch.channel_id}
+                            </p>
+                            <p className="text-[10px] text-gray-400">
+                              {ch.channel_id}
+                            </p>
+                          </div>
+                          {channelForSchedule === ch.id && (
+                            <span className="text-[#1D9E75] text-sm">✓</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1.5">
@@ -638,7 +1078,7 @@ export default function CreatePage() {
                       value={scheduleDate}
                       min={new Date().toISOString().split("T")[0]}
                       onChange={(e) => setScheduleDate(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white"
+                      className={inputClass}
                     />
                   </div>
                   <div>
@@ -649,15 +1089,15 @@ export default function CreatePage() {
                       type="time"
                       value={scheduleTime}
                       onChange={(e) => setScheduleTime(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white"
+                      className={inputClass}
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="flex gap-2">
                   <button
                     onClick={() => scheduleMutation.mutate()}
                     disabled={!scheduleDate || scheduleMutation.isPending}
-                    className="flex-1 py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+                    className="flex-1 py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
                   >
                     {scheduleMutation.isPending
                       ? t("result.scheduleSaving")
@@ -665,7 +1105,7 @@ export default function CreatePage() {
                   </button>
                   <button
                     onClick={() => setShowSchedule(false)}
-                    className="px-4 py-2.5 border border-gray-200 text-gray-500 text-sm rounded-lg hover:bg-gray-50 transition-colors"
+                    className="px-4 py-2.5 border border-gray-200 text-gray-500 text-sm rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
                   >
                     {t("result.scheduleCancel")}
                   </button>
@@ -673,32 +1113,57 @@ export default function CreatePage() {
               </div>
             )}
 
-            <div className="flex gap-3">
+            {/* Action buttons */}
+            <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => {
                   setStep(1);
                   setResult(null);
                   setShowSchedule(false);
                   setScheduleSuccess(false);
+                  setPublishSuccess(false);
+                  setPublishError("");
                   setImageFile(null);
                   setImagePreview(null);
+                  setShowPreview(false);
                   setForm((p) => ({ ...p, topic: "" }));
                 }}
-                className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                className="py-2.5 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
               >
                 {t("result.createMore")}
               </button>
+              {!publishSuccess && !scheduleSuccess && (
+                <button
+                  onClick={handlePublishNow}
+                  disabled={publishing}
+                  className="py-2.5 bg-[#2AABEE] hover:bg-[#1a95d5] text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
+                  </svg>
+                  {publishing ? "Публикуем..." : "Опубликовать сейчас"}
+                </button>
+              )}
               {!scheduleSuccess && (
                 <button
                   onClick={() => setShowSchedule((v) => !v)}
-                  className="flex-1 py-2.5 border border-[#1D9E75] text-[#1D9E75] text-sm font-semibold rounded-lg hover:bg-[#E1F5EE] transition-colors"
+                  className="py-2.5 border border-[#1D9E75] text-[#1D9E75] text-sm font-semibold rounded-lg hover:bg-[#E1F5EE] transition-colors cursor-pointer"
                 >
                   {t("result.schedulePost")}
                 </button>
               )}
               <button
                 onClick={() => router.push(`/${locale}/history`)}
-                className="flex-1 py-2.5 bg-[#1D9E75] text-white text-sm font-semibold rounded-lg hover:bg-[#0F6E56] transition-colors"
+                className="py-2.5 bg-[#1D9E75] text-white text-sm font-semibold rounded-lg hover:bg-[#0F6E56] transition-colors cursor-pointer"
               >
                 {t("result.history")}
               </button>
@@ -713,14 +1178,7 @@ export default function CreatePage() {
           <div className="p-4 border-b border-gray-100 flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-gray-900">
-                {form.platform === "telegram"
-                  ? "Telegram"
-                  : form.platform === "instagram"
-                    ? "Instagram"
-                    : form.platform === "vk"
-                      ? "VK"
-                      : "TikTok"}{" "}
-                каналы
+                {PLATFORMS.find((p) => p.value === form.platform)?.label} каналы
               </p>
               <p className="text-xs text-gray-400 mt-0.5">
                 Выберите канал для публикации
@@ -733,11 +1191,22 @@ export default function CreatePage() {
               ✕
             </button>
           </div>
-
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {!allChannels || allChannels.length === 0 ? (
               <div className="text-center py-8">
-                <div className="text-3xl mb-3">📡</div>
+                <svg
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#D1D5DB"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="mx-auto mb-3"
+                >
+                  <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
+                </svg>
                 <p className="text-xs font-medium text-gray-700 mb-1">
                   Нет подключённых каналов
                 </p>
@@ -748,7 +1217,7 @@ export default function CreatePage() {
                   href={`/${locale}/integrations`}
                   className="text-xs text-[#1D9E75] font-semibold hover:underline cursor-pointer"
                 >
-                  Подключить Telegram →
+                  Подключить →
                 </a>
               </div>
             ) : (
@@ -759,11 +1228,7 @@ export default function CreatePage() {
                     setSelectedChannelId(ch.id);
                     setShowChannelSidebar(false);
                   }}
-                  className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                    selectedChannelId === ch.id
-                      ? "border-[#1D9E75] bg-[#E1F5EE]"
-                      : "border-gray-100 hover:border-gray-200 hover:bg-gray-50"
-                  }`}
+                  className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedChannelId === ch.id ? "border-[#1D9E75] bg-[#E1F5EE]" : "border-gray-100 hover:border-gray-200 hover:bg-gray-50"}`}
                 >
                   <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
                     <svg
@@ -798,12 +1263,11 @@ export default function CreatePage() {
               ))
             )}
           </div>
-
           {selectedChannelId && (
             <div className="p-3 border-t border-gray-100">
               <div className="bg-[#E1F5EE] rounded-lg px-3 py-2">
                 <p className="text-xs text-[#1D9E75] font-medium">
-                  ✓ Канал выбран —{" "}
+                  ✓{" "}
                   {allChannels?.find((c: any) => c.id === selectedChannelId)
                     ?.channel_name || ""}
                 </p>
