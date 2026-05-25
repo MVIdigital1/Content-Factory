@@ -88,8 +88,10 @@ export async function POST(request: Request) {
 
     if (insertError) throw insertError;
     return NextResponse.json({ content });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Generate error:", error);
-    return NextResponse.json({ error: "Generation failed" }, { status: 500 });
+    const message =
+      error?.error?.error?.message || error?.message || "Generation failed";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

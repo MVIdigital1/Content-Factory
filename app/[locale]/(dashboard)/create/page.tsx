@@ -464,6 +464,71 @@ export default function CreatePage() {
   const [publishSuccess, setPublishSuccess] = useState(false);
   const [channelForSchedule, setChannelForSchedule] = useState<string>("");
   const [publishError, setPublishError] = useState("");
+  const [accountActions, setAccountActions] = useState<Record<string, any>>({});
+  const today = new Date().toISOString().split("T")[0];
+  const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
+
+  const handleApplyActions = async () => {
+    if (!result?.id) return;
+    setPublishing(true);
+    setPublishError("");
+    let anyPublished = false;
+    let anyScheduled = false;
+
+    for (const ch of allChannels || []) {
+      const act = accountActions[ch.id];
+      if (!act || act.action === "none") continue;
+
+      if (act.action === "now") {
+        try {
+          const res = await fetch("/api/content/publish-now", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contentId: result.id,
+              platform: ch.platform || "telegram",
+              channelId: ch.id,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error);
+          anyPublished = true;
+        } catch (e: any) {
+          setPublishError(e.message);
+        }
+      } else if (act.action === "schedule") {
+        const slots =
+          act.slots.length > 0
+            ? act.slots
+            : [{ date: act.date, time: act.time }];
+        for (const slot of slots) {
+          try {
+            const scheduledAt = new Date(
+              slot.date + "T" + slot.time,
+            ).toISOString();
+            const { error } = await supabase.from("scheduled_posts").insert({
+              content_id: result.id,
+              platform: ch.platform || "telegram",
+              scheduled_at: scheduledAt,
+              status: "pending",
+              channel_id: ch.id,
+            });
+            if (error) throw error;
+            anyScheduled = true;
+          } catch (e: any) {
+            setPublishError(e.message);
+          }
+        }
+      }
+    }
+
+    if (anyPublished) setPublishSuccess(true);
+    if (anyScheduled) setScheduleSuccess(true);
+    setPublishing(false);
+  };
+
   const [showPreview, setShowPreview] = useState(false);
 
   const { data: projects } = useQuery({
@@ -505,6 +570,11 @@ export default function CreatePage() {
   });
 
   const uploadImage = async (file: File): Promise<string | null> => {
+    // SVG не поддерживается Telegram — блокируем
+    if (file.type === "image/svg+xml" || file.name.endsWith(".svg")) {
+      console.error("SVG не поддерживается для публикации");
+      return null;
+    }
     const ext = file.name.split(".").pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
     const { data, error } = await supabase.storage
@@ -522,6 +592,10 @@ export default function CreatePage() {
 
   const handleFileSelect = (file: File) => {
     if (!file.type.startsWith("image/")) return;
+    if (file.type === "image/svg+xml" || file.name.endsWith(".svg")) {
+      alert("SVG не поддерживается. Используйте PNG, JPG или WEBP.");
+      return;
+    }
     setImageFile(file);
     const reader = new FileReader();
     reader.onload = (e) => setImagePreview(e.target?.result as string);
@@ -606,6 +680,7 @@ export default function CreatePage() {
       const data = await res.json();
       clearInterval(interval);
       if (!res.ok) throw new Error(data.error || "Ошибка генерации");
+      // data.error уже содержит точное сообщение от API
       setProgress(100);
       setTimeout(() => {
         setResult({ ...data.content, id: data.content.id });
@@ -614,7 +689,8 @@ export default function CreatePage() {
       }, 500);
     } catch (e: any) {
       clearInterval(interval);
-      setError(e.message || "Ошибка генерации");
+      const msg = e?.message || "Ошибка генерации";
+      setError(msg);
       setGenerating(false);
       setStep(1);
     }
@@ -681,26 +757,6 @@ export default function CreatePage() {
                 }))}
                 placeholder={t("form.projectDefault")}
               />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                {t("form.platform")}
-              </label>
-              <div className="grid grid-cols-4 gap-2">
-                {PLATFORMS.map((p) => (
-                  <button
-                    key={p.value}
-                    onClick={() => {
-                      setForm((f) => ({ ...f, platform: p.value }));
-                      setSelectedChannelId("");
-                      setShowChannelSidebar(true);
-                    }}
-                    className={`py-2 rounded-lg border text-sm font-medium transition-colors ${form.platform === p.value ? "border-[#1D9E75] bg-[#E1F5EE] text-[#1D9E75]" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">
@@ -872,410 +928,295 @@ export default function CreatePage() {
 
         {/* STEP 3 */}
         {step === 3 && result && (
-          <div className="space-y-4">
-            {/* Preview toggle */}
-            <button
-              onClick={() => setShowPreview((v) => !v)}
-              className={`w-full py-2.5 rounded-xl border text-sm font-medium transition-all cursor-pointer flex items-center justify-center gap-2 ${showPreview ? "border-[#1D9E75] bg-[#E1F5EE] text-[#1D9E75]" : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"}`}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-              {showPreview
-                ? "Скрыть предпросмотр"
-                : `Предпросмотр в ${PLATFORMS.find((p) => p.value === form.platform)?.label}`}
-            </button>
-
-            {/* Post preview */}
-            {showPreview && (
-              <PostPreview
-                platform={form.platform}
-                result={result}
-                imagePreview={imagePreview}
-              />
-            )}
-
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-base font-bold text-gray-900 mb-1">
-                    {result.title}
-                  </h3>
-                  <p className="text-sm text-gray-500">{result.idea}</p>
+          <div className="flex gap-5 items-start">
+            {/* Левая часть */}
+            <div className="flex-1 min-w-0 space-y-4">
+              {result.source_image_url && (
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <img
+                    src={result.source_image_url}
+                    alt="preview"
+                    className="w-full object-cover max-h-72"
+                  />
                 </div>
-                <span className="text-xs px-2 py-1 bg-[#E1F5EE] text-[#1D9E75] rounded-full font-medium flex-shrink-0">
-                  {t("result.generated")}
-                </span>
-              </div>
-            </div>
-
-            {result.hook && (
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-                  {t("result.hook")}
-                </p>
-                <p className="text-sm text-gray-700">{result.hook}</p>
-              </div>
-            )}
-
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                  {t("result.caption")}
-                </p>
-                <button
-                  onClick={copyCaption}
-                  className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors cursor-pointer ${copied ? "border-[#1D9E75] bg-[#E1F5EE] text-[#1D9E75]" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
-                >
-                  {copied ? t("result.copied") : t("result.copy")}
-                </button>
-              </div>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                {result.caption}
-              </p>
-              <div className="flex flex-wrap gap-1.5 mt-3">
-                {result.hashtags?.map((h) => (
-                  <span
-                    key={h}
-                    className="text-xs text-[#1D9E75] bg-[#E1F5EE] px-2 py-0.5 rounded-full"
-                  >
-                    {h}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {result.cta && (
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-                  {t("result.cta")}
-                </p>
-                <p className="text-sm text-gray-700">{result.cta}</p>
-              </div>
-            )}
-
-            {result.script && result.script.length > 0 && (
+              )}
               <div className="bg-white rounded-xl border border-gray-200 p-5">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                  {t("result.script")}
+                  {t("result.caption")}
                 </p>
-                <div className="space-y-2">
-                  {result.script.map((s) => (
-                    <div key={s.scene} className="flex gap-3">
-                      <span className="text-xs font-bold text-[#1D9E75] bg-[#E1F5EE] px-2 py-0.5 rounded flex-shrink-0 h-fit">
-                        {s.scene}
-                      </span>
-                      <div>
-                        <p className="text-sm text-gray-700">{s.text}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {s.duration}
-                        </p>
-                      </div>
-                    </div>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                  {result.caption}
+                </p>
+                <div className="flex flex-wrap gap-1.5 mt-4">
+                  {result.hashtags?.map((h) => (
+                    <span
+                      key={h}
+                      className="text-xs text-[#1D9E75] bg-[#E1F5EE] px-2.5 py-0.5 rounded-full"
+                    >
+                      {h}
+                    </span>
                   ))}
                 </div>
               </div>
-            )}
+            </div>
 
-            {/* Publish now success/error */}
-            {publishSuccess && (
-              <div className="bg-[#E1F5EE] border border-[#1D9E75]/30 rounded-xl px-4 py-3 text-sm text-[#1D9E75] font-medium">
-                ✓ Пост опубликован в{" "}
-                {PLATFORMS.find((p) => p.value === form.platform)?.label}!
-              </div>
-            )}
-            {publishError && (
-              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
-                {publishError}
-              </div>
-            )}
-
-            {scheduleSuccess && (
-              <div className="bg-[#E1F5EE] border border-[#1D9E75]/30 rounded-xl px-4 py-3 text-sm text-[#1D9E75] font-medium">
-                {t("result.scheduleSuccess")}
-              </div>
-            )}
-
-            {showSchedule && (
-              <div className="bg-white rounded-xl border border-[#1D9E75]/30 p-5 space-y-3">
-                <h4 className="text-sm font-semibold text-gray-900">
-                  {t("result.scheduleTitle")}
-                </h4>
-                {integrations && integrations.length === 0 && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
-                    {t("result.noChannels")}{" "}
-                    <a
-                      href={`/${locale}/integrations`}
-                      className="font-semibold underline"
-                    >
-                      {t("result.connectTelegram")}
-                    </a>
-                  </div>
-                )}
-                {/* Channel selector */}
-                {allChannels && allChannels.length > 0 && (
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                      Канал для публикации
-                    </label>
-                    <div className="space-y-1.5">
-                      {allChannels.map((ch: any) => (
+            {/* Правая часть — сайдбар */}
+            <div className="w-72 flex-shrink-0 space-y-3 sticky top-4">
+              <div className="bg-white rounded-xl border border-gray-200 p-4">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                  Публикация
+                </p>
+                <div className="space-y-3">
+                  {(allChannels || []).length === 0 ? (
+                    <div className="text-center py-6">
+                      <p className="text-xs text-gray-500 mb-2">
+                        Нет подключённых каналов
+                      </p>
+                      <a
+                        href={`/${locale}/integrations`}
+                        className="text-xs text-[#1D9E75] font-semibold hover:underline"
+                      >
+                        Подключить →
+                      </a>
+                    </div>
+                  ) : (
+                    (allChannels || []).map((ch: any) => {
+                      const act = accountActions[ch.id] || {
+                        action: "none",
+                        date: today,
+                        time: "12:00",
+                        slots: [],
+                      };
+                      return (
                         <div
                           key={ch.id}
-                          onClick={() => setChannelForSchedule(ch.id)}
-                          className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${channelForSchedule === ch.id ? "border-[#1D9E75] bg-[#E1F5EE]" : "border-gray-200 hover:border-gray-300"}`}
+                          className={`rounded-xl border p-3 transition-all ${act.action !== "none" ? "border-[#1D9E75] bg-[#F8FDFB]" : "border-gray-100"}`}
                         >
-                          <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                            <svg
-                              width="12"
-                              height="12"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="#2AABEE"
-                              strokeWidth="1.5"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
-                            </svg>
+                          <div className="flex items-center gap-2 mb-2.5">
+                            <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                              <svg
+                                width="12"
+                                height="12"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="#2AABEE"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
+                              </svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-gray-800 truncate">
+                                {ch.channel_name || ch.channel_id}
+                              </p>
+                              <p className="text-[10px] text-gray-400">
+                                {ch.channel_id}
+                              </p>
+                            </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p
-                              className={`text-xs font-semibold truncate ${channelForSchedule === ch.id ? "text-[#1D9E75]" : "text-gray-900"}`}
-                            >
-                              {ch.channel_name || ch.channel_id}
-                            </p>
-                            <p className="text-[10px] text-gray-400">
-                              {ch.channel_id}
-                            </p>
+                          <div className="grid grid-cols-3 gap-1">
+                            {(["now", "schedule", "none"] as const).map(
+                              (type) => (
+                                <button
+                                  key={type}
+                                  onClick={() =>
+                                    setAccountActions((prev) => ({
+                                      ...prev,
+                                      [ch.id]: { ...act, action: type },
+                                    }))
+                                  }
+                                  className={`py-1.5 text-[9px] font-semibold rounded-lg border transition-all cursor-pointer ${
+                                    act.action === type
+                                      ? type === "none"
+                                        ? "bg-gray-100 border-gray-200 text-gray-500"
+                                        : "bg-[#1D9E75] border-[#1D9E75] text-white"
+                                      : "bg-white border-gray-200 text-gray-400 hover:border-gray-300"
+                                  }`}
+                                >
+                                  {type === "now"
+                                    ? "Сейчас"
+                                    : type === "schedule"
+                                      ? "Запланировать"
+                                      : "Пропустить"}
+                                </button>
+                              ),
+                            )}
                           </div>
-                          {channelForSchedule === ch.id && (
-                            <span className="text-[#1D9E75] text-sm">✓</span>
+                          {act.action === "schedule" && (
+                            <div className="mt-2 space-y-1.5">
+                              {act.slots.length === 0 ? (
+                                <div className="space-y-1.5">
+                                  <div className="flex gap-1.5">
+                                    <input
+                                      type="date"
+                                      value={act.date}
+                                      min={today}
+                                      onChange={(e) =>
+                                        setAccountActions((prev) => ({
+                                          ...prev,
+                                          [ch.id]: {
+                                            ...act,
+                                            date: e.target.value,
+                                          },
+                                        }))
+                                      }
+                                      className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                                    />
+                                    <input
+                                      type="time"
+                                      value={act.time}
+                                      onChange={(e) =>
+                                        setAccountActions((prev) => ({
+                                          ...prev,
+                                          [ch.id]: {
+                                            ...act,
+                                            time: e.target.value,
+                                          },
+                                        }))
+                                      }
+                                      className="w-20 px-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                                    />
+                                  </div>
+                                  <button
+                                    onClick={() =>
+                                      setAccountActions((prev) => ({
+                                        ...prev,
+                                        [ch.id]: {
+                                          ...act,
+                                          slots: [
+                                            { date: act.date, time: act.time },
+                                            { date: today, time: "18:00" },
+                                          ],
+                                        },
+                                      }))
+                                    }
+                                    className="text-[10px] text-[#1D9E75] cursor-pointer"
+                                  >
+                                    + Добавить ещё дату
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="space-y-1.5">
+                                  {act.slots.map((slot: any, i: number) => (
+                                    <div
+                                      key={i}
+                                      className="flex items-center gap-1"
+                                    >
+                                      <input
+                                        type="date"
+                                        value={slot.date}
+                                        min={today}
+                                        onChange={(e) => {
+                                          const s = [...act.slots];
+                                          s[i] = {
+                                            ...s[i],
+                                            date: e.target.value,
+                                          };
+                                          setAccountActions((prev) => ({
+                                            ...prev,
+                                            [ch.id]: { ...act, slots: s },
+                                          }));
+                                        }}
+                                        className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                                      />
+                                      <input
+                                        type="time"
+                                        value={slot.time}
+                                        onChange={(e) => {
+                                          const s = [...act.slots];
+                                          s[i] = {
+                                            ...s[i],
+                                            time: e.target.value,
+                                          };
+                                          setAccountActions((prev) => ({
+                                            ...prev,
+                                            [ch.id]: { ...act, slots: s },
+                                          }));
+                                        }}
+                                        className="w-20 px-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                                      />
+                                      <button
+                                        onClick={() =>
+                                          setAccountActions((prev) => ({
+                                            ...prev,
+                                            [ch.id]: {
+                                              ...act,
+                                              slots: act.slots.filter(
+                                                (_: any, idx: number) =>
+                                                  idx !== i,
+                                              ),
+                                            },
+                                          }))
+                                        }
+                                        className="text-gray-300 hover:text-red-400 cursor-pointer text-sm"
+                                      >
+                                        ×
+                                      </button>
+                                    </div>
+                                  ))}
+                                  <button
+                                    onClick={() =>
+                                      setAccountActions((prev) => ({
+                                        ...prev,
+                                        [ch.id]: {
+                                          ...act,
+                                          slots: [
+                                            ...act.slots,
+                                            { date: today, time: "12:00" },
+                                          ],
+                                        },
+                                      }))
+                                    }
+                                    className="text-[10px] text-[#1D9E75] cursor-pointer"
+                                  >
+                                    + Ещё дату
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           )}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                      {t("result.scheduleDate")}
-                    </label>
-                    <input
-                      type="date"
-                      value={scheduleDate}
-                      min={new Date().toISOString().split("T")[0]}
-                      onChange={(e) => setScheduleDate(e.target.value)}
-                      className={inputClass}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                      {t("result.scheduleTime")}
-                    </label>
-                    <input
-                      type="time"
-                      value={scheduleTime}
-                      onChange={(e) => setScheduleTime(e.target.value)}
-                      className={inputClass}
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => scheduleMutation.mutate()}
-                    disabled={!scheduleDate || scheduleMutation.isPending}
-                    className="flex-1 py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
-                  >
-                    {scheduleMutation.isPending
-                      ? t("result.scheduleSaving")
-                      : t("result.scheduleBtn")}
-                  </button>
-                  <button
-                    onClick={() => setShowSchedule(false)}
-                    className="px-4 py-2.5 border border-gray-200 text-gray-500 text-sm rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
-                  >
-                    {t("result.scheduleCancel")}
-                  </button>
+                      );
+                    })
+                  )}
                 </div>
               </div>
-            )}
 
-            {/* Action buttons */}
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => {
-                  setStep(1);
-                  setResult(null);
-                  setShowSchedule(false);
-                  setScheduleSuccess(false);
-                  setPublishSuccess(false);
-                  setPublishError("");
-                  setImageFile(null);
-                  setImagePreview(null);
-                  setShowPreview(false);
-                  setForm((p) => ({ ...p, topic: "" }));
-                }}
-                className="py-2.5 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
-              >
-                {t("result.createMore")}
-              </button>
-              {!publishSuccess && !scheduleSuccess && (
-                <button
-                  onClick={handlePublishNow}
-                  disabled={publishing}
-                  className="py-2.5 bg-[#2AABEE] hover:bg-[#1a95d5] text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
-                  </svg>
-                  {publishing ? "Публикуем..." : "Опубликовать сейчас"}
-                </button>
+              {publishError && (
+                <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
+                  {publishError}
+                </div>
               )}
-              {!scheduleSuccess && (
-                <button
-                  onClick={() => setShowSchedule((v) => !v)}
-                  className="py-2.5 border border-[#1D9E75] text-[#1D9E75] text-sm font-semibold rounded-lg hover:bg-[#E1F5EE] transition-colors cursor-pointer"
-                >
-                  {t("result.schedulePost")}
-                </button>
+              {publishSuccess && (
+                <div className="bg-[#E1F5EE] border border-[#1D9E75]/30 rounded-xl px-4 py-3 text-sm text-[#1D9E75] font-medium">
+                  ✓ Опубликовано!
+                </div>
               )}
+              {scheduleSuccess && (
+                <div className="bg-[#E1F5EE] border border-[#1D9E75]/30 rounded-xl px-4 py-3 text-sm text-[#1D9E75] font-medium">
+                  ✓ Запланировано!
+                </div>
+              )}
+
               <button
-                onClick={() => router.push(`/${locale}/history`)}
-                className="py-2.5 bg-[#1D9E75] text-white text-sm font-semibold rounded-lg hover:bg-[#0F6E56] transition-colors cursor-pointer"
+                onClick={handleApplyActions}
+                disabled={
+                  !(allChannels || []).some(
+                    (ch: any) =>
+                      accountActions[ch.id]?.action &&
+                      accountActions[ch.id].action !== "none",
+                  ) || publishing
+                }
+                className="w-full py-3 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-xl transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {t("result.history")}
+                {publishing ? "Публикуем..." : "Применить"}
               </button>
             </div>
           </div>
         )}
       </div>
-
-      {/* Channel Sidebar */}
-      {showChannelSidebar && (
-        <div className="w-72 flex-shrink-0 bg-white border-l border-gray-100 flex flex-col overflow-hidden h-screen sticky top-0">
-          <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-gray-900">
-                {PLATFORMS.find((p) => p.value === form.platform)?.label} каналы
-              </p>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Выберите канал для публикации
-              </p>
-            </div>
-            <button
-              onClick={() => setShowChannelSidebar(false)}
-              className="text-gray-300 hover:text-gray-500 cursor-pointer p-1"
-            >
-              ✕
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-3 space-y-2">
-            {!allChannels || allChannels.length === 0 ? (
-              <div className="text-center py-8">
-                <svg
-                  width="28"
-                  height="28"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#D1D5DB"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="mx-auto mb-3"
-                >
-                  <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
-                </svg>
-                <p className="text-xs font-medium text-gray-700 mb-1">
-                  Нет подключённых каналов
-                </p>
-                <p className="text-xs text-gray-400 mb-4">
-                  Подключите канал чтобы публиковать посты
-                </p>
-                <a
-                  href={`/${locale}/integrations`}
-                  className="text-xs text-[#1D9E75] font-semibold hover:underline cursor-pointer"
-                >
-                  Подключить →
-                </a>
-              </div>
-            ) : (
-              allChannels.map((ch: any) => (
-                <div
-                  key={ch.id}
-                  onClick={() => {
-                    setSelectedChannelId(ch.id);
-                    setShowChannelSidebar(false);
-                  }}
-                  className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${selectedChannelId === ch.id ? "border-[#1D9E75] bg-[#E1F5EE]" : "border-gray-100 hover:border-gray-200 hover:bg-gray-50"}`}
-                >
-                  <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#2AABEE"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p
-                      className={`text-xs font-semibold truncate ${selectedChannelId === ch.id ? "text-[#1D9E75]" : "text-gray-900"}`}
-                    >
-                      {ch.channel_name || ch.channel_id}
-                    </p>
-                    <p className="text-[10px] text-gray-400 truncate">
-                      {ch.channel_id}
-                    </p>
-                  </div>
-                  {selectedChannelId === ch.id && (
-                    <span className="text-[#1D9E75] text-sm flex-shrink-0">
-                      ✓
-                    </span>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-          {selectedChannelId && (
-            <div className="p-3 border-t border-gray-100">
-              <div className="bg-[#E1F5EE] rounded-lg px-3 py-2">
-                <p className="text-xs text-[#1D9E75] font-medium">
-                  ✓{" "}
-                  {allChannels?.find((c: any) => c.id === selectedChannelId)
-                    ?.channel_name || ""}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
