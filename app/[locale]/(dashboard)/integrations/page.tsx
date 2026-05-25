@@ -131,20 +131,17 @@ export default function IntegrationsPage() {
     setTesting(true);
     setTestResult("");
     try {
-      const res = await fetch(
-        `https://api.telegram.org/bot${process.env.NEXT_PUBLIC_BOT_TOKEN}/getChat`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: cId }),
-        },
-      );
+      const res = await fetch("/api/telegram/check-channel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel_id: cId }),
+      });
       const data = await res.json();
       if (data.ok) {
         setTestResult(`✓ Канал найден: ${data.result.title || cId}`);
       } else {
         setTestResult(
-          "✗ Канал не найден. Убедитесь что бот добавлен как администратор",
+          "✗ Канал не найден. Убедитесь что @postcentro_bot добавлен как администратор",
         );
       }
     } catch {
@@ -357,6 +354,13 @@ export default function IntegrationsPage() {
                     {testing ? "..." : "Проверить"}
                   </button>
                 </div>
+                <p className="text-xs text-gray-400 mt-1.5">
+                  Перед подключением добавьте{" "}
+                  <span className="font-semibold text-gray-600">
+                    @postcentro_bot
+                  </span>{" "}
+                  как администратора в ваш канал
+                </p>
                 {testResult && (
                   <p
                     className={`text-xs mt-1.5 font-medium ${testResult.startsWith("✓") ? "text-[#1D9E75]" : "text-red-500"}`}
