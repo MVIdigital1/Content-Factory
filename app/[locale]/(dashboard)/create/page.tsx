@@ -471,6 +471,24 @@ export default function CreatePage() {
     .toISOString()
     .split("T")[0];
 
+  // Plan modal state
+  const [planModal, setPlanModal] = useState<{
+    open: boolean;
+    channelId: string;
+    channelName: string;
+  }>({ open: false, channelId: "", channelName: "" });
+  const [planConfig, setPlanConfig] = useState({
+    dateFrom: today,
+    dateTo: nextWeek,
+    frequency: 1,
+    times: ["12:00"],
+    topicMode: "auto" as "auto" | "manual",
+    topics: [""],
+  });
+  const [planGenerating, setPlanGenerating] = useState(false);
+  const [planProgress, setPlanProgress] = useState(0);
+  const [planDone, setPlanDone] = useState(false);
+
   const handleApplyActions = async () => {
     if (!result?.id) return;
     setPublishing(true);
@@ -531,6 +549,104 @@ export default function CreatePage() {
   };
 
   const [showPreview, setShowPreview] = useState(false);
+
+  // Generate date slots between two dates with given times
+  const buildPlanSlots = (
+    dateFrom: string,
+    dateTo: string,
+    times: string[],
+  ) => {
+    const slots: { date: string; time: string }[] = [];
+    const start = new Date(dateFrom);
+    const end = new Date(dateTo);
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split("T")[0];
+      for (const time of times) {
+        slots.push({ date: dateStr, time });
+      }
+    }
+    return slots;
+  };
+
+  const handleOpenPlan = (channelId: string, channelName: string) => {
+    setPlanConfig({
+      dateFrom: today,
+      dateTo: nextWeek,
+      frequency: 1,
+      times: ["12:00"],
+      topicMode: "auto",
+      topics: [""],
+    });
+    setPlanDone(false);
+    setPlanProgress(0);
+    setPlanModal({ open: true, channelId, channelName });
+  };
+
+  const handlePlanFrequencyChange = (freq: number) => {
+    const defaultTimes = ["09:00", "14:00", "19:00"];
+    const times = Array.from(
+      { length: freq },
+      (_, i) => defaultTimes[i] || "12:00",
+    );
+    setPlanConfig((p) => ({ ...p, frequency: freq, times }));
+  };
+
+  const handleGeneratePlan = async () => {
+    if (!result) return;
+    setPlanGenerating(true);
+    setPlanProgress(0);
+    setPlanDone(false);
+
+    const slots = buildPlanSlots(
+      planConfig.dateFrom,
+      planConfig.dateTo,
+      planConfig.times,
+    );
+    const project = projects?.find((p) => p.id === form.projectId);
+    let done = 0;
+
+    for (let i = 0; i < slots.length; i++) {
+      const slot = slots[i];
+      const topic =
+        planConfig.topicMode === "manual" && planConfig.topics[i]
+          ? planConfig.topics[i]
+          : form.topic;
+      try {
+        const res = await fetch("/api/content/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: form.projectId,
+            platform: form.platform,
+            contentType: form.contentType,
+            goal: form.goal,
+            topic,
+            language: (project as any)?.language || "ru",
+          }),
+        });
+        const data = await res.json();
+        if (res.ok && data.content?.id) {
+          const scheduledAt = new Date(
+            slot.date + "T" + slot.time,
+          ).toISOString();
+          await supabase.from("scheduled_posts").insert({
+            content_id: data.content.id,
+            platform: form.platform,
+            scheduled_at: scheduledAt,
+            status: "pending",
+            channel_id: planModal.channelId,
+          });
+        }
+      } catch (e) {
+        console.error("Plan slot error:", e);
+      }
+      done++;
+      setPlanProgress(Math.round((done / slots.length) * 100));
+    }
+
+    setPlanGenerating(false);
+    setPlanDone(true);
+  };
 
   const { data: projects } = useQuery({
     queryKey: ["projects"],
@@ -1017,30 +1133,43 @@ export default function CreatePage() {
                               </p>
                             </div>
                           </div>
-                          <div className="grid grid-cols-3 gap-1">
-                            {(["now", "schedule", "none"] as const).map(
+                          <div className="grid grid-cols-2 gap-1">
+                            {(["now", "schedule", "plan", "none"] as const).map(
                               (type) => (
                                 <button
                                   key={type}
-                                  onClick={() =>
-                                    setAccountActions((prev) => ({
-                                      ...prev,
-                                      [ch.id]: { ...act, action: type },
-                                    }))
-                                  }
+                                  onClick={() => {
+                                    if (type === "plan") {
+                                      handleOpenPlan(
+                                        ch.id,
+                                        ch.channel_name || ch.channel_id,
+                                      );
+                                    } else {
+                                      setAccountActions((prev) => ({
+                                        ...prev,
+                                        [ch.id]: { ...act, action: type },
+                                      }));
+                                    }
+                                  }}
                                   className={`py-1.5 text-[9px] font-semibold rounded-lg border transition-all cursor-pointer ${
                                     act.action === type
                                       ? type === "none"
                                         ? "bg-gray-100 border-gray-200 text-gray-500"
-                                        : "bg-[#1D9E75] border-[#1D9E75] text-white"
-                                      : "bg-white border-gray-200 text-gray-400 hover:border-gray-300"
+                                        : type === "plan"
+                                          ? "bg-purple-600 border-purple-600 text-white"
+                                          : "bg-[#1D9E75] border-[#1D9E75] text-white"
+                                      : type === "plan"
+                                        ? "bg-white border-purple-200 text-purple-400 hover:border-purple-400"
+                                        : "bg-white border-gray-200 text-gray-400 hover:border-gray-300"
                                   }`}
                                 >
                                   {type === "now"
                                     ? "Сейчас"
                                     : type === "schedule"
                                       ? "Запланировать"
-                                      : "Пропустить"}
+                                      : type === "plan"
+                                        ? "📅 План"
+                                        : "Пропустить"}
                                 </button>
                               ),
                             )}
@@ -1218,6 +1347,283 @@ export default function CreatePage() {
           </div>
         )}
       </div>
+      {/* Plan Modal */}
+      {planModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() =>
+              !planGenerating &&
+              setPlanModal({ open: false, channelId: "", channelName: "" })
+            }
+          />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">
+                  📅 Контент-план
+                </h3>
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  {planModal.channelName}
+                </p>
+              </div>
+              {!planGenerating && (
+                <button
+                  onClick={() =>
+                    setPlanModal({
+                      open: false,
+                      channelId: "",
+                      channelName: "",
+                    })
+                  }
+                  className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-400 cursor-pointer transition-colors"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <div className="p-5 space-y-4">
+              {planDone ? (
+                <div className="text-center py-8">
+                  <div className="w-14 h-14 bg-[#E1F5EE] rounded-full flex items-center justify-center mx-auto mb-3">
+                    <span className="text-2xl">✓</span>
+                  </div>
+                  <p className="text-sm font-semibold text-gray-800 mb-1">
+                    План создан!
+                  </p>
+                  <p className="text-xs text-gray-400 mb-4">
+                    Посты запланированы и сохранены в очередь публикаций.
+                  </p>
+                  <button
+                    onClick={() =>
+                      setPlanModal({
+                        open: false,
+                        channelId: "",
+                        channelName: "",
+                      })
+                    }
+                    className="px-5 py-2 bg-[#1D9E75] text-white text-sm font-semibold rounded-xl cursor-pointer"
+                  >
+                    Готово
+                  </button>
+                </div>
+              ) : planGenerating ? (
+                <div className="text-center py-8">
+                  <div className="w-14 h-14 bg-purple-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#7C3AED"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="animate-spin"
+                    >
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-semibold text-gray-800 mb-1">
+                    Генерируем посты...
+                  </p>
+                  <p className="text-xs text-gray-400 mb-4">
+                    Claude создаёт уникальный контент для каждого слота
+                  </p>
+                  <div className="w-full bg-gray-100 rounded-full h-2 mb-1">
+                    <div
+                      className="bg-purple-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${planProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400">{planProgress}%</p>
+                </div>
+              ) : (
+                <>
+                  {/* Date range */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-2">
+                      Период публикаций
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="date"
+                        value={planConfig.dateFrom}
+                        min={today}
+                        onChange={(e) =>
+                          setPlanConfig((p) => ({
+                            ...p,
+                            dateFrom: e.target.value,
+                          }))
+                        }
+                        className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                      />
+                      <span className="text-gray-300 text-xs">→</span>
+                      <input
+                        type="date"
+                        value={planConfig.dateTo}
+                        min={planConfig.dateFrom}
+                        onChange={(e) =>
+                          setPlanConfig((p) => ({
+                            ...p,
+                            dateTo: e.target.value,
+                          }))
+                        }
+                        className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Frequency */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-2">
+                      Частота публикаций
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[1, 2, 3].map((f) => (
+                        <button
+                          key={f}
+                          onClick={() => handlePlanFrequencyChange(f)}
+                          className={`py-2 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
+                            planConfig.frequency === f
+                              ? "bg-purple-600 border-purple-600 text-white"
+                              : "bg-white border-gray-200 text-gray-400 hover:border-purple-300"
+                          }`}
+                        >
+                          {f}x в день
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Time slots */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-2">
+                      Время публикации
+                    </label>
+                    <div className="space-y-2">
+                      {planConfig.times.map((t, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="text-[10px] text-gray-400 w-10">
+                            Слот {i + 1}
+                          </span>
+                          <input
+                            type="time"
+                            value={t}
+                            onChange={(e) => {
+                              const times = [...planConfig.times];
+                              times[i] = e.target.value;
+                              setPlanConfig((p) => ({ ...p, times }));
+                            }}
+                            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Topic mode */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-2">
+                      Темы постов
+                    </label>
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      {(["auto", "manual"] as const).map((mode) => (
+                        <button
+                          key={mode}
+                          onClick={() =>
+                            setPlanConfig((p) => ({ ...p, topicMode: mode }))
+                          }
+                          className={`py-2 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
+                            planConfig.topicMode === mode
+                              ? "bg-[#1D9E75] border-[#1D9E75] text-white"
+                              : "bg-white border-gray-200 text-gray-400 hover:border-[#1D9E75]"
+                          }`}
+                        >
+                          {mode === "auto" ? "🤖 Авто (Claude)" : "✏️ Вручную"}
+                        </button>
+                      ))}
+                    </div>
+
+                    {planConfig.topicMode === "manual" &&
+                      (() => {
+                        const slots = buildPlanSlots(
+                          planConfig.dateFrom,
+                          planConfig.dateTo,
+                          planConfig.times,
+                        );
+                        return (
+                          <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                            {slots.map((slot, i) => (
+                              <div key={i} className="flex items-center gap-2">
+                                <span className="text-[9px] text-gray-400 whitespace-nowrap">
+                                  {slot.date.slice(5)} {slot.time}
+                                </span>
+                                <input
+                                  type="text"
+                                  placeholder={`Тема ${i + 1}...`}
+                                  value={planConfig.topics[i] || ""}
+                                  onChange={(e) => {
+                                    const topics = [...planConfig.topics];
+                                    topics[i] = e.target.value;
+                                    setPlanConfig((p) => ({ ...p, topics }));
+                                  }}
+                                  className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+
+                    {planConfig.topicMode === "auto" && (
+                      <p className="text-[11px] text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
+                        Claude будет использовать тему «{form.topic}» и
+                        генерировать уникальный контент для каждого слота.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Summary */}
+                  <div className="bg-purple-50 rounded-xl px-4 py-3">
+                    <p className="text-[11px] text-purple-700 font-semibold mb-1">
+                      Итого постов:
+                    </p>
+                    <p className="text-lg font-bold text-purple-700">
+                      {
+                        buildPlanSlots(
+                          planConfig.dateFrom,
+                          planConfig.dateTo,
+                          planConfig.times,
+                        ).length
+                      }
+                    </p>
+                    <p className="text-[10px] text-purple-400 mt-0.5">
+                      {planConfig.frequency}x в день · с{" "}
+                      {planConfig.dateFrom.slice(5)} по{" "}
+                      {planConfig.dateTo.slice(5)}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleGeneratePlan}
+                    disabled={
+                      !planConfig.dateFrom ||
+                      !planConfig.dateTo ||
+                      planConfig.dateFrom > planConfig.dateTo
+                    }
+                    className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-xl transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Создать план
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
