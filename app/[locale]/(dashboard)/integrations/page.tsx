@@ -18,10 +18,11 @@ function connectInstagram() {
   const params = new URLSearchParams({
     client_id: process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID!,
     redirect_uri: process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI!,
-    scope: "instagram_basic,instagram_content_publish,pages_read_engagement",
+    scope:
+      "instagram_business_basic,instagram_content_publish,instagram_manage_comments,instagram_business_manage_messages",
     response_type: "code",
   });
-  window.location.href = `https://www.facebook.com/v19.0/dialog/oauth?${params}`;
+  window.location.href = `https://www.instagram.com/oauth/authorize?${params}`;
 }
 
 const PLATFORMS = [
