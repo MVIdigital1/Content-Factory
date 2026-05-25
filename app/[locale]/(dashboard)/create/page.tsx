@@ -24,6 +24,7 @@ type GeneratedContent = {
   script: { scene: number; text: string; duration: string }[];
   voiceover: string;
   screen_text: string;
+  source_image_url?: string;
   id?: string;
 };
 
