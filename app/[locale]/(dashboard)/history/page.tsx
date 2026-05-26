@@ -84,6 +84,21 @@ export default function HistoryPage() {
   const [editMode, setEditMode] = useState(false);
   const [editCaption, setEditCaption] = useState("");
 
+  // Publish from history
+  const [publishAction, setPublishAction] = useState<
+    "none" | "now" | "schedule"
+  >("none");
+  const [scheduleDate, setScheduleDate] = useState(
+    new Date().toISOString().split("T")[0],
+  );
+  const [scheduleTime, setScheduleTime] = useState("12:00");
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState("");
+  const [publishSuccess, setPublishSuccess] = useState("");
+  const [selectedPlatform, setSelectedPlatform] = useState<string>("");
+
+  const today = new Date().toISOString().split("T")[0];
+
   const { data: contents, isLoading } = useQuery({
     queryKey: ["history"],
     queryFn: async () => {
@@ -92,6 +107,19 @@ export default function HistoryPage() {
         .select("*, projects(name)")
         .order("created_at", { ascending: false })
         .limit(100);
+      return data || [];
+    },
+  });
+
+  const { data: integrations } = useQuery({
+    queryKey: ["integrations"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("integrations")
+        .select("id, platform, channel_id, channel_name, is_active")
+        .order("created_at", { ascending: false });
+      if (error) console.error("Integrations fetch error:", error);
+      console.log("Integrations loaded:", data);
       return data || [];
     },
   });
@@ -129,6 +157,65 @@ export default function HistoryPage() {
       setEditMode(false);
     },
   });
+
+  const handlePublishNow = async () => {
+    if (!selected) return;
+    setPublishing(true);
+    setPublishError("");
+    setPublishSuccess("");
+    try {
+      const res = await fetch("/api/content/publish-now", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contentId: selected.id,
+          platform: selectedPlatform || selected.platform,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Ошибка публикации");
+      setPublishSuccess("✓ Опубликовано!");
+      queryClient.invalidateQueries({ queryKey: ["history"] });
+      setSelected((prev: any) =>
+        prev ? { ...prev, status: "published" } : prev,
+      );
+    } catch (e: any) {
+      setPublishError(e.message);
+    }
+    setPublishing(false);
+  };
+
+  const handleSchedule = async () => {
+    if (!selected || !scheduleDate) return;
+    setPublishing(true);
+    setPublishError("");
+    setPublishSuccess("");
+    try {
+      const scheduledAt = new Date(
+        scheduleDate + "T" + scheduleTime,
+      ).toISOString();
+      const { error } = await supabase.from("scheduled_posts").insert({
+        content_id: selected.id,
+        platform: selectedPlatform || selected.platform,
+        scheduled_at: scheduledAt,
+        status: "pending",
+      });
+      if (error) throw error;
+      await supabase
+        .from("contents")
+        .update({ status: "scheduled" })
+        .eq("id", selected.id);
+      setPublishSuccess("✓ Запланировано!");
+      queryClient.invalidateQueries({ queryKey: ["history"] });
+      setSelected((prev: any) =>
+        prev ? { ...prev, status: "scheduled" } : prev,
+      );
+      setPublishAction("none");
+    } catch (e: any) {
+      setPublishError(e.message);
+    }
+    setPublishing(false);
+  };
 
   const copyCaption = () => {
     if (!selected) return;
@@ -203,6 +290,10 @@ export default function HistoryPage() {
                             setSelected(item);
                             setEditMode(false);
                             setEditCaption(item.caption || "");
+                            setPublishAction("none");
+                            setPublishError("");
+                            setPublishSuccess("");
+                            setSelectedPlatform(item.platform || "");
                           }}
                           className={`bg-white border rounded-xl p-3 cursor-pointer transition-all hover:shadow-sm ${selected?.id === item.id ? "border-[#1D9E75] shadow-sm" : "border-gray-100 hover:border-gray-200"}`}
                         >
@@ -424,6 +515,137 @@ export default function HistoryPage() {
 
           {/* Actions */}
           <div className="p-3 border-t border-gray-100 space-y-2">
+            {/* Publish block — shown for generated, failed, draft */}
+            {["generated", "failed", "draft"].includes(selected.status) && (
+              <div className="rounded-xl border border-gray-100 p-3 space-y-2">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">
+                  🚀 Публикация
+                </p>
+
+                {publishSuccess ? (
+                  <div className="bg-[#E1F5EE] border border-[#1D9E75]/30 rounded-lg px-3 py-2 text-xs text-[#1D9E75] font-medium">
+                    {publishSuccess}
+                  </div>
+                ) : (
+                  <>
+                    {/* Action buttons */}
+                    <div className="grid grid-cols-3 gap-1">
+                      {(["now", "schedule", "none"] as const).map((type) => (
+                        <button
+                          key={type}
+                          onClick={() => setPublishAction(type)}
+                          className={`py-1.5 text-[9px] font-semibold rounded-lg border transition-all cursor-pointer ${
+                            publishAction === type
+                              ? type === "none"
+                                ? "bg-gray-100 border-gray-200 text-gray-500"
+                                : "bg-[#1D9E75] border-[#1D9E75] text-white"
+                              : "bg-white border-gray-200 text-gray-400 hover:border-gray-300"
+                          }`}
+                        >
+                          {type === "now"
+                            ? "Сейчас"
+                            : type === "schedule"
+                              ? "Запланировать"
+                              : "Пропустить"}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Platform selector */}
+                    {publishAction !== "none" && (
+                      <div>
+                        <p className="text-[10px] text-gray-400 mb-1.5 font-medium">
+                          Куда публиковать
+                        </p>
+                        <div className="space-y-1">
+                          {(integrations || []).length === 0 ? (
+                            <p className="text-[10px] text-gray-300 italic">
+                              Нет подключённых каналов
+                            </p>
+                          ) : (
+                            (integrations || []).map((intg: any) => (
+                              <button
+                                key={intg.id}
+                                onClick={() =>
+                                  setSelectedPlatform(intg.platform)
+                                }
+                                className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border text-xs transition-all cursor-pointer ${
+                                  selectedPlatform === intg.platform
+                                    ? "bg-[#E1F5EE] border-[#1D9E75] text-[#1D9E75] font-semibold"
+                                    : "bg-white border-gray-200 text-gray-500 hover:border-gray-300"
+                                }`}
+                              >
+                                <span className="text-sm">
+                                  {PLATFORM_ICON[intg.platform] || "🌐"}
+                                </span>
+                                <span className="capitalize">
+                                  {intg.platform}
+                                </span>
+                                {intg.channel_name && (
+                                  <span className="ml-auto text-[10px] text-gray-400 truncate max-w-[80px]">
+                                    {intg.channel_name}
+                                  </span>
+                                )}
+                                {selectedPlatform === intg.platform && (
+                                  <span className="ml-auto text-[10px]">✓</span>
+                                )}
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Schedule date/time picker */}
+                    {publishAction === "schedule" && (
+                      <div className="space-y-2">
+                        <div className="flex gap-1.5">
+                          <input
+                            type="date"
+                            value={scheduleDate}
+                            min={today}
+                            onChange={(e) => setScheduleDate(e.target.value)}
+                            className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                          />
+                          <input
+                            type="time"
+                            value={scheduleTime}
+                            onChange={(e) => setScheduleTime(e.target.value)}
+                            className="w-20 px-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                          />
+                        </div>
+                        <button
+                          onClick={handleSchedule}
+                          disabled={publishing || !selectedPlatform}
+                          className="w-full py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          {publishing ? "Сохраняем..." : "Запланировать"}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Publish now button */}
+                    {publishAction === "now" && (
+                      <button
+                        onClick={handlePublishNow}
+                        disabled={publishing || !selectedPlatform}
+                        className="w-full py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        {publishing ? "Публикуем..." : "Опубликовать сейчас"}
+                      </button>
+                    )}
+
+                    {/* Error */}
+                    {publishError && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-600">
+                        {publishError}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
             <button
               onClick={() => deleteMutation.mutate(selected.id)}
               disabled={deleteMutation.isPending}

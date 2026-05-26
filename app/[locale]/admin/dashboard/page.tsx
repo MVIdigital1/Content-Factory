@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getLocale } from "next-intl/server";
@@ -12,7 +12,8 @@ export default async function AdminDashboardPage() {
     redirect(`/${locale}/admin`);
   }
 
-  const supabase = await createClient();
+  const supabase = await createClient(); // for auth cookie check only
+  const admin = createAdminClient(); // bypasses RLS — sees all users' data
 
   const [
     { count: totalUsers },
@@ -24,39 +25,39 @@ export default async function AdminDashboardPage() {
     { data: scheduledPosts },
     { data: integrations },
   ] = await Promise.all([
-    supabase.from("users").select("*", { count: "exact", head: true }),
-    supabase.from("contents").select("*", { count: "exact", head: true }),
-    supabase
+    admin.from("users").select("*", { count: "exact", head: true }),
+    admin.from("contents").select("*", { count: "exact", head: true }),
+    admin
       .from("contents")
       .select("*", { count: "exact", head: true })
       .eq("status", "published"),
-    supabase
+    admin
       .from("scheduled_posts")
       .select("*", { count: "exact", head: true })
       .eq("status", "pending"),
-    supabase
+    admin
       .from("users")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(100),
-    supabase
+    admin
       .from("contents")
       .select("*, projects(user_id, name)")
       .order("created_at", { ascending: false })
       .limit(200),
-    supabase
+    admin
       .from("scheduled_posts")
       .select("*, contents(title, platform, project_id)")
       .order("scheduled_at", { ascending: true })
       .limit(100),
-    supabase
+    admin
       .from("integrations")
       .select("*")
       .order("created_at", { ascending: false }),
   ]);
 
   // Get emails from auth
-  const { data: authData } = await supabase.auth.admin.listUsers();
+  const { data: authData } = await admin.auth.admin.listUsers();
   const authUsers = authData?.users || [];
 
   // Build user map

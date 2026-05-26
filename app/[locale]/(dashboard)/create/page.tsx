@@ -455,10 +455,13 @@ export default function CreatePage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [publishMode, setPublishMode] = useState<"now" | "schedule">("now");
   const [selectedChannelId, setSelectedChannelId] = useState<string>("");
   const [showChannelSidebar, setShowChannelSidebar] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
-  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleDate, setScheduleDate] = useState(
+    new Date().toISOString().split("T")[0],
+  );
   const [scheduleTime, setScheduleTime] = useState("12:00");
   const [scheduleSuccess, setScheduleSuccess] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -592,7 +595,7 @@ export default function CreatePage() {
   };
 
   const handleGeneratePlan = async () => {
-    if (!result) return;
+    if (!form.projectId || !form.topic) return;
     setPlanGenerating(true);
     setPlanProgress(0);
     setPlanDone(false);
@@ -827,7 +830,7 @@ export default function CreatePage() {
 
   return (
     <div className="flex gap-0 min-h-screen">
-      <div className="p-4 md:p-6 max-w-2xl w-full flex-1">
+      <div className="p-4 md:p-6 w-full flex-1 max-w-3xl mx-auto">
         <div className="mb-6">
           <h1 className="text-xl font-bold text-gray-900">{t("title")}</h1>
           <p className="text-sm text-gray-500 mt-0.5">{t("subtitle")}</p>
@@ -858,8 +861,239 @@ export default function CreatePage() {
           </div>
         </div>
 
-        {/* STEP 1 */}
+        {/* Publish mode toggle — shown on step 1 */}
         {step === 1 && (
+          <div className="flex items-center justify-center mb-5">
+            <div className="inline-flex bg-gray-100 rounded-xl p-1 gap-1">
+              <button
+                onClick={() => setPublishMode("now")}
+                className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+                  publishMode === "now"
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                🚀 Опубликовать сейчас
+              </button>
+              <button
+                onClick={() => setPublishMode("schedule")}
+                className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+                  publishMode === "schedule"
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                📅 Запланировать
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 1 — Schedule mode: show plan config */}
+        {step === 1 && publishMode === "schedule" && (
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+            {/* Project + Topic — needed for plan generation */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-2">
+                Проект
+              </label>
+              <CustomSelect
+                value={form.projectId}
+                onChange={(v) => setForm((p) => ({ ...p, projectId: v }))}
+                options={(projects || []).map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                }))}
+                placeholder="Выберите проект"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-2">
+                Тема / идея
+              </label>
+              <textarea
+                value={form.topic}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, topic: e.target.value }))
+                }
+                placeholder="Опишите тему или идею для контента..."
+                rows={2}
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] transition-colors bg-white resize-none"
+              />
+            </div>
+
+            {/* Period */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-2">
+                Период публикаций
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={planConfig.dateFrom}
+                  min={today}
+                  onChange={(e) =>
+                    setPlanConfig((p) => ({ ...p, dateFrom: e.target.value }))
+                  }
+                  className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] bg-white"
+                />
+                <span className="text-gray-300 text-xs">→</span>
+                <input
+                  type="date"
+                  value={planConfig.dateTo}
+                  min={planConfig.dateFrom}
+                  onChange={(e) =>
+                    setPlanConfig((p) => ({ ...p, dateTo: e.target.value }))
+                  }
+                  className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] bg-white"
+                />
+              </div>
+            </div>
+
+            {/* Frequency */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-2">
+                Частота публикаций
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[1, 2, 3].map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => handlePlanFrequencyChange(f)}
+                    className={`py-2 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${planConfig.frequency === f ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-gray-200 text-gray-400 hover:border-purple-300"}`}
+                  >
+                    {f}x в день
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Time slots */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-2">
+                Время публикации
+              </label>
+              <div className="space-y-2">
+                {planConfig.times.map((t, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-[10px] text-gray-400 w-10">
+                      Слот {i + 1}
+                    </span>
+                    <input
+                      type="time"
+                      value={t}
+                      onChange={(e) => {
+                        const times = [...planConfig.times];
+                        times[i] = e.target.value;
+                        setPlanConfig((p) => ({ ...p, times }));
+                      }}
+                      className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] bg-white"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Topic mode */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-2">
+                Темы постов
+              </label>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                {(["auto", "manual"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() =>
+                      setPlanConfig((p) => ({ ...p, topicMode: mode }))
+                    }
+                    className={`py-2 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${planConfig.topicMode === mode ? "bg-[#1D9E75] border-[#1D9E75] text-white" : "bg-white border-gray-200 text-gray-400 hover:border-[#1D9E75]"}`}
+                  >
+                    {mode === "auto" ? "🤖 Авто (Claude)" : "✏️ Вручную"}
+                  </button>
+                ))}
+              </div>
+              {planConfig.topicMode === "manual" &&
+                (() => {
+                  const slots = buildPlanSlots(
+                    planConfig.dateFrom,
+                    planConfig.dateTo,
+                    planConfig.times,
+                  );
+                  return (
+                    <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                      {slots.map((slot, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="text-[9px] text-gray-400 whitespace-nowrap">
+                            {slot.date.slice(5)} {slot.time}
+                          </span>
+                          <input
+                            type="text"
+                            placeholder={`Тема ${i + 1}...`}
+                            value={planConfig.topics[i] || ""}
+                            onChange={(e) => {
+                              const topics = [...planConfig.topics];
+                              topics[i] = e.target.value;
+                              setPlanConfig((p) => ({ ...p, topics }));
+                            }}
+                            className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              {planConfig.topicMode === "auto" && (
+                <p className="text-[11px] text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
+                  Claude будет генерировать уникальный контент для каждого
+                  слота.
+                </p>
+              )}
+            </div>
+
+            {/* Summary */}
+            <div className="bg-purple-50 rounded-xl px-4 py-3">
+              <p className="text-[11px] text-purple-700 font-semibold mb-1">
+                Итого постов:
+              </p>
+              <p className="text-lg font-bold text-purple-700">
+                {
+                  buildPlanSlots(
+                    planConfig.dateFrom,
+                    planConfig.dateTo,
+                    planConfig.times,
+                  ).length
+                }
+              </p>
+              <p className="text-[10px] text-purple-400 mt-0.5">
+                {planConfig.frequency}x в день · с{" "}
+                {planConfig.dateFrom.slice(5)} по {planConfig.dateTo.slice(5)}
+              </p>
+            </div>
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-600">
+                {error}
+              </div>
+            )}
+
+            <button
+              onClick={handleGeneratePlan}
+              disabled={
+                !planConfig.dateFrom ||
+                !planConfig.dateTo ||
+                planConfig.dateFrom > planConfig.dateTo ||
+                !form.projectId ||
+                !form.topic
+              }
+              className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              📅 Создать контент-план
+            </button>
+          </div>
+        )}
+
+        {/* STEP 1 — Now mode: show regular form */}
+        {step === 1 && publishMode === "now" && (
           <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">
@@ -1045,9 +1279,9 @@ export default function CreatePage() {
 
         {/* STEP 3 */}
         {step === 3 && result && (
-          <div className="flex gap-5 items-start">
+          <div className="flex gap-6 items-start">
             {/* Левая часть */}
-            <div className="flex-1 min-w-0 space-y-4">
+            <div className="flex-1 min-w-0 space-y-4 min-w-[420px]">
               {result.source_image_url && (
                 <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                   <img
@@ -1080,10 +1314,74 @@ export default function CreatePage() {
             {/* Правая часть — сайдбар */}
             <div className="w-72 flex-shrink-0 space-y-3 sticky top-4">
               <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                  Публикация
-                </p>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-sm">
+                    {publishMode === "now" ? "🚀" : "📅"}
+                  </span>
+                  <p className="text-xs font-semibold text-gray-700">
+                    {publishMode === "now"
+                      ? "Опубликовать сейчас"
+                      : "Запланировать"}
+                  </p>
+                  <button
+                    onClick={() =>
+                      setPublishMode(publishMode === "now" ? "schedule" : "now")
+                    }
+                    className="ml-auto text-[10px] text-[#1D9E75] hover:underline cursor-pointer font-medium"
+                  >
+                    Изменить
+                  </button>
+                </div>
                 <div className="space-y-3">
+                  {publishMode === "schedule" && (
+                    <div className="flex gap-1.5 mb-3">
+                      <input
+                        type="date"
+                        value={today}
+                        min={today}
+                        onChange={(e) => {
+                          // apply date to all channels
+                          setAccountActions((prev) => {
+                            const next: Record<string, any> = { ...prev };
+                            (allChannels || []).forEach((ch: any) => {
+                              next[ch.id] = {
+                                ...(next[ch.id] || {
+                                  action: "schedule",
+                                  slots: [],
+                                }),
+                                date: e.target.value,
+                                action: "schedule",
+                              };
+                            });
+                            return next;
+                          });
+                        }}
+                        className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                      />
+                      <input
+                        type="time"
+                        defaultValue="12:00"
+                        onChange={(e) => {
+                          setAccountActions((prev) => {
+                            const next: Record<string, any> = { ...prev };
+                            (allChannels || []).forEach((ch: any) => {
+                              next[ch.id] = {
+                                ...(next[ch.id] || {
+                                  action: "schedule",
+                                  slots: [],
+                                }),
+                                time: e.target.value,
+                                action: "schedule",
+                              };
+                            });
+                            return next;
+                          });
+                        }}
+                        className="w-20 px-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                      />
+                    </div>
+                  )}
+
                   {(allChannels || []).length === 0 ? (
                     <div className="text-center py-6">
                       <p className="text-xs text-gray-500 mb-2">
@@ -1099,7 +1397,7 @@ export default function CreatePage() {
                   ) : (
                     (allChannels || []).map((ch: any) => {
                       const act = accountActions[ch.id] || {
-                        action: "none",
+                        action: publishMode,
                         date: today,
                         time: "12:00",
                         slots: [],

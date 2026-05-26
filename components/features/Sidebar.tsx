@@ -327,6 +327,27 @@ function NavContent({ onClose }: { onClose?: () => void }) {
             </button>
           </div>
         )}
+        <div className="px-2 py-1">
+          <button
+            onClick={() => handleNav("/profile")}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-colors cursor-pointer"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+            </svg>
+            <span className="flex-1">Личный кабинет</span>
+          </button>
+        </div>
         <div className="px-2 py-2">
           <button
             onClick={handleLogout}

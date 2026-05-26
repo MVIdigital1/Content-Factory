@@ -58,7 +58,7 @@ export default function CalendarPage() {
         .gte("scheduled_at", start)
         .lte("scheduled_at", end + "T23:59:59")
         .order("scheduled_at");
-      return data || [];
+      return (data || []).filter((p: any) => p.status !== "draft");
     },
   });
 
@@ -278,7 +278,9 @@ export default function CalendarPage() {
                         ? t("status.published")
                         : p.status === "failed"
                           ? t("status.failed")
-                          : t("status.pending")}
+                          : p.status === "pending"
+                            ? t("status.pending")
+                            : "—"}
                     </span>
                     <span className="text-[10px] text-[#1D9E75] opacity-0 group-hover:opacity-100 transition-opacity">
                       Открыть →
