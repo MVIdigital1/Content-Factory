@@ -447,6 +447,13 @@ export default function CreatePage() {
     topic: "",
   });
   const [generating, setGenerating] = useState(false);
+  const [threeVariants, setThreeVariants] = useState(false);
+  const [variants, setVariants] = useState<
+    (GeneratedContent & { toneLabel: string })[]
+  >([]);
+  const [selectedVariantIdx, setSelectedVariantIdx] = useState(0);
+  const [progressMsg, setProgressMsg] = useState("");
+  const [regenField, setRegenField] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<GeneratedContent | null>(null);
   const [error, setError] = useState("");
@@ -772,23 +779,38 @@ export default function CreatePage() {
     setGenerating(true);
     setStep(2);
     setProgress(0);
+    setVariants([]);
+    setSelectedVariantIdx(0);
     setPublishSuccess(false);
     setPublishError("");
 
+    // Реальные статусы прогресса
+    const STEPS = [
+      { msg: "Анализирую проект и бренд...", pct: 15 },
+      { msg: "Изучаю прошлые посты...", pct: 30 },
+      { msg: "Пишу хук...", pct: 50 },
+      { msg: "Создаю текст и хэштеги...", pct: 70 },
+      { msg: "Финализирую контент...", pct: 85 },
+    ];
+    let stepIdx = 0;
+    setProgressMsg(STEPS[0].msg);
+    setProgress(STEPS[0].pct);
+
     const interval = setInterval(() => {
-      setProgress((p) => {
-        if (p >= 90) {
-          clearInterval(interval);
-          return 90;
-        }
-        return p + 10;
-      });
-    }, 400);
+      stepIdx = Math.min(stepIdx + 1, STEPS.length - 1);
+      setProgressMsg(STEPS[stepIdx].msg);
+      setProgress(STEPS[stepIdx].pct);
+    }, 1800);
 
     try {
       let imageUrl: string | null = null;
       if (imageFile) imageUrl = await uploadImage(imageFile);
-      const res = await fetch("/api/content/generate", {
+
+      const endpoint = threeVariants
+        ? "/api/content/generate-variants"
+        : "/api/content/generate";
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -800,20 +822,52 @@ export default function CreatePage() {
       const data = await res.json();
       clearInterval(interval);
       if (!res.ok) throw new Error(data.error || "Ошибка генерации");
-      // data.error уже содержит точное сообщение от API
+
+      setProgressMsg("Готово!");
       setProgress(100);
+
       setTimeout(() => {
-        setResult({ ...data.content, id: data.content.id });
+        if (threeVariants && data.variants) {
+          setVariants(
+            data.variants.map((v: any) => ({
+              ...v.content,
+              toneLabel: v.toneLabel,
+            })),
+          );
+          setResult({ ...data.variants[0].content });
+        } else {
+          setResult({ ...data.content, id: data.content.id });
+        }
         setStep(3);
         setGenerating(false);
       }, 500);
     } catch (e: any) {
       clearInterval(interval);
-      const msg = e?.message || "Ошибка генерации";
-      setError(msg);
+      setError(e?.message || "Ошибка генерации");
       setGenerating(false);
       setStep(1);
     }
+  };
+
+  // Частичная регенерация одного поля
+  const handleRegenPart = async (
+    field: "hook" | "caption" | "hashtags" | "cta",
+  ) => {
+    if (!result?.id) return;
+    setRegenField(field);
+    try {
+      const res = await fetch("/api/content/regenerate-part", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentId: result.id, field }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setResult((prev) => (prev ? { ...prev, [field]: data.value } : prev));
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setRegenField(null);
   };
 
   const copyCaption = () => {
@@ -1028,12 +1082,33 @@ export default function CreatePage() {
                 {error}
               </div>
             )}
+            {/* 3 варианта */}
+            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+              <div
+                onClick={() => setThreeVariants((v) => !v)}
+                className={`w-9 h-5 rounded-full transition-colors relative flex-shrink-0 cursor-pointer ${threeVariants ? "bg-[#1D9E75]" : "bg-gray-200"}`}
+              >
+                <div
+                  className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${threeVariants ? "translate-x-4" : "translate-x-0.5"}`}
+                />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-700">
+                  Сгенерировать 3 варианта
+                </p>
+                <p className="text-[10px] text-gray-400">
+                  Дружелюбный · Вирусный · Экспертный — выберешь лучший
+                </p>
+              </div>
+            </label>
             <button
               onClick={handleGenerate}
               disabled={!form.projectId || !form.topic || !form.goal}
               className="w-full py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
-              {t("form.generateBtn")}
+              {threeVariants
+                ? "Сгенерировать 3 варианта ✦"
+                : t("form.generateBtn")}
             </button>
           </div>
         )}
@@ -1067,7 +1142,14 @@ export default function CreatePage() {
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <p className="text-xs text-gray-400">{progress}%</p>
+            <p className="text-xs text-gray-400">
+              {progressMsg || `${progress}%`}
+            </p>
+            {threeVariants && (
+              <p className="text-[10px] text-gray-300 mt-1">
+                Генерирую 3 варианта параллельно...
+              </p>
+            )}
           </div>
         )}
 
@@ -1076,6 +1158,23 @@ export default function CreatePage() {
           <div className="flex gap-6 items-start">
             {/* Левая часть */}
             <div className="flex-1 min-w-0 space-y-4 min-w-[420px]">
+              {/* Табы вариантов */}
+              {variants.length > 1 && (
+                <div className="flex gap-2 bg-gray-50 p-1 rounded-xl">
+                  {variants.map((v, i) => (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        setSelectedVariantIdx(i);
+                        setResult(v);
+                      }}
+                      className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors cursor-pointer ${selectedVariantIdx === i ? "bg-white text-[#1D9E75] shadow-sm" : "text-gray-400 hover:text-gray-600"}`}
+                    >
+                      {v.toneLabel || `Вариант ${i + 1}`}
+                    </button>
+                  ))}
+                </div>
+              )}
               {result.source_image_url && (
                 <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                   <img
@@ -1086,13 +1185,22 @@ export default function CreatePage() {
                 </div>
               )}
               <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                  {t("result.caption")}
-                </p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                    {t("result.caption")}
+                  </p>
+                  <button
+                    onClick={() => handleRegenPart("caption")}
+                    disabled={regenField === "caption"}
+                    className="text-[10px] px-2 py-1 border border-gray-200 rounded-lg text-gray-400 hover:text-[#1D9E75] hover:border-[#1D9E75] transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {regenField === "caption" ? "..." : "↺ Переписать"}
+                  </button>
+                </div>
                 <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
                   {result.caption}
                 </p>
-                <div className="flex flex-wrap gap-1.5 mt-4">
+                <div className="flex flex-wrap gap-1.5 mt-4 items-center">
                   {result.hashtags?.map((h) => (
                     <span
                       key={h}
@@ -1101,6 +1209,13 @@ export default function CreatePage() {
                       {h}
                     </span>
                   ))}
+                  <button
+                    onClick={() => handleRegenPart("hashtags")}
+                    disabled={regenField === "hashtags"}
+                    className="ml-auto text-[10px] px-2 py-1 border border-gray-200 rounded-lg text-gray-400 hover:text-[#1D9E75] hover:border-[#1D9E75] transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {regenField === "hashtags" ? "..." : "↺ Хэштеги"}
+                  </button>
                 </div>
               </div>
             </div>

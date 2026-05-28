@@ -24,7 +24,8 @@ const EMPTY_FORM = {
   audience: "",
   tone: "friendly",
   language: "ru",
-  stop_words: "", // ← новое поле
+  stop_words: "",
+  logo_url: "",
 };
 
 function CustomSelect({
@@ -205,6 +206,31 @@ function ProjectForm({
           className={inputClass}
         />
       </div>
+      {/* Логотип */}
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1.5">
+          Логотип{" "}
+          <span className="text-gray-400 font-normal">(URL картинки)</span>
+        </label>
+        <div className="flex gap-2 items-center">
+          {values.logo_url && (
+            <img
+              src={values.logo_url}
+              alt="logo"
+              className="w-9 h-9 rounded-lg object-cover border border-gray-200 flex-shrink-0"
+              onError={(e) => (e.currentTarget.style.display = "none")}
+            />
+          )}
+          <input
+            value={values.logo_url}
+            onChange={(e) =>
+              setValues((p) => ({ ...p, logo_url: e.target.value }))
+            }
+            placeholder="https://example.com/logo.png"
+            className={inputClass}
+          />
+        </div>
+      </div>
       <div className="flex gap-3 pt-1">
         <button
           type="submit"
@@ -360,6 +386,7 @@ export default function ProjectsPage() {
       tone: p.tone || "friendly",
       language: p.language || "ru",
       stop_words: (p as any).stop_words || "",
+      logo_url: (p as any).logo_url || "",
     });
   };
 
@@ -483,10 +510,21 @@ export default function ProjectsPage() {
                 ) : (
                   <div className="flex items-center gap-4 p-4">
                     <div
-                      className="w-10 h-10 rounded-lg bg-[#E1F5EE] flex items-center justify-center text-lg flex-shrink-0 cursor-pointer"
+                      className="w-10 h-10 rounded-lg bg-[#E1F5EE] flex items-center justify-center text-lg flex-shrink-0 cursor-pointer overflow-hidden"
                       onClick={() => startEdit(p)}
                     >
-                      📁
+                      {(p as any).logo_url ? (
+                        <img
+                          src={(p as any).logo_url}
+                          alt={p.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
+                      ) : (
+                        "📁"
+                      )}
                     </div>
                     <div
                       className="flex-1 min-w-0 cursor-pointer"

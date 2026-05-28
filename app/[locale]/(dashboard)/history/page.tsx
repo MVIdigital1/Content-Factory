@@ -157,6 +157,34 @@ export default function HistoryPage() {
     },
   });
 
+  const tagMutation = useMutation({
+    mutationFn: async ({ id, tags }: { id: string; tags: string[] }) => {
+      const { error } = await supabase
+        .from("contents")
+        .update({ tags })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["history"] }),
+  });
+
+  const addTag = (tag: string) => {
+    if (!selected || !tag.trim()) return;
+    const current: string[] = selected.tags || [];
+    if (current.includes(tag.trim())) return;
+    const newTags = [...current, tag.trim()];
+    tagMutation.mutate({ id: selected.id, tags: newTags });
+    setSelected((prev: any) => (prev ? { ...prev, tags: newTags } : prev));
+    setTagInput("");
+  };
+
+  const removeTag = (tag: string) => {
+    if (!selected) return;
+    const newTags = (selected.tags || []).filter((t: string) => t !== tag);
+    tagMutation.mutate({ id: selected.id, tags: newTags });
+    setSelected((prev: any) => (prev ? { ...prev, tags: newTags } : prev));
+  };
+
   const handlePublishNow = async () => {
     if (!selected) return;
     setPublishing(true);
@@ -516,6 +544,45 @@ export default function HistoryPage() {
                 <p className="text-xs text-gray-700">{selected.cta}</p>
               </div>
             )}
+
+            {/* Теги */}
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">
+                🏷 Теги
+              </p>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {(selected.tags || []).map((tag: string) => (
+                  <span
+                    key={tag}
+                    className="flex items-center gap-1 text-[10px] px-2 py-0.5 bg-[#E1F5EE] text-[#1D9E75] rounded-full"
+                  >
+                    #{tag}
+                    <button
+                      onClick={() => removeTag(tag)}
+                      className="hover:text-red-400 transition-colors cursor-pointer leading-none"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-1.5">
+                <input
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addTag(tagInput)}
+                  placeholder="Добавить тег..."
+                  className="flex-1 px-2 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#1D9E75] bg-white"
+                />
+                <button
+                  onClick={() => addTag(tagInput)}
+                  disabled={!tagInput.trim()}
+                  className="px-2.5 py-1.5 bg-[#1D9E75] text-white text-xs rounded-lg hover:bg-[#0F6E56] disabled:opacity-40 cursor-pointer transition-colors"
+                >
+                  +
+                </button>
+              </div>
+            </div>
 
             {selected.script?.length > 0 && (
               <div>
