@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import {
+  AreaChart,
+  Area,
   BarChart,
   Bar,
   XAxis,
@@ -9,164 +12,144 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import { useTranslations } from "next-intl";
 
 type Props = {
   activityData: { date: string; count: number }[];
   platformCounts: Record<string, number>;
-  typeCounts: Record<string, number>;
 };
 
-const PLATFORM_LABELS: Record<string, string> = {
-  telegram: "Telegram",
-  instagram: "Instagram",
-  tiktok: "TikTok",
+const PLATFORM_COLORS: Record<string, string> = {
+  telegram: "#2AABEE",
+  instagram: "#E1306C",
+  tiktok: "#010101",
+  vk: "#4C75A3",
 };
 
-const COLORS = ["#1D9E75", "#3B82F6", "#F59E0B", "#8B5CF6", "#EC4899"];
+const tooltipStyle = {
+  fontSize: 11,
+  border: "0.5px solid #E5E7EB",
+  borderRadius: 0,
+  boxShadow: "none",
+  background: "#fff",
+};
 
 export default function DashboardCharts({
   activityData,
   platformCounts,
-  typeCounts,
 }: Props) {
-  const t = useTranslations("dashboard.charts");
-
-  const TYPE_LABELS: Record<string, string> = {
-    post:
-      t("activity") === "Активность за 7 дней"
-        ? "Пост"
-        : t("activity") === "7 kunlik faollik"
-          ? "Post"
-          : "Post",
-    video: t("activity") === "Активность за 7 дней" ? "Видео" : "Video",
-    stories: "Stories",
-    ad:
-      t("activity") === "Активность за 7 дней"
-        ? "Реклама"
-        : t("activity") === "7 kunlik faollik"
-          ? "Reklama"
-          : "Ad",
-  };
+  const platformArr = Object.entries(platformCounts).map(([k, v]) => ({
+    name: k.charAt(0).toUpperCase() + k.slice(1),
+    value: v,
+    color: PLATFORM_COLORS[k] || "#9CA3AF",
+  }));
 
   const hasActivity = activityData.some((d) => d.count > 0);
-  const hasPlatforms = Object.keys(platformCounts).length > 0;
-  const hasTypes = Object.keys(typeCounts).length > 0;
-
-  const platformArr = Object.entries(platformCounts).map(([k, v]) => ({
-    name: PLATFORM_LABELS[k] || k,
-    value: v,
-  }));
-  const typeArr = Object.entries(typeCounts).map(([k, v]) => ({
-    name: TYPE_LABELS[k] || k,
-    value: v,
-  }));
-  const total = Object.values(typeCounts).reduce((a, b) => a + b, 0);
+  const maxCount = Math.max(...activityData.map((d) => d.count), 1);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div className="md:col-span-2 bg-white rounded-xl border border-gray-100 p-4">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">
-          {t("activity")}
-        </p>
-        {hasActivity ? (
-          <ResponsiveContainer width="100%" height={120}>
-            <BarChart data={activityData} barSize={20}>
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 10, fill: "#9CA3AF" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis hide allowDecimals={false} />
-              <Tooltip
-                cursor={{ fill: "#F3F4F6" }}
-                contentStyle={{
-                  fontSize: 12,
-                  border: "0.5px solid #E5E7EB",
-                  borderRadius: 8,
-                  boxShadow: "none",
-                }}
-                formatter={(v: any) => [`${v}`, ""]}
-              />
-              <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                {activityData.map((entry, i) => (
-                  <Cell
-                    key={i}
-                    fill={entry.count > 0 ? "#1D9E75" : "#E5E7EB"}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        ) : (
-          <div className="h-[120px] flex items-center justify-center text-sm text-gray-400">
-            {t("noData")}
-          </div>
-        )}
-      </div>
-
-      <div className="bg-white rounded-xl border border-gray-100 p-4 flex flex-col gap-4">
-        <div>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-            {t("platforms")}
-          </p>
-          {hasPlatforms ? (
-            <div className="space-y-2">
-              {platformArr.map((p, i) => (
-                <div key={p.name} className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500 w-16 flex-shrink-0">
-                    {p.name}
-                  </span>
-                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{
-                        width: `${(p.value / Math.max(...platformArr.map((x) => x.value))) * 100}%`,
-                        background: COLORS[i % COLORS.length],
-                      }}
-                    />
-                  </div>
-                  <span className="text-xs font-medium text-gray-600 w-4 text-right">
-                    {p.value}
-                  </span>
-                </div>
-              ))}
+    <Link href="/analytics" className="block group">
+      <div className="border border-gray-200 bg-white hover:border-gray-300 transition-colors">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-4 pb-2">
+          <div>
+            <div className="text-sm font-semibold text-gray-700">
+              Активность генераций
             </div>
-          ) : (
-            <p className="text-xs text-gray-400">{t("noData")}</p>
-          )}
+            <div className="text-xs text-gray-400 mt-0.5">
+              Контент за 30 дней
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {Object.entries(platformCounts).map(([k]) => (
+              <div
+                key={k}
+                className="flex items-center gap-1.5 text-xs text-gray-400"
+              >
+                <div
+                  className="w-2 h-2 rounded-full"
+                  style={{ background: PLATFORM_COLORS[k] || "#9CA3AF" }}
+                />
+                {k.charAt(0).toUpperCase() + k.slice(1)}
+              </div>
+            ))}
+            <span className="text-xs text-gray-300 group-hover:text-[#1D9E75] transition-colors ml-2">
+              Подробнее →
+            </span>
+          </div>
         </div>
 
-        {hasTypes && (
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-              {t("types")}
-            </p>
-            <div className="space-y-2">
-              {typeArr.map((item, i) => (
-                <div key={item.name} className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500 w-14 flex-shrink-0">
-                    {item.name}
-                  </span>
-                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${(item.value / total) * 100}%`,
-                        background: COLORS[i % COLORS.length],
-                      }}
-                    />
-                  </div>
-                  <span className="text-xs font-medium text-gray-600 w-4 text-right">
-                    {item.value}
-                  </span>
-                </div>
-              ))}
+        <div className="grid grid-cols-4 divide-x divide-gray-100 px-5 pb-3">
+          <div className="pr-4">
+            <div className="text-[10px] text-gray-400 mb-0.5">ВСЕГО ПОСТОВ</div>
+            <div className="text-xl font-semibold text-gray-900">
+              {activityData.reduce((s, d) => s + d.count, 0)}
             </div>
           </div>
-        )}
+          <div className="px-4">
+            <div className="text-[10px] text-gray-400 mb-0.5">ПЛАТФОРМЫ</div>
+            <div className="text-xl font-semibold text-gray-900">
+              {Object.keys(platformCounts).length}
+            </div>
+          </div>
+          <div className="px-4">
+            <div className="text-[10px] text-gray-400 mb-0.5">ПИКОВЫЙ ДЕНЬ</div>
+            <div className="text-xl font-semibold text-gray-900">
+              {maxCount}
+            </div>
+          </div>
+          <div className="pl-4">
+            <div className="text-[10px] text-gray-400 mb-0.5">
+              АКТИВНЫХ ДНЕЙ
+            </div>
+            <div className="text-xl font-semibold text-gray-900">
+              {activityData.filter((d) => d.count > 0).length}
+            </div>
+          </div>
+        </div>
+
+        {/* Big area chart */}
+        <div className="px-2 pb-2">
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart
+              data={activityData}
+              margin={{ top: 5, right: 10, left: -20, bottom: 0 }}
+            >
+              <defs>
+                <linearGradient id="actGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#1D9E75" stopOpacity={0.15} />
+                  <stop offset="95%" stopColor="#1D9E75" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 9, fill: "#9CA3AF" }}
+                axisLine={false}
+                tickLine={false}
+                interval={4}
+              />
+              <YAxis
+                tick={{ fontSize: 9, fill: "#9CA3AF" }}
+                axisLine={false}
+                tickLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                formatter={(v: any) => [`${v} постов`, ""]}
+              />
+              <Area
+                type="monotone"
+                dataKey="count"
+                stroke="#1D9E75"
+                strokeWidth={1.5}
+                fill="url(#actGrad)"
+                dot={false}
+                activeDot={{ r: 3, fill: "#1D9E75" }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
       </div>
-    </div>
+    </Link>
   );
 }

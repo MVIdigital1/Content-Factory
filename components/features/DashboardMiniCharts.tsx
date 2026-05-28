@@ -51,7 +51,7 @@ const STATUS_LABELS: Record<string, string> = {
 const tooltipStyle = {
   fontSize: 11,
   border: "0.5px solid #E5E7EB",
-  borderRadius: 8,
+  borderRadius: 2,
   boxShadow: "none",
   background: "#fff",
 };
@@ -92,9 +92,9 @@ export default function DashboardMiniCharts({
 
   return (
     <Link href="/analytics" className="block cursor-pointer group">
-      <div className="bg-white rounded-xl border border-gray-100 p-4 hover:border-gray-200 hover:shadow-sm transition-all">
+      <div className="bg-white border border-gray-200 p-5 hover:border-gray-300 hover:shadow-sm transition-all">
         <div className="flex items-center justify-between mb-4">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">
             Статистика
           </p>
           <span className="text-xs text-[#1D9E75] group-hover:underline">
@@ -105,10 +105,10 @@ export default function DashboardMiniCharts({
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {/* 1. Activity bar */}
           <div>
-            <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">
+            <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-3">
               Активность / 7 дн.
             </p>
-            <ResponsiveContainer width="100%" height={110}>
+            <ResponsiveContainer width="100%" height={120}>
               <BarChart
                 data={activityData.length > 0 ? activityData : EMPTY_ACTIVITY}
                 barSize={12}
@@ -125,7 +125,7 @@ export default function DashboardMiniCharts({
                   contentStyle={tooltipStyle}
                   formatter={(v: any) => [`${v}`, ""]}
                 />
-                <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+                <Bar dataKey="count" radius={[1, 1, 0, 0]}>
                   {(activityData.length > 0
                     ? activityData
                     : EMPTY_ACTIVITY
@@ -142,10 +142,10 @@ export default function DashboardMiniCharts({
 
           {/* 2. Platform pie */}
           <div>
-            <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">
+            <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-3">
               По платформам
             </p>
-            <ResponsiveContainer width="100%" height={110}>
+            <ResponsiveContainer width="100%" height={120}>
               <PieChart>
                 <Pie
                   data={pieData(platformArr, EMPTY_PIE)}
@@ -179,10 +179,10 @@ export default function DashboardMiniCharts({
 
           {/* 3. Type horizontal bar */}
           <div>
-            <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">
+            <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-3">
               Тип контента
             </p>
-            <ResponsiveContainer width="100%" height={110}>
+            <ResponsiveContainer width="100%" height={120}>
               <BarChart
                 data={hasTypes ? typeArr : [{ name: "—", value: 0 }]}
                 layout="vertical"
@@ -198,7 +198,7 @@ export default function DashboardMiniCharts({
                   width={36}
                 />
                 {hasTypes && <Tooltip contentStyle={tooltipStyle} />}
-                <Bar dataKey="value" radius={[0, 3, 3, 0]}>
+                <Bar dataKey="value" radius={[0, 1, 1, 0]}>
                   {(hasTypes ? typeArr : [{ name: "—", value: 0 }]).map(
                     (_: any, i: number) => (
                       <Cell
@@ -214,10 +214,10 @@ export default function DashboardMiniCharts({
 
           {/* 4. Status pie */}
           <div>
-            <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">
+            <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-3">
               По статусам
             </p>
-            <ResponsiveContainer width="100%" height={110}>
+            <ResponsiveContainer width="100%" height={120}>
               <PieChart>
                 <Pie
                   data={pieData(statusArr, EMPTY_PIE)}
