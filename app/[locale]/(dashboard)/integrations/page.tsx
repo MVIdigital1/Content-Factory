@@ -12,7 +12,7 @@ type Integration = {
   is_active: boolean;
 };
 
-const BOT_USERNAME = "postcentro_bot";
+const BOT_USERNAME = process.env.NEXT_PUBLIC_BOT_USERNAME || "postcentro_bot";
 
 function connectInstagram() {
   const params = new URLSearchParams({
@@ -30,11 +30,6 @@ const PLATFORMS = [
     id: "instagram",
     name: "Instagram",
     description: "Business или Creator аккаунт",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
-      </svg>
-    ),
     gradient: "from-purple-500 via-pink-500 to-orange-400",
     oauth: true,
   },
@@ -42,29 +37,17 @@ const PLATFORMS = [
     id: "tiktok",
     name: "TikTok",
     description: "Business аккаунт",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-        <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.78 1.52V6.76a4.85 4.85 0 01-1.01-.07z" />
-      </svg>
-    ),
     gradient: "from-gray-800 to-gray-900",
-    oauth: false,
     comingSoon: true,
   },
   {
     id: "vk",
     name: "ВКонтакте",
     description: "Группа или сообщество",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-        <path d="M15.684 0H8.316C1.592 0 0 1.592 0 8.316v7.368C0 22.408 1.592 24 8.316 24h7.368C22.408 24 24 22.408 24 15.684V8.316C24 1.592 22.408 0 15.684 0zm3.692 17.123h-1.744c-.66 0-.864-.525-2.05-1.727-1.033-1-1.49-1.135-1.744-1.135-.356 0-.458.102-.458.593v1.575c0 .424-.135.678-1.253.678-1.846 0-3.896-1.118-5.335-3.202C5.054 11.01 4.37 8.926 4.37 8.502c0-.254.102-.491.593-.491h1.744c.44 0 .61.203.78.677.863 2.49 2.303 4.675 2.896 4.675.22 0 .322-.102.322-.66V9.721c-.068-1.186-.695-1.287-.695-1.71 0-.204.17-.407.44-.407h2.744c.373 0 .508.203.508.643v3.473c0 .372.17.508.271.508.22 0 .407-.136.813-.542 1.253-1.406 2.15-3.574 2.15-3.574.119-.254.322-.491.763-.491h1.744c.525 0 .644.27.525.643-.22 1.017-2.354 4.031-2.354 4.031-.186.305-.254.44 0 .78.186.254.796.779 1.203 1.253.745.847 1.32 1.558 1.473 2.05.17.49-.085.744-.576.744z" />
-      </svg>
-    ),
     gradient: "from-blue-500 to-blue-600",
-    oauth: false,
     comingSoon: true,
   },
-];
+] as const;
 
 export default function IntegrationsPage() {
   const supabase = createClient();
@@ -72,13 +55,17 @@ export default function IntegrationsPage() {
 
   const [showTelegramForm, setShowTelegramForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
   const [channelId, setChannelId] = useState("");
   const [channelName, setChannelName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState("");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState("");
+
+  const inputClass =
+    "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white";
 
   const { data: integrations, isLoading } = useQuery({
     queryKey: ["integrations"],
@@ -126,6 +113,30 @@ export default function IntegrationsPage() {
       queryClient.invalidateQueries({ queryKey: ["integrations"] }),
   });
 
+  const editMutation = useMutation({
+    mutationFn: async ({
+      id,
+      channel_name,
+    }: {
+      id: string;
+      channel_name: string;
+    }) => {
+      const res = await fetch("/api/telegram/add-channel", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, channel_name }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["integrations"] });
+      setEditingId(null);
+      setSuccess("Название обновлено");
+      setTimeout(() => setSuccess(""), 2000);
+    },
+  });
+
   const testChannel = async (cId: string) => {
     if (!cId) return;
     setTesting(true);
@@ -138,10 +149,10 @@ export default function IntegrationsPage() {
       });
       const data = await res.json();
       if (data.ok) {
-        setTestResult(`✓ Канал найден: ${data.result.title || cId}`);
+        setTestResult(`✓ Канал найден: ${data.result?.title || cId}`);
       } else {
         setTestResult(
-          "✗ Канал не найден. Убедитесь что @postcentro_bot добавлен как администратор",
+          `✗ Канал не найден. Убедитесь что @${BOT_USERNAME} добавлен как администратор`,
         );
       }
     } catch {
@@ -155,33 +166,29 @@ export default function IntegrationsPage() {
     setLoading(true);
     setError("");
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const { error } = await supabase.from("integrations").insert({
-        user_id: user!.id,
-        platform: "telegram",
-        token: process.env.NEXT_PUBLIC_BOT_TOKEN || "",
-        channel_id: channelId,
-        channel_name: channelName || channelId,
-        is_active: true,
+      // Используем серверный API — токен никогда не попадает в браузер
+      const res = await fetch("/api/telegram/add-channel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channel_id: channelId,
+          channel_name: channelName || channelId,
+        }),
       });
-      if (error) throw error;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Ошибка подключения");
       queryClient.invalidateQueries({ queryKey: ["integrations"] });
       setChannelId("");
       setChannelName("");
       setTestResult("");
       setShowTelegramForm(false);
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-    } catch {
-      setError("Ошибка сохранения. Попробуйте ещё раз.");
+      setSuccess(`✓ Канал «${data.channel_title}» подключён!`);
+      setTimeout(() => setSuccess(""), 4000);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Ошибка сохранения");
     }
     setLoading(false);
   };
-
-  const inputClass =
-    "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white";
 
   return (
     <div className="p-4 md:p-6 max-w-2xl space-y-6">
@@ -194,16 +201,15 @@ export default function IntegrationsPage() {
 
       {success && (
         <div className="bg-[#E1F5EE] border border-[#1D9E75]/30 rounded-xl px-4 py-3 text-sm text-[#1D9E75] font-medium">
-          ✓ Канал подключён успешно!
+          {success}
         </div>
       )}
 
-      {/* Соцсети — карточки */}
+      {/* Другие платформы */}
       <div className="space-y-3">
         {PLATFORMS.map((platform) => {
           const accounts = platform.id === "instagram" ? instagramAccounts : [];
           const isConnected = accounts.length > 0;
-
           return (
             <div
               key={platform.id}
@@ -213,14 +219,16 @@ export default function IntegrationsPage() {
                 <div
                   className={`w-12 h-12 rounded-xl bg-gradient-to-br ${platform.gradient} flex items-center justify-center flex-shrink-0`}
                 >
-                  {platform.icon}
+                  <span className="text-white text-xs font-bold">
+                    {platform.name[0]}
+                  </span>
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold text-gray-900">
                       {platform.name}
                     </p>
-                    {platform.comingSoon && (
+                    {(platform as any).comingSoon && (
                       <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-400 rounded-full font-medium">
                         Скоро
                       </span>
@@ -235,25 +243,19 @@ export default function IntegrationsPage() {
                     {platform.description}
                   </p>
                 </div>
-                {!platform.comingSoon && (
+                {!(platform as any).comingSoon && (
                   <button
                     onClick={platform.oauth ? connectInstagram : undefined}
-                    disabled={platform.comingSoon}
-                    className="px-4 py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-40"
+                    className="px-4 py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
                   >
                     {isConnected ? "Добавить ещё" : "Подключить"}
                   </button>
                 )}
               </div>
-
-              {/* Подключённые аккаунты */}
               {accounts.length > 0 && (
                 <div className="mt-3 space-y-2 border-t border-gray-50 pt-3">
                   {accounts.map((acc) => (
                     <div key={acc.id} className="flex items-center gap-3 py-1">
-                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center text-xs flex-shrink-0">
-                        📷
-                      </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-gray-900">
                           {acc.channel_name}
@@ -287,7 +289,7 @@ export default function IntegrationsPage() {
         })}
       </div>
 
-      {/* Telegram — отдельный блок */}
+      {/* Telegram */}
       <div className="bg-white rounded-xl border border-gray-100 p-4">
         <div className="flex items-center gap-4 mb-4">
           <div className="w-12 h-12 rounded-xl bg-[#2AABEE] flex items-center justify-center flex-shrink-0">
@@ -315,11 +317,14 @@ export default function IntegrationsPage() {
               )}
             </div>
             <p className="text-xs text-gray-400 mt-0.5">
-              Автопостинг в каналы через @{BOT_USERNAME}
+              Автопостинг через @{BOT_USERNAME}
             </p>
           </div>
           <button
-            onClick={() => setShowTelegramForm((v) => !v)}
+            onClick={() => {
+              setShowTelegramForm((v) => !v);
+              setError("");
+            }}
             className="px-4 py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
           >
             + Добавить
@@ -355,9 +360,9 @@ export default function IntegrationsPage() {
                   </button>
                 </div>
                 <p className="text-xs text-gray-400 mt-1.5">
-                  Перед подключением добавьте{" "}
+                  Добавьте{" "}
                   <span className="font-semibold text-gray-600">
-                    @postcentro_bot
+                    @{BOT_USERNAME}
                   </span>{" "}
                   как администратора в ваш канал
                 </p>
@@ -371,7 +376,7 @@ export default function IntegrationsPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Название
+                  Название (необязательно)
                 </label>
                 <input
                   value={channelName}
@@ -391,11 +396,15 @@ export default function IntegrationsPage() {
                   disabled={loading}
                   className="flex-1 py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60 cursor-pointer"
                 >
-                  {loading ? "Сохраняем..." : "Подключить канал"}
+                  {loading ? "Проверяем права бота..." : "Подключить канал"}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowTelegramForm(false)}
+                  onClick={() => {
+                    setShowTelegramForm(false);
+                    setError("");
+                    setTestResult("");
+                  }}
                   className="px-4 py-2.5 border border-gray-200 text-gray-500 text-sm rounded-lg hover:bg-gray-50 cursor-pointer"
                 >
                   Отмена
@@ -437,10 +446,41 @@ export default function IntegrationsPage() {
                   </svg>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900">
-                    {ch.channel_name || ch.channel_id}
-                  </p>
-                  <p className="text-xs text-gray-400">{ch.channel_id}</p>
+                  {editingId === ch.id ? (
+                    <div className="flex gap-2">
+                      <input
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        className="flex-1 px-2 py-1 text-xs border border-[#1D9E75] rounded outline-none"
+                        autoFocus
+                      />
+                      <button
+                        onClick={() =>
+                          editMutation.mutate({
+                            id: ch.id,
+                            channel_name: editingName,
+                          })
+                        }
+                        disabled={editMutation.isPending}
+                        className="text-[10px] px-2 py-1 bg-[#1D9E75] text-white rounded cursor-pointer"
+                      >
+                        {editMutation.isPending ? "..." : "OK"}
+                      </button>
+                      <button
+                        onClick={() => setEditingId(null)}
+                        className="text-[10px] px-2 py-1 border border-gray-200 text-gray-500 rounded cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {ch.channel_name || ch.channel_id}
+                      </p>
+                      <p className="text-xs text-gray-400">{ch.channel_id}</p>
+                    </>
+                  )}
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span
@@ -448,6 +488,16 @@ export default function IntegrationsPage() {
                   >
                     {ch.is_active ? "Активен" : "Откл."}
                   </span>
+                  <button
+                    onClick={() => {
+                      setEditingId(ch.id);
+                      setEditingName(ch.channel_name || ch.channel_id);
+                    }}
+                    className="text-[10px] px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 cursor-pointer transition-colors"
+                    title="Переименовать"
+                  >
+                    ✎
+                  </button>
                   <button
                     onClick={() =>
                       toggleMutation.mutate({

@@ -1,18 +1,31 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "next-intl";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 type Tab = "profile" | "integrations" | "billing" | "security";
+type PlanKey = "pro" | "business";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("profile");
-  const supabase = createClient();
+  const [pendingPlan, setPendingPlan] = useState<PlanKey | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const locale = useLocale();
-  const router = useRouter();
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleUpgrade = async (plan: PlanKey) => {
+    setPendingPlan(plan);
+    await new Promise((r) => setTimeout(r, 1000));
+    setPendingPlan(null);
+    showToast(
+      `Тариф ${plan === "pro" ? "Pro" : "Business"} — скоро будет доступен!`,
+    );
+  };
 
   const TABS: { key: Tab; label: string; icon: string }[] = [
     {
@@ -37,9 +50,40 @@ export default function SettingsPage() {
     },
   ];
 
+  const PLANS: {
+    key: PlanKey;
+    name: string;
+    price: string;
+    features: string[];
+  }[] = [
+    {
+      key: "pro",
+      name: "Pro",
+      price: "$19/мес",
+      features: [
+        "200 генераций/день",
+        "10 проектов",
+        "Все платформы",
+        "Приоритет",
+      ],
+    },
+    {
+      key: "business",
+      name: "Business",
+      price: "$49/мес",
+      features: ["Безлимит", "Все проекты", "API доступ", "White-label"],
+    },
+  ];
+
   return (
-    <div className="p-6 max-w-4xl w-full">
-      {/* Header */}
+    <div className="p-6 max-w-4xl w-full relative">
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg">
+          {toast}
+        </div>
+      )}
+
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-gray-900">Настройки</h1>
         <p className="text-sm text-gray-400 mt-0.5">
@@ -48,7 +92,6 @@ export default function SettingsPage() {
       </div>
 
       <div className="flex gap-6">
-        {/* Sidebar tabs */}
         <div className="w-44 flex-shrink-0">
           <nav className="space-y-0.5">
             {TABS.map((tab) => (
@@ -80,7 +123,6 @@ export default function SettingsPage() {
           </nav>
         </div>
 
-        {/* Content */}
         <div className="flex-1 bg-white rounded-xl border border-gray-100 p-6">
           {activeTab === "profile" && (
             <div className="space-y-5">
@@ -88,7 +130,7 @@ export default function SettingsPage() {
                 Профиль
               </h2>
               <Link
-                href="/profile"
+                href={`/${locale}/profile`}
                 className="flex items-center gap-3 p-4 border border-gray-100 rounded-xl hover:border-[#1D9E75]/30 hover:bg-[#F0FDF8]/50 transition-all group"
               >
                 <div className="w-10 h-10 bg-[#E1F5EE] rounded-full flex items-center justify-center flex-shrink-0">
@@ -136,7 +178,7 @@ export default function SettingsPage() {
                 Интеграции
               </h2>
               <Link
-                href="/integrations"
+                href={`/${locale}/integrations`}
                 className="flex items-center gap-3 p-4 border border-gray-100 rounded-xl hover:border-[#1D9E75]/30 hover:bg-[#F0FDF8]/50 transition-all group"
               >
                 <div className="w-10 h-10 bg-[#E1F5EE] rounded-xl flex items-center justify-center flex-shrink-0">
@@ -158,7 +200,7 @@ export default function SettingsPage() {
                     Управление интеграциями
                   </p>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    Telegram, Instagram, TikTok, VK
+                    Telegram, Instagram, TikTok
                   </p>
                 </div>
                 <svg
@@ -197,30 +239,9 @@ export default function SettingsPage() {
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-3 mt-4">
-                {[
-                  {
-                    name: "Pro",
-                    price: "$19/мес",
-                    features: [
-                      "200 генераций/день",
-                      "10 проектов",
-                      "Все платформы",
-                      "Приоритет",
-                    ],
-                  },
-                  {
-                    name: "Business",
-                    price: "$49/мес",
-                    features: [
-                      "Безлимит",
-                      "Все проекты",
-                      "API доступ",
-                      "White-label",
-                    ],
-                  },
-                ].map((plan) => (
+                {PLANS.map((plan) => (
                   <div
-                    key={plan.name}
+                    key={plan.key}
                     className="p-4 border border-gray-200 rounded-xl hover:border-[#1D9E75] transition-colors"
                   >
                     <div className="flex items-center justify-between mb-2">
@@ -253,8 +274,19 @@ export default function SettingsPage() {
                         </li>
                       ))}
                     </ul>
-                    <button className="w-full py-1.5 bg-[#1D9E75] text-white text-xs font-medium rounded-lg hover:bg-[#0F6E56] transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#1D9E75]/30">
-                      Подключить
+                    <button
+                      onClick={() => handleUpgrade(plan.key)}
+                      disabled={pendingPlan === plan.key}
+                      className="w-full py-1.5 bg-[#1D9E75] text-white text-xs font-medium rounded-lg hover:bg-[#0F6E56] disabled:opacity-60 disabled:cursor-not-allowed transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#1D9E75]/30 flex items-center justify-center gap-1.5"
+                    >
+                      {pendingPlan === plan.key ? (
+                        <>
+                          <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
+                          Подключение...
+                        </>
+                      ) : (
+                        "Подключить"
+                      )}
                     </button>
                   </div>
                 ))}
@@ -268,8 +300,8 @@ export default function SettingsPage() {
                 Безопасность
               </h2>
               <Link
-                href="/profile"
-                className="flex items-center gap-3 p-4 border border-gray-100 rounded-xl hover:border-[#1D9E75]/30 transition-all group"
+                href={`/${locale}/profile`}
+                className="flex items-center gap-3 p-4 border border-gray-100 rounded-xl hover:border-blue-200 hover:bg-blue-50/30 transition-all group"
               >
                 <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
                   <svg
@@ -303,6 +335,7 @@ export default function SettingsPage() {
                   strokeWidth="1.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  className="group-hover:stroke-blue-400 transition-colors"
                 >
                   <path d="M9 18l6-6-6-6" />
                 </svg>
@@ -315,7 +348,7 @@ export default function SettingsPage() {
                   Удаление аккаунта необратимо
                 </p>
                 <Link
-                  href="/profile"
+                  href={`/${locale}/profile`}
                   className="text-xs text-red-500 font-medium hover:text-red-700 hover:underline transition-colors"
                 >
                   Перейти в личный кабинет →

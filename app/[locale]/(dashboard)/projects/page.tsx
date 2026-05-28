@@ -24,6 +24,7 @@ const EMPTY_FORM = {
   audience: "",
   tone: "friendly",
   language: "ru",
+  stop_words: "", // ← новое поле
 };
 
 function CustomSelect({
@@ -44,7 +45,7 @@ function CustomSelect({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-left flex items-center justify-between bg-white hover:border-[#1D9E75] focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] outline-none transition-colors cursor-pointer"
+        className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-left flex items-center justify-between bg-white hover:border-[#1D9E75] outline-none transition-colors cursor-pointer"
       >
         <span className={selected ? "text-gray-900" : "text-gray-400"}>
           {selected?.label || placeholder || "Выберите..."}
@@ -88,7 +89,6 @@ function CustomSelect({
   );
 }
 
-// ✅ ProjectForm вынесен ЗА пределы ProjectsPage — это исправляет потерю фокуса
 function ProjectForm({
   values,
   setValues,
@@ -112,7 +112,6 @@ function ProjectForm({
 }) {
   const inputClass =
     "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white";
-
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -189,6 +188,23 @@ function ProjectForm({
           />
         </div>
       </div>
+      {/* ← Новое поле: стоп-слова */}
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1.5">
+          Стоп-слова{" "}
+          <span className="text-gray-400 font-normal">
+            (Claude никогда не использует)
+          </span>
+        </label>
+        <input
+          value={values.stop_words}
+          onChange={(e) =>
+            setValues((p) => ({ ...p, stop_words: e.target.value }))
+          }
+          placeholder="скидка, акция, дешево — через запятую"
+          className={inputClass}
+        />
+      </div>
       <div className="flex gap-3 pt-1">
         <button
           type="submit"
@@ -264,6 +280,25 @@ export default function ProjectsPage() {
     },
   });
 
+  // Мини-статистика: количество постов и дата последнего
+  const { data: contentStats } = useQuery({
+    queryKey: ["project-stats"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("contents")
+        .select("project_id, created_at")
+        .order("created_at", { ascending: false });
+      if (!data) return {};
+      const stats: Record<string, { count: number; lastDate: string }> = {};
+      data.forEach((c) => {
+        if (!stats[c.project_id])
+          stats[c.project_id] = { count: 0, lastDate: c.created_at };
+        stats[c.project_id].count++;
+      });
+      return stats;
+    },
+  });
+
   const createMutation = useMutation({
     mutationFn: async (values: typeof EMPTY_FORM) => {
       const {
@@ -314,6 +349,27 @@ export default function ProjectsPage() {
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["projects"] }),
   });
+
+  const startEdit = (p: Project) => {
+    setEditingId(p.id);
+    setEditForm({
+      name: p.name,
+      niche: p.niche || "",
+      description: p.description || "",
+      audience: p.audience || "",
+      tone: p.tone || "friendly",
+      language: p.language || "ru",
+      stop_words: (p as any).stop_words || "",
+    });
+  };
+
+  const getDaysAgo = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    if (days === 0) return "сегодня";
+    if (days === 1) return "вчера";
+    return `${days} дн. назад`;
+  };
 
   return (
     <div className="p-4 md:p-6 max-w-4xl w-full">
@@ -389,113 +445,106 @@ export default function ProjectsPage() {
         </div>
       ) : projects && projects.length > 0 ? (
         <div className="space-y-3">
-          {projects.map((p) => (
-            <div
-              key={p.id}
-              className="bg-white rounded-xl border border-gray-100 overflow-hidden hover:border-gray-200 transition-colors"
-            >
-              {editingId === p.id ? (
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-gray-900">
-                      Редактировать проект
-                    </h3>
-                    <button
-                      onClick={() => setEditingId(null)}
-                      className="text-gray-400 hover:text-gray-600 cursor-pointer text-lg"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <ProjectForm
-                    values={editForm}
-                    setValues={setEditForm}
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      updateMutation.mutate({ id: p.id, values: editForm });
-                    }}
-                    onCancel={() => setEditingId(null)}
-                    isPending={updateMutation.isPending}
-                    labels={FORM_LABELS}
-                    toneOptions={TONES}
-                    langOptions={LANGS}
-                    nicheOptions={NICHE_OPTIONS}
-                  />
-                </div>
-              ) : (
-                <div className="flex items-center gap-4 p-4">
-                  <div
-                    className="w-10 h-10 rounded-lg bg-[#E1F5EE] flex items-center justify-center text-lg flex-shrink-0 cursor-pointer"
-                    onClick={() => {
-                      setEditingId(p.id);
-                      setEditForm({
-                        name: p.name,
-                        niche: p.niche || "",
-                        description: p.description || "",
-                        audience: p.audience || "",
-                        tone: p.tone || "friendly",
-                        language: p.language || "ru",
-                      });
-                    }}
-                  >
-                    📁
-                  </div>
-                  <div
-                    className="flex-1 min-w-0 cursor-pointer"
-                    onClick={() => {
-                      setEditingId(p.id);
-                      setEditForm({
-                        name: p.name,
-                        niche: p.niche || "",
-                        description: p.description || "",
-                        audience: p.audience || "",
-                        tone: p.tone || "friendly",
-                        language: p.language || "ru",
-                      });
-                    }}
-                  >
-                    <p className="text-sm font-semibold text-gray-900">
-                      {p.name}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {p.niche || t("noNiche")} · {tones(p.tone as any)} ·{" "}
-                      {langs(p.language as any)}
-                    </p>
-                    {p.description && (
-                      <p className="text-xs text-gray-400 mt-1 truncate">
-                        {p.description}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => {
-                        setEditingId(p.id);
-                        setEditForm({
-                          name: p.name,
-                          niche: p.niche || "",
-                          description: p.description || "",
-                          audience: p.audience || "",
-                          tone: p.tone || "friendly",
-                          language: p.language || "ru",
-                        });
+          {projects.map((p) => {
+            const stats = contentStats?.[p.id];
+            return (
+              <div
+                key={p.id}
+                className="bg-white rounded-xl border border-gray-100 overflow-hidden hover:border-gray-200 transition-colors"
+              >
+                {editingId === p.id ? (
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-semibold text-gray-900">
+                        Редактировать проект
+                      </h3>
+                      <button
+                        onClick={() => setEditingId(null)}
+                        className="text-gray-400 hover:text-gray-600 cursor-pointer text-lg"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <ProjectForm
+                      values={editForm}
+                      setValues={setEditForm}
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        updateMutation.mutate({ id: p.id, values: editForm });
                       }}
-                      className="p-2 text-gray-300 hover:text-[#1D9E75] hover:bg-[#E1F5EE] rounded-lg transition-colors cursor-pointer text-sm"
-                    >
-                      ✏️
-                    </button>
-                    <button
-                      onClick={() => deleteMutation.mutate(p.id)}
-                      disabled={deleteMutation.isPending}
-                      className="p-2 text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-colors cursor-pointer text-sm"
-                    >
-                      🗑
-                    </button>
+                      onCancel={() => setEditingId(null)}
+                      isPending={updateMutation.isPending}
+                      labels={FORM_LABELS}
+                      toneOptions={TONES}
+                      langOptions={LANGS}
+                      nicheOptions={NICHE_OPTIONS}
+                    />
                   </div>
-                </div>
-              )}
-            </div>
-          ))}
+                ) : (
+                  <div className="flex items-center gap-4 p-4">
+                    <div
+                      className="w-10 h-10 rounded-lg bg-[#E1F5EE] flex items-center justify-center text-lg flex-shrink-0 cursor-pointer"
+                      onClick={() => startEdit(p)}
+                    >
+                      📁
+                    </div>
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => startEdit(p)}
+                    >
+                      <p className="text-sm font-semibold text-gray-900">
+                        {p.name}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {p.niche || t("noNiche")} · {tones(p.tone as any)} ·{" "}
+                        {langs(p.language as any)}
+                      </p>
+                      {/* ← Мини-статистика */}
+                      <div className="flex items-center gap-3 mt-1.5">
+                        {stats ? (
+                          <>
+                            <span className="text-[10px] text-gray-400">
+                              📝 {stats.count} постов
+                            </span>
+                            <span className="text-[10px] text-gray-400">
+                              🕐 Последний: {getDaysAgo(stats.lastDate)}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-[10px] text-gray-400">
+                            Постов ещё нет
+                          </span>
+                        )}
+                        {(p as any).stop_words && (
+                          <span
+                            className="text-[10px] text-amber-500"
+                            title={(p as any).stop_words}
+                          >
+                            🚫 Стоп-слова
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => startEdit(p)}
+                        className="p-2 text-gray-300 hover:text-[#1D9E75] hover:bg-[#E1F5EE] rounded-lg transition-colors cursor-pointer text-sm"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => deleteMutation.mutate(p.id)}
+                        disabled={deleteMutation.isPending}
+                        className="p-2 text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-colors cursor-pointer text-sm"
+                      >
+                        🗑
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="text-center py-16 bg-white rounded-xl border border-gray-100">

@@ -106,7 +106,7 @@ export default function HistoryPage() {
         .from("contents")
         .select("*, projects(name)")
         .order("created_at", { ascending: false })
-        .limit(100);
+        .limit(200);
       return data || [];
     },
   });
@@ -118,8 +118,7 @@ export default function HistoryPage() {
         .from("integrations")
         .select("id, platform, channel_id, channel_name, is_active")
         .order("created_at", { ascending: false });
-      if (error) console.error("Integrations fetch error:", error);
-      console.log("Integrations loaded:", data);
+
       return data || [];
     },
   });
@@ -226,6 +225,70 @@ export default function HistoryPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Экспорт всей истории в CSV
+  const exportCSV = () => {
+    if (!contents || contents.length === 0) return;
+    const headers = [
+      "Дата",
+      "Название",
+      "Платформа",
+      "Тип",
+      "Статус",
+      "Текст",
+      "Хэштеги",
+      "Проект",
+    ];
+    const rows = (contents as any[]).map((c) => [
+      new Date(c.created_at).toLocaleDateString("ru-RU"),
+      c.title || "",
+      c.platform || "",
+      c.type || "",
+      c.status || "",
+      `"${(c.caption || "").replace(/"/g, '""')}"`,
+      (c.hashtags || []).join(" "),
+      (c.projects as any)?.name || "",
+    ]);
+    const csv = [headers, ...rows].map((r) => r.join(";")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `history_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Дублирование поста под другую платформу
+  const duplicateMutation = useMutation({
+    mutationFn: async (item: any) => {
+      const { error } = await supabase.from("contents").insert({
+        project_id: item.project_id,
+        type: item.type,
+        platform: item.platform,
+        goal: item.goal,
+        title: `${item.title} (копия)`,
+        idea: item.idea,
+        hook: item.hook,
+        script: item.script || [],
+        voiceover: item.voiceover || "",
+        screen_text: item.screen_text || "",
+        caption: item.caption,
+        hashtags: item.hashtags || [],
+        cta: item.cta,
+        source_image_url: item.source_image_url || null,
+        status: "draft",
+        ai_model: item.ai_model,
+        ai_tokens: item.ai_tokens,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["history"] });
+    },
+  });
+
   const dateFnsLocale = locale === "ru" ? ru : undefined;
 
   const getByStatus = (status: string) =>
@@ -238,9 +301,18 @@ export default function HistoryPage() {
     <div className="flex h-screen overflow-hidden">
       {/* Kanban board */}
       <div className="flex-1 overflow-x-auto overflow-y-auto p-4 md:p-6">
-        <div className="mb-5">
-          <h1 className="text-xl font-bold text-gray-900">{t("title")}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{t("subtitle")}</p>
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">{t("title")}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">{t("subtitle")}</p>
+          </div>
+          <button
+            onClick={exportCSV}
+            disabled={!contents || contents.length === 0}
+            className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-xs text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors cursor-pointer disabled:opacity-40"
+          >
+            u2b07 u042du043au0441u043fu043eu0440u0442 CSV
+          </button>
         </div>
 
         {isLoading ? (
@@ -646,6 +718,15 @@ export default function HistoryPage() {
               </div>
             )}
 
+            <button
+              onClick={() => duplicateMutation.mutate(selected)}
+              disabled={duplicateMutation.isPending}
+              className="w-full py-2 border border-gray-200 bg-white text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {duplicateMutation.isPending
+                ? "Копируем..."
+                : "📋 Дублировать как черновик"}
+            </button>
             <button
               onClick={() => deleteMutation.mutate(selected.id)}
               disabled={deleteMutation.isPending}

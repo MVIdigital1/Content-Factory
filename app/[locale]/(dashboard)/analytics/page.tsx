@@ -7,11 +7,13 @@ export default async function AnalyticsPage() {
   const t = await getTranslations("analytics");
   const locale = await getLocale();
 
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
+  const now = new Date();
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(now.getDate() - 6);
+  const thirtyDaysAgo = new Date(now);
+  thirtyDaysAgo.setDate(now.getDate() - 29);
 
+  // Все запросы в одном Promise.all
   const [
     { count: totalGenerations },
     { count: totalScheduled },
@@ -65,8 +67,7 @@ export default async function AnalyticsPage() {
     };
   });
   activityData?.forEach((c) => {
-    const key = c.created_at.split("T")[0];
-    const day = days7.find((d) => d.dateKey === key);
+    const day = days7.find((d) => d.dateKey === c.created_at.split("T")[0]);
     if (day) day.count++;
   });
 
@@ -83,8 +84,7 @@ export default async function AnalyticsPage() {
     };
   });
   recentData?.forEach((c) => {
-    const key = c.created_at.split("T")[0];
-    const day = days30.find((d) => d.dateKey === key);
+    const day = days30.find((d) => d.dateKey === c.created_at.split("T")[0]);
     if (day) day.count++;
   });
 
@@ -136,7 +136,6 @@ export default async function AnalyticsPage() {
         <h1 className="text-xl font-bold text-gray-900">{t("title")}</h1>
         <p className="text-sm text-gray-500 mt-0.5">{t("subtitle")}</p>
       </div>
-
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {STATS.map((s) => (
           <div
@@ -152,7 +151,6 @@ export default async function AnalyticsPage() {
           </div>
         ))}
       </div>
-
       <AnalyticsCharts
         days7={days7}
         days30={days30}

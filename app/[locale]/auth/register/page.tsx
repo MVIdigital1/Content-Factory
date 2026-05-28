@@ -6,35 +6,37 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useTranslations, useLocale } from "next-intl";
 
-export default function RegisterPage() {
+export default function LoginPage() {
   const router = useRouter();
   const supabase = createClient();
-  const t = useTranslations("auth.register");
+  const t = useTranslations("auth.login");
   const locale = useLocale();
 
   const [form, setForm] = useState({
-    fullName: "",
     email: "",
     password: "",
     loading: false,
     googleLoading: false,
     error: "",
-    success: false,
   });
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setForm((prev) => ({ ...prev, loading: true, error: "" }));
-    const { error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signInWithPassword({
       email: form.email,
       password: form.password,
-      options: { data: { full_name: form.fullName } },
     });
     if (error) {
-      setForm((prev) => ({ ...prev, loading: false, error: error.message }));
+      setForm((prev) => ({
+        ...prev,
+        loading: false,
+        error: "Неверный email или пароль",
+      }));
       return;
     }
-    setForm((prev) => ({ ...prev, loading: false, success: true }));
+    router.push(`/${locale}/dashboard`);
+    router.refresh();
   };
 
   const handleGoogle = async () => {
@@ -52,31 +54,6 @@ export default function RegisterPage() {
         error: "Ошибка входа через Google",
       }));
   };
-
-  if (form.success) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="w-full max-w-sm text-center">
-          <div className="w-14 h-14 bg-[#E1F5EE] rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
-            ✉️
-          </div>
-          <h2 className="text-lg font-bold text-gray-900 mb-2">
-            Подтвердите email
-          </h2>
-          <p className="text-sm text-gray-500 mb-6">
-            Мы отправили письмо на{" "}
-            <span className="font-medium text-gray-700">{form.email}</span>.
-          </p>
-          <Link
-            href={`/${locale}/auth/login`}
-            className="text-sm text-[#1D9E75] font-semibold hover:underline"
-          >
-            {t("login")}
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
@@ -121,22 +98,7 @@ export default function RegisterPage() {
             <span className="text-xs text-gray-400">или</span>
             <div className="flex-1 h-px bg-gray-200" />
           </div>
-          <form onSubmit={handleRegister} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                {t("name")}
-              </label>
-              <input
-                type="text"
-                value={form.fullName}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, fullName: e.target.value }))
-                }
-                placeholder="Jahongir Salimov"
-                required
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors"
-              />
-            </div>
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 {t("email")}
@@ -162,9 +124,8 @@ export default function RegisterPage() {
                 onChange={(e) =>
                   setForm((p) => ({ ...p, password: e.target.value }))
                 }
-                placeholder="Минимум 6 символов"
+                placeholder="••••••••"
                 required
-                minLength={6}
                 className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors"
               />
             </div>
@@ -182,15 +143,6 @@ export default function RegisterPage() {
             </button>
           </form>
         </div>
-        <p className="text-center text-sm text-gray-500 mt-5">
-          {t("hasAccount")}{" "}
-          <Link
-            href={`/${locale}/auth/login`}
-            className="text-[#1D9E75] font-semibold hover:underline"
-          >
-            {t("login")}
-          </Link>
-        </p>
       </div>
     </div>
   );

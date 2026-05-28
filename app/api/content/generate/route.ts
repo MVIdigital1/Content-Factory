@@ -21,12 +21,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Rate limiting — max 20 generations per hour per user
+    // Rate limit: 20 генераций в час
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const { count: recentCount } = await supabase
       .from("contents")
       .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
       .gte("created_at", oneHourAgo);
 
     if ((recentCount ?? 0) >= 20) {
@@ -36,16 +35,29 @@ export async function POST(request: Request) {
       );
     }
 
-    // Verify project belongs to current user — security fix
+    // Проверка что проект принадлежит пользователю
     const { data: project } = await supabase
       .from("projects")
       .select("*")
       .eq("id", projectId)
-      .eq("user_id", user.id) // ← защита от чужих проектов
+      .eq("user_id", user.id)
       .single();
 
     if (!project)
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
+
+    // Получить 3 последних поста для контекста стиля бренда
+    const { data: recentContents } = await supabase
+      .from("contents")
+      .select("caption")
+      .eq("project_id", projectId)
+      .eq("status", "published")
+      .order("created_at", { ascending: false })
+      .limit(3);
+
+    const recentPosts = recentContents
+      ?.map((c) => c.caption)
+      .filter(Boolean) as string[] | undefined;
 
     const generated = await generateContent({
       projectName: project.name,
@@ -59,12 +71,13 @@ export async function POST(request: Request) {
       goal,
       topic,
       imageUrl,
+      stopWords: (project as any).stop_words || null,
+      recentPosts,
     });
 
     const { data: content, error: insertError } = await supabase
       .from("contents")
       .insert({
-        user_id: user.id,
         project_id: projectId,
         type: contentType,
         platform,
@@ -72,26 +85,25 @@ export async function POST(request: Request) {
         title: generated.title,
         idea: generated.idea,
         hook: generated.hook,
-        script: generated.script,
-        voiceover: generated.voiceover,
-        screen_text: generated.screen_text,
+        script: generated.script || [],
+        voiceover: generated.voiceover || "",
+        screen_text: generated.screen_text || "",
         caption: generated.caption,
-        hashtags: generated.hashtags,
+        hashtags: generated.hashtags || [],
         cta: generated.cta,
         source_image_url: imageUrl || null,
         status: "generated",
-        ai_model: "claude-sonnet-4-20250514",
-        ai_tokens: 1500,
+        ai_model: "claude-sonnet-4-5",
+        ai_tokens: 3000,
       })
       .select()
       .single();
 
     if (insertError) throw insertError;
     return NextResponse.json({ content });
-  } catch (error: any) {
-    console.error("Generate error:", error);
+  } catch (error: unknown) {
     const message =
-      error?.error?.error?.message || error?.message || "Generation failed";
+      error instanceof Error ? error.message : "Generation failed";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

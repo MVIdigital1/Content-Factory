@@ -1,152 +1,163 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
-const MAKE_WEBHOOK_URL = process.env.MAKE_WEBHOOK_URL;
+const BOT_TOKEN = process.env.BOT_TOKEN!; // Без NEXT_PUBLIC_
 
-async function sendToMake(payload: {
-  contentId: string;
-  platform: string;
-  caption: string;
-  hashtags: string[];
-  image_url: string | null;
-}) {
-  if (!MAKE_WEBHOOK_URL) return;
-  try {
-    await fetch(MAKE_WEBHOOK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-  } catch (err) {
-    console.error("Make.com webhook error:", err);
-  }
+async function logPublish(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  contentId: string,
+  platform: string,
+  status: "published" | "failed",
+  error?: string,
+  messageId?: number,
+) {
+  await supabase.from("publish_logs").insert({
+    content_id: contentId,
+    platform,
+    status,
+    error_message: error || null,
+    telegram_message_id: messageId || null,
+  });
 }
 
 export async function POST(request: Request) {
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { contentId, platform } = await request.json();
-    if (!contentId)
-      return NextResponse.json({ error: "Missing contentId" }, { status: 400 });
+  const { contentId, platform } = await request.json();
+  if (!contentId)
+    return NextResponse.json({ error: "Missing contentId" }, { status: 400 });
 
-    // Get content
-    const { data: content, error: contentError } = await supabase
-      .from("contents")
-      .select("*")
-      .eq("id", contentId)
+  // Получить контент + проверить владельца через projects
+  const { data: content } = await supabase
+    .from("contents")
+    .select("*, projects!inner(user_id)")
+    .eq("id", contentId)
+    .eq("projects.user_id", user.id) // ← проверка владельца
+    .single();
+
+  if (!content)
+    return NextResponse.json(
+      { error: "Content not found or access denied" },
+      { status: 404 },
+    );
+
+  if (platform === "telegram") {
+    const { data: integration } = await supabase
+      .from("integrations")
+      .select("channel_id")
+      .eq("platform", "telegram")
+      .eq("is_active", true)
+      .eq("user_id", user.id)
       .single();
 
-    if (contentError) {
-      console.error("Content fetch error:", contentError);
+    if (!integration)
       return NextResponse.json(
-        { error: contentError.message },
+        { error: "No active Telegram channel. Connect one first." },
+        { status: 400 },
+      );
+
+    const text =
+      `${content.caption || ""}\n\n${(content.hashtags || []).map((h: string) => `#${h}`).join(" ")}`.trim();
+    const imageUrl = content.source_image_url;
+
+    const endpoint = imageUrl ? "sendPhoto" : "sendMessage";
+    const body = imageUrl
+      ? {
+          chat_id: integration.channel_id,
+          photo: imageUrl,
+          caption: text,
+          parse_mode: "HTML",
+        }
+      : { chat_id: integration.channel_id, text, parse_mode: "HTML" };
+
+    const res = await fetch(
+      `https://api.telegram.org/bot${BOT_TOKEN}/${endpoint}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
+
+    const tgData = await res.json();
+
+    if (!tgData.ok) {
+      await logPublish(
+        supabase,
+        contentId,
+        "telegram",
+        "failed",
+        tgData.description,
+      );
+      await supabase
+        .from("contents")
+        .update({ status: "failed" })
+        .eq("id", contentId);
+      return NextResponse.json(
+        { error: tgData.description || "Telegram error" },
         { status: 500 },
       );
     }
 
-    if (!content)
-      return NextResponse.json({ error: "Content not found" }, { status: 404 });
+    const messageId: number = tgData.result.message_id;
 
-    if (platform === "telegram") {
-      const { data: integration, error: integrationError } = await supabase
-        .from("integrations")
-        .select("token, channel_id")
-        .eq("platform", "telegram")
-        .eq("is_active", true)
-        .eq("user_id", user.id)
-        .single();
-
-      if (integrationError) {
-        console.error("Integration fetch error:", integrationError);
-        return NextResponse.json(
-          { error: integrationError.message },
-          { status: 500 },
-        );
-      }
-
-      if (!integration)
-        return NextResponse.json(
-          { error: "No active Telegram channel. Connect one first." },
-          { status: 400 },
-        );
-
-      const text =
-        `${content.caption || ""}\n\n${(content.hashtags || []).join(" ")}`.trim();
-      const imageUrl = content.source_image_url;
-
-      const endpoint = imageUrl ? "sendPhoto" : "sendMessage";
-      const body = imageUrl
-        ? {
-            chat_id: integration.channel_id,
-            photo: imageUrl,
-            caption: text,
-            parse_mode: "HTML",
-          }
-        : { chat_id: integration.channel_id, text, parse_mode: "HTML" };
-
-      const res = await fetch(
-        `https://api.telegram.org/bot${integration.token}/${endpoint}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        },
-      );
-
-      const tgData = await res.json();
-      if (!tgData.ok) {
-        console.error("Telegram error:", tgData);
-        return NextResponse.json(
-          { error: tgData.description || "Telegram error" },
-          { status: 500 },
-        );
-      }
-
-      await supabase
+    // Сохранить message_id + статус
+    await Promise.all([
+      supabase
         .from("contents")
         .update({ status: "published" })
-        .eq("id", contentId);
-
-      await sendToMake({
+        .eq("id", contentId),
+      supabase
+        .from("scheduled_posts")
+        .update({
+          telegram_message_id: messageId,
+          status: "published",
+          published_at: new Date().toISOString(),
+        })
+        .eq("content_id", contentId),
+      logPublish(
+        supabase,
         contentId,
-        platform: "telegram",
-        caption: content.caption || "",
-        hashtags: content.hashtags || [],
-        image_url: content.source_image_url || null,
-      });
+        "telegram",
+        "published",
+        undefined,
+        messageId,
+      ),
+    ]);
 
-      return NextResponse.json({
-        ok: true,
-        message_id: tgData.result.message_id,
-      });
-    }
-
-    // Для других платформ — отправляем в Make.com
-    await sendToMake({
-      contentId,
-      platform,
-      caption: content.caption || "",
-      hashtags: content.hashtags || [],
-      image_url: content.source_image_url || null,
-    });
-
-    await supabase
-      .from("contents")
-      .update({ status: "published" })
-      .eq("id", contentId);
-
-    return NextResponse.json({ ok: true, via: "make" });
-  } catch (error: any) {
-    console.error("Publish error:", error?.message || error);
-    return NextResponse.json(
-      { error: error?.message || "Publish failed" },
-      { status: 500 },
-    );
+    return NextResponse.json({ ok: true, message_id: messageId });
   }
+
+  // Другие платформы — Make.com webhook
+  const makeUrl = process.env.MAKE_WEBHOOK_URL;
+  if (makeUrl) {
+    try {
+      await fetch(makeUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contentId,
+          platform,
+          caption: content.caption || "",
+          hashtags: content.hashtags || [],
+          image_url: content.source_image_url || null,
+        }),
+      });
+    } catch {
+      // Make.com недоступен — не блокируем
+    }
+  }
+
+  await supabase
+    .from("contents")
+    .update({ status: "published" })
+    .eq("id", contentId);
+  await logPublish(supabase, contentId, platform, "published");
+
+  return NextResponse.json({ ok: true, via: "make" });
 }
