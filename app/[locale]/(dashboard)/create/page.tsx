@@ -468,6 +468,7 @@ export default function CreatePage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [showStoragePicker, setShowStoragePicker] = useState(false);
   const [publishMode, setPublishMode] = useState<"now" | "schedule">("now");
   const [selectedChannelId, setSelectedChannelId] = useState<string>("");
   const [showChannelSidebar, setShowChannelSidebar] = useState(false);
@@ -668,6 +669,23 @@ export default function CreatePage() {
     setPlanDone(true);
   };
 
+  // Файлы из хранилища проекта
+  const { data: projectFiles = [] } = useQuery({
+    queryKey: ["project-files-picker", form.projectId],
+    queryFn: async () => {
+      if (!form.projectId) return [];
+      const { data } = await supabase
+        .from("project_files")
+        .select("id, name, file_url, file_type")
+        .eq("project_id", form.projectId)
+        .in("file_type", ["image"])
+        .order("created_at", { ascending: false })
+        .limit(20);
+      return data || [];
+    },
+    enabled: !!form.projectId && showStoragePicker,
+  });
+
   const { data: projects } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
@@ -724,7 +742,26 @@ export default function CreatePage() {
     const { data: urlData } = supabase.storage
       .from("content-images")
       .getPublicUrl(data.path);
-    return urlData.publicUrl;
+    const publicUrl = urlData.publicUrl;
+
+    // Автоматически сохранить в хранилище проекта
+    if (form.projectId) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("project_files").insert({
+          project_id: form.projectId,
+          user_id: user.id,
+          name: file.name,
+          file_url: publicUrl,
+          file_type: "image",
+          size_bytes: file.size,
+        });
+      }
+    }
+
+    return publicUrl;
   };
 
   const handleFileSelect = (file: File) => {
@@ -1105,51 +1142,101 @@ export default function CreatePage() {
                   </div>
                 </div>
               ) : (
-                <div
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setDragOver(true);
-                  }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setDragOver(false);
-                    const f = e.dataTransfer.files[0];
-                    if (f) handleFileSelect(f);
-                  }}
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition-colors ${dragOver ? "border-[#1D9E75] bg-[#E1F5EE]" : "border-gray-200 hover:border-[#1D9E75] hover:bg-gray-50"}`}
-                >
-                  <svg
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#9CA3AF"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="mx-auto mb-2"
+                <div className="space-y-2">
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setDragOver(true);
+                    }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragOver(false);
+                      const f = e.dataTransfer.files[0];
+                      if (f) handleFileSelect(f);
+                    }}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition-colors ${dragOver ? "border-[#1D9E75] bg-[#E1F5EE]" : "border-gray-200 hover:border-[#1D9E75] hover:bg-gray-50"}`}
                   >
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                    <circle cx="8.5" cy="8.5" r="1.5" />
-                    <path d="M21 15l-5-5L5 21" />
-                  </svg>
-                  <p className="text-xs text-gray-500 font-medium">
-                    {t("form.imageHint")}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {t("form.imageFormats")}
-                  </p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) =>
-                      e.target.files?.[0] && handleFileSelect(e.target.files[0])
-                    }
-                  />
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#9CA3AF"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="mx-auto mb-2"
+                    >
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <circle cx="8.5" cy="8.5" r="1.5" />
+                      <path d="M21 15l-5-5L5 21" />
+                    </svg>
+                    <p className="text-xs text-gray-500 font-medium">
+                      {t("form.imageHint")}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {t("form.imageFormats")}
+                    </p>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) =>
+                        e.target.files?.[0] &&
+                        handleFileSelect(e.target.files[0])
+                      }
+                    />
+                  </div>
+
+                  {/* Кнопка "Из хранилища" */}
+                  {form.projectId && (
+                    <button
+                      type="button"
+                      onClick={() => setShowStoragePicker((v) => !v)}
+                      className="w-full py-2 border border-gray-200 rounded-lg text-xs text-gray-500 hover:bg-gray-50 hover:text-[#1D9E75] hover:border-[#1D9E75] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      📁 Выбрать из хранилища проекта
+                    </button>
+                  )}
+
+                  {/* Пикер файлов из хранилища */}
+                  {showStoragePicker && form.projectId && (
+                    <div className="border border-gray-200 rounded-xl p-3 bg-gray-50">
+                      {(projectFiles as any[]).length === 0 ? (
+                        <p className="text-xs text-gray-400 text-center py-3">
+                          Нет изображений в хранилище
+                        </p>
+                      ) : (
+                        <div className="grid grid-cols-3 gap-2">
+                          {(projectFiles as any[]).map((f: any) => (
+                            <button
+                              key={f.id}
+                              type="button"
+                              onClick={() => {
+                                setImagePreview(f.file_url);
+                                setImageFile(null);
+                                setShowStoragePicker(false);
+                                setForm(
+                                  (p) =>
+                                    ({ ...p, imageUrl: f.file_url }) as any,
+                                );
+                              }}
+                              className="relative rounded-lg overflow-hidden border-2 border-transparent hover:border-[#1D9E75] transition-colors cursor-pointer"
+                            >
+                              <img
+                                src={f.file_url}
+                                alt={f.name}
+                                className="w-full h-16 object-cover"
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
