@@ -16,14 +16,14 @@ type Integration = {
 const BOT_USERNAME = process.env.NEXT_PUBLIC_BOT_USERNAME || "postcentro_bot";
 
 function connectInstagram() {
-  const appId = process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID;
-  const redirectUri = process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI;
+  const appId = process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID ?? "";
+  const redirectUri =
+    process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI ??
+    "https://content-factory-khaki.vercel.app/api/auth/instagram/callback";
 
   const params = new URLSearchParams({
     client_id: appId,
-    redirect_uri:
-      redirectUri ||
-      "https://content-factory-khaki.vercel.app/api/auth/instagram/callback",
+    redirect_uri: redirectUri,
     scope:
       "instagram_business_basic,instagram_business_content_publish,instagram_manage_comments,instagram_business_manage_messages",
     response_type: "code",
