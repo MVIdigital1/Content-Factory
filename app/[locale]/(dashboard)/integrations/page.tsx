@@ -16,14 +16,26 @@ type Integration = {
 const BOT_USERNAME = process.env.NEXT_PUBLIC_BOT_USERNAME || "postcentro_bot";
 
 function connectInstagram() {
+  const appId = process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID;
+  const redirectUri = process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI;
+
+  if (!appId) {
+    alert(
+      "Ошибка: NEXT_PUBLIC_INSTAGRAM_APP_ID не задан. Добавь переменную в Vercel и передеплой.",
+    );
+    return;
+  }
+
   const params = new URLSearchParams({
-    client_id: process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID!,
-    redirect_uri: process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI!,
+    client_id: appId,
+    redirect_uri:
+      redirectUri ||
+      "https://content-factory-khaki.vercel.app/api/auth/instagram/callback",
     scope:
-      "instagram_business_basic,instagram_content_publish,instagram_manage_comments,instagram_business_manage_messages",
+      "instagram_business_basic,instagram_business_content_publish,instagram_manage_comments,instagram_business_manage_messages",
     response_type: "code",
   });
-  window.location.href = `https://www.instagram.com/oauth/authorize?${params}`;
+  window.location.href = `https://api.instagram.com/oauth/authorize?${params}`;
 }
 
 const PLATFORMS = [
