@@ -3,6 +3,8 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import DashboardCharts from "@/components/features/DashboardCharts";
 import DashboardTable from "@/components/features/DashboardTable";
+import KpiWidget from "@/components/features/KpiWidget";
+import AiInsightWidget from "@/components/features/AiInsightWidget";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -276,6 +278,9 @@ export default async function DashboardPage() {
           </div>
         </div>
 
+        {/* AI Инсайт */}
+        <AiInsightWidget />
+
         {/* Stat cards */}
         <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
           <div className="grid grid-cols-5 divide-x divide-gray-100">
@@ -386,6 +391,9 @@ export default async function DashboardPage() {
             )}
           </div>
         </div>
+
+        {/* KPI */}
+        <KpiWidget />
 
         {/* История */}
         <DashboardTable initialCount={recentCount ?? 0} />

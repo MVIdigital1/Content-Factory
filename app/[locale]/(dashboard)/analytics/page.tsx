@@ -102,7 +102,7 @@ export default async function AnalyticsPage({
       count: 0,
     };
   });
-  activityData?.forEach((c) => {
+  (activityData as { created_at: string }[] | null)?.forEach((c) => {
     const day = days7.find((d) => d.dateKey === c.created_at.split("T")[0]);
     if (day) day.count++;
   });
@@ -119,23 +119,23 @@ export default async function AnalyticsPage({
       count: 0,
     };
   });
-  recentData?.forEach((c) => {
+  (recentData as { created_at: string }[] | null)?.forEach((c) => {
     const day = days30.find((d) => d.dateKey === c.created_at.split("T")[0]);
     if (day) day.count++;
   });
 
   const platformCounts: Record<string, number> = {};
-  platformData?.forEach((c) => {
+  (platformData as { platform: string }[] | null)?.forEach((c) => {
     platformCounts[c.platform] = (platformCounts[c.platform] || 0) + 1;
   });
 
   const typeCounts: Record<string, number> = {};
-  typeData?.forEach((c) => {
+  (typeData as { type: string }[] | null)?.forEach((c) => {
     typeCounts[c.type] = (typeCounts[c.type] || 0) + 1;
   });
 
   const statusCounts: Record<string, number> = {};
-  statusData?.forEach((c) => {
+  (statusData as { status: string }[] | null)?.forEach((c) => {
     statusCounts[c.status] = (statusCounts[c.status] || 0) + 1;
   });
 

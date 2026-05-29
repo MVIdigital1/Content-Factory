@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 
@@ -52,6 +53,18 @@ const PLATFORMS = [
 export default function IntegrationsPage() {
   const supabase = createClient();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const s = searchParams.get("success");
+    const e = searchParams.get("error");
+    if (s === "instagram") {
+      showToast("✅ Instagram успешно подключён!");
+      queryClient.invalidateQueries({ queryKey: ["integrations"] });
+    } else if (e) {
+      showToast(`❌ Ошибка: ${decodeURIComponent(e)}`);
+    }
+  }, [searchParams]);
 
   const [showTelegramForm, setShowTelegramForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -63,6 +76,8 @@ export default function IntegrationsPage() {
   const [success, setSuccess] = useState("");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState("");
+  const [channelStats, setChannelStats] = useState<Record<string, any>>({});
+  const [loadingStats, setLoadingStats] = useState<string | null>(null);
 
   const inputClass =
     "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white";
@@ -159,6 +174,22 @@ export default function IntegrationsPage() {
       setTestResult("✗ Ошибка проверки");
     }
     setTesting(false);
+  };
+
+  const fetchChannelStats = async (channelId: string) => {
+    setLoadingStats(channelId);
+    try {
+      const res = await fetch("/api/telegram/channel-stats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel_id: channelId }),
+      });
+      const data = await res.json();
+      if (data.ok) setChannelStats((prev) => ({ ...prev, [channelId]: data }));
+    } catch {
+      /* silent */
+    }
+    setLoadingStats(null);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -508,6 +539,14 @@ export default function IntegrationsPage() {
                     className={`text-[10px] px-2 py-1 rounded border font-medium cursor-pointer transition-colors ${ch.is_active ? "border-amber-200 text-amber-600 hover:bg-amber-50" : "border-[#1D9E75] text-[#1D9E75] hover:bg-[#E1F5EE]"}`}
                   >
                     {ch.is_active ? "Откл." : "Вкл."}
+                  </button>
+                  <button
+                    onClick={() => fetchChannelStats(ch.channel_id)}
+                    disabled={loadingStats === ch.channel_id}
+                    className="text-[10px] px-2 py-1 rounded border border-gray-200 text-gray-400 hover:bg-gray-50 cursor-pointer transition-colors disabled:opacity-50"
+                    title="Статистика"
+                  >
+                    {loadingStats === ch.channel_id ? "..." : "📊"}
                   </button>
                   <button
                     onClick={() => deleteMutation.mutate(ch.id)}

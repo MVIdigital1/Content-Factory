@@ -306,7 +306,7 @@ export default function ProjectsPage() {
     },
   });
 
-  // Мини-статистика: количество постов и дата последнего
+  // Мини-статистика + health score
   const { data: contentStats } = useQuery({
     queryKey: ["project-stats"],
     queryFn: async () => {
@@ -315,15 +315,34 @@ export default function ProjectsPage() {
         .select("project_id, created_at")
         .order("created_at", { ascending: false });
       if (!data) return {};
-      const stats: Record<string, { count: number; lastDate: string }> = {};
+      const sevenDaysAgo = new Date(
+        Date.now() - 7 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const stats: Record<
+        string,
+        { count: number; lastDate: string; thisWeek: number }
+      > = {};
       data.forEach((c) => {
         if (!stats[c.project_id])
-          stats[c.project_id] = { count: 0, lastDate: c.created_at };
+          stats[c.project_id] = {
+            count: 0,
+            lastDate: c.created_at,
+            thisWeek: 0,
+          };
         stats[c.project_id].count++;
+        if (c.created_at >= sevenDaysAgo) stats[c.project_id].thisWeek++;
       });
       return stats;
     },
   });
+
+  const getHealthScore = (thisWeek: number) => {
+    if (thisWeek >= 5) return { label: "🟢 Активный", color: "text-[#1D9E75]" };
+    if (thisWeek >= 2)
+      return { label: "🟡 Умеренный", color: "text-amber-500" };
+    if (thisWeek >= 1) return { label: "🟠 Низкий", color: "text-orange-500" };
+    return { label: "🔴 Неактивен", color: "text-red-400" };
+  };
 
   const createMutation = useMutation({
     mutationFn: async (values: typeof EMPTY_FORM) => {
@@ -545,7 +564,12 @@ export default function ProjectsPage() {
                               📝 {stats.count} постов
                             </span>
                             <span className="text-[10px] text-gray-400">
-                              🕐 Последний: {getDaysAgo(stats.lastDate)}
+                              🕐 {getDaysAgo(stats.lastDate)}
+                            </span>
+                            <span
+                              className={`text-[10px] font-medium ${getHealthScore(stats.thisWeek).color}`}
+                            >
+                              {getHealthScore(stats.thisWeek).label}
                             </span>
                           </>
                         ) : (

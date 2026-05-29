@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Project } from "@/lib/supabase/types";
 import { useTranslations, useLocale } from "next-intl";
+import PostTemplates from "@/components/features/PostTemplates";
 
 const PLATFORMS = [
   { value: "telegram", label: "Telegram" },
@@ -454,6 +455,11 @@ export default function CreatePage() {
   const [selectedVariantIdx, setSelectedVariantIdx] = useState(0);
   const [progressMsg, setProgressMsg] = useState("");
   const [regenField, setRegenField] = useState<string | null>(null);
+  const [inlineEdit, setInlineEdit] = useState<
+    "caption" | "hook" | "cta" | null
+  >(null);
+  const [inlineValue, setInlineValue] = useState("");
+  const [useStreaming, setUseStreaming] = useState(true);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<GeneratedContent | null>(null);
   const [error, setError] = useState("");
@@ -512,7 +518,11 @@ export default function CreatePage() {
 
       if (act.action === "now") {
         try {
-          const res = await fetch("/api/content/publish-now", {
+          const applyEndpoint =
+            (ch.platform || "telegram") === "instagram"
+              ? "/api/content/publish-instagram"
+              : "/api/content/publish-now";
+          const res = await fetch(applyEndpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -756,7 +766,11 @@ export default function CreatePage() {
     setPublishing(true);
     setPublishError("");
     try {
-      const res = await fetch("/api/content/publish-now", {
+      const publishEndpoint =
+        form.platform === "instagram"
+          ? "/api/content/publish-instagram"
+          : "/api/content/publish-now";
+      const res = await fetch(publishEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contentId: result.id, platform: form.platform }),
@@ -806,41 +820,81 @@ export default function CreatePage() {
       let imageUrl: string | null = null;
       if (imageFile) imageUrl = await uploadImage(imageFile);
 
-      const endpoint = threeVariants
-        ? "/api/content/generate-variants"
-        : "/api/content/generate";
+      let endpoint = "/api/content/generate";
+      if (threeVariants) endpoint = "/api/content/generate-variants";
+      else if (useStreaming) endpoint = "/api/content/generate-stream";
 
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          imageUrl,
-          channelId: selectedChannelId,
-        }),
-      });
-      const data = await res.json();
-      clearInterval(interval);
-      if (!res.ok) throw new Error(data.error || "Ошибка генерации");
-
-      setProgressMsg("Готово!");
-      setProgress(100);
-
-      setTimeout(() => {
-        if (threeVariants && data.variants) {
-          setVariants(
-            data.variants.map((v: any) => ({
-              ...v.content,
-              toneLabel: v.toneLabel,
-            })),
-          );
-          setResult({ ...data.variants[0].content });
-        } else {
-          setResult({ ...data.content, id: data.content.id });
+      if (useStreaming && !threeVariants) {
+        // Стриминг через SSE
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...form, imageUrl }),
+        });
+        clearInterval(interval);
+        if (!res.ok) throw new Error("Ошибка генерации");
+        const reader = res.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("");
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            if (line.startsWith("event: status")) continue;
+            if (line.startsWith("data: ")) {
+              try {
+                const d = JSON.parse(line.slice(6));
+                if (d.message) {
+                  setProgressMsg(d.message);
+                  setProgress((p) => Math.min(p + 12, 95));
+                }
+                if (d.content) {
+                  setProgress(100);
+                  setResult(d.content);
+                  setStep(3);
+                  setGenerating(false);
+                }
+                if (d.error) throw new Error(d.error);
+              } catch (parseErr) {
+                /* skip */
+              }
+            }
+          }
         }
-        setStep(3);
-        setGenerating(false);
-      }, 500);
+      } else {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...form,
+            imageUrl,
+            channelId: selectedChannelId,
+          }),
+        });
+        const data = await res.json();
+        clearInterval(interval);
+        if (!res.ok) throw new Error(data.error || "Ошибка генерации");
+        setProgressMsg("Готово!");
+        setProgress(100);
+        setTimeout(() => {
+          if (threeVariants && data.variants) {
+            setVariants(
+              data.variants.map((v: any) => ({
+                ...v.content,
+                toneLabel: v.toneLabel,
+              })),
+            );
+            setResult({ ...data.variants[0].content });
+          } else {
+            setResult({ ...data.content, id: data.content.id });
+          }
+          setStep(3);
+          setGenerating(false);
+        }, 500);
+      }
     } catch (e: any) {
       clearInterval(interval);
       setError(e?.message || "Ошибка генерации");
@@ -868,6 +922,25 @@ export default function CreatePage() {
       setError(e.message);
     }
     setRegenField(null);
+  };
+
+  // Сохранить inline-редактирование
+  const saveInlineEdit = async () => {
+    if (!inlineEdit || !result?.id) return;
+    try {
+      const { createClient } = await import("@/lib/supabase/client");
+      const sb = createClient();
+      await sb
+        .from("contents")
+        .update({ [inlineEdit]: inlineValue })
+        .eq("id", result.id);
+      setResult((prev) =>
+        prev ? { ...prev, [inlineEdit!]: inlineValue } : prev,
+      );
+    } catch (e) {
+      /* silent */
+    }
+    setInlineEdit(null);
   };
 
   const copyCaption = () => {
@@ -999,6 +1072,9 @@ export default function CreatePage() {
                 rows={3}
                 className={`${inputClass} resize-none`}
               />
+              <PostTemplates
+                onSelect={(topic) => setForm((p) => ({ ...p, topic }))}
+              />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">
@@ -1095,6 +1171,9 @@ export default function CreatePage() {
               <div>
                 <p className="text-xs font-medium text-gray-700">
                   Сгенерировать 3 варианта
+                  <span className="ml-1.5 text-[10px] font-normal text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded">
+                    ×3 лимита
+                  </span>
                 </p>
                 <p className="text-[10px] text-gray-400">
                   Дружелюбный · Вирусный · Экспертный — выберешь лучший
@@ -1197,9 +1276,42 @@ export default function CreatePage() {
                     {regenField === "caption" ? "..." : "↺ Переписать"}
                   </button>
                 </div>
-                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                  {result.caption}
-                </p>
+                {inlineEdit === "caption" ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={inlineValue}
+                      onChange={(e) => setInlineValue(e.target.value)}
+                      rows={6}
+                      className="w-full px-3 py-2 text-sm border border-[#1D9E75] rounded-lg outline-none resize-none"
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={saveInlineEdit}
+                        className="px-3 py-1.5 bg-[#1D9E75] text-white text-xs rounded-lg hover:bg-[#0F6E56] cursor-pointer"
+                      >
+                        Сохранить
+                      </button>
+                      <button
+                        onClick={() => setInlineEdit(null)}
+                        className="px-3 py-1.5 border border-gray-200 text-xs text-gray-500 rounded-lg cursor-pointer"
+                      >
+                        Отмена
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p
+                    className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed cursor-text hover:bg-gray-50 rounded-lg p-1 -m-1 transition-colors"
+                    onClick={() => {
+                      setInlineEdit("caption");
+                      setInlineValue(result.caption);
+                    }}
+                    title="Нажми чтобы редактировать"
+                  >
+                    {result.caption}
+                  </p>
+                )}
                 <div className="flex flex-wrap gap-1.5 mt-4 items-center">
                   {result.hashtags?.map((h) => (
                     <span
