@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import type { Project } from "@/lib/supabase/types";
@@ -490,120 +491,107 @@ export default function ProjectsPage() {
           ))}
         </div>
       ) : projects && projects.length > 0 ? (
-        <div className="space-y-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {projects.map((p) => {
             const stats = contentStats?.[p.id];
+            const health = getHealthScore(stats?.thisWeek || 0);
+            if (editingId === p.id)
+              return (
+                <div
+                  key={p.id}
+                  className="col-span-2 md:col-span-3 lg:col-span-4 bg-white rounded-xl border border-gray-200 p-5 shadow-sm"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      Редактировать проект
+                    </h3>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="text-gray-400 hover:text-gray-600 cursor-pointer text-lg"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <ProjectForm
+                    values={editForm}
+                    setValues={setEditForm}
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      updateMutation.mutate({ id: p.id, values: editForm });
+                    }}
+                    onCancel={() => setEditingId(null)}
+                    isPending={updateMutation.isPending}
+                    labels={FORM_LABELS}
+                    toneOptions={TONES}
+                    langOptions={LANGS}
+                    nicheOptions={NICHE_OPTIONS}
+                  />
+                </div>
+              );
             return (
               <div
                 key={p.id}
-                className="bg-white rounded-xl border border-gray-100 overflow-hidden hover:border-gray-200 transition-colors"
+                className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:border-[#1D9E75]/30 hover:shadow-md transition-all group"
               >
-                {editingId === p.id ? (
-                  <div className="p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-semibold text-gray-900">
-                        Редактировать проект
-                      </h3>
-                      <button
-                        onClick={() => setEditingId(null)}
-                        className="text-gray-400 hover:text-gray-600 cursor-pointer text-lg"
-                      >
-                        ×
-                      </button>
-                    </div>
-                    <ProjectForm
-                      values={editForm}
-                      setValues={setEditForm}
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        updateMutation.mutate({ id: p.id, values: editForm });
-                      }}
-                      onCancel={() => setEditingId(null)}
-                      isPending={updateMutation.isPending}
-                      labels={FORM_LABELS}
-                      toneOptions={TONES}
-                      langOptions={LANGS}
-                      nicheOptions={NICHE_OPTIONS}
-                    />
+                {/* Кликабельная карточка */}
+                <Link href={`/projects/${p.id}`} className="block p-4">
+                  {/* Лого / аватар проекта */}
+                  <div className="w-14 h-14 rounded-2xl bg-[#E1F5EE] flex items-center justify-center text-2xl mb-3 overflow-hidden border border-[#1D9E75]/10">
+                    {(p as any).logo_url ? (
+                      <img
+                        src={(p as any).logo_url}
+                        alt={p.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                        }}
+                      />
+                    ) : (
+                      <span>{p.name[0]?.toUpperCase() || "📁"}</span>
+                    )}
                   </div>
-                ) : (
-                  <div className="flex items-center gap-4 p-4">
-                    <div
-                      className="w-10 h-10 rounded-lg bg-[#E1F5EE] flex items-center justify-center text-lg flex-shrink-0 cursor-pointer overflow-hidden"
-                      onClick={() => startEdit(p)}
-                    >
-                      {(p as any).logo_url ? (
-                        <img
-                          src={(p as any).logo_url}
-                          alt={p.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.currentTarget.style.display = "none";
-                          }}
-                        />
-                      ) : (
-                        "📁"
+                  <p className="text-sm font-semibold text-gray-900 truncate mb-0.5">
+                    {p.name}
+                  </p>
+                  <p className="text-[10px] text-gray-400 truncate mb-3">
+                    {p.niche || "Без ниши"}
+                  </p>
+                  {/* Мини статистика */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-lg font-bold text-gray-900">
+                        {stats?.count || 0}
+                      </p>
+                      <p className="text-[10px] text-gray-400">постов</p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-[10px] font-medium ${health.color}`}>
+                        {health.label}
+                      </p>
+                      {stats && (
+                        <p className="text-[9px] text-gray-400">
+                          {getDaysAgo(stats.lastDate)}
+                        </p>
                       )}
                     </div>
-                    <div
-                      className="flex-1 min-w-0 cursor-pointer"
-                      onClick={() => startEdit(p)}
-                    >
-                      <p className="text-sm font-semibold text-gray-900">
-                        {p.name}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {p.niche || t("noNiche")} · {tones(p.tone as any)} ·{" "}
-                        {langs(p.language as any)}
-                      </p>
-                      {/* ← Мини-статистика */}
-                      <div className="flex items-center gap-3 mt-1.5">
-                        {stats ? (
-                          <>
-                            <span className="text-[10px] text-gray-400">
-                              📝 {stats.count} постов
-                            </span>
-                            <span className="text-[10px] text-gray-400">
-                              🕐 {getDaysAgo(stats.lastDate)}
-                            </span>
-                            <span
-                              className={`text-[10px] font-medium ${getHealthScore(stats.thisWeek).color}`}
-                            >
-                              {getHealthScore(stats.thisWeek).label}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-[10px] text-gray-400">
-                            Постов ещё нет
-                          </span>
-                        )}
-                        {(p as any).stop_words && (
-                          <span
-                            className="text-[10px] text-amber-500"
-                            title={(p as any).stop_words}
-                          >
-                            🚫 Стоп-слова
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => startEdit(p)}
-                        className="p-2 text-gray-300 hover:text-[#1D9E75] hover:bg-[#E1F5EE] rounded-lg transition-colors cursor-pointer text-sm"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={() => deleteMutation.mutate(p.id)}
-                        disabled={deleteMutation.isPending}
-                        className="p-2 text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-colors cursor-pointer text-sm"
-                      >
-                        🗑
-                      </button>
-                    </div>
                   </div>
-                )}
+                </Link>
+                {/* Кнопки действий */}
+                <div className="px-4 pb-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => startEdit(p)}
+                    className="flex-1 py-1.5 text-[10px] font-medium border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 cursor-pointer"
+                  >
+                    ✏ Изменить
+                  </button>
+                  <button
+                    onClick={() => deleteMutation.mutate(p.id)}
+                    disabled={deleteMutation.isPending}
+                    className="px-2 py-1.5 text-[10px] border border-red-100 rounded-lg text-red-400 hover:bg-red-50 cursor-pointer"
+                  >
+                    🗑
+                  </button>
+                </div>
               </div>
             );
           })}
