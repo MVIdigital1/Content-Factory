@@ -460,6 +460,12 @@ export default function CreatePage() {
   >(null);
   const [inlineValue, setInlineValue] = useState("");
   const [useStreaming, setUseStreaming] = useState(true);
+  const [scheduleLeftover, setScheduleLeftover] = useState(false);
+  const [leftoverDates, setLeftoverDates] = useState<Record<number, string>>(
+    {},
+  );
+  const [schedulingLeftover, setSchedulingLeftover] = useState(false);
+  const [leftoverScheduled, setLeftoverScheduled] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<GeneratedContent | null>(null);
   const [error, setError] = useState("");
@@ -980,6 +986,33 @@ export default function CreatePage() {
     setInlineEdit(null);
   };
 
+  // Запланировать оставшиеся варианты на выбранные даты
+  const scheduleLeftoverVariants = async () => {
+    if (!variants.length) return;
+    setSchedulingLeftover(true);
+    const leftovers = variants
+      .map((v, i) => ({ ...v, idx: i }))
+      .filter((_, i) => i !== selectedVariantIdx);
+
+    for (const v of leftovers) {
+      const date = leftoverDates[v.idx];
+      if (!date || !v.id) continue;
+      await supabase.from("scheduled_posts").insert({
+        content_id: v.id,
+        platform: form.platform,
+        scheduled_at: new Date(date).toISOString(),
+        status: "pending",
+      });
+      await supabase
+        .from("contents")
+        .update({ status: "scheduled" })
+        .eq("id", v.id);
+    }
+    setSchedulingLeftover(false);
+    setLeftoverScheduled(true);
+    setScheduleLeftover(false);
+  };
+
   const copyCaption = () => {
     if (!result) return;
     navigator.clipboard.writeText(
@@ -1326,19 +1359,95 @@ export default function CreatePage() {
             <div className="flex-1 min-w-0 space-y-4 min-w-[420px]">
               {/* Табы вариантов */}
               {variants.length > 1 && (
-                <div className="flex gap-2 bg-gray-50 p-1 rounded-xl">
-                  {variants.map((v, i) => (
-                    <button
-                      key={i}
-                      onClick={() => {
-                        setSelectedVariantIdx(i);
-                        setResult(v);
-                      }}
-                      className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors cursor-pointer ${selectedVariantIdx === i ? "bg-white text-[#1D9E75] shadow-sm" : "text-gray-400 hover:text-gray-600"}`}
-                    >
-                      {v.toneLabel || `Вариант ${i + 1}`}
-                    </button>
-                  ))}
+                <div className="space-y-2">
+                  <div className="flex gap-2 bg-gray-50 p-1 rounded-xl">
+                    {variants.map((v, i) => (
+                      <button
+                        key={i}
+                        onClick={() => {
+                          setSelectedVariantIdx(i);
+                          setResult(v);
+                        }}
+                        className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors cursor-pointer ${selectedVariantIdx === i ? "bg-white text-[#1D9E75] shadow-sm" : "text-gray-400 hover:text-gray-600"}`}
+                      >
+                        {(v as any).toneLabel || `Вариант ${i + 1}`}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Запланировать оставшиеся */}
+                  {!leftoverScheduled ? (
+                    <div className="border border-dashed border-[#1D9E75]/40 rounded-xl p-3 bg-[#F0FDF8]/50">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-medium text-[#1D9E75]">
+                          📅 {variants.length - 1} других вариант
+                          {variants.length - 1 > 1 ? "а" : ""} — запланировать?
+                        </p>
+                        <button
+                          onClick={() => setScheduleLeftover((v) => !v)}
+                          className="text-[10px] px-2.5 py-1 bg-[#1D9E75] text-white rounded-lg cursor-pointer hover:bg-[#0F6E56] transition-colors"
+                        >
+                          {scheduleLeftover ? "Скрыть" : "Выбрать дату"}
+                        </button>
+                      </div>
+
+                      {scheduleLeftover && (
+                        <div className="space-y-2">
+                          {variants
+                            .map((v, i) => ({ ...v, idx: i }))
+                            .filter((_, i) => i !== selectedVariantIdx)
+                            .map((v) => (
+                              <div
+                                key={v.idx}
+                                className="flex items-center gap-2 bg-white rounded-lg p-2 border border-gray-100"
+                              >
+                                <span className="text-[10px] text-gray-500 flex-1 truncate">
+                                  {(v as any).toneLabel ||
+                                    `Вариант ${v.idx + 1}`}
+                                  : {(v as any).title || "—"}
+                                </span>
+                                <input
+                                  type="datetime-local"
+                                  value={leftoverDates[v.idx] || ""}
+                                  onChange={(e) =>
+                                    setLeftoverDates((prev) => ({
+                                      ...prev,
+                                      [v.idx]: e.target.value,
+                                    }))
+                                  }
+                                  className="text-[10px] px-2 py-1 border border-gray-200 rounded outline-none focus:border-[#1D9E75] cursor-pointer"
+                                  min={new Date().toISOString().slice(0, 16)}
+                                />
+                              </div>
+                            ))}
+                          <button
+                            onClick={scheduleLeftoverVariants}
+                            disabled={
+                              schedulingLeftover ||
+                              Object.keys(leftoverDates).length === 0
+                            }
+                            className="w-full py-2 bg-[#1D9E75] text-white text-xs font-medium rounded-lg hover:bg-[#0F6E56] disabled:opacity-50 cursor-pointer transition-colors"
+                          >
+                            {schedulingLeftover
+                              ? "Планируем..."
+                              : "✓ Запланировать"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 bg-[#E1F5EE] rounded-xl px-3 py-2">
+                      <span className="text-xs text-[#1D9E75] font-medium">
+                        ✅ Остальные варианты запланированы
+                      </span>
+                      <a
+                        href="/calendar"
+                        className="ml-auto text-[10px] text-[#1D9E75] underline cursor-pointer"
+                      >
+                        Открыть календарь →
+                      </a>
+                    </div>
+                  )}
                 </div>
               )}
               {result.source_image_url && (
