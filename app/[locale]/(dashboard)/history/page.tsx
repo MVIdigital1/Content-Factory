@@ -83,6 +83,8 @@ export default function HistoryPage() {
   const [copied, setCopied] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editCaption, setEditCaption] = useState("");
+  const [tagInput, setTagInput] = useState("");
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
 
   // Publish from history
   const [publishAction, setPublishAction] = useState<
