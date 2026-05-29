@@ -21,7 +21,10 @@ type ScheduledRow = {
   id: string;
   scheduled_at: string;
   status: string;
-  contents: { title: string | null; platform: string | null } | null;
+  contents:
+    | { title: string | null; platform: string | null }
+    | { title: string | null; platform: string | null }[]
+    | null;
 };
 
 const STATUS_STYLES: Record<string, string> = {
@@ -83,7 +86,7 @@ export default function DashboardTable({
           .gte("scheduled_at", new Date().toISOString())
           .order("scheduled_at", { ascending: true })
           .limit(10);
-        return (data ?? []) as ScheduledRow[];
+        return (data ?? []) as unknown as ScheduledRow[];
       },
       enabled: activeTab === "scheduled",
     });
