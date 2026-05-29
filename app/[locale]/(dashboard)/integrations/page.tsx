@@ -54,6 +54,12 @@ export default function IntegrationsPage() {
   const supabase = createClient();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     const s = searchParams.get("success");
@@ -222,7 +228,12 @@ export default function IntegrationsPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-2xl space-y-6">
+    <div className="p-4 md:p-6 max-w-2xl space-y-6 relative">
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg">
+          {toast}
+        </div>
+      )}
       <div>
         <h1 className="text-xl font-bold text-gray-900">Интеграции</h1>
         <p className="text-sm text-gray-500 mt-0.5">
