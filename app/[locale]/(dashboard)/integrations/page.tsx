@@ -35,6 +35,8 @@ function connectInstagram() {
       "instagram_business_basic,instagram_business_content_publish,instagram_manage_comments,instagram_business_manage_messages",
     response_type: "code",
   });
+  alert("App ID: " + appId);
+
   window.location.href = `https://api.instagram.com/oauth/authorize?${params}`;
 }
 
