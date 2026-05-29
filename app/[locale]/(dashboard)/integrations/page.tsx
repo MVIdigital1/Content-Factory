@@ -287,7 +287,9 @@ export default function IntegrationsPage() {
                 </div>
                 {!(platform as any).comingSoon && (
                   <button
-                    onClick={platform.oauth ? connectInstagram : undefined}
+                    onClick={
+                      (platform as any).oauth ? connectInstagram : undefined
+                    }
                     className="px-4 py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
                   >
                     {isConnected ? "Добавить ещё" : "Подключить"}
