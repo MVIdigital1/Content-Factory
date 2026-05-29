@@ -14,7 +14,7 @@ type ContentRow = {
   platform: string | null;
   status: string | null;
   created_at: string;
-  projects: { name: string } | null;
+  projects: { name: string } | { name: string }[] | null;
 };
 
 type ScheduledRow = {
@@ -68,7 +68,7 @@ export default function DashboardTable({
         .select("id, title, type, platform, status, created_at, projects(name)")
         .order("created_at", { ascending: false })
         .limit(10);
-      return (data ?? []) as ContentRow[];
+      return (data ?? []) as unknown as ContentRow[];
     },
   });
 
@@ -100,7 +100,7 @@ export default function DashboardTable({
           .eq("status", "published")
           .order("created_at", { ascending: false })
           .limit(10);
-        return (data ?? []) as ContentRow[];
+        return (data ?? []) as unknown as ContentRow[];
       },
       enabled: activeTab === "published",
     });
@@ -117,7 +117,9 @@ export default function DashboardTable({
         ? scheduledContents.length
         : publishedContents.length;
 
-  const filterContent = <T extends { title?: string | null; platform?: string | null }>(
+  const filterContent = <
+    T extends { title?: string | null; platform?: string | null },
+  >(
     items: T[],
   ) =>
     !search
@@ -268,7 +270,10 @@ export default function DashboardTable({
       {isLoading && (
         <div className="divide-y divide-gray-50">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="px-5 py-3 flex items-center gap-3 animate-pulse">
+            <div
+              key={i}
+              className="px-5 py-3 flex items-center gap-3 animate-pulse"
+            >
               <div className="w-7 h-7 bg-gray-100 rounded-lg flex-shrink-0" />
               <div className="flex-1 h-3 bg-gray-100 rounded w-1/3" />
               <div className="h-3 bg-gray-100 rounded w-16" />
