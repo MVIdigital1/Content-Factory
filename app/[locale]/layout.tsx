@@ -7,6 +7,9 @@ import { getMessages } from "next-intl/server";
 export const metadata: Metadata = {
   title: "MVI Content Factory",
   description: "AI-генерация и автопостинг контента для соцсетей",
+  other: {
+    "facebook-domain-verification": "t15v67gps1dmz9nopsyx1jaang7izd",
+  },
 };
 
 export default async function LocaleLayout({

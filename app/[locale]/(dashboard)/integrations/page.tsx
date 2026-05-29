@@ -19,13 +19,6 @@ function connectInstagram() {
   const appId = process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID;
   const redirectUri = process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI;
 
-  if (!appId) {
-    alert(
-      "Ошибка: NEXT_PUBLIC_INSTAGRAM_APP_ID не задан. Добавь переменную в Vercel и передеплой.",
-    );
-    return;
-  }
-
   const params = new URLSearchParams({
     client_id: appId,
     redirect_uri:
@@ -35,7 +28,6 @@ function connectInstagram() {
       "instagram_business_basic,instagram_business_content_publish,instagram_manage_comments,instagram_business_manage_messages",
     response_type: "code",
   });
-  alert("App ID: " + appId);
 
   window.location.href = `https://api.instagram.com/oauth/authorize?${params}`;
 }
