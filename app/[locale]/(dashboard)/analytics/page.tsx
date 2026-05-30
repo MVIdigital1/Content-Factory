@@ -60,6 +60,7 @@ export default async function AnalyticsPage({
     { data: typeData },
     { data: statusData },
     { data: recentData },
+    { data: allDates },
   ] = await Promise.all([
     baseQuery(),
     baseQuery().eq("status", "scheduled"),
@@ -85,6 +86,7 @@ export default async function AnalyticsPage({
     dataQuery("type"),
     dataQuery("status"),
     dataQuery("created_at").gte("created_at", thirtyDaysAgo.toISOString()),
+    dataQuery("created_at"), // для тепловой карты часов
   ]);
 
   const dateLocale =
@@ -183,6 +185,20 @@ export default async function AnalyticsPage({
     },
   ];
 
+  // Тепловая карта по часам
+  const hourCounts: number[] = Array(24).fill(0);
+  const dayCounts: number[] = Array(7).fill(0); // 0=Вс, 1=Пн...
+  (allDates as { created_at: string }[] | null)?.forEach((c) => {
+    const d = new Date(c.created_at);
+    hourCounts[d.getHours()]++;
+    dayCounts[d.getDay()]++;
+  });
+  const maxHour = Math.max(...hourCounts, 1);
+  const maxDay = Math.max(...dayCounts, 1);
+  const DAYS = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+  const bestHour = hourCounts.indexOf(Math.max(...hourCounts));
+  const bestDay = DAYS[dayCounts.indexOf(Math.max(...dayCounts))];
+
   const selectedProject = projects?.find((p) => p.id === projectFilter);
 
   return (
@@ -242,6 +258,52 @@ export default async function AnalyticsPage({
           </div>
         ))}
       </div>
+
+      {/* Тепловая карта активности */}
+      {(allDates as any[] | null)?.length ? (
+        <div className="bg-white border border-gray-100 rounded-xl p-4 mb-6">
+          <p className="text-xs font-semibold text-gray-700 mb-1">
+            🌡 Тепловая карта — лучшее время для постов
+          </p>
+          <p className="text-[10px] text-gray-400 mb-3">
+            Лучший час:{" "}
+            <span className="text-[#1D9E75] font-medium">{bestHour}:00</span> ·
+            Лучший день:{" "}
+            <span className="text-[#1D9E75] font-medium">{bestDay}</span>
+          </p>
+          <div className="flex gap-1 mb-3">
+            {DAYS.map((day, i) => (
+              <div key={day} className="flex-1 text-center">
+                <p className="text-[9px] text-gray-400 mb-1">{day}</p>
+                <div
+                  className="h-6 rounded"
+                  style={{
+                    background: `rgba(29,158,117,${dayCounts[i] / maxDay})`,
+                  }}
+                  title={`${dayCounts[i]} постов`}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-0.5 overflow-x-auto pb-1">
+            {hourCounts.map((count, h) => (
+              <div key={h} className="flex-shrink-0 w-7 text-center">
+                <div
+                  className="h-8 rounded-sm mb-1"
+                  style={{
+                    background: `rgba(29,158,117,${count / maxHour})`,
+                    minHeight: "4px",
+                  }}
+                  title={`${h}:00 — ${count} постов`}
+                />
+                {h % 6 === 0 && (
+                  <p className="text-[8px] text-gray-400">{h}:00</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <AnalyticsCharts
         days7={days7}

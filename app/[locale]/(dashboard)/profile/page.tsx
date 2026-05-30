@@ -354,6 +354,7 @@ export default function ProfilePage() {
               { key: "profile", label: "Профиль" },
               { key: "password", label: "Пароль" },
               { key: "danger", label: "Опасная зона" },
+              { key: "telegram", label: "🔔 Telegram" },
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -509,6 +510,97 @@ export default function ProfilePage() {
             )}
 
             {/* Danger tab */}
+            {activeTab === "telegram" && (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                    Уведомления в Telegram
+                  </h3>
+                  <p className="text-xs text-gray-400">
+                    Получай уведомления о публикациях и еженедельный отчёт
+                  </p>
+                </div>
+
+                {telegramLinked ? (
+                  <div className="bg-[#E1F5EE] border border-[#1D9E75]/30 rounded-xl p-4">
+                    <p className="text-sm font-medium text-[#1D9E75] mb-1">
+                      ✅ Telegram подключён
+                    </p>
+                    <p className="text-xs text-[#1D9E75]/70 mb-3">
+                      Уведомления будут приходить в ваш Telegram
+                    </p>
+                    <button
+                      onClick={async () => {
+                        await fetch("/api/telegram/link-profile", {
+                          method: "DELETE",
+                        });
+                        setTelegramLinked(false);
+                        setTelegramToken(null);
+                      }}
+                      className="text-xs text-red-500 hover:underline cursor-pointer"
+                    >
+                      Отвязать Telegram
+                    </button>
+                  </div>
+                ) : telegramToken ? (
+                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+                    <p className="text-xs font-medium text-blue-700 mb-2">
+                      Отправь боту эту команду:
+                    </p>
+                    <div className="bg-white border border-blue-200 rounded-lg px-3 py-2 font-mono text-sm text-gray-900 mb-3 select-all">
+                      /link {telegramToken}
+                    </div>
+                    <a
+                      href={`https://t.me/${process.env.NEXT_PUBLIC_BOT_USERNAME || "postcentro_bot"}?start=link_${telegramToken}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#2AABEE] text-white text-xs font-medium rounded-lg hover:bg-[#1a9bde] transition-colors"
+                    >
+                      Открыть @postcentro_bot
+                    </a>
+                    <p className="text-[10px] text-blue-500 mt-2">
+                      Код действителен 10 минут
+                    </p>
+                  </div>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      setTelegramLoading(true);
+                      const res = await fetch("/api/telegram/link-profile", {
+                        method: "POST",
+                      });
+                      const data = await res.json();
+                      if (data.token) setTelegramToken(data.token);
+                      setTelegramLoading(false);
+                    }}
+                    disabled={telegramLoading}
+                    className="flex items-center gap-2 px-4 py-3 bg-[#2AABEE] text-white text-sm font-medium rounded-xl hover:bg-[#1a9bde] cursor-pointer disabled:opacity-60 transition-colors"
+                  >
+                    {telegramLoading
+                      ? "Генерирую код..."
+                      : "🔗 Привязать Telegram"}
+                  </button>
+                )}
+
+                <div className="border border-gray-100 rounded-xl p-4">
+                  <p className="text-xs font-semibold text-gray-700 mb-2">
+                    Что ты будешь получать:
+                  </p>
+                  <ul className="space-y-1.5">
+                    {[
+                      "✅ Уведомление после каждой публикации",
+                      "📊 Еженедельный отчёт каждый понедельник",
+                      "❌ Уведомление об ошибках публикации",
+                    ].map((item) => (
+                      <li key={item} className="text-xs text-gray-500">
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+
             {activeTab === "danger" && (
               <div className="space-y-4">
                 <div className="bg-red-50 border border-red-200 rounded-xl p-4">
