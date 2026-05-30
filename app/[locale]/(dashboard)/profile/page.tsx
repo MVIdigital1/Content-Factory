@@ -34,9 +34,12 @@ export default function ProfilePage() {
     scheduled: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"profile" | "password" | "danger">(
-    "profile",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "profile" | "password" | "danger" | "telegram"
+  >("profile");
+  const [telegramToken, setTelegramToken] = useState<string | null>(null);
+  const [telegramLinked, setTelegramLinked] = useState(false);
+  const [telegramLoading, setTelegramLoading] = useState(false);
 
   // Profile form
   const [name, setName] = useState("");
