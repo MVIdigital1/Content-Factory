@@ -17,9 +17,6 @@ const BOT_USERNAME = process.env.NEXT_PUBLIC_BOT_USERNAME || "postcentro_bot";
 
 function connectInstagram() {
   const appId = process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID ?? "";
-
-  alert(`Instagram App ID: ${appId}`);
-
   const redirectUri =
     process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI ??
     "https://content-factory-khaki.vercel.app/api/auth/instagram/callback";
@@ -27,7 +24,7 @@ function connectInstagram() {
   const params = new URLSearchParams({
     client_id: appId,
     redirect_uri: redirectUri,
-    scope: "instagram_business_basic",
+    scope: "instagram_business_basic,instagram_business_content_publish",
     response_type: "code",
   });
 
