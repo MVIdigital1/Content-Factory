@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 
-type Worker = "smm" | "trends" | "scripts";
+type Worker = "smm" | "trends" | "scripts" | "creative";
 
 export default function AiWorkersPage() {
   const supabase = createClient();
@@ -41,6 +41,7 @@ export default function AiWorkersPage() {
         smm: "/api/ai/smm-manager",
         trends: "/api/ai/trend-analyst",
         scripts: "/api/ai/script-writer",
+        creative: "/api/ai/creative-director",
       };
 
       const body: any = { projectId: selectedProject };
@@ -52,6 +53,10 @@ export default function AiWorkersPage() {
         }
         body.topic = scriptTopic;
         body.duration = scriptDuration;
+      }
+      if (activeWorker === "creative") {
+        body.goal = scriptTopic || "рост аудитории";
+        body.duration = "month";
       }
 
       const res = await fetch(endpoints[activeWorker], {
@@ -86,6 +91,12 @@ export default function AiWorkersPage() {
       name: "AI Script Writer",
       icon: "🎬",
       desc: "Сценарии для Reels и TikTok с раскадровкой и текстом",
+    },
+    {
+      key: "creative" as Worker,
+      name: "AI Creative Director",
+      icon: "🎭",
+      desc: "Концепция контент-кампании, столпы контента, стратегия на месяц",
     },
   ];
 
@@ -397,6 +408,100 @@ export default function AiWorkersPage() {
                         (tip: string, i: number) => (
                           <p key={i} className="text-[10px] text-gray-500">
                             • {tip}
+                          </p>
+                        ),
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Creative Director result */}
+              {activeWorker === "creative" && result.campaign && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-900">
+                        {result.campaign.campaign_name}
+                      </h3>
+                      <p className="text-xs text-[#1D9E75] italic">
+                        "{result.campaign.tagline}"
+                      </p>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-xl">
+                    <p className="text-xs text-gray-700">
+                      {result.campaign.concept}
+                    </p>
+                  </div>
+                  {result.campaign.content_pillars?.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold text-gray-700 mb-2">
+                        📊 Столпы контента
+                      </p>
+                      <div className="space-y-2">
+                        {result.campaign.content_pillars.map(
+                          (p: any, i: number) => (
+                            <div
+                              key={i}
+                              className="p-3 border border-gray-100 rounded-xl"
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {p.name}
+                                </p>
+                                <span className="text-[10px] bg-[#E1F5EE] text-[#1D9E75] px-2 py-0.5 rounded-full">
+                                  {p.percent}%
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-500 mb-1">
+                                {p.description}
+                              </p>
+                              <div className="flex flex-wrap gap-1">
+                                {p.examples?.map((ex: string) => (
+                                  <span
+                                    key={ex}
+                                    className="text-[9px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded"
+                                  >
+                                    💡 {ex}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {result.campaign.key_messages?.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold text-gray-700 mb-2">
+                        💬 Ключевые сообщения
+                      </p>
+                      <div className="space-y-1">
+                        {result.campaign.key_messages.map(
+                          (m: string, i: number) => (
+                            <p
+                              key={i}
+                              className="text-xs text-gray-600 flex items-start gap-2"
+                            >
+                              <span className="text-[#1D9E75]">→</span>
+                              {m}
+                            </p>
+                          ),
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {result.campaign.creative_hooks?.length > 0 && (
+                    <div className="p-3 bg-purple-50 rounded-xl">
+                      <p className="text-[10px] font-bold text-purple-600 mb-2">
+                        🎯 Нестандартные идеи
+                      </p>
+                      {result.campaign.creative_hooks.map(
+                        (h: string, i: number) => (
+                          <p key={i} className="text-xs text-purple-700">
+                            • {h}
                           </p>
                         ),
                       )}
