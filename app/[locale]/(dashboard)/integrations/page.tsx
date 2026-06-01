@@ -24,12 +24,11 @@ function connectInstagram() {
   const params = new URLSearchParams({
     client_id: appId,
     redirect_uri: redirectUri,
-    scope:
-      "instagram_business_basic,instagram_business_content_publish,instagram_manage_comments,instagram_business_manage_messages",
+    scope: "instagram_business_basic,instagram_business_content_publish",
     response_type: "code",
   });
 
-  window.location.href = `https://api.instagram.com/oauth/authorize?${params}`;
+  window.location.href = `https://www.instagram.com/oauth/authorize?${params}`;
 }
 
 const PLATFORMS = [

@@ -1,22 +1,82 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useLocale } from "next-intl";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-type Tab = "profile" | "integrations" | "billing" | "security";
+type Tab = "profile" | "workspace" | "integrations" | "billing" | "security";
 type PlanKey = "pro" | "business";
 
-export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>("profile");
+function SettingsContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const locale = useLocale();
+  const supabase = createClient();
+  const queryClient = useQueryClient();
+
+  const initialTab = (searchParams.get("tab") as Tab) || "profile";
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [pendingPlan, setPendingPlan] = useState<PlanKey | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const locale = useLocale();
+
+  // Workspace edit state
+  const [wsName, setWsName] = useState("");
+  const [wsEditing, setWsEditing] = useState(false);
 
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   };
+
+  const handleTabChange = (tab: Tab) => {
+    setActiveTab(tab);
+    router.replace(`?tab=${tab}`, { scroll: false });
+  };
+
+  // Load workspace
+  const { data: workspace, isLoading: wsLoading } = useQuery({
+    queryKey: ["workspace-settings"],
+    queryFn: async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data } = await supabase
+        .from("workspaces")
+        .select("*")
+        .eq("owner_id", user.id)
+        .single();
+      return data;
+    },
+    enabled: activeTab === "workspace",
+  });
+
+  useEffect(() => {
+    if (workspace?.name) setWsName(workspace.name);
+  }, [workspace]);
+
+  const updateWorkspaceMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { error } = await supabase
+        .from("workspaces")
+        .update({ name })
+        .eq("owner_id", user.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      queryClient.invalidateQueries({ queryKey: ["workspace-settings"] });
+      setWsEditing(false);
+      showToast("Воркспейс обновлён");
+    },
+  });
 
   const handleUpgrade = async (plan: PlanKey) => {
     setPendingPlan(plan);
@@ -32,6 +92,11 @@ export default function SettingsPage() {
       key: "profile",
       label: "Профиль",
       icon: "M12 8a4 4 0 100 8 4 4 0 000-8zM4 20c0-4 3.6-7 8-7s8 3 8 7",
+    },
+    {
+      key: "workspace",
+      label: "Воркспейс",
+      icon: "M3 7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7zM16 3v4M8 3v4M3 11h18",
     },
     {
       key: "integrations",
@@ -77,9 +142,8 @@ export default function SettingsPage() {
 
   return (
     <div className="p-6 max-w-4xl w-full relative">
-      {/* Toast notification */}
       {toast && (
-        <div className="fixed top-4 right-4 z-50 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg">
+        <div className="fixed top-4 right-4 z-50 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg animate-fade-in">
           {toast}
         </div>
       )}
@@ -92,12 +156,13 @@ export default function SettingsPage() {
       </div>
 
       <div className="flex gap-6">
+        {/* Sidebar nav */}
         <div className="w-44 flex-shrink-0">
           <nav className="space-y-0.5">
             {TABS.map((tab) => (
               <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => handleTabChange(tab.key)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm rounded-lg transition-all text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#1D9E75]/30 ${
                   activeTab === tab.key
                     ? "bg-[#F0FDF8] text-[#1D9E75] font-medium"
@@ -123,7 +188,9 @@ export default function SettingsPage() {
           </nav>
         </div>
 
+        {/* Content */}
         <div className="flex-1 bg-white rounded-xl border border-gray-100 p-6">
+          {/* ── ПРОФИЛЬ ── */}
           {activeTab === "profile" && (
             <div className="space-y-5">
               <h2 className="text-sm font-semibold text-gray-800 mb-4">
@@ -172,6 +239,151 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* ── ВОРКСПЕЙС ── */}
+          {activeTab === "workspace" && (
+            <div className="space-y-5">
+              <h2 className="text-sm font-semibold text-gray-800 mb-4">
+                Воркспейс
+              </h2>
+
+              {wsLoading ? (
+                <div className="space-y-3">
+                  {[1, 2].map((i) => (
+                    <div
+                      key={i}
+                      className="h-16 bg-gray-100 rounded-xl animate-pulse"
+                    />
+                  ))}
+                </div>
+              ) : (
+                <>
+                  {/* Название */}
+                  <div className="p-4 border border-gray-100 rounded-xl">
+                    <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wide">
+                      Название воркспейса
+                    </p>
+                    {wsEditing ? (
+                      <div className="flex gap-2">
+                        <input
+                          value={wsName}
+                          onChange={(e) => setWsName(e.target.value)}
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter")
+                              updateWorkspaceMutation.mutate(wsName);
+                            if (e.key === "Escape") {
+                              setWsEditing(false);
+                              setWsName(workspace?.name || "");
+                            }
+                          }}
+                          className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#1D9E75]"
+                        />
+                        <button
+                          onClick={() => updateWorkspaceMutation.mutate(wsName)}
+                          disabled={
+                            !wsName || updateWorkspaceMutation.isPending
+                          }
+                          className="px-3 py-2 bg-[#1D9E75] text-white text-xs rounded-lg cursor-pointer disabled:opacity-50 hover:bg-[#0F6E56] transition-colors"
+                        >
+                          {updateWorkspaceMutation.isPending
+                            ? "..."
+                            : "Сохранить"}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setWsEditing(false);
+                            setWsName(workspace?.name || "");
+                          }}
+                          className="px-3 py-2 text-gray-500 text-xs rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                        >
+                          Отмена
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-gray-900">
+                          {workspace?.name || "Мой воркспейс"}
+                        </p>
+                        <button
+                          onClick={() => setWsEditing(true)}
+                          className="text-xs text-[#1D9E75] hover:underline cursor-pointer"
+                        >
+                          Изменить
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Тариф */}
+                  <div className="p-4 border border-gray-100 rounded-xl">
+                    <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wide">
+                      Тариф
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-900">
+                          {(workspace?.plan || "free").toUpperCase()}
+                        </span>
+                        <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">
+                          Активен
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleTabChange("billing")}
+                        className="text-xs text-[#1D9E75] hover:underline cursor-pointer"
+                      >
+                        Улучшить →
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Команда */}
+                  <Link
+                    href={`/${locale}/team`}
+                    className="flex items-center gap-3 p-4 border border-gray-100 rounded-xl hover:border-[#1D9E75]/30 hover:bg-[#F0FDF8]/50 transition-all group"
+                  >
+                    <div className="w-10 h-10 bg-[#E1F5EE] rounded-xl flex items-center justify-center flex-shrink-0">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#1D9E75"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">
+                        Управление командой
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Участники, роли, приглашения
+                      </p>
+                    </div>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#9CA3AF"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="group-hover:stroke-[#1D9E75] transition-colors"
+                    >
+                      <path d="M9 18l6-6-6-6" />
+                    </svg>
+                  </Link>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── ИНТЕГРАЦИИ ── */}
           {activeTab === "integrations" && (
             <div className="space-y-4">
               <h2 className="text-sm font-semibold text-gray-800 mb-4">
@@ -220,6 +432,7 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* ── ТАРИФ ── */}
           {activeTab === "billing" && (
             <div className="space-y-4">
               <h2 className="text-sm font-semibold text-gray-800 mb-4">
@@ -294,6 +507,7 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* ── БЕЗОПАСНОСТЬ ── */}
           {activeTab === "security" && (
             <div className="space-y-4">
               <h2 className="text-sm font-semibold text-gray-800 mb-4">
@@ -359,5 +573,15 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense
+      fallback={<div className="p-6 text-sm text-gray-400">Загрузка...</div>}
+    >
+      <SettingsContent />
+    </Suspense>
   );
 }
