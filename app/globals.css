@@ -4,59 +4,79 @@
 @tailwind utilities;
 
 /* ============================================================
-   MVI Content — design tokens
-   Светлая тема по умолчанию, тёмная через [data-theme="dark"].
-   Все компоненты ссылаются на эти переменные через tailwind.config
-   (bg-panel, text-tx-2, border-line, text-accent и т.д.).
+   MVI Content — design tokens v2
+   Sidebar: тёмный #1c2128, контент: тёплый серый #f0f2f5
    ============================================================ */
 
 :root {
-  --bg: #f4f4f3;
-  --sidebar: #fbfbfa;
-  --panel: #ffffff;
-  --panel-2: #f4f4f3;
-  --line: rgba(20, 20, 22, 0.09);
-  --line-strong: rgba(20, 20, 22, 0.16);
-  --tx-1: #17171b;
-  --tx-2: rgba(23, 23, 27, 0.56);
-  --tx-3: rgba(23, 23, 27, 0.4);
-  --accent: #159a6f;
-  --accent-rgb: 21, 154, 111;
-  --accent-dim: rgba(21, 154, 111, 0.11);
+  --bg: #f0f2f5;
+  --sidebar: #1c2128;
+  --panel: #f8f9fb;
+  --panel-2: #eef0f3;
+  --line: rgba(20, 20, 22, 0.08);
+  --line-strong: rgba(20, 20, 22, 0.14);
+  --tx-1: #1a1f2e;
+  --tx-2: rgba(26, 31, 46, 0.55);
+  --tx-3: rgba(26, 31, 46, 0.38);
+  --accent: #238636;
+  --accent-rgb: 35, 134, 54;
+  --accent-dim: rgba(35, 134, 54, 0.1);
   --on-accent: #ffffff;
-  --pos: #159a6f;
-  --neg: #c8512a;
-  --c-2: #6c63d9;
-  --c-3: #bd8312;
-  --hover: rgba(20, 20, 22, 0.045);
+  --pos: #1a7f37;
+  --neg: #cf222e;
+  --c-2: #0969da;
+  --c-3: #9a6700;
+  --hover: rgba(20, 20, 22, 0.04);
   --chip: rgba(20, 20, 22, 0.05);
-  --track: rgba(20, 20, 22, 0.08);
-  --radius: 14px;
-  --radius-sm: 10px;
+  --track: rgba(20, 20, 22, 0.07);
+  --radius: 10px;
+  --radius-sm: 7px;
+
+  /* Sidebar-specific */
+  --sb-bg: #1c2128;
+  --sb-border: rgba(255, 255, 255, 0.07);
+  --sb-tx-1: #cdd9e5;
+  --sb-tx-2: #768390;
+  --sb-tx-3: #4b5564;
+  --sb-active-bg: rgba(35, 134, 54, 0.18);
+  --sb-active-tx: #4ac26b;
+  --sb-hover: rgba(255, 255, 255, 0.05);
+
   color-scheme: light;
 }
 
+/* Тёмная тема — оставляем на будущее */
 [data-theme="dark"] {
-  --bg: #0b0b0c;
-  --sidebar: #0e0e10;
-  --panel: #141416;
-  --panel-2: #19191c;
+  --bg: #0d1117;
+  --sidebar: #010409;
+  --panel: #0d1117;
+  --panel-2: #161b22;
   --line: rgba(255, 255, 255, 0.07);
   --line-strong: rgba(255, 255, 255, 0.13);
-  --tx-1: rgba(255, 255, 255, 0.94);
-  --tx-2: rgba(255, 255, 255, 0.5);
-  --tx-3: rgba(255, 255, 255, 0.32);
-  --accent: #36e0a1;
-  --accent-rgb: 54, 224, 161;
-  --accent-dim: rgba(54, 224, 161, 0.13);
-  --on-accent: #062b1f;
-  --pos: #36e0a1;
-  --neg: #f0997b;
-  --c-2: #afa9ec;
-  --c-3: #fac775;
-  --hover: rgba(255, 255, 255, 0.045);
+  --tx-1: #e6edf3;
+  --tx-2: rgba(230, 237, 243, 0.55);
+  --tx-3: rgba(230, 237, 243, 0.35);
+  --accent: #3fb950;
+  --accent-rgb: 63, 185, 80;
+  --accent-dim: rgba(63, 185, 80, 0.12);
+  --on-accent: #040d06;
+  --pos: #3fb950;
+  --neg: #f85149;
+  --c-2: #58a6ff;
+  --c-3: #d29922;
+  --hover: rgba(255, 255, 255, 0.04);
   --chip: rgba(255, 255, 255, 0.05);
   --track: rgba(255, 255, 255, 0.07);
+
+  --sb-bg: #010409;
+  --sb-border: rgba(255, 255, 255, 0.07);
+  --sb-tx-1: #e6edf3;
+  --sb-tx-2: #8b949e;
+  --sb-tx-3: #484f58;
+  --sb-active-bg: rgba(63, 185, 80, 0.15);
+  --sb-active-tx: #3fb950;
+  --sb-hover: rgba(255, 255, 255, 0.04);
+
   color-scheme: dark;
 }
 
@@ -70,24 +90,21 @@ body {
   color: var(--tx-1);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background 0.25s ease;
+  transition: background 0.2s ease;
 }
 
 @layer components {
-  /* Микро-лейбл капсом с широким трекингом — фирменный приём */
   .ui-label {
     font-size: 10.5px;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--tx-3);
     font-weight: 500;
   }
-  /* Табличные цифры — не прыгают по ширине */
   .ui-num {
     font-feature-settings: "tnum" 1;
     letter-spacing: -0.02em;
   }
-  /* Базовая карточка */
   .ui-surface {
     background: var(--panel);
     border: 1px solid var(--line);
@@ -95,9 +112,15 @@ body {
   }
 }
 
+/* Sidebar overrides — все элементы сайдбара используют sb-* переменные */
+aside {
+  background: var(--sb-bg) !important;
+  border-right-color: var(--sb-border) !important;
+}
+
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -113,7 +136,7 @@ body {
 @keyframes ui-rise {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -121,5 +144,5 @@ body {
   }
 }
 .ui-rise {
-  animation: ui-rise 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: ui-rise 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
