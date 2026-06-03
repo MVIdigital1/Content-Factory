@@ -60,7 +60,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const protectedPattern =
-    /^\/(ru|uz|en)\/(dashboard|projects|create|calendar|integrations|history|analytics|team|tasks|pipeline|ai-workers|ab-tests|billing|profile|settings)/;
+    /^\/(ru|uz|en)\/(dashboard|summary|projects|create|calendar|campaigns|integrations|history|analytics|team|tasks|pipeline|ai-workers|ab-tests|billing|profile|settings|crm|chat|tickets|referral)/;
   const authPattern = /^\/(ru|uz|en)\/auth/;
 
   if (protectedPattern.test(pathname) && !user) {
@@ -70,7 +70,23 @@ export async function middleware(request: NextRequest) {
 
   if (authPattern.test(pathname) && user) {
     const locale = pathname.split("/")[1] || defaultLocale;
-    return NextResponse.redirect(new URL(`/${locale}/dashboard`, request.url));
+
+    // Маршрутизация по роли: руководитель попадает на Сводку, остальные — на Главную.
+    let dest = "/dashboard";
+    try {
+      const { data: profile } = await supabase
+        .from("profiles") // таблица с plan/role (подтверждено страницей Тарифов)
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      if (profile?.role === "cmo" || profile?.role === "manager") {
+        dest = "/summary";
+      }
+    } catch {
+      // роль не прочиталась — остаёмся на дефолте, ничего не ломаем
+    }
+
+    return NextResponse.redirect(new URL(`/${locale}${dest}`, request.url));
   }
 
   return response;

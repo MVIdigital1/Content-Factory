@@ -1,27 +1,125 @@
-@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ============================================================
+   MVI Content — design tokens
+   Светлая тема по умолчанию, тёмная через [data-theme="dark"].
+   Все компоненты ссылаются на эти переменные через tailwind.config
+   (bg-panel, text-tx-2, border-line, text-accent и т.д.).
+   ============================================================ */
+
+:root {
+  --bg: #f4f4f3;
+  --sidebar: #fbfbfa;
+  --panel: #ffffff;
+  --panel-2: #f4f4f3;
+  --line: rgba(20, 20, 22, 0.09);
+  --line-strong: rgba(20, 20, 22, 0.16);
+  --tx-1: #17171b;
+  --tx-2: rgba(23, 23, 27, 0.56);
+  --tx-3: rgba(23, 23, 27, 0.4);
+  --accent: #159a6f;
+  --accent-rgb: 21, 154, 111;
+  --accent-dim: rgba(21, 154, 111, 0.11);
+  --on-accent: #ffffff;
+  --pos: #159a6f;
+  --neg: #c8512a;
+  --c-2: #6c63d9;
+  --c-3: #bd8312;
+  --hover: rgba(20, 20, 22, 0.045);
+  --chip: rgba(20, 20, 22, 0.05);
+  --track: rgba(20, 20, 22, 0.08);
+  --radius: 14px;
+  --radius-sm: 10px;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #0b0b0c;
+  --sidebar: #0e0e10;
+  --panel: #141416;
+  --panel-2: #19191c;
+  --line: rgba(255, 255, 255, 0.07);
+  --line-strong: rgba(255, 255, 255, 0.13);
+  --tx-1: rgba(255, 255, 255, 0.94);
+  --tx-2: rgba(255, 255, 255, 0.5);
+  --tx-3: rgba(255, 255, 255, 0.32);
+  --accent: #36e0a1;
+  --accent-rgb: 54, 224, 161;
+  --accent-dim: rgba(54, 224, 161, 0.13);
+  --on-accent: #062b1f;
+  --pos: #36e0a1;
+  --neg: #f0997b;
+  --c-2: #afa9ec;
+  --c-3: #fac775;
+  --hover: rgba(255, 255, 255, 0.045);
+  --chip: rgba(255, 255, 255, 0.05);
+  --track: rgba(255, 255, 255, 0.07);
+  color-scheme: dark;
+}
 
 * {
   box-sizing: border-box;
 }
 
 body {
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  background: #f9fafb;
-  color: #111827;
+  font-family: "Inter", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--tx-1);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background 0.25s ease;
+}
+
+@layer components {
+  /* Микро-лейбл капсом с широким трекингом — фирменный приём */
+  .ui-label {
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--tx-3);
+    font-weight: 500;
+  }
+  /* Табличные цифры — не прыгают по ширине */
+  .ui-num {
+    font-feature-settings: "tnum" 1;
+    letter-spacing: -0.02em;
+  }
+  /* Базовая карточка */
+  .ui-surface {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
 }
 
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 2px;
+  background: var(--track);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--line-strong);
+}
+
+@keyframes ui-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.ui-rise {
+  animation: ui-rise 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }

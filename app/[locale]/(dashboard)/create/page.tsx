@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Project } from "@/lib/supabase/types";
 import { useTranslations, useLocale } from "next-intl";
 import PostTemplates from "@/components/features/PostTemplates";
+import { Rocket, CalendarClock } from "lucide-react";
 
 const PLATFORMS = [
   { value: "telegram", label: "Telegram" },
@@ -47,9 +48,9 @@ function CustomSelect({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-left flex items-center justify-between bg-white hover:border-[#1D9E75] focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] outline-none transition-colors cursor-pointer"
+        className="w-full px-3 py-2.5 rounded-lg border border-line-strong text-sm text-left flex items-center justify-between bg-panel hover:border-accent focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-colors cursor-pointer"
       >
-        <span className={selected ? "text-gray-900" : "text-gray-400"}>
+        <span className={selected ? "text-tx-1" : "text-tx-3"}>
           {selected?.label || placeholder || "Выберите..."}
         </span>
         <svg
@@ -61,7 +62,7 @@ function CustomSelect({
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className={`transition-transform flex-shrink-0 text-gray-400 ${open ? "rotate-180" : ""}`}
+          className={`transition-transform flex-shrink-0 text-tx-3 ${open ? "rotate-180" : ""}`}
         >
           <path d="M6 9l6 6 6-6" />
         </svg>
@@ -69,7 +70,7 @@ function CustomSelect({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+          <div className="absolute z-50 w-full mt-1 bg-panel border border-line-strong rounded-lg shadow-lg overflow-hidden">
             {placeholder && (
               <button
                 type="button"
@@ -77,7 +78,7 @@ function CustomSelect({
                   onChange("");
                   setOpen(false);
                 }}
-                className="w-full px-3 py-2.5 text-sm text-left text-gray-400 hover:bg-gray-50 cursor-pointer"
+                className="w-full px-3 py-2.5 text-sm text-left text-tx-3 hover:bg-hover cursor-pointer"
               >
                 {placeholder}
               </button>
@@ -90,7 +91,7 @@ function CustomSelect({
                   onChange(o.value);
                   setOpen(false);
                 }}
-                className={`w-full px-3 py-2.5 text-sm text-left transition-colors cursor-pointer ${value === o.value ? "bg-[#E1F5EE] text-[#1D9E75] font-medium" : "text-gray-700 hover:bg-[#E1F5EE] hover:text-[#1D9E75]"}`}
+                className={`w-full px-3 py-2.5 text-sm text-left transition-colors cursor-pointer ${value === o.value ? "bg-accent-dim text-accent font-medium" : "text-tx-1 hover:bg-accent-dim hover:text-accent"}`}
               >
                 {o.label}
               </button>
@@ -117,12 +118,12 @@ function PostPreview({
   if (platform === "telegram") {
     return (
       <div className="bg-[#E6EBF0] rounded-xl p-4">
-        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-3">
+        <p className="text-[10px] font-semibold text-tx-3 uppercase tracking-wide mb-3">
           Предпросмотр — Telegram
         </p>
-        <div className="bg-white rounded-xl overflow-hidden shadow-sm max-w-sm mx-auto">
+        <div className="bg-panel rounded-xl overflow-hidden shadow-sm max-w-sm mx-auto">
           <div className="bg-[#2AABEE] px-3 py-2 flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-full bg-panel/20 flex items-center justify-center">
               <svg
                 width="13"
                 height="13"
@@ -136,7 +137,9 @@ function PostPreview({
                 <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
               </svg>
             </div>
-            <span className="text-xs font-medium text-white">Ваш канал</span>
+            <span className="text-xs font-medium text-on-accent">
+              Ваш канал
+            </span>
           </div>
           {imagePreview && (
             <img
@@ -150,7 +153,7 @@ function PostPreview({
               {text}
             </p>
             <div className="flex items-center justify-between mt-2">
-              <span className="text-[10px] text-gray-400">Сейчас</span>
+              <span className="text-[10px] text-tx-3">Сейчас</span>
               <div className="flex items-center gap-1">
                 <svg
                   width="11"
@@ -165,7 +168,7 @@ function PostPreview({
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                   <circle cx="12" cy="12" r="3" />
                 </svg>
-                <span className="text-[10px] text-gray-400">0</span>
+                <span className="text-[10px] text-tx-3">0</span>
               </div>
             </div>
           </div>
@@ -176,18 +179,18 @@ function PostPreview({
 
   if (platform === "instagram") {
     return (
-      <div className="bg-white rounded-xl p-4 border border-gray-100">
-        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-3">
+      <div className="bg-panel rounded-xl p-4 border border-line">
+        <p className="text-[10px] font-semibold text-tx-3 uppercase tracking-wide mb-3">
           Предпросмотр — Instagram
         </p>
-        <div className="border border-gray-200 rounded-xl overflow-hidden max-w-sm mx-auto">
+        <div className="border border-line-strong rounded-xl overflow-hidden max-w-sm mx-auto">
           <div className="px-3 py-2 flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 p-0.5">
-              <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-[10px] font-bold text-gray-700">
+              <div className="w-full h-full rounded-full bg-panel flex items-center justify-center text-[10px] font-bold text-tx-1">
                 ВК
               </div>
             </div>
-            <span className="text-xs font-semibold text-gray-900">
+            <span className="text-xs font-semibold text-tx-1">
               your_account
             </span>
           </div>
@@ -198,7 +201,7 @@ function PostPreview({
               className="w-full aspect-square object-cover"
             />
           ) : (
-            <div className="w-full aspect-square bg-gray-100 flex items-center justify-center">
+            <div className="w-full aspect-square bg-chip flex items-center justify-center">
               <svg
                 width="32"
                 height="32"
@@ -258,19 +261,17 @@ function PostPreview({
   if (platform === "vk") {
     return (
       <div className="bg-[#EDEEF0] rounded-xl p-4">
-        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-3">
+        <p className="text-[10px] font-semibold text-tx-3 uppercase tracking-wide mb-3">
           Предпросмотр — VK
         </p>
-        <div className="bg-white rounded-xl overflow-hidden shadow-sm max-w-sm mx-auto">
-          <div className="px-4 py-3 flex items-center gap-2 border-b border-gray-100">
-            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">
+        <div className="bg-panel rounded-xl overflow-hidden shadow-sm max-w-sm mx-auto">
+          <div className="px-4 py-3 flex items-center gap-2 border-b border-line">
+            <div className="w-8 h-8 rounded-full bg-chip0 flex items-center justify-center text-on-accent text-xs font-bold">
               VK
             </div>
             <div>
-              <p className="text-xs font-semibold text-gray-900">
-                Ваше сообщество
-              </p>
-              <p className="text-[10px] text-gray-400">Сейчас</p>
+              <p className="text-xs font-semibold text-tx-1">Ваше сообщество</p>
+              <p className="text-[10px] text-tx-3">Сейчас</p>
             </div>
           </div>
           {imagePreview && (
@@ -287,8 +288,8 @@ function PostPreview({
             <p className="text-xs text-[#4986CC] mt-1">
               {result.hashtags?.join(" ")}
             </p>
-            <div className="flex gap-4 mt-3 pt-3 border-t border-gray-100">
-              <button className="flex items-center gap-1 text-[10px] text-gray-400">
+            <div className="flex gap-4 mt-3 pt-3 border-t border-line">
+              <button className="flex items-center gap-1 text-[10px] text-tx-3">
                 <svg
                   width="14"
                   height="14"
@@ -304,7 +305,7 @@ function PostPreview({
                 </svg>
                 Нравится
               </button>
-              <button className="flex items-center gap-1 text-[10px] text-gray-400">
+              <button className="flex items-center gap-1 text-[10px] text-tx-3">
                 <svg
                   width="14"
                   height="14"
@@ -329,7 +330,7 @@ function PostPreview({
   if (platform === "tiktok") {
     return (
       <div className="bg-black rounded-xl p-4">
-        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-3">
+        <p className="text-[10px] font-semibold text-tx-3 uppercase tracking-wide mb-3">
           Предпросмотр — TikTok
         </p>
         <div
@@ -360,13 +361,13 @@ function PostPreview({
             </div>
           )}
           <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
-            <p className="text-[10px] text-white font-semibold mb-1">
+            <p className="text-[10px] text-on-accent font-semibold mb-1">
               @your_account
             </p>
-            <p className="text-[9px] text-white/80 line-clamp-2 leading-relaxed">
+            <p className="text-[9px] text-on-accent/80 line-clamp-2 leading-relaxed">
               {result.caption}
             </p>
-            <p className="text-[9px] text-white/60 mt-1">
+            <p className="text-[9px] text-on-accent/60 mt-1">
               {result.hashtags?.slice(0, 3).join(" ")}
             </p>
           </div>
@@ -384,7 +385,7 @@ function PostPreview({
               >
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
               </svg>
-              <span className="text-[8px] text-white">0</span>
+              <span className="text-[8px] text-on-accent">0</span>
             </div>
             <div className="flex flex-col items-center gap-0.5">
               <svg
@@ -399,7 +400,7 @@ function PostPreview({
               >
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
-              <span className="text-[8px] text-white">0</span>
+              <span className="text-[8px] text-on-accent">0</span>
             </div>
           </div>
         </div>
@@ -442,6 +443,7 @@ export default function CreatePage() {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
     projectId: "",
+    campaignId: "",
     platform: "telegram",
     contentType: "post",
     goal: "",
@@ -702,6 +704,20 @@ export default function CreatePage() {
         .order("created_at", { ascending: false });
       return data as Project[];
     },
+  });
+
+  const { data: campaignsForProject } = useQuery({
+    queryKey: ["campaigns-for-project", form.projectId],
+    queryFn: async () => {
+      if (!form.projectId) return [];
+      const { data } = await supabase
+        .from("campaigns")
+        .select("id, name")
+        .eq("project_id", form.projectId)
+        .order("created_at", { ascending: false });
+      return (data || []) as { id: string; name: string }[];
+    },
+    enabled: !!form.projectId,
   });
 
   const { data: integrations } = useQuery({
@@ -1023,14 +1039,17 @@ export default function CreatePage() {
   };
 
   const inputClass =
-    "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white";
+    "w-full px-3 py-2.5 rounded-lg border border-line-strong text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors bg-panel";
 
   return (
     <div className="flex gap-0 min-h-screen">
       <div className="p-4 md:p-6 w-full flex-1 max-w-3xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-xl font-bold text-gray-900">{t("title")}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{t("subtitle")}</p>
+          <div className="ui-label">Создать</div>
+          <h1 className="text-[26px] font-semibold tracking-tight text-tx-1 mt-1.5">
+            {t("title")}
+          </h1>
+          <p className="text-sm text-tx-2 mt-0.5">{t("subtitle")}</p>
         </div>
 
         {/* Steps */}
@@ -1038,18 +1057,18 @@ export default function CreatePage() {
           {[1, 2, 3].map((s) => (
             <div key={s} className="flex items-center gap-2">
               <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${step >= s ? "bg-[#1D9E75] text-white" : "bg-gray-100 text-gray-400"}`}
+                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${step >= s ? "bg-accent text-on-accent" : "bg-chip text-tx-3"}`}
               >
                 {step > s ? "✓" : s}
               </div>
               {s < 3 && (
                 <div
-                  className={`w-8 h-px ${step > s ? "bg-[#1D9E75]" : "bg-gray-200"}`}
+                  className={`w-8 h-px ${step > s ? "bg-accent" : "bg-track"}`}
                 />
               )}
             </div>
           ))}
-          <div className="ml-2 text-xs text-gray-400">
+          <div className="ml-2 text-xs text-tx-3">
             {step === 1
               ? t("steps.settings")
               : step === 2
@@ -1063,7 +1082,7 @@ export default function CreatePage() {
           <div className="flex items-center justify-end mb-4">
             <a
               href={`/${locale}/calendar`}
-              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#1D9E75] transition-colors"
+              className="flex items-center gap-1.5 text-xs text-tx-3 hover:text-accent transition-colors"
             >
               <svg
                 width="13"
@@ -1085,14 +1104,16 @@ export default function CreatePage() {
 
         {/* STEP 1 */}
         {step === 1 && (
-          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+          <div className="bg-panel rounded-xl border border-line-strong p-5 space-y-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">
+              <label className="block text-xs font-medium text-tx-2 mb-1.5">
                 {t("form.project")}
               </label>
               <CustomSelect
                 value={form.projectId}
-                onChange={(v) => setForm((p) => ({ ...p, projectId: v }))}
+                onChange={(v) =>
+                  setForm((p) => ({ ...p, projectId: v, campaignId: "" }))
+                }
                 options={(projects || []).map((p) => ({
                   value: p.id,
                   label: p.name,
@@ -1100,8 +1121,31 @@ export default function CreatePage() {
                 placeholder={t("form.projectDefault")}
               />
             </div>
+            {form.projectId && (
+              <div>
+                <label className="block text-xs font-medium text-tx-2 mb-1.5">
+                  Кампания (необязательно)
+                </label>
+                <CustomSelect
+                  value={form.campaignId}
+                  onChange={(v) => setForm((p) => ({ ...p, campaignId: v }))}
+                  options={[
+                    { value: "", label: "Без кампании" },
+                    ...(
+                      (campaignsForProject || []) as {
+                        id: string;
+                        name: string;
+                      }[]
+                    ).map((c) => ({
+                      value: c.id,
+                      label: c.name,
+                    })),
+                  ]}
+                />
+              </div>
+            )}
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">
+              <label className="block text-xs font-medium text-tx-2 mb-1.5">
                 {t("form.contentType")}
               </label>
               <div className="grid grid-cols-4 gap-2">
@@ -1111,7 +1155,7 @@ export default function CreatePage() {
                     onClick={() =>
                       setForm((f) => ({ ...f, contentType: ct.value }))
                     }
-                    className={`py-2 rounded-lg border text-xs font-medium transition-colors ${form.contentType === ct.value ? "border-[#1D9E75] bg-[#E1F5EE] text-[#1D9E75]" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
+                    className={`py-2 rounded-lg border text-xs font-medium transition-colors ${form.contentType === ct.value ? "border-accent bg-accent-dim text-accent" : "border-line-strong text-tx-2 hover:bg-hover"}`}
                   >
                     {ct.label}
                   </button>
@@ -1119,7 +1163,7 @@ export default function CreatePage() {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">
+              <label className="block text-xs font-medium text-tx-2 mb-1.5">
                 {t("form.goal")}
               </label>
               <CustomSelect
@@ -1130,7 +1174,7 @@ export default function CreatePage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">
+              <label className="block text-xs font-medium text-tx-2 mb-1.5">
                 {t("form.topic")}
               </label>
               <textarea
@@ -1147,14 +1191,14 @@ export default function CreatePage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">
+              <label className="block text-xs font-medium text-tx-2 mb-1.5">
                 {t("form.image")}{" "}
-                <span className="text-gray-400 font-normal">
+                <span className="text-tx-3 font-normal">
                   {t("form.imageOptional")}
                 </span>
               </label>
               {imagePreview ? (
-                <div className="relative rounded-lg overflow-hidden border border-gray-200">
+                <div className="relative rounded-lg overflow-hidden border border-line-strong">
                   <img
                     src={imagePreview}
                     alt="Preview"
@@ -1166,11 +1210,11 @@ export default function CreatePage() {
                       setImageFile(null);
                       setImagePreview(null);
                     }}
-                    className="absolute top-2 right-2 w-6 h-6 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center text-xs cursor-pointer"
+                    className="absolute top-2 right-2 w-6 h-6 bg-black/50 hover:bg-black/70 text-on-accent rounded-full flex items-center justify-center text-xs cursor-pointer"
                   >
                     ✕
                   </button>
-                  <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-0.5 rounded">
+                  <div className="absolute bottom-2 left-2 bg-black/50 text-on-accent text-xs px-2 py-0.5 rounded">
                     {imageFile?.name}
                   </div>
                 </div>
@@ -1189,7 +1233,7 @@ export default function CreatePage() {
                       if (f) handleFileSelect(f);
                     }}
                     onClick={() => fileInputRef.current?.click()}
-                    className={`border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition-colors ${dragOver ? "border-[#1D9E75] bg-[#E1F5EE]" : "border-gray-200 hover:border-[#1D9E75] hover:bg-gray-50"}`}
+                    className={`border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition-colors ${dragOver ? "border-accent bg-accent-dim" : "border-line-strong hover:border-accent hover:bg-hover"}`}
                   >
                     <svg
                       width="24"
@@ -1206,10 +1250,10 @@ export default function CreatePage() {
                       <circle cx="8.5" cy="8.5" r="1.5" />
                       <path d="M21 15l-5-5L5 21" />
                     </svg>
-                    <p className="text-xs text-gray-500 font-medium">
+                    <p className="text-xs text-tx-2 font-medium">
                       {t("form.imageHint")}
                     </p>
-                    <p className="text-xs text-gray-400 mt-0.5">
+                    <p className="text-xs text-tx-3 mt-0.5">
                       {t("form.imageFormats")}
                     </p>
                     <input
@@ -1229,17 +1273,17 @@ export default function CreatePage() {
                     <button
                       type="button"
                       onClick={() => setShowStoragePicker((v) => !v)}
-                      className="w-full py-2 border border-gray-200 rounded-lg text-xs text-gray-500 hover:bg-gray-50 hover:text-[#1D9E75] hover:border-[#1D9E75] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                      className="w-full py-2 border border-line-strong rounded-lg text-xs text-tx-2 hover:bg-hover hover:text-accent hover:border-accent transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                     >
-                      📁 Выбрать из хранилища проекта
+                      Выбрать из хранилища проекта
                     </button>
                   )}
 
                   {/* Пикер файлов из хранилища */}
                   {showStoragePicker && form.projectId && (
-                    <div className="border border-gray-200 rounded-xl p-3 bg-gray-50">
+                    <div className="border border-line-strong rounded-xl p-3 bg-panel-2">
                       {(projectFiles as any[]).length === 0 ? (
-                        <p className="text-xs text-gray-400 text-center py-3">
+                        <p className="text-xs text-tx-3 text-center py-3">
                           Нет изображений в хранилище
                         </p>
                       ) : (
@@ -1257,7 +1301,7 @@ export default function CreatePage() {
                                     ({ ...p, imageUrl: f.file_url }) as any,
                                 );
                               }}
-                              className="relative rounded-lg overflow-hidden border-2 border-transparent hover:border-[#1D9E75] transition-colors cursor-pointer"
+                              className="relative rounded-lg overflow-hidden border-2 border-transparent hover:border-accent transition-colors cursor-pointer"
                             >
                               <img
                                 src={f.file_url}
@@ -1274,7 +1318,7 @@ export default function CreatePage() {
               )}
             </div>
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-600">
+              <div className="bg-chip border border-line rounded-lg px-3 py-2 text-sm text-neg">
                 {error}
               </div>
             )}
@@ -1282,20 +1326,20 @@ export default function CreatePage() {
             <label className="flex items-center gap-2.5 cursor-pointer select-none">
               <div
                 onClick={() => setThreeVariants((v) => !v)}
-                className={`w-9 h-5 rounded-full transition-colors relative flex-shrink-0 cursor-pointer ${threeVariants ? "bg-[#1D9E75]" : "bg-gray-200"}`}
+                className={`w-9 h-5 rounded-full transition-colors relative flex-shrink-0 cursor-pointer ${threeVariants ? "bg-accent" : "bg-track"}`}
               >
                 <div
-                  className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${threeVariants ? "translate-x-4" : "translate-x-0.5"}`}
+                  className={`absolute top-0.5 w-4 h-4 bg-panel rounded-full shadow transition-transform ${threeVariants ? "translate-x-4" : "translate-x-0.5"}`}
                 />
               </div>
               <div>
-                <p className="text-xs font-medium text-gray-700">
+                <p className="text-xs font-medium text-tx-1">
                   Сгенерировать 3 варианта
-                  <span className="ml-1.5 text-[10px] font-normal text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded">
+                  <span className="ml-1.5 text-[10px] font-normal text-c-3 bg-chip px-1.5 py-0.5 rounded">
                     ×3 лимита
                   </span>
                 </p>
-                <p className="text-[10px] text-gray-400">
+                <p className="text-[10px] text-tx-3">
                   Дружелюбный · Вирусный · Экспертный — выберешь лучший
                 </p>
               </div>
@@ -1303,7 +1347,7 @@ export default function CreatePage() {
             <button
               onClick={handleGenerate}
               disabled={!form.projectId || !form.topic || !form.goal}
-              className="w-full py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              className="w-full py-2.5 bg-accent hover:opacity-90 text-on-accent text-sm font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               {threeVariants
                 ? "Сгенерировать 3 варианта ✦"
@@ -1314,14 +1358,14 @@ export default function CreatePage() {
 
         {/* STEP 2 */}
         {step === 2 && (
-          <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-            <div className="w-12 h-12 bg-[#E1F5EE] rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="bg-panel rounded-xl border border-line-strong p-8 text-center">
+            <div className="w-12 h-12 bg-accent-dim rounded-full flex items-center justify-center mx-auto mb-4">
               <svg
                 width="22"
                 height="22"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#1D9E75"
+                stroke="currentColor"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -1329,23 +1373,19 @@ export default function CreatePage() {
                 <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
               </svg>
             </div>
-            <h3 className="text-base font-semibold text-gray-900 mb-2">
+            <h3 className="text-base font-semibold text-tx-1 mb-2">
               {t("generating.title")}
             </h3>
-            <p className="text-sm text-gray-400 mb-6">
-              {t("generating.subtitle")}
-            </p>
-            <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
+            <p className="text-sm text-tx-3 mb-6">{t("generating.subtitle")}</p>
+            <div className="w-full bg-chip rounded-full h-2 mb-2">
               <div
-                className="bg-[#1D9E75] h-2 rounded-full transition-all duration-500"
+                className="bg-accent h-2 rounded-full transition-all duration-500"
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <p className="text-xs text-gray-400">
-              {progressMsg || `${progress}%`}
-            </p>
+            <p className="text-xs text-tx-3">{progressMsg || `${progress}%`}</p>
             {threeVariants && (
-              <p className="text-[10px] text-gray-300 mt-1">
+              <p className="text-[10px] text-tx-3 mt-1">
                 Генерирую 3 варианта параллельно...
               </p>
             )}
@@ -1360,7 +1400,7 @@ export default function CreatePage() {
               {/* Табы вариантов */}
               {variants.length > 1 && (
                 <div className="space-y-2">
-                  <div className="flex gap-2 bg-gray-50 p-1 rounded-xl">
+                  <div className="flex gap-2 bg-panel-2 p-1 rounded-xl">
                     {variants.map((v, i) => (
                       <button
                         key={i}
@@ -1368,7 +1408,7 @@ export default function CreatePage() {
                           setSelectedVariantIdx(i);
                           setResult(v);
                         }}
-                        className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors cursor-pointer ${selectedVariantIdx === i ? "bg-white text-[#1D9E75] shadow-sm" : "text-gray-400 hover:text-gray-600"}`}
+                        className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors cursor-pointer ${selectedVariantIdx === i ? "bg-panel text-accent shadow-sm" : "text-tx-3 hover:text-tx-2"}`}
                       >
                         {(v as any).toneLabel || `Вариант ${i + 1}`}
                       </button>
@@ -1377,15 +1417,15 @@ export default function CreatePage() {
 
                   {/* Запланировать оставшиеся */}
                   {!leftoverScheduled ? (
-                    <div className="border border-dashed border-[#1D9E75]/40 rounded-xl p-3 bg-[#F0FDF8]/50">
+                    <div className="border border-dashed border-accent/40 rounded-xl p-3 bg-accent-dim">
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-medium text-[#1D9E75]">
-                          📅 {variants.length - 1} других вариант
+                        <p className="text-xs font-medium text-accent">
+                          {variants.length - 1} других вариант
                           {variants.length - 1 > 1 ? "а" : ""} — запланировать?
                         </p>
                         <button
                           onClick={() => setScheduleLeftover((v) => !v)}
-                          className="text-[10px] px-2.5 py-1 bg-[#1D9E75] text-white rounded-lg cursor-pointer hover:bg-[#0F6E56] transition-colors"
+                          className="text-[10px] px-2.5 py-1 bg-accent text-on-accent rounded-lg cursor-pointer hover:opacity-90 transition-colors"
                         >
                           {scheduleLeftover ? "Скрыть" : "Выбрать дату"}
                         </button>
@@ -1399,9 +1439,9 @@ export default function CreatePage() {
                             .map((v) => (
                               <div
                                 key={v.idx}
-                                className="flex items-center gap-2 bg-white rounded-lg p-2 border border-gray-100"
+                                className="flex items-center gap-2 bg-panel rounded-lg p-2 border border-line"
                               >
-                                <span className="text-[10px] text-gray-500 flex-1 truncate">
+                                <span className="text-[10px] text-tx-2 flex-1 truncate">
                                   {(v as any).toneLabel ||
                                     `Вариант ${v.idx + 1}`}
                                   : {(v as any).title || "—"}
@@ -1415,7 +1455,7 @@ export default function CreatePage() {
                                       [v.idx]: e.target.value,
                                     }))
                                   }
-                                  className="text-[10px] px-2 py-1 border border-gray-200 rounded outline-none focus:border-[#1D9E75] cursor-pointer"
+                                  className="text-[10px] px-2 py-1 border border-line-strong rounded outline-none focus:border-accent cursor-pointer"
                                   min={new Date().toISOString().slice(0, 16)}
                                 />
                               </div>
@@ -1426,7 +1466,7 @@ export default function CreatePage() {
                               schedulingLeftover ||
                               Object.keys(leftoverDates).length === 0
                             }
-                            className="w-full py-2 bg-[#1D9E75] text-white text-xs font-medium rounded-lg hover:bg-[#0F6E56] disabled:opacity-50 cursor-pointer transition-colors"
+                            className="w-full py-2 bg-accent text-on-accent text-xs font-medium rounded-lg hover:opacity-90 disabled:opacity-50 cursor-pointer transition-colors"
                           >
                             {schedulingLeftover
                               ? "Планируем..."
@@ -1436,13 +1476,13 @@ export default function CreatePage() {
                       )}
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2 bg-[#E1F5EE] rounded-xl px-3 py-2">
-                      <span className="text-xs text-[#1D9E75] font-medium">
-                        ✅ Остальные варианты запланированы
+                    <div className="flex items-center gap-2 bg-accent-dim rounded-xl px-3 py-2">
+                      <span className="text-xs text-accent font-medium">
+                        Остальные варианты запланированы
                       </span>
                       <a
                         href="/calendar"
-                        className="ml-auto text-[10px] text-[#1D9E75] underline cursor-pointer"
+                        className="ml-auto text-[10px] text-accent underline cursor-pointer"
                       >
                         Открыть календарь →
                       </a>
@@ -1451,7 +1491,7 @@ export default function CreatePage() {
                 </div>
               )}
               {result.source_image_url && (
-                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="bg-panel rounded-xl border border-line-strong overflow-hidden">
                   <img
                     src={result.source_image_url}
                     alt="preview"
@@ -1459,15 +1499,15 @@ export default function CreatePage() {
                   />
                 </div>
               )}
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <div className="bg-panel rounded-xl border border-line-strong p-5">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                  <p className="text-xs font-semibold text-tx-3 uppercase tracking-wide">
                     {t("result.caption")}
                   </p>
                   <button
                     onClick={() => handleRegenPart("caption")}
                     disabled={regenField === "caption"}
-                    className="text-[10px] px-2 py-1 border border-gray-200 rounded-lg text-gray-400 hover:text-[#1D9E75] hover:border-[#1D9E75] transition-colors cursor-pointer disabled:opacity-50"
+                    className="text-[10px] px-2 py-1 border border-line-strong rounded-lg text-tx-3 hover:text-accent hover:border-accent transition-colors cursor-pointer disabled:opacity-50"
                   >
                     {regenField === "caption" ? "..." : "↺ Переписать"}
                   </button>
@@ -1478,19 +1518,19 @@ export default function CreatePage() {
                       value={inlineValue}
                       onChange={(e) => setInlineValue(e.target.value)}
                       rows={6}
-                      className="w-full px-3 py-2 text-sm border border-[#1D9E75] rounded-lg outline-none resize-none"
+                      className="w-full px-3 py-2 text-sm border border-accent rounded-lg outline-none resize-none"
                       autoFocus
                     />
                     <div className="flex gap-2">
                       <button
                         onClick={saveInlineEdit}
-                        className="px-3 py-1.5 bg-[#1D9E75] text-white text-xs rounded-lg hover:bg-[#0F6E56] cursor-pointer"
+                        className="px-3 py-1.5 bg-accent text-on-accent text-xs rounded-lg hover:opacity-90 cursor-pointer"
                       >
                         Сохранить
                       </button>
                       <button
                         onClick={() => setInlineEdit(null)}
-                        className="px-3 py-1.5 border border-gray-200 text-xs text-gray-500 rounded-lg cursor-pointer"
+                        className="px-3 py-1.5 border border-line-strong text-xs text-tx-2 rounded-lg cursor-pointer"
                       >
                         Отмена
                       </button>
@@ -1498,7 +1538,7 @@ export default function CreatePage() {
                   </div>
                 ) : (
                   <p
-                    className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed cursor-text hover:bg-gray-50 rounded-lg p-1 -m-1 transition-colors"
+                    className="text-sm text-tx-1 whitespace-pre-wrap leading-relaxed cursor-text hover:bg-hover rounded-lg p-1 -m-1 transition-colors"
                     onClick={() => {
                       setInlineEdit("caption");
                       setInlineValue(result.caption);
@@ -1512,7 +1552,7 @@ export default function CreatePage() {
                   {result.hashtags?.map((h) => (
                     <span
                       key={h}
-                      className="text-xs text-[#1D9E75] bg-[#E1F5EE] px-2.5 py-0.5 rounded-full"
+                      className="text-xs text-accent bg-accent-dim px-2.5 py-0.5 rounded-full"
                     >
                       {h}
                     </span>
@@ -1520,7 +1560,7 @@ export default function CreatePage() {
                   <button
                     onClick={() => handleRegenPart("hashtags")}
                     disabled={regenField === "hashtags"}
-                    className="ml-auto text-[10px] px-2 py-1 border border-gray-200 rounded-lg text-gray-400 hover:text-[#1D9E75] hover:border-[#1D9E75] transition-colors cursor-pointer disabled:opacity-50"
+                    className="ml-auto text-[10px] px-2 py-1 border border-line-strong rounded-lg text-tx-3 hover:text-accent hover:border-accent transition-colors cursor-pointer disabled:opacity-50"
                   >
                     {regenField === "hashtags" ? "..." : "↺ Хэштеги"}
                   </button>
@@ -1530,12 +1570,24 @@ export default function CreatePage() {
 
             {/* Правая часть — сайдбар */}
             <div className="w-72 flex-shrink-0 space-y-3 sticky top-4">
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="bg-panel rounded-xl border border-line-strong p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-sm">
-                    {publishMode === "now" ? "🚀" : "📅"}
+                    {publishMode === "now" ? (
+                      <Rocket
+                        size={15}
+                        className="text-accent"
+                        strokeWidth={1.8}
+                      />
+                    ) : (
+                      <CalendarClock
+                        size={15}
+                        className="text-c-2"
+                        strokeWidth={1.8}
+                      />
+                    )}
                   </span>
-                  <p className="text-xs font-semibold text-gray-700">
+                  <p className="text-xs font-semibold text-tx-1">
                     {publishMode === "now"
                       ? "Опубликовать сейчас"
                       : "Запланировать"}
@@ -1544,7 +1596,7 @@ export default function CreatePage() {
                     onClick={() =>
                       setPublishMode(publishMode === "now" ? "schedule" : "now")
                     }
-                    className="ml-auto text-[10px] text-[#1D9E75] hover:underline cursor-pointer font-medium"
+                    className="ml-auto text-[10px] text-accent hover:underline cursor-pointer font-medium"
                   >
                     Изменить
                   </button>
@@ -1573,7 +1625,7 @@ export default function CreatePage() {
                             return next;
                           });
                         }}
-                        className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                        className="flex-1 px-2 py-1.5 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
                       />
                       <input
                         type="time"
@@ -1594,19 +1646,19 @@ export default function CreatePage() {
                             return next;
                           });
                         }}
-                        className="w-20 px-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                        className="w-20 px-2 py-1.5 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
                       />
                     </div>
                   )}
 
                   {(allChannels || []).length === 0 ? (
                     <div className="text-center py-6">
-                      <p className="text-xs text-gray-500 mb-2">
+                      <p className="text-xs text-tx-2 mb-2">
                         Нет подключённых каналов
                       </p>
                       <a
                         href={`/${locale}/integrations`}
-                        className="text-xs text-[#1D9E75] font-semibold hover:underline"
+                        className="text-xs text-accent font-semibold hover:underline"
                       >
                         Подключить →
                       </a>
@@ -1622,10 +1674,10 @@ export default function CreatePage() {
                       return (
                         <div
                           key={ch.id}
-                          className={`rounded-xl border p-3 transition-all ${act.action !== "none" ? "border-[#1D9E75] bg-[#F8FDFB]" : "border-gray-100"}`}
+                          className={`rounded-xl border p-3 transition-all ${act.action !== "none" ? "border-accent bg-accent-dim" : "border-line"}`}
                         >
                           <div className="flex items-center gap-2 mb-2.5">
-                            <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                            <div className="w-7 h-7 rounded-lg bg-chip flex items-center justify-center flex-shrink-0">
                               <svg
                                 width="12"
                                 height="12"
@@ -1640,10 +1692,10 @@ export default function CreatePage() {
                               </svg>
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-semibold text-gray-800 truncate">
+                              <p className="text-xs font-semibold text-tx-1 truncate">
                                 {ch.channel_name || ch.channel_id}
                               </p>
-                              <p className="text-[10px] text-gray-400">
+                              <p className="text-[10px] text-tx-3">
                                 {ch.channel_id}
                               </p>
                             </div>
@@ -1669,13 +1721,13 @@ export default function CreatePage() {
                                   className={`py-1.5 text-[9px] font-semibold rounded-lg border transition-all cursor-pointer ${
                                     act.action === type
                                       ? type === "none"
-                                        ? "bg-gray-100 border-gray-200 text-gray-500"
+                                        ? "bg-chip border-line-strong text-tx-2"
                                         : type === "plan"
-                                          ? "bg-purple-600 border-purple-600 text-white"
-                                          : "bg-[#1D9E75] border-[#1D9E75] text-white"
+                                          ? "bg-purple-600 border-purple-600 text-on-accent"
+                                          : "bg-accent border-accent text-on-accent"
                                       : type === "plan"
-                                        ? "bg-white border-purple-200 text-purple-400 hover:border-purple-400"
-                                        : "bg-white border-gray-200 text-gray-400 hover:border-gray-300"
+                                        ? "bg-panel border-purple-200 text-purple-400 hover:border-purple-400"
+                                        : "bg-panel border-line-strong text-tx-3 hover:border-line-strong"
                                   }`}
                                 >
                                   {type === "now"
@@ -1683,7 +1735,7 @@ export default function CreatePage() {
                                     : type === "schedule"
                                       ? "Запланировать"
                                       : type === "plan"
-                                        ? "📅 План"
+                                        ? "План"
                                         : "Пропустить"}
                                 </button>
                               ),
@@ -1707,7 +1759,7 @@ export default function CreatePage() {
                                           },
                                         }))
                                       }
-                                      className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                                      className="flex-1 px-2 py-1.5 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
                                     />
                                     <input
                                       type="time"
@@ -1721,7 +1773,7 @@ export default function CreatePage() {
                                           },
                                         }))
                                       }
-                                      className="w-20 px-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                                      className="w-20 px-2 py-1.5 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
                                     />
                                   </div>
                                   <button
@@ -1737,7 +1789,7 @@ export default function CreatePage() {
                                         },
                                       }))
                                     }
-                                    className="text-[10px] text-[#1D9E75] cursor-pointer"
+                                    className="text-[10px] text-accent cursor-pointer"
                                   >
                                     + Добавить ещё дату
                                   </button>
@@ -1764,7 +1816,7 @@ export default function CreatePage() {
                                             [ch.id]: { ...act, slots: s },
                                           }));
                                         }}
-                                        className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                                        className="flex-1 px-2 py-1.5 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
                                       />
                                       <input
                                         type="time"
@@ -1780,7 +1832,7 @@ export default function CreatePage() {
                                             [ch.id]: { ...act, slots: s },
                                           }));
                                         }}
-                                        className="w-20 px-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                                        className="w-20 px-2 py-1.5 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
                                       />
                                       <button
                                         onClick={() =>
@@ -1795,7 +1847,7 @@ export default function CreatePage() {
                                             },
                                           }))
                                         }
-                                        className="text-gray-300 hover:text-red-400 cursor-pointer text-sm"
+                                        className="text-tx-3 hover:text-neg cursor-pointer text-sm"
                                       >
                                         ×
                                       </button>
@@ -1814,7 +1866,7 @@ export default function CreatePage() {
                                         },
                                       }))
                                     }
-                                    className="text-[10px] text-[#1D9E75] cursor-pointer"
+                                    className="text-[10px] text-accent cursor-pointer"
                                   >
                                     + Ещё дату
                                   </button>
@@ -1830,17 +1882,17 @@ export default function CreatePage() {
               </div>
 
               {publishError && (
-                <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
+                <div className="bg-chip border border-line rounded-xl px-4 py-3 text-sm text-neg">
                   {publishError}
                 </div>
               )}
               {publishSuccess && (
-                <div className="bg-[#E1F5EE] border border-[#1D9E75]/30 rounded-xl px-4 py-3 text-sm text-[#1D9E75] font-medium">
+                <div className="bg-accent-dim border border-accent rounded-xl px-4 py-3 text-sm text-accent font-medium">
                   ✓ Опубликовано!
                 </div>
               )}
               {scheduleSuccess && (
-                <div className="bg-[#E1F5EE] border border-[#1D9E75]/30 rounded-xl px-4 py-3 text-sm text-[#1D9E75] font-medium">
+                <div className="bg-accent-dim border border-accent rounded-xl px-4 py-3 text-sm text-accent font-medium">
                   ✓ Запланировано!
                 </div>
               )}
@@ -1854,7 +1906,7 @@ export default function CreatePage() {
                       accountActions[ch.id].action !== "none",
                   ) || publishing
                 }
-                className="w-full py-3 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-xl transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full py-3 bg-accent hover:opacity-90 text-on-accent text-sm font-semibold rounded-xl transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {publishing ? "Публикуем..." : "Применить"}
               </button>
@@ -1872,14 +1924,12 @@ export default function CreatePage() {
               setPlanModal({ open: false, channelId: "", channelName: "" })
             }
           />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <div className="relative bg-panel rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             {/* Header */}
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="px-5 py-4 border-b border-line flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold text-gray-900">
-                  📅 Контент-план
-                </h3>
-                <p className="text-[11px] text-gray-400 mt-0.5">
+                <h3 className="text-sm font-bold text-tx-1">Контент-план</h3>
+                <p className="text-[11px] text-tx-3 mt-0.5">
                   {planModal.channelName}
                 </p>
               </div>
@@ -1892,7 +1942,7 @@ export default function CreatePage() {
                       channelName: "",
                     })
                   }
-                  className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-400 cursor-pointer transition-colors"
+                  className="w-7 h-7 rounded-full bg-chip hover:bg-hover flex items-center justify-center text-tx-3 cursor-pointer transition-colors"
                 >
                   ✕
                 </button>
@@ -1902,13 +1952,13 @@ export default function CreatePage() {
             <div className="p-5 space-y-4">
               {planDone ? (
                 <div className="text-center py-8">
-                  <div className="w-14 h-14 bg-[#E1F5EE] rounded-full flex items-center justify-center mx-auto mb-3">
+                  <div className="w-14 h-14 bg-accent-dim rounded-full flex items-center justify-center mx-auto mb-3">
                     <span className="text-2xl">✓</span>
                   </div>
-                  <p className="text-sm font-semibold text-gray-800 mb-1">
+                  <p className="text-sm font-semibold text-tx-1 mb-1">
                     План создан!
                   </p>
-                  <p className="text-xs text-gray-400 mb-4">
+                  <p className="text-xs text-tx-3 mb-4">
                     Посты запланированы и сохранены в очередь публикаций.
                   </p>
                   <button
@@ -1919,14 +1969,14 @@ export default function CreatePage() {
                         channelName: "",
                       })
                     }
-                    className="px-5 py-2 bg-[#1D9E75] text-white text-sm font-semibold rounded-xl cursor-pointer"
+                    className="px-5 py-2 bg-accent text-on-accent text-sm font-semibold rounded-xl cursor-pointer"
                   >
                     Готово
                   </button>
                 </div>
               ) : planGenerating ? (
                 <div className="text-center py-8">
-                  <div className="w-14 h-14 bg-purple-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <div className="w-14 h-14 bg-chip rounded-full flex items-center justify-center mx-auto mb-3">
                     <svg
                       width="24"
                       height="24"
@@ -1941,25 +1991,25 @@ export default function CreatePage() {
                       <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                     </svg>
                   </div>
-                  <p className="text-sm font-semibold text-gray-800 mb-1">
+                  <p className="text-sm font-semibold text-tx-1 mb-1">
                     Генерируем посты...
                   </p>
-                  <p className="text-xs text-gray-400 mb-4">
+                  <p className="text-xs text-tx-3 mb-4">
                     Claude создаёт уникальный контент для каждого слота
                   </p>
-                  <div className="w-full bg-gray-100 rounded-full h-2 mb-1">
+                  <div className="w-full bg-chip rounded-full h-2 mb-1">
                     <div
-                      className="bg-purple-500 h-2 rounded-full transition-all duration-300"
+                      className="bg-chip0 h-2 rounded-full transition-all duration-300"
                       style={{ width: `${planProgress}%` }}
                     />
                   </div>
-                  <p className="text-xs text-gray-400">{planProgress}%</p>
+                  <p className="text-xs text-tx-3">{planProgress}%</p>
                 </div>
               ) : (
                 <>
                   {/* Date range */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-2">
+                    <label className="block text-xs font-semibold text-tx-2 mb-2">
                       Период публикаций
                     </label>
                     <div className="flex items-center gap-2">
@@ -1973,9 +2023,9 @@ export default function CreatePage() {
                             dateFrom: e.target.value,
                           }))
                         }
-                        className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                        className="flex-1 px-3 py-2 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
                       />
-                      <span className="text-gray-300 text-xs">→</span>
+                      <span className="text-tx-3 text-xs">→</span>
                       <input
                         type="date"
                         value={planConfig.dateTo}
@@ -1986,14 +2036,14 @@ export default function CreatePage() {
                             dateTo: e.target.value,
                           }))
                         }
-                        className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                        className="flex-1 px-3 py-2 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
                       />
                     </div>
                   </div>
 
                   {/* Frequency */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-2">
+                    <label className="block text-xs font-semibold text-tx-2 mb-2">
                       Частота публикаций
                     </label>
                     <div className="grid grid-cols-3 gap-2">
@@ -2003,8 +2053,8 @@ export default function CreatePage() {
                           onClick={() => handlePlanFrequencyChange(f)}
                           className={`py-2 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
                             planConfig.frequency === f
-                              ? "bg-purple-600 border-purple-600 text-white"
-                              : "bg-white border-gray-200 text-gray-400 hover:border-purple-300"
+                              ? "bg-purple-600 border-purple-600 text-on-accent"
+                              : "bg-panel border-line-strong text-tx-3 hover:border-purple-300"
                           }`}
                         >
                           {f}x в день
@@ -2015,13 +2065,13 @@ export default function CreatePage() {
 
                   {/* Time slots */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-2">
+                    <label className="block text-xs font-semibold text-tx-2 mb-2">
                       Время публикации
                     </label>
                     <div className="space-y-2">
                       {planConfig.times.map((t, i) => (
                         <div key={i} className="flex items-center gap-2">
-                          <span className="text-[10px] text-gray-400 w-10">
+                          <span className="text-[10px] text-tx-3 w-10">
                             Слот {i + 1}
                           </span>
                           <input
@@ -2032,7 +2082,7 @@ export default function CreatePage() {
                               times[i] = e.target.value;
                               setPlanConfig((p) => ({ ...p, times }));
                             }}
-                            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                            className="flex-1 px-3 py-2 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
                           />
                         </div>
                       ))}
@@ -2041,7 +2091,7 @@ export default function CreatePage() {
 
                   {/* Topic mode */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-2">
+                    <label className="block text-xs font-semibold text-tx-2 mb-2">
                       Темы постов
                     </label>
                     <div className="grid grid-cols-2 gap-2 mb-3">
@@ -2053,11 +2103,11 @@ export default function CreatePage() {
                           }
                           className={`py-2 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
                             planConfig.topicMode === mode
-                              ? "bg-[#1D9E75] border-[#1D9E75] text-white"
-                              : "bg-white border-gray-200 text-gray-400 hover:border-[#1D9E75]"
+                              ? "bg-accent border-accent text-on-accent"
+                              : "bg-panel border-line-strong text-tx-3 hover:border-accent"
                           }`}
                         >
-                          {mode === "auto" ? "🤖 Авто (Claude)" : "✏️ Вручную"}
+                          {mode === "auto" ? "Авто (Claude)" : "Вручную"}
                         </button>
                       ))}
                     </div>
@@ -2073,7 +2123,7 @@ export default function CreatePage() {
                           <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                             {slots.map((slot, i) => (
                               <div key={i} className="flex items-center gap-2">
-                                <span className="text-[9px] text-gray-400 whitespace-nowrap">
+                                <span className="text-[9px] text-tx-3 whitespace-nowrap">
                                   {slot.date.slice(5)} {slot.time}
                                 </span>
                                 <input
@@ -2085,7 +2135,7 @@ export default function CreatePage() {
                                     topics[i] = e.target.value;
                                     setPlanConfig((p) => ({ ...p, topics }));
                                   }}
-                                  className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                                  className="flex-1 px-2 py-1.5 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
                                 />
                               </div>
                             ))}
@@ -2094,7 +2144,7 @@ export default function CreatePage() {
                       })()}
 
                     {planConfig.topicMode === "auto" && (
-                      <p className="text-[11px] text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
+                      <p className="text-[11px] text-tx-3 bg-panel-2 rounded-lg px-3 py-2">
                         Claude будет использовать тему «{form.topic}» и
                         генерировать уникальный контент для каждого слота.
                       </p>
@@ -2102,11 +2152,11 @@ export default function CreatePage() {
                   </div>
 
                   {/* Summary */}
-                  <div className="bg-purple-50 rounded-xl px-4 py-3">
-                    <p className="text-[11px] text-purple-700 font-semibold mb-1">
+                  <div className="bg-chip rounded-xl px-4 py-3">
+                    <p className="text-[11px] text-c-2 font-semibold mb-1">
                       Итого постов:
                     </p>
-                    <p className="text-lg font-bold text-purple-700">
+                    <p className="text-lg font-bold text-c-2">
                       {
                         buildPlanSlots(
                           planConfig.dateFrom,
@@ -2129,7 +2179,7 @@ export default function CreatePage() {
                       !planConfig.dateTo ||
                       planConfig.dateFrom > planConfig.dateTo
                     }
-                    className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-xl transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-on-accent text-sm font-semibold rounded-xl transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Создать план
                   </button>

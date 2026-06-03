@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   if (!user) return new Response("Unauthorized", { status: 401 });
 
   const body = await request.json();
-  const { projectId, platform, contentType, goal, topic, imageUrl } = body;
+  const { projectId, platform, contentType, goal, topic, imageUrl, campaignId } = body;
 
   const { data: project } = await supabase
     .from("projects")
@@ -108,6 +108,7 @@ ${recentPosts.length ? `ПРИМЕРЫ СТИЛЯ:\n${recentPosts.map((p, i) => 
           .from("contents")
           .insert({
             project_id: projectId,
+            campaign_id: campaignId || null,
             type: contentType,
             platform,
             goal,

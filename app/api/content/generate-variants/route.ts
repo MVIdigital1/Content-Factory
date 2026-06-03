@@ -16,7 +16,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await request.json();
-    const { projectId, platform, contentType, goal, topic, imageUrl } = body;
+    const { projectId, platform, contentType, goal, topic, imageUrl, campaignId } = body;
 
     if (!projectId || !platform || !contentType || !goal || !topic)
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -87,6 +87,7 @@ export async function POST(request: Request) {
           .from("contents")
           .insert({
             project_id: projectId,
+            campaign_id: campaignId || null,
             type: contentType,
             platform,
             goal,

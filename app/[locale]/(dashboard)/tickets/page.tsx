@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { Plus, Ticket } from "lucide-react";
 
-type Ticket = {
+type TicketRow = {
   id: string;
   title: string;
   description: string;
@@ -14,15 +15,15 @@ type Ticket = {
 };
 
 const STATUS_CONFIG = {
-  open: { label: "Открыт", color: "bg-blue-50 text-blue-600" },
-  in_progress: { label: "В работе", color: "bg-amber-50 text-amber-600" },
-  resolved: { label: "Решён", color: "bg-[#E1F5EE] text-[#1D9E75]" },
+  open: { label: "Открыт", color: "bg-chip text-c-2" },
+  in_progress: { label: "В работе", color: "bg-chip text-c-3" },
+  resolved: { label: "Решён", color: "bg-accent-dim text-accent" },
 };
 
 const PRIORITY_CONFIG = {
-  low: { label: "Низкий", color: "text-gray-500" },
-  medium: { label: "Средний", color: "text-amber-500" },
-  high: { label: "Высокий", color: "text-red-500" },
+  low: { label: "Низкий", color: "text-tx-3" },
+  medium: { label: "Средний", color: "text-c-3" },
+  high: { label: "Высокий", color: "text-neg" },
 };
 
 export default function TicketsPage() {
@@ -42,7 +43,7 @@ export default function TicketsPage() {
         .from("tickets")
         .select("*")
         .order("created_at", { ascending: false });
-      return (data || []) as Ticket[];
+      return (data || []) as TicketRow[];
     },
   });
 
@@ -70,7 +71,7 @@ export default function TicketsPage() {
       status,
     }: {
       id: string;
-      status: Ticket["status"];
+      status: TicketRow["status"];
     }) => {
       await supabase.from("tickets").update({ status }).eq("id", id);
     },
@@ -78,30 +79,31 @@ export default function TicketsPage() {
   });
 
   const inputClass =
-    "w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-[#1D9E75] bg-white";
+    "w-full px-3 py-2.5 border border-line rounded-[10px] text-[13px] outline-none focus:border-accent bg-panel text-tx-1 placeholder:text-tx-3";
 
   return (
-    <div className="p-6 max-w-3xl w-full">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-6 md:p-8 max-w-3xl w-full">
+      <div className="flex items-end justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">
-            Поддержка / Тикеты
+          <div className="ui-label">Поддержка</div>
+          <h1 className="text-[26px] font-semibold tracking-tight text-tx-1 mt-1.5">
+            Тикеты
           </h1>
-          <p className="text-sm text-gray-400 mt-0.5">
+          <p className="text-[13px] text-tx-2 mt-1">
             Обращения клиентов и внутренние задачи
           </p>
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="px-4 py-2 bg-[#1D9E75] text-white text-sm font-medium rounded-lg hover:bg-[#0F6E56] cursor-pointer transition-colors"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-accent text-on-accent text-[13px] font-medium rounded-[10px] hover:opacity-90 cursor-pointer transition-opacity"
         >
-          + Новый тикет
+          <Plus size={15} strokeWidth={2.2} /> Новый тикет
         </button>
       </div>
 
       {showForm && (
-        <div className="bg-white border border-gray-200 rounded-xl p-5 mb-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">
+        <div className="ui-surface p-5 mb-5">
+          <h3 className="text-[14px] font-semibold text-tx-1 mb-4">
             Новый тикет
           </h3>
           <div className="space-y-3">
@@ -139,13 +141,13 @@ export default function TicketsPage() {
               <button
                 onClick={() => createMutation.mutate(form)}
                 disabled={!form.title || createMutation.isPending}
-                className="flex-1 py-2.5 bg-[#1D9E75] text-white text-sm font-medium rounded-lg hover:bg-[#0F6E56] disabled:opacity-50 cursor-pointer"
+                className="flex-1 py-2.5 bg-accent text-on-accent text-[13px] font-medium rounded-[10px] hover:opacity-90 disabled:opacity-50 cursor-pointer"
               >
                 {createMutation.isPending ? "..." : "Создать тикет"}
               </button>
               <button
                 onClick={() => setShowForm(false)}
-                className="px-4 border border-gray-200 text-gray-500 text-sm rounded-lg cursor-pointer"
+                className="px-4 border border-line text-tx-2 text-[13px] rounded-[10px] hover:bg-hover cursor-pointer"
               >
                 Отмена
               </button>
@@ -157,49 +159,48 @@ export default function TicketsPage() {
       <div className="space-y-2">
         {isLoading ? (
           [1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="h-16 bg-gray-100 rounded-xl animate-pulse"
-            />
+            <div key={i} className="h-16 bg-panel-2 rounded-xl animate-pulse" />
           ))
         ) : tickets.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-xl border border-gray-100">
-            <div className="text-4xl mb-3">🎫</div>
-            <p className="text-sm font-medium text-gray-900 mb-1">
+          <div className="ui-surface flex flex-col items-center justify-center text-center py-16 px-6">
+            <div className="w-12 h-12 rounded-2xl bg-accent-dim flex items-center justify-center mb-4">
+              <Ticket size={22} className="text-accent" strokeWidth={1.6} />
+            </div>
+            <p className="text-[15px] font-semibold text-tx-1 mb-1">
               Нет тикетов
             </p>
-            <p className="text-sm text-gray-400 mb-4">
+            <p className="text-[12.5px] text-tx-3 mb-4">
               Создай первое обращение
             </p>
             <button
               onClick={() => setShowForm(true)}
-              className="px-4 py-2 bg-[#1D9E75] text-white text-sm font-medium rounded-lg hover:bg-[#0F6E56] cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-accent text-on-accent text-[13px] font-medium rounded-[10px] hover:opacity-90 cursor-pointer"
             >
-              + Создать
+              <Plus size={15} strokeWidth={2.2} /> Создать
             </button>
           </div>
         ) : (
           tickets.map((t) => (
             <div
               key={t.id}
-              className="bg-white border border-gray-100 rounded-xl p-4 hover:border-gray-200 transition-colors"
+              className="ui-surface p-4 hover:border-line-strong transition-colors"
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span
-                      className={`text-[10px] font-bold ${PRIORITY_CONFIG[t.priority].color}`}
+                      className={`text-[10px] ${PRIORITY_CONFIG[t.priority].color}`}
                     >
                       ●
                     </span>
-                    <p className="text-sm font-semibold text-gray-900">
+                    <p className="text-[13px] font-semibold text-tx-1 truncate">
                       {t.title}
                     </p>
                   </div>
-                  <p className="text-xs text-gray-500 line-clamp-1">
+                  <p className="text-[12px] text-tx-2 line-clamp-1">
                     {t.description}
                   </p>
-                  <p className="text-[10px] text-gray-400 mt-1">
+                  <p className="text-[10.5px] text-tx-3 mt-1">
                     {new Date(t.created_at).toLocaleDateString("ru-RU")}
                   </p>
                 </div>
@@ -211,7 +212,7 @@ export default function TicketsPage() {
                       status: e.target.value as any,
                     })
                   }
-                  className={`text-[10px] px-2 py-1 rounded-full font-medium border-0 outline-none cursor-pointer ${STATUS_CONFIG[t.status].color}`}
+                  className={`text-[10.5px] px-2 py-1 rounded-full font-medium border-0 outline-none cursor-pointer ${STATUS_CONFIG[t.status].color}`}
                 >
                   {Object.entries(STATUS_CONFIG).map(([k, v]) => (
                     <option key={k} value={k}>

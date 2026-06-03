@@ -197,7 +197,7 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-[#1D9E75] border-t-transparent rounded-full animate-spin" />
+        <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -219,21 +219,24 @@ export default function ProfilePage() {
     : "—";
 
   const inputClass =
-    "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white";
+    "w-full px-3 py-2.5 rounded-lg border border-line-strong text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors bg-panel";
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+    <div className="min-h-screen bg-panel-2 p-4 md:p-6">
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-xl font-bold text-gray-900">Личный кабинет</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <div className="ui-label">Профиль</div>
+          <h1 className="text-[26px] font-semibold tracking-tight text-tx-1 mt-1.5">
+            Личный кабинет
+          </h1>
+          <p className="text-[13px] text-tx-2 mt-1">
             Управление аккаунтом и настройками
           </p>
         </div>
 
         {/* Profile card */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-4 flex items-center gap-4">
+        <div className="bg-panel rounded-2xl border border-line-strong p-5 mb-4 flex items-center gap-4">
           {/* Avatar */}
           <div className="relative flex-shrink-0">
             <div
@@ -247,7 +250,7 @@ export default function ProfilePage() {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div className="w-full h-full bg-[#1D9E75] flex items-center justify-center text-white text-xl font-bold">
+                <div className="w-full h-full bg-accent flex items-center justify-center text-on-accent text-xl font-bold">
                   {initials}
                 </div>
               )}
@@ -283,18 +286,14 @@ export default function ProfilePage() {
 
           {/* Info */}
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-gray-900 truncate">
-              {name || "—"}
-            </p>
-            <p className="text-sm text-gray-400 truncate">{profile?.email}</p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              С нами с {joinedDate}
-            </p>
+            <p className="font-semibold text-tx-1 truncate">{name || "—"}</p>
+            <p className="text-sm text-tx-3 truncate">{profile?.email}</p>
+            <p className="text-xs text-tx-3 mt-0.5">С нами с {joinedDate}</p>
           </div>
 
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all cursor-pointer flex-shrink-0"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line-strong text-xs text-tx-3 hover:text-neg hover:border-line hover:bg-chip transition-all cursor-pointer flex-shrink-0"
           >
             <svg
               width="13"
@@ -318,46 +317,46 @@ export default function ProfilePage() {
             {
               label: "Проекты",
               value: stats.projects,
-              color: "text-[#1D9E75]",
-              bg: "bg-[#E1F5EE]",
+              color: "text-accent",
+              bg: "bg-accent-dim",
             },
             {
               label: "Контент",
               value: stats.contents,
-              color: "text-blue-600",
-              bg: "bg-blue-50",
+              color: "text-c-2",
+              bg: "bg-chip",
             },
             {
               label: "Опубликовано",
               value: stats.published,
-              color: "text-purple-600",
-              bg: "bg-purple-50",
+              color: "text-c-2",
+              bg: "bg-chip",
             },
             {
               label: "Запланировано",
               value: stats.scheduled,
-              color: "text-amber-600",
-              bg: "bg-amber-50",
+              color: "text-c-3",
+              bg: "bg-chip",
             },
           ].map((s) => (
             <div
               key={s.label}
-              className="bg-white rounded-xl border border-gray-200 p-3 text-center"
+              className="bg-panel rounded-xl border border-line-strong p-3 text-center"
             >
               <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">{s.label}</p>
+              <p className="text-[10px] text-tx-3 mt-0.5">{s.label}</p>
             </div>
           ))}
         </div>
 
         {/* Tabs */}
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-          <div className="flex border-b border-gray-100">
+        <div className="bg-panel rounded-2xl border border-line-strong overflow-hidden">
+          <div className="flex border-b border-line">
             {[
               { key: "profile", label: "Профиль" },
               { key: "password", label: "Пароль" },
               { key: "danger", label: "Опасная зона" },
-              { key: "telegram", label: "🔔 Telegram" },
+              { key: "telegram", label: "Telegram" },
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -365,9 +364,9 @@ export default function ProfilePage() {
                 className={`flex-1 py-3 text-xs font-semibold transition-colors cursor-pointer ${
                   activeTab === tab.key
                     ? tab.key === "danger"
-                      ? "text-red-500 border-b-2 border-red-400"
-                      : "text-[#1D9E75] border-b-2 border-[#1D9E75]"
-                    : "text-gray-400 hover:text-gray-600"
+                      ? "text-neg border-b-2 border-red-400"
+                      : "text-accent border-b-2 border-accent"
+                    : "text-tx-3 hover:text-tx-2"
                 }`}
               >
                 {tab.label}
@@ -380,7 +379,7 @@ export default function ProfilePage() {
             {activeTab === "profile" && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  <label className="block text-xs font-medium text-tx-2 mb-1.5">
                     Полное имя
                   </label>
                   <input
@@ -392,7 +391,7 @@ export default function ProfilePage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  <label className="block text-xs font-medium text-tx-2 mb-1.5">
                     Email
                   </label>
                   <input
@@ -401,17 +400,17 @@ export default function ProfilePage() {
                     disabled
                     className={`${inputClass} opacity-50 cursor-not-allowed`}
                   />
-                  <p className="text-[10px] text-gray-400 mt-1">
+                  <p className="text-[10px] text-tx-3 mt-1">
                     Email нельзя изменить
                   </p>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  <label className="block text-xs font-medium text-tx-2 mb-1.5">
                     Аватарка
                   </label>
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-dashed border-gray-200 cursor-pointer hover:border-[#1D9E75] hover:bg-[#F8FDFB] transition-colors"
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-dashed border-line-strong cursor-pointer hover:border-accent hover:bg-accent-dim transition-colors"
                   >
                     <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0">
                       {avatarPreview ? (
@@ -421,12 +420,12 @@ export default function ProfilePage() {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="w-full h-full bg-[#1D9E75] flex items-center justify-center text-white text-xs font-bold">
+                        <div className="w-full h-full bg-accent flex items-center justify-center text-on-accent text-xs font-bold">
                           {initials}
                         </div>
                       )}
                     </div>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-tx-3">
                       {avatarUploading
                         ? "Загружаем..."
                         : "Нажмите чтобы изменить фото"}
@@ -435,12 +434,12 @@ export default function ProfilePage() {
                 </div>
 
                 {saveError && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-600">
+                  <div className="bg-chip border border-line rounded-lg px-3 py-2 text-xs text-neg">
                     {saveError}
                   </div>
                 )}
                 {saveSuccess && (
-                  <div className="bg-[#E1F5EE] border border-[#1D9E75]/20 rounded-lg px-3 py-2 text-xs text-[#1D9E75] font-medium">
+                  <div className="bg-accent-dim border border-accent/20 rounded-lg px-3 py-2 text-xs text-accent font-medium">
                     ✓ Сохранено
                   </div>
                 )}
@@ -448,7 +447,7 @@ export default function ProfilePage() {
                 <button
                   onClick={handleSaveProfile}
                   disabled={saving}
-                  className="w-full py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+                  className="w-full py-2.5 bg-accent hover:opacity-90 text-on-accent text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   {saving ? "Сохраняем..." : "Сохранить изменения"}
                 </button>
@@ -458,12 +457,12 @@ export default function ProfilePage() {
             {/* Password tab */}
             {activeTab === "password" && (
               <div className="space-y-4">
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-tx-3">
                   Для смены пароля введите новый пароль дважды. Минимум 6
                   символов.
                 </p>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  <label className="block text-xs font-medium text-tx-2 mb-1.5">
                     Новый пароль
                   </label>
                   <input
@@ -477,7 +476,7 @@ export default function ProfilePage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  <label className="block text-xs font-medium text-tx-2 mb-1.5">
                     Подтвердите пароль
                   </label>
                   <input
@@ -492,12 +491,12 @@ export default function ProfilePage() {
                 </div>
 
                 {pwdError && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-600">
+                  <div className="bg-chip border border-line rounded-lg px-3 py-2 text-xs text-neg">
                     {pwdError}
                   </div>
                 )}
                 {pwdSuccess && (
-                  <div className="bg-[#E1F5EE] border border-[#1D9E75]/20 rounded-lg px-3 py-2 text-xs text-[#1D9E75] font-medium">
+                  <div className="bg-accent-dim border border-accent/20 rounded-lg px-3 py-2 text-xs text-accent font-medium">
                     ✓ Пароль изменён
                   </div>
                 )}
@@ -505,7 +504,7 @@ export default function ProfilePage() {
                 <button
                   onClick={handleChangePassword}
                   disabled={pwdSaving || !passwords.next || !passwords.confirm}
-                  className="w-full py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-40 cursor-pointer"
+                  className="w-full py-2.5 bg-accent hover:opacity-90 text-on-accent text-sm font-semibold rounded-lg transition-colors disabled:opacity-40 cursor-pointer"
                 >
                   {pwdSaving ? "Меняем..." : "Изменить пароль"}
                 </button>
@@ -516,20 +515,20 @@ export default function ProfilePage() {
             {activeTab === "telegram" && (
               <div className="space-y-4">
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                  <h3 className="text-sm font-semibold text-tx-1 mb-1">
                     Уведомления в Telegram
                   </h3>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-tx-3">
                     Получай уведомления о публикациях и еженедельный отчёт
                   </p>
                 </div>
 
                 {telegramLinked ? (
-                  <div className="bg-[#E1F5EE] border border-[#1D9E75]/30 rounded-xl p-4">
-                    <p className="text-sm font-medium text-[#1D9E75] mb-1">
-                      ✅ Telegram подключён
+                  <div className="bg-accent-dim border border-accent rounded-xl p-4">
+                    <p className="text-sm font-medium text-accent mb-1">
+                      Telegram подключён
                     </p>
-                    <p className="text-xs text-[#1D9E75]/70 mb-3">
+                    <p className="text-xs text-accent/70 mb-3">
                       Уведомления будут приходить в ваш Telegram
                     </p>
                     <button
@@ -540,28 +539,28 @@ export default function ProfilePage() {
                         setTelegramLinked(false);
                         setTelegramToken(null);
                       }}
-                      className="text-xs text-red-500 hover:underline cursor-pointer"
+                      className="text-xs text-neg hover:underline cursor-pointer"
                     >
                       Отвязать Telegram
                     </button>
                   </div>
                 ) : telegramToken ? (
-                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
-                    <p className="text-xs font-medium text-blue-700 mb-2">
+                  <div className="bg-chip border border-blue-100 rounded-xl p-4">
+                    <p className="text-xs font-medium text-c-2 mb-2">
                       Отправь боту эту команду:
                     </p>
-                    <div className="bg-white border border-blue-200 rounded-lg px-3 py-2 font-mono text-sm text-gray-900 mb-3 select-all">
+                    <div className="bg-panel border border-blue-200 rounded-lg px-3 py-2 font-mono text-sm text-tx-1 mb-3 select-all">
                       /link {telegramToken}
                     </div>
                     <a
                       href={`https://t.me/${process.env.NEXT_PUBLIC_BOT_USERNAME || "postcentro_bot"}?start=link_${telegramToken}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#2AABEE] text-white text-xs font-medium rounded-lg hover:bg-[#1a9bde] transition-colors"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#2AABEE] text-on-accent text-xs font-medium rounded-lg hover:opacity-90 transition-colors"
                     >
                       Открыть @postcentro_bot
                     </a>
-                    <p className="text-[10px] text-blue-500 mt-2">
+                    <p className="text-[10px] text-c-2 mt-2">
                       Код действителен 10 минут
                     </p>
                   </div>
@@ -577,25 +576,25 @@ export default function ProfilePage() {
                       setTelegramLoading(false);
                     }}
                     disabled={telegramLoading}
-                    className="flex items-center gap-2 px-4 py-3 bg-[#2AABEE] text-white text-sm font-medium rounded-xl hover:bg-[#1a9bde] cursor-pointer disabled:opacity-60 transition-colors"
+                    className="flex items-center gap-2 px-4 py-3 bg-[#2AABEE] text-on-accent text-sm font-medium rounded-xl hover:opacity-90 cursor-pointer disabled:opacity-60 transition-colors"
                   >
                     {telegramLoading
                       ? "Генерирую код..."
-                      : "🔗 Привязать Telegram"}
+                      : "Привязать Telegram"}
                   </button>
                 )}
 
-                <div className="border border-gray-100 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-gray-700 mb-2">
+                <div className="border border-line rounded-xl p-4">
+                  <p className="text-xs font-semibold text-tx-1 mb-2">
                     Что ты будешь получать:
                   </p>
                   <ul className="space-y-1.5">
                     {[
-                      "✅ Уведомление после каждой публикации",
-                      "📊 Еженедельный отчёт каждый понедельник",
-                      "❌ Уведомление об ошибках публикации",
+                      "Уведомление после каждой публикации",
+                      "Еженедельный отчёт каждый понедельник",
+                      "Уведомление об ошибках публикации",
                     ].map((item) => (
-                      <li key={item} className="text-xs text-gray-500">
+                      <li key={item} className="text-xs text-tx-2">
                         {item}
                       </li>
                     ))}
@@ -606,15 +605,15 @@ export default function ProfilePage() {
 
             {activeTab === "danger" && (
               <div className="space-y-4">
-                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                  <p className="text-sm font-semibold text-red-600 mb-1">
+                <div className="bg-chip border border-line rounded-xl p-4">
+                  <p className="text-sm font-semibold text-neg mb-1">
                     Удаление аккаунта
                   </p>
-                  <p className="text-xs text-red-400 mb-3">
+                  <p className="text-xs text-neg mb-3">
                     Это действие необратимо. Все ваши проекты, контент и
                     интеграции будут удалены.
                   </p>
-                  <label className="block text-xs font-medium text-red-500 mb-1.5">
+                  <label className="block text-xs font-medium text-neg mb-1.5">
                     Введите ваш email для подтверждения:
                   </label>
                   <input
@@ -622,12 +621,12 @@ export default function ProfilePage() {
                     value={deleteConfirm}
                     onChange={(e) => setDeleteConfirm(e.target.value)}
                     placeholder={profile?.email}
-                    className="w-full px-3 py-2 rounded-lg border border-red-200 text-sm outline-none focus:border-red-400 bg-white mb-3"
+                    className="w-full px-3 py-2 rounded-lg border border-line text-sm outline-none focus:border-red-400 bg-panel mb-3"
                   />
                   <button
                     onClick={handleDeleteAccount}
                     disabled={deleteConfirm !== profile?.email || deleting}
-                    className="w-full py-2.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                    className="w-full py-2.5 bg-chip0 hover:bg-red-600 text-on-accent text-sm font-semibold rounded-lg transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
                   >
                     {deleting ? "Удаляем..." : "Удалить аккаунт навсегда"}
                   </button>

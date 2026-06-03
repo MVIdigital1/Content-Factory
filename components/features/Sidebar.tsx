@@ -6,126 +6,69 @@ import { createClient } from "@/lib/supabase/client";
 import { useTranslations, useLocale } from "next-intl";
 import LangSwitcher from "@/components/features/LangSwitcher";
 import WorkspaceSwitcher from "@/components/features/WorkspaceSwitcher";
+import ThemeToggle from "@/components/features/ThemeToggle";
+import {
+  LayoutDashboard,
+  SquarePen,
+  Columns3,
+  Megaphone,
+  Calendar,
+  LineChart,
+  Bot,
+  ListChecks,
+  FlaskConical,
+  FolderOpen,
+  Plug,
+  Contact,
+  Users,
+  MessagesSquare,
+  Ticket,
+  CreditCard,
+  Gift,
+  Settings,
+  LogOut,
+  ChevronDown,
+  Gauge,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 
-const PROJECT_COLORS = [
-  "#1D9E75",
-  "#F59E0B",
-  "#8B5CF6",
-  "#3B82F6",
-  "#EC4899",
-  "#EF4444",
+type NavItem = { key: string; href: string; Icon: LucideIcon };
+
+// Основное — ежедневный маршрут контент-маркетолога (слева направо)
+const BUSINESS: NavItem[] = [
+  { key: "dashboard", href: "/dashboard", Icon: LayoutDashboard },
+  { key: "create", href: "/create", Icon: SquarePen },
+  { key: "content", href: "/history", Icon: Columns3 }, // История + Pipeline
+  { key: "campaigns", href: "/campaigns", Icon: Megaphone },
+  { key: "calendar", href: "/calendar", Icon: Calendar },
+  { key: "analytics", href: "/analytics", Icon: LineChart },
+  { key: "summary", href: "/summary", Icon: Gauge },
 ];
 
-function SvgIcon({ d, size = 15 }: { d: string; size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d={d} />
-    </svg>
-  );
-}
+// Инструменты — вспомогательное
+const TOOLS: NavItem[] = [
+  { key: "aiWorkers", href: "/ai-workers", Icon: Bot },
+  { key: "tasks", href: "/tasks", Icon: ListChecks },
+  { key: "abTests", href: "/ab-tests", Icon: FlaskConical },
+  { key: "projects", href: "/projects", Icon: FolderOpen },
+  { key: "integrations", href: "/integrations", Icon: Plug },
+];
 
-const NAV_GROUPS = [
-  {
-    label: "Business",
-    items: [
-      {
-        key: "dashboard",
-        href: "/dashboard",
-        icon: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
-      },
-      { key: "create", href: "/create", icon: "M12 5v14M5 12h14" },
-      {
-        key: "history",
-        href: "/history",
-        icon: "M12 8v4l3 3M3.05 11a9 9 0 1 0 .5-4.5M3 3v5h5",
-      },
-      {
-        key: "calendar",
-        href: "/calendar",
-        icon: "M3 4h18v18H3zM16 2v4M8 2v4M3 10h18",
-      },
-    ],
-  },
-  {
-    label: "Management",
-    items: [
-      {
-        key: "analytics",
-        href: "/analytics",
-        icon: "M3 3v18h18M7 16l4-4 4 4 4-4",
-      },
-      {
-        key: "integrations",
-        href: "/integrations",
-        icon: "M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71",
-      },
-      {
-        key: "settings",
-        href: "/settings",
-        icon: "M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z",
-      },
-      {
-        key: "pipeline",
-        href: "/pipeline",
-        icon: "M9 17H7A5 5 0 017 7h2M15 7h2a5 5 0 010 10h-2M8 12h8",
-      },
-      {
-        key: "tasks",
-        href: "/tasks",
-        icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4",
-      },
-      {
-        key: "team",
-        href: "/team",
-        icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
-      },
-      {
-        key: "ai_workers",
-        href: "/ai-workers",
-        icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
-      },
-      {
-        key: "ab_tests",
-        href: "/ab-tests",
-        icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-      },
-      {
-        key: "billing",
-        href: "/billing",
-        icon: "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z",
-      },
-      {
-        key: "chat",
-        href: "/chat",
-        icon: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
-      },
-      {
-        key: "crm",
-        href: "/crm",
-        icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
-      },
-      {
-        key: "tickets",
-        href: "/tickets",
-        icon: "M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z",
-      },
-      {
-        key: "referral",
-        href: "/referral",
-        icon: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z",
-      },
-    ],
-  },
-] as const;
+// Агентство — для команд/агентств (свёрнуто по умолчанию)
+const AGENCY: NavItem[] = [
+  { key: "crm", href: "/crm", Icon: Contact },
+  { key: "team", href: "/team", Icon: Users },
+  { key: "chat", href: "/chat", Icon: MessagesSquare },
+  { key: "tickets", href: "/tickets", Icon: Ticket },
+];
+
+// Аккаунт — внизу, приглушённо
+const ACCOUNT: NavItem[] = [
+  { key: "billing", href: "/billing", Icon: CreditCard },
+  { key: "referral", href: "/referral", Icon: Gift },
+  { key: "settings", href: "/settings", Icon: Settings },
+];
 
 function NavContent({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
@@ -134,8 +77,8 @@ function NavContent({ onClose }: { onClose?: () => void }) {
   const [isPending, startTransition] = useTransition();
   const [activeHref, setActiveHref] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [projects, setProjects] = useState<any[]>([]);
   const [user, setUser] = useState<any>(null);
+  const [agencyOpen, setAgencyOpen] = useState(false);
   const t = useTranslations("nav");
   const locale = useLocale();
 
@@ -146,13 +89,6 @@ function NavContent({ onClose }: { onClose?: () => void }) {
       const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
       if (adminEmail && user.email === adminEmail) setIsAdmin(true);
     });
-    supabase
-      .from("projects")
-      .select("id, name")
-      .eq("is_active", true)
-      .order("created_at", { ascending: false })
-      .limit(6)
-      .then(({ data }) => setProjects(data || []));
   }, []);
 
   const handleLogout = async () => {
@@ -177,26 +113,6 @@ function NavContent({ onClose }: { onClose?: () => void }) {
     );
   };
 
-  const LABELS: Record<string, string> = {
-    dashboard: t("dashboard"),
-    create: t("create"),
-    history: t("history") || "История",
-    calendar: t("calendar"),
-    analytics: t("analytics") || "Аналитика",
-    integrations: t("integrations") || "Интеграции",
-    settings: "Настройки",
-    pipeline: "Pipeline",
-    tasks: "Задачи",
-    team: "Команда",
-    ai_workers: "AI Сотрудники",
-    ab_tests: "A/B Тесты",
-    billing: "Тарифы",
-    chat: "Чат команды",
-    crm: "CRM",
-    tickets: "Тикеты",
-    referral: "Рефералы",
-  };
-
   const initials = user?.user_metadata?.full_name
     ? user.user_metadata.full_name
         .split(" ")
@@ -206,164 +122,149 @@ function NavContent({ onClose }: { onClose?: () => void }) {
         .slice(0, 2)
     : user?.email?.[0]?.toUpperCase() || "U";
 
+  const NavButton = ({ item }: { item: NavItem }) => {
+    const active = isActive(item.href);
+    const { Icon } = item;
+    return (
+      <button
+        onClick={() => go(item.href)}
+        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-[10px] text-[13px] text-left cursor-pointer mb-0.5 transition-colors focus:outline-none focus:ring-2 focus:ring-accent ${
+          active
+            ? "bg-panel text-tx-1 font-medium border border-line-strong"
+            : "text-tx-2 hover:text-tx-1 hover:bg-hover border border-transparent"
+        }`}
+      >
+        <Icon
+          size={17}
+          className={active ? "text-accent" : "text-tx-3"}
+          strokeWidth={1.6}
+        />
+        <span className="flex-1">{t(item.key)}</span>
+        {isPending && active && (
+          <span className="w-3 h-3 border border-tx-3 border-t-transparent rounded-full animate-spin" />
+        )}
+      </button>
+    );
+  };
+
+  const GroupLabel = ({ children }: { children: React.ReactNode }) => (
+    <div className="ui-label px-2.5 pb-2 pt-0.5">{children}</div>
+  );
+
   return (
     <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div
-        className="px-4 pt-4 pb-3 flex items-center justify-between"
-        role="banner"
-      >
+      {/* Логотип */}
+      <div className="px-3 pt-4 pb-3">
         <button
           onClick={() => go("/dashboard")}
-          className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+          className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity"
         >
-          <div className="w-7 h-7 bg-[#1D9E75] rounded-lg flex items-center justify-center flex-shrink-0">
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-            </svg>
+          <div className="w-7 h-7 bg-accent rounded-[9px] flex items-center justify-center flex-shrink-0">
+            <Zap size={15} className="text-on-accent" strokeWidth={2.5} />
           </div>
-          <div>
-            <div className="text-sm font-semibold text-gray-900 leading-none">
+          <div className="text-left">
+            <div className="text-[14px] font-semibold text-tx-1 leading-none tracking-tight">
               MVI Content
             </div>
-            <div className="text-[10px] text-gray-400 mt-0.5">v1.0</div>
+            <div className="text-[10px] text-tx-3 mt-0.5">v1.0</div>
           </div>
         </button>
       </div>
 
-      {/* Workspace switcher */}
-      <div className="px-2 pb-2 border-b border-gray-200/50 mb-1">
+      {/* Воркспейс */}
+      <div className="px-2.5 pb-2 mb-1">
         <WorkspaceSwitcher />
       </div>
 
-      {/* Nav groups */}
-      <nav className="flex-1 overflow-y-auto px-2 pb-2">
-        {NAV_GROUPS.map((group) => (
-          <div key={group.label} className="mb-4">
-            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-3 py-1.5">
-              {group.label}
-            </div>
-            {group.items.map((item) => {
-              const active = isActive(item.href);
-              return (
-                <button
-                  key={item.href}
-                  onClick={() => go(item.href)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-all text-left cursor-pointer mb-0.5 focus:outline-none focus:ring-2 focus:ring-[#1D9E75]/30 ${
-                    active
-                      ? "bg-white text-gray-900 font-medium shadow-sm border border-gray-200 rounded-lg"
-                      : "text-gray-500 hover:text-gray-900 hover:bg-white/60 rounded-lg"
-                  }`}
-                >
-                  <span className={active ? "text-gray-700" : "text-gray-400"}>
-                    <SvgIcon d={item.icon} />
-                  </span>
-                  <span className="flex-1">{LABELS[item.key]}</span>
-                  {isPending && active && (
-                    <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        ))}
+      {/* Навигация */}
+      <nav className="flex-1 overflow-y-auto px-2.5 pb-2">
+        <div className="mb-4">
+          <GroupLabel>{t("groupBusiness")}</GroupLabel>
+          {BUSINESS.map((item) => (
+            <NavButton key={item.href} item={item} />
+          ))}
+        </div>
 
-        {/* Projects */}
+        <div className="mb-4">
+          <GroupLabel>{t("groupTools")}</GroupLabel>
+          {TOOLS.map((item) => (
+            <NavButton key={item.href} item={item} />
+          ))}
+        </div>
+
+        {/* Агентство — сворачиваемое */}
         <div className="mb-4">
           <button
-            onClick={() => go("/projects")}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-500 hover:text-gray-900 hover:bg-white/60 rounded-lg transition-all text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#1D9E75]/30"
+            onClick={() => setAgencyOpen((v) => !v)}
+            className="w-full flex items-center justify-between px-2.5 pb-2 pt-0.5 cursor-pointer group"
           >
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
-            </svg>
-            <span className="flex-1">Проекты</span>
+            <span className="ui-label">{t("groupAgency")}</span>
+            <ChevronDown
+              size={13}
+              strokeWidth={1.8}
+              className={`text-tx-3 transition-transform ${
+                agencyOpen ? "" : "-rotate-90"
+              }`}
+            />
           </button>
+          {agencyOpen &&
+            AGENCY.map((item) => <NavButton key={item.href} item={item} />)}
+        </div>
+
+        <div className="mb-2 opacity-90">
+          <GroupLabel>{t("groupAccount")}</GroupLabel>
+          {ACCOUNT.map((item) => (
+            <NavButton key={item.href} item={item} />
+          ))}
         </div>
       </nav>
 
-      {/* Bottom — user */}
-      <div className="px-3 py-3">
-        <LangSwitcher />
+      {/* Низ — язык, тема, пользователь */}
+      <div className="px-2.5 py-3 border-t border-line">
         {isAdmin && (
           <button
             onClick={() => {
               window.location.href = "/admin";
             }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-amber-500 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer mb-1 focus:outline-none focus:ring-2 focus:ring-amber-300"
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 text-[13px] text-c-3 hover:bg-hover rounded-[10px] transition-colors cursor-pointer mb-2"
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="3" y="11" width="18" height="11" rx="2" />
-              <path d="M7 11V7a5 5 0 0110 0v4" />
-            </svg>
+            <Settings size={16} strokeWidth={1.6} />
             Admin
           </button>
         )}
-        <div className="flex items-center gap-2.5 px-2 py-2 hover:bg-gray-100 transition-colors rounded-lg">
+
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <LangSwitcher />
+          <ThemeToggle />
+        </div>
+
+        <div className="flex items-center gap-2.5 px-2 py-2 hover:bg-hover transition-colors rounded-[10px]">
           <button
             onClick={() => go("/profile")}
             className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer"
             aria-label="Личный кабинет"
           >
-            <div className="w-7 h-7 bg-[#1D9E75] rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+            <div className="w-7 h-7 bg-accent rounded-full flex items-center justify-center text-on-accent text-[11px] font-semibold flex-shrink-0">
               {initials}
             </div>
             <div className="flex-1 min-w-0 text-left">
-              <div className="text-xs font-medium text-gray-900 truncate">
+              <div className="text-[12px] font-medium text-tx-1 truncate">
                 {user?.user_metadata?.full_name ||
                   user?.email?.split("@")[0] ||
                   "Пользователь"}
               </div>
-              <div className="text-[10px] text-gray-400 truncate">
+              <div className="text-[10px] text-tx-3 truncate">
                 {user?.email || ""}
               </div>
             </div>
           </button>
           <button
             onClick={handleLogout}
-            className="text-gray-300 hover:text-red-400 transition-colors p-1 cursor-pointer flex-shrink-0 rounded-md focus:outline-none focus:ring-2 focus:ring-red-300"
+            className="text-tx-3 hover:text-neg transition-colors p-1 cursor-pointer flex-shrink-0 rounded-md focus:outline-none focus:ring-2 focus:ring-neg"
             title="Выйти"
             aria-label="Выйти из аккаунта"
           >
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
-            </svg>
+            <LogOut size={14} strokeWidth={1.6} />
           </button>
         </div>
       </div>
@@ -376,11 +277,12 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-200 flex items-center gap-3 px-4 py-3">
+      {/* Мобильная шапка */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-panel border-b border-line flex items-center gap-3 px-4 py-3">
         <button
           onClick={() => setMobileOpen(true)}
-          className="text-gray-600 cursor-pointer"
+          className="text-tx-2 cursor-pointer"
+          aria-label="Меню"
         >
           <svg
             width="20"
@@ -388,47 +290,36 @@ export default function Sidebar() {
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth="1.5"
+            strokeWidth="1.6"
             strokeLinecap="round"
-            strokeLinejoin="round"
           >
             <path d="M3 12h18M3 6h18M3 18h18" />
           </svg>
         </button>
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-[#1D9E75] flex items-center justify-center">
-            <svg
-              width="11"
-              height="11"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-            </svg>
+          <div className="w-6 h-6 bg-accent rounded-md flex items-center justify-center">
+            <Zap size={12} className="text-on-accent" strokeWidth={2.5} />
           </div>
-          <span className="text-sm font-semibold text-gray-900">
+          <span className="text-[14px] font-semibold text-tx-1">
             MVI Content
           </span>
         </div>
       </div>
+
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           <div
-            className="fixed inset-0 bg-black/30"
+            className="fixed inset-0 bg-black/40"
             onClick={() => setMobileOpen(false)}
           />
-          <div className="relative w-64 bg-[#F4F6F8] flex flex-col h-full shadow-xl">
+          <div className="relative w-64 bg-sidebar flex flex-col h-full shadow-xl">
             <NavContent onClose={() => setMobileOpen(false)} />
           </div>
         </div>
       )}
 
-      {/* Desktop */}
-      <aside className="hidden md:flex flex-shrink-0 flex-col h-screen bg-[#F4F6F8] w-52">
+      {/* Десктоп */}
+      <aside className="hidden md:flex flex-shrink-0 flex-col h-screen bg-sidebar border-r border-line w-[228px]">
         <NavContent />
       </aside>
     </>

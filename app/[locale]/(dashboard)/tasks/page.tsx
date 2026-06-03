@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { Plus, X, AlertTriangle } from "lucide-react";
 
 type Task = {
   id: string;
@@ -21,34 +22,18 @@ const COLUMNS: {
   color: string;
   bg: string;
 }[] = [
-  {
-    key: "todo",
-    label: "К выполнению",
-    color: "text-gray-600",
-    bg: "bg-gray-100",
-  },
-  {
-    key: "in_progress",
-    label: "В работе",
-    color: "text-blue-600",
-    bg: "bg-blue-100",
-  },
-  {
-    key: "review",
-    label: "На проверке",
-    color: "text-amber-600",
-    bg: "bg-amber-100",
-  },
-  { key: "done", label: "Готово", color: "text-[#1D9E75]", bg: "bg-[#E1F5EE]" },
+  { key: "todo", label: "К выполнению", color: "text-tx-2", bg: "bg-chip" },
+  { key: "in_progress", label: "В работе", color: "text-c-2", bg: "bg-chip" },
+  { key: "review", label: "На проверке", color: "text-c-3", bg: "bg-chip" },
+  { key: "done", label: "Готово", color: "text-accent", bg: "bg-accent-dim" },
 ];
 
 const PRIORITY_STYLES: Record<string, string> = {
-  low: "bg-gray-100 text-gray-500",
-  medium: "bg-blue-50 text-blue-600",
-  high: "bg-amber-50 text-amber-600",
-  urgent: "bg-red-50 text-red-600",
+  low: "bg-chip text-tx-3",
+  medium: "bg-chip text-c-2",
+  high: "bg-chip text-c-3",
+  urgent: "bg-chip text-neg",
 };
-
 const PRIORITY_LABELS: Record<string, string> = {
   low: "Низкий",
   medium: "Средний",
@@ -68,7 +53,6 @@ export default function TasksPage() {
   const supabase = createClient();
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [form, setForm] = useState(EMPTY_TASK);
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
@@ -142,37 +126,38 @@ export default function TasksPage() {
 
   const getByStatus = (status: Task["status"]) =>
     tasks.filter((t) => t.status === status);
-
   const isOverdue = (dueDate: string | null) =>
     dueDate && new Date(dueDate) < new Date();
 
   const inputClass =
-    "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] bg-white";
+    "w-full px-3 py-2.5 rounded-[10px] border border-line text-[13px] outline-none focus:border-accent bg-panel text-tx-1 placeholder:text-tx-3";
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="h-11 border-b border-gray-100 px-6 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-1.5 text-xs text-gray-400">
-          <span>Задачи</span>
-        </div>
+      <div className="h-12 border-b border-line px-6 flex items-center justify-between flex-shrink-0 bg-panel">
+        <span className="text-[12px] text-tx-3">Задачи</span>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1D9E75] text-white text-xs font-medium rounded-lg hover:bg-[#0F6E56] transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent text-on-accent text-[12px] font-medium rounded-lg hover:opacity-90 transition-opacity cursor-pointer"
         >
-          + Задача
+          <Plus size={13} strokeWidth={2.4} /> Задача
         </button>
       </div>
 
-      <div className="flex-1 overflow-auto p-5">
-        <div className="flex items-center justify-between mb-5">
-          <h1 className="text-lg font-bold text-gray-900">Задачи</h1>
-          <div className="flex gap-1">
+      <div className="flex-1 overflow-auto p-6">
+        <div className="flex items-center justify-between mb-5 gap-4 flex-wrap">
+          <div>
+            <div className="ui-label">Доска</div>
+            <h1 className="text-[22px] font-semibold tracking-tight text-tx-1 mt-1">
+              Задачи
+            </h1>
+          </div>
+          <div className="flex gap-1 flex-wrap">
             {["all", "todo", "in_progress", "review", "done"].map((s) => (
               <button
                 key={s}
                 onClick={() => setFilterStatus(s)}
-                className={`px-3 py-1.5 text-xs rounded-lg transition-colors cursor-pointer ${filterStatus === s ? "bg-[#1D9E75] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                className={`px-3 py-1.5 text-[12px] rounded-[9px] transition-colors cursor-pointer ${filterStatus === s ? "bg-accent text-on-accent" : "bg-chip text-tx-2 hover:text-tx-1"}`}
               >
                 {s === "all" ? "Все" : COLUMNS.find((c) => c.key === s)?.label}
               </button>
@@ -180,10 +165,9 @@ export default function TasksPage() {
           </div>
         </div>
 
-        {/* Форма создания */}
         {showForm && (
-          <div className="bg-white border border-gray-200 rounded-xl p-5 mb-5 shadow-sm">
-            <h3 className="text-sm font-semibold text-gray-900 mb-4">
+          <div className="ui-surface p-5 mb-5">
+            <h3 className="text-[14px] font-semibold text-tx-1 mb-4">
               Новая задача
             </h3>
             <div className="space-y-3">
@@ -245,13 +229,13 @@ export default function TasksPage() {
                 <button
                   onClick={() => createMutation.mutate(form)}
                   disabled={!form.title || createMutation.isPending}
-                  className="px-4 py-2 bg-[#1D9E75] text-white text-sm rounded-lg hover:bg-[#0F6E56] disabled:opacity-50 cursor-pointer"
+                  className="px-4 py-2 bg-accent text-on-accent text-[13px] rounded-[10px] hover:opacity-90 disabled:opacity-50 cursor-pointer"
                 >
                   {createMutation.isPending ? "..." : "Создать"}
                 </button>
                 <button
                   onClick={() => setShowForm(false)}
-                  className="px-4 py-2 border border-gray-200 text-gray-500 text-sm rounded-lg cursor-pointer"
+                  className="px-4 py-2 border border-line text-tx-2 text-[13px] rounded-[10px] hover:bg-hover cursor-pointer"
                 >
                   Отмена
                 </button>
@@ -260,16 +244,15 @@ export default function TasksPage() {
           </div>
         )}
 
-        {/* Kanban */}
         {isLoading ? (
           <div className="flex gap-4">
             {COLUMNS.map((col) => (
               <div key={col.key} className="w-64 flex-shrink-0 space-y-2">
-                <div className="h-8 bg-gray-100 rounded animate-pulse" />
+                <div className="h-8 bg-panel-2 rounded animate-pulse" />
                 {[1, 2].map((i) => (
                   <div
                     key={i}
-                    className="h-20 bg-gray-100 rounded-xl animate-pulse"
+                    className="h-20 bg-panel-2 rounded-xl animate-pulse"
                   />
                 ))}
               </div>
@@ -286,11 +269,11 @@ export default function TasksPage() {
                   <div
                     className={`flex items-center justify-between px-3 py-2 rounded-lg mb-2 ${col.bg}`}
                   >
-                    <span className={`text-xs font-semibold ${col.color}`}>
+                    <span className={`text-[12px] font-semibold ${col.color}`}>
                       {col.label}
                     </span>
                     <span
-                      className={`text-xs font-medium ${col.color} opacity-70`}
+                      className={`text-[12px] font-medium ${col.color} opacity-70`}
                     >
                       {colTasks.length}
                     </span>
@@ -299,21 +282,21 @@ export default function TasksPage() {
                     {colTasks.map((task) => (
                       <div
                         key={task.id}
-                        className="bg-white border border-gray-100 rounded-xl p-3 hover:border-gray-200 transition-colors group"
+                        className="bg-panel border border-line rounded-xl p-3 hover:border-line-strong transition-colors group"
                       >
                         <div className="flex items-start justify-between gap-2 mb-2">
-                          <p className="text-sm font-medium text-gray-900 flex-1">
+                          <p className="text-[13px] font-medium text-tx-1 flex-1">
                             {task.title}
                           </p>
                           <button
                             onClick={() => deleteMutation.mutate(task.id)}
-                            className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all cursor-pointer text-xs"
+                            className="opacity-0 group-hover:opacity-100 text-tx-3 hover:text-neg transition-all cursor-pointer"
                           >
-                            ✕
+                            <X size={13} />
                           </button>
                         </div>
                         {task.description && (
-                          <p className="text-xs text-gray-400 mb-2 line-clamp-2">
+                          <p className="text-[12px] text-tx-3 mb-2 line-clamp-2">
                             {task.description}
                           </p>
                         )}
@@ -325,9 +308,15 @@ export default function TasksPage() {
                           </span>
                           {task.due_date && (
                             <span
-                              className={`text-[10px] ${isOverdue(task.due_date) ? "text-red-500" : "text-gray-400"}`}
+                              className={`text-[10px] ${isOverdue(task.due_date) ? "text-neg" : "text-tx-3"}`}
                             >
-                              {isOverdue(task.due_date) ? "⚠ " : ""}
+                              {isOverdue(task.due_date) && (
+                                <AlertTriangle
+                                  size={11}
+                                  className="inline -mt-0.5 mr-1 text-neg"
+                                  strokeWidth={2}
+                                />
+                              )}
                               {new Date(task.due_date).toLocaleDateString(
                                 "ru-RU",
                                 { day: "numeric", month: "short" },
@@ -335,8 +324,7 @@ export default function TasksPage() {
                             </span>
                           )}
                         </div>
-                        {/* Кнопки перемещения */}
-                        <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex flex-wrap gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           {COLUMNS.filter((c) => c.key !== col.key).map((c) => (
                             <button
                               key={c.key}
@@ -355,8 +343,8 @@ export default function TasksPage() {
                       </div>
                     ))}
                     {colTasks.length === 0 && (
-                      <div className="border-2 border-dashed border-gray-100 rounded-xl py-6 text-center">
-                        <p className="text-xs text-gray-300">Пусто</p>
+                      <div className="border-2 border-dashed border-line rounded-xl py-6 text-center">
+                        <p className="text-[12px] text-tx-3">Пусто</p>
                       </div>
                     )}
                   </div>

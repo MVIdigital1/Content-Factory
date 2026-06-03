@@ -7,6 +7,21 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useTranslations, useLocale } from "next-intl";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  Download,
+  Send,
+  Image as ImageIcon,
+  Music2,
+  FileText,
+  Film,
+  Megaphone,
+  Globe,
+  Eye,
+  Heart,
+  TrendingUp,
+  type LucideIcon,
+} from "lucide-react";
 
 // Статические стили — без t(), т.к. t() недоступен на уровне модуля
 const STATUS_CONFIG: Record<
@@ -15,38 +30,38 @@ const STATUS_CONFIG: Record<
 > = {
   draft: {
     labelKey: "status.draft",
-    bg: "bg-gray-100",
-    text: "text-gray-500",
-    dot: "bg-gray-400",
+    bg: "bg-chip",
+    text: "text-tx-2",
+    dot: "bg-tx-3",
   },
   generated: {
     labelKey: "status.generated",
-    bg: "bg-amber-50",
-    text: "text-amber-600",
+    bg: "bg-chip",
+    text: "text-c-3",
     dot: "bg-amber-400",
   },
   approved: {
     labelKey: "status.approved",
-    bg: "bg-blue-50",
-    text: "text-blue-600",
+    bg: "bg-chip",
+    text: "text-c-2",
     dot: "bg-blue-400",
   },
   scheduled: {
     labelKey: "status.scheduled",
-    bg: "bg-purple-50",
-    text: "text-purple-600",
+    bg: "bg-chip",
+    text: "text-c-2",
     dot: "bg-purple-400",
   },
   published: {
     labelKey: "status.published",
-    bg: "bg-[#E1F5EE]",
-    text: "text-[#1D9E75]",
-    dot: "bg-[#1D9E75]",
+    bg: "bg-accent-dim",
+    text: "text-accent",
+    dot: "bg-accent",
   },
   failed: {
     labelKey: "status.failed",
-    bg: "bg-red-50",
-    text: "text-red-500",
+    bg: "bg-chip",
+    text: "text-neg",
     dot: "bg-red-400",
   },
 };
@@ -59,16 +74,16 @@ const COLUMNS = [
   "failed",
 ] as const;
 
-const PLATFORM_ICON: Record<string, string> = {
-  telegram: "✈️",
-  instagram: "📸",
-  tiktok: "🎵",
+const PLATFORM_ICON: Record<string, LucideIcon> = {
+  telegram: Send,
+  instagram: ImageIcon,
+  tiktok: Music2,
 };
-const TYPE_ICON: Record<string, string> = {
-  post: "📝",
-  video: "🎬",
-  stories: "📸",
-  ad: "📢",
+const TYPE_ICON: Record<string, LucideIcon> = {
+  post: FileText,
+  video: Film,
+  stories: ImageIcon,
+  ad: Megaphone,
 };
 
 export default function HistoryPage() {
@@ -325,7 +340,7 @@ export default function HistoryPage() {
     (contents || []).filter((c: any) => c.status === status);
 
   const inputBase =
-    "w-full px-3 py-2 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white";
+    "w-full px-3 py-2 rounded-lg border border-line-strong text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors bg-panel";
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -333,15 +348,29 @@ export default function HistoryPage() {
       <div className="flex-1 overflow-x-auto overflow-y-auto p-4 md:p-6">
         <div className="mb-5 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">{t("title")}</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{t("subtitle")}</p>
+            <div className="ui-label">Контент</div>
+            <h1 className="text-[26px] font-semibold tracking-tight text-tx-1 mt-1.5">
+              {t("title")}
+            </h1>
+            <p className="text-[13px] text-tx-2 mt-1">{t("subtitle")}</p>
+            <div className="inline-flex bg-chip rounded-lg p-0.5 gap-0.5 mt-3">
+              <span className="px-3 py-1.5 text-xs rounded-md font-medium bg-panel text-tx-1 shadow-sm">
+                Статусы
+              </span>
+              <Link
+                href={`/${locale}/pipeline`}
+                className="px-3 py-1.5 text-xs rounded-md font-medium text-tx-3 hover:text-tx-1 transition-colors"
+              >
+                Pipeline
+              </Link>
+            </div>
           </div>
           <button
             onClick={exportCSV}
             disabled={!contents || contents.length === 0}
-            className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-xs text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors cursor-pointer disabled:opacity-40"
+            className="flex items-center gap-1.5 px-3 py-2 border border-line-strong rounded-lg text-xs text-tx-2 hover:bg-hover hover:text-tx-1 transition-colors cursor-pointer disabled:opacity-40"
           >
-            u2b07 u042du043au0441u043fu043eu0440u0442 CSV
+            <Download size={14} strokeWidth={1.8} /> Экспорт CSV
           </button>
         </div>
 
@@ -349,11 +378,11 @@ export default function HistoryPage() {
           <div className="flex gap-4">
             {COLUMNS.map((col) => (
               <div key={col} className="w-64 flex-shrink-0">
-                <div className="h-8 bg-gray-100 rounded-lg animate-pulse mb-3" />
+                <div className="h-8 bg-chip rounded-lg animate-pulse mb-3" />
                 {[1, 2].map((i) => (
                   <div
                     key={i}
-                    className="h-20 bg-white border border-gray-100 rounded-xl animate-pulse mb-2"
+                    className="h-20 bg-panel border border-line rounded-xl animate-pulse mb-2"
                   />
                 ))}
               </div>
@@ -369,11 +398,11 @@ export default function HistoryPage() {
                   {/* Column header */}
                   <div className="flex items-center gap-2 mb-3 px-1">
                     <div className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-                    <span className="text-xs font-semibold text-gray-600">
-                      {/* ✅ t() вызывается внутри компонента */}
+                    <span className="text-xs font-semibold text-tx-2">
+                      {/* t() вызывается внутри компонента */}
                       {t(cfg.labelKey as any)}
                     </span>
-                    <span className="ml-auto text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                    <span className="ml-auto text-xs text-tx-3 bg-chip px-2 py-0.5 rounded-full">
                       {items.length}
                     </span>
                   </div>
@@ -381,8 +410,8 @@ export default function HistoryPage() {
                   {/* Cards */}
                   <div className="space-y-2 flex-1">
                     {items.length === 0 ? (
-                      <div className="border-2 border-dashed border-gray-100 rounded-xl p-4 text-center">
-                        <p className="text-xs text-gray-300">Пусто</p>
+                      <div className="border-2 border-dashed border-line rounded-xl p-4 text-center">
+                        <p className="text-xs text-tx-3">Пусто</p>
                       </div>
                     ) : (
                       items.map((item: any) => (
@@ -397,26 +426,35 @@ export default function HistoryPage() {
                             setPublishSuccess("");
                             setSelectedPlatform(item.platform || "");
                           }}
-                          className={`bg-white border rounded-xl p-3 cursor-pointer transition-all hover:shadow-sm ${selected?.id === item.id ? "border-[#1D9E75] shadow-sm" : "border-gray-100 hover:border-gray-200"}`}
+                          className={`bg-panel border rounded-xl p-3 cursor-pointer transition-all hover:shadow-sm ${selected?.id === item.id ? "border-accent shadow-sm" : "border-line hover:border-line-strong"}`}
                         >
                           <div className="flex items-start justify-between gap-2 mb-2">
-                            <p className="text-xs font-semibold text-gray-900 line-clamp-2 flex-1">
+                            <p className="text-xs font-semibold text-tx-1 line-clamp-2 flex-1">
                               {item.title || "—"}
                             </p>
                             <span className="text-base flex-shrink-0">
-                              {TYPE_ICON[item.type] || "📝"}
+                              {(() => {
+                                const I = TYPE_ICON[item.type] || FileText;
+                                return (
+                                  <I
+                                    size={16}
+                                    className="text-tx-2"
+                                    strokeWidth={1.8}
+                                  />
+                                );
+                              })()}
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-gray-400">
+                            <span className="text-[10px] text-tx-3">
                               {PLATFORM_ICON[item.platform]} {item.platform}
                             </span>
-                            <span className="text-gray-200">·</span>
-                            <span className="text-[10px] text-gray-400">
+                            <span className="text-tx-3">·</span>
+                            <span className="text-[10px] text-tx-3">
                               {(item.projects as any)?.name}
                             </span>
                           </div>
-                          <div className="mt-2 text-[10px] text-gray-300">
+                          <div className="mt-2 text-[10px] text-tx-3">
                             {format(new Date(item.created_at), "d MMM", {
                               locale: dateFnsLocale,
                             })}
@@ -434,12 +472,12 @@ export default function HistoryPage() {
 
       {/* Detail panel */}
       {selected && (
-        <div className="w-80 flex-shrink-0 bg-white border-l border-gray-100 flex flex-col overflow-hidden">
+        <div className="w-80 flex-shrink-0 bg-panel border-l border-line flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="p-4 border-b border-gray-100">
+          <div className="p-4 border-b border-line">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-gray-900 truncate">
+                <p className="text-sm font-bold text-tx-1 truncate">
                   {selected.title}
                 </p>
                 <div className="flex items-center gap-2 mt-1">
@@ -448,14 +486,14 @@ export default function HistoryPage() {
                   >
                     {t(`status.${selected.status}` as any)}
                   </span>
-                  <span className="text-[10px] text-gray-400">
+                  <span className="text-[10px] text-tx-3">
                     {PLATFORM_ICON[selected.platform]} {selected.platform}
                   </span>
                 </div>
               </div>
               <button
                 onClick={() => setSelected(null)}
-                className="text-gray-300 hover:text-gray-500 transition-colors cursor-pointer flex-shrink-0 p-1"
+                className="text-tx-3 hover:text-tx-2 transition-colors cursor-pointer flex-shrink-0 p-1"
               >
                 ✕
               </button>
@@ -466,10 +504,10 @@ export default function HistoryPage() {
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {selected.hook && (
               <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">
-                  🎣 Крючок
+                <p className="text-[10px] font-bold text-tx-3 uppercase tracking-wide mb-1.5">
+                  Крючок
                 </p>
-                <p className="text-xs text-gray-700 leading-relaxed">
+                <p className="text-xs text-tx-1 leading-relaxed">
                   {selected.hook}
                 </p>
               </div>
@@ -478,19 +516,19 @@ export default function HistoryPage() {
             {selected.caption && (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">
-                    📝 Текст
+                  <p className="text-[10px] font-bold text-tx-3 uppercase tracking-wide">
+                    Текст
                   </p>
                   <div className="flex gap-1.5">
                     <button
                       onClick={() => setEditMode(!editMode)}
-                      className="text-[10px] px-2 py-1 rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors cursor-pointer"
+                      className="text-[10px] px-2 py-1 rounded-lg border border-line-strong text-tx-3 hover:bg-hover transition-colors cursor-pointer"
                     >
                       {editMode ? t("cancel") : t("edit")}
                     </button>
                     <button
                       onClick={copyCaption}
-                      className={`text-[10px] px-2 py-1 rounded-lg border font-medium transition-colors cursor-pointer ${copied ? "border-[#1D9E75] bg-[#E1F5EE] text-[#1D9E75]" : "border-gray-200 text-gray-400 hover:bg-gray-50"}`}
+                      className={`text-[10px] px-2 py-1 rounded-lg border font-medium transition-colors cursor-pointer ${copied ? "border-accent bg-accent-dim text-accent" : "border-line-strong text-tx-3 hover:bg-hover"}`}
                     >
                       {copied ? "✓" : t("copy")}
                     </button>
@@ -512,13 +550,13 @@ export default function HistoryPage() {
                         })
                       }
                       disabled={updateMutation.isPending}
-                      className="w-full py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-60"
+                      className="w-full py-2 bg-accent hover:opacity-90 text-on-accent text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-60"
                     >
                       {updateMutation.isPending ? t("saving") : t("save")}
                     </button>
                   </div>
                 ) : (
-                  <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">
+                  <p className="text-xs text-tx-1 leading-relaxed whitespace-pre-wrap">
                     {selected.caption}
                   </p>
                 )}
@@ -530,7 +568,7 @@ export default function HistoryPage() {
                 {selected.hashtags.map((h: string) => (
                   <span
                     key={h}
-                    className="text-[10px] px-2 py-0.5 bg-[#E1F5EE] text-[#1D9E75] rounded-full"
+                    className="text-[10px] px-2 py-0.5 bg-accent-dim text-accent rounded-full"
                   >
                     {h}
                   </span>
@@ -540,28 +578,28 @@ export default function HistoryPage() {
 
             {selected.cta && (
               <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">
-                  🎯 CTA
+                <p className="text-[10px] font-bold text-tx-3 uppercase tracking-wide mb-1.5">
+                  CTA
                 </p>
-                <p className="text-xs text-gray-700">{selected.cta}</p>
+                <p className="text-xs text-tx-1">{selected.cta}</p>
               </div>
             )}
 
             {/* Теги */}
             <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">
-                🏷 Теги
+              <p className="text-[10px] font-bold text-tx-3 uppercase tracking-wide mb-2">
+                Теги
               </p>
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {(selected.tags || []).map((tag: string) => (
                   <span
                     key={tag}
-                    className="flex items-center gap-1 text-[10px] px-2 py-0.5 bg-[#E1F5EE] text-[#1D9E75] rounded-full"
+                    className="flex items-center gap-1 text-[10px] px-2 py-0.5 bg-accent-dim text-accent rounded-full"
                   >
                     #{tag}
                     <button
                       onClick={() => removeTag(tag)}
-                      className="hover:text-red-400 transition-colors cursor-pointer leading-none"
+                      className="hover:text-neg transition-colors cursor-pointer leading-none"
                     >
                       ×
                     </button>
@@ -574,12 +612,12 @@ export default function HistoryPage() {
                   onChange={(e) => setTagInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && addTag(tagInput)}
                   placeholder="Добавить тег..."
-                  className="flex-1 px-2 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#1D9E75] bg-white"
+                  className="flex-1 px-2 py-1.5 text-xs border border-line-strong rounded-lg outline-none focus:border-accent bg-panel"
                 />
                 <button
                   onClick={() => addTag(tagInput)}
                   disabled={!tagInput.trim()}
-                  className="px-2.5 py-1.5 bg-[#1D9E75] text-white text-xs rounded-lg hover:bg-[#0F6E56] disabled:opacity-40 cursor-pointer transition-colors"
+                  className="px-2.5 py-1.5 bg-accent text-on-accent text-xs rounded-lg hover:opacity-90 disabled:opacity-40 cursor-pointer transition-colors"
                 >
                   +
                 </button>
@@ -588,20 +626,18 @@ export default function HistoryPage() {
 
             {selected.script?.length > 0 && (
               <div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">
-                  🎬 Сценарий
+                <p className="text-[10px] font-bold text-tx-3 uppercase tracking-wide mb-2">
+                  Сценарий
                 </p>
                 <div className="space-y-2">
                   {selected.script.map((s: any) => (
                     <div key={s.scene} className="flex gap-2">
-                      <span className="text-[10px] font-bold text-[#1D9E75] bg-[#E1F5EE] px-1.5 py-0.5 rounded flex-shrink-0 h-fit">
+                      <span className="text-[10px] font-bold text-accent bg-accent-dim px-1.5 py-0.5 rounded flex-shrink-0 h-fit">
                         {s.scene}
                       </span>
                       <div>
-                        <p className="text-xs text-gray-700">{s.text}</p>
-                        <p className="text-[10px] text-gray-400">
-                          {s.duration}
-                        </p>
+                        <p className="text-xs text-tx-1">{s.text}</p>
+                        <p className="text-[10px] text-tx-3">{s.duration}</p>
                       </div>
                     </div>
                   ))}
@@ -611,43 +647,47 @@ export default function HistoryPage() {
 
             {/* Stats для опубликованных */}
             {selected.status === "published" && (
-              <div className="border-t border-gray-100 pt-4">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-3">
-                  📊 Статистика
+              <div className="border-t border-line pt-4">
+                <p className="text-[10px] font-bold text-tx-3 uppercase tracking-wide mb-3">
+                  Статистика
                 </p>
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     {
                       label: t("views"),
                       value: selected.views ?? "—",
-                      icon: "👁",
+                      Icon: Eye,
                     },
                     {
                       label: t("reactions"),
                       value: selected.reactions ?? "—",
-                      icon: "❤️",
+                      Icon: Heart,
                     },
                     {
                       label: t("activity"),
                       value: selected.engagement ?? "—",
-                      icon: "📈",
+                      Icon: TrendingUp,
                     },
                   ].map((stat) => (
                     <div
                       key={stat.label}
-                      className="bg-gray-50 rounded-lg p-2 text-center"
+                      className="bg-panel-2 rounded-lg p-2 text-center"
                     >
-                      <div className="text-base mb-1">{stat.icon}</div>
-                      <div className="text-xs font-bold text-gray-900">
+                      <div className="flex justify-center mb-1">
+                        <stat.Icon
+                          size={15}
+                          className="text-tx-3"
+                          strokeWidth={1.8}
+                        />
+                      </div>
+                      <div className="text-xs font-bold text-tx-1">
                         {stat.value}
                       </div>
-                      <div className="text-[10px] text-gray-400">
-                        {stat.label}
-                      </div>
+                      <div className="text-[10px] text-tx-3">{stat.label}</div>
                     </div>
                   ))}
                 </div>
-                <p className="text-[10px] text-gray-300 mt-2 text-center">
+                <p className="text-[10px] text-tx-3 mt-2 text-center">
                   Данные из Telegram Bot API
                 </p>
               </div>
@@ -655,16 +695,16 @@ export default function HistoryPage() {
           </div>
 
           {/* Actions */}
-          <div className="p-3 border-t border-gray-100 space-y-2">
+          <div className="p-3 border-t border-line space-y-2">
             {/* Publish block — shown for generated, failed, draft */}
             {["generated", "failed", "draft"].includes(selected.status) && (
-              <div className="rounded-xl border border-gray-100 p-3 space-y-2">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">
-                  🚀 Публикация
+              <div className="rounded-xl border border-line p-3 space-y-2">
+                <p className="text-[10px] font-bold text-tx-3 uppercase tracking-wide">
+                  Публикация
                 </p>
 
                 {publishSuccess ? (
-                  <div className="bg-[#E1F5EE] border border-[#1D9E75]/30 rounded-lg px-3 py-2 text-xs text-[#1D9E75] font-medium">
+                  <div className="bg-accent-dim border border-accent rounded-lg px-3 py-2 text-xs text-accent font-medium">
                     {publishSuccess}
                   </div>
                 ) : (
@@ -678,9 +718,9 @@ export default function HistoryPage() {
                           className={`py-1.5 text-[9px] font-semibold rounded-lg border transition-all cursor-pointer ${
                             publishAction === type
                               ? type === "none"
-                                ? "bg-gray-100 border-gray-200 text-gray-500"
-                                : "bg-[#1D9E75] border-[#1D9E75] text-white"
-                              : "bg-white border-gray-200 text-gray-400 hover:border-gray-300"
+                                ? "bg-chip border-line-strong text-tx-2"
+                                : "bg-accent border-accent text-on-accent"
+                              : "bg-panel border-line-strong text-tx-3 hover:border-line-strong"
                           }`}
                         >
                           {type === "now"
@@ -695,12 +735,12 @@ export default function HistoryPage() {
                     {/* Platform selector */}
                     {publishAction !== "none" && (
                       <div>
-                        <p className="text-[10px] text-gray-400 mb-1.5 font-medium">
+                        <p className="text-[10px] text-tx-3 mb-1.5 font-medium">
                           Куда публиковать
                         </p>
                         <div className="space-y-1">
                           {(integrations || []).length === 0 ? (
-                            <p className="text-[10px] text-gray-300 italic">
+                            <p className="text-[10px] text-tx-3 italic">
                               Нет подключённых каналов
                             </p>
                           ) : (
@@ -712,18 +752,22 @@ export default function HistoryPage() {
                                 }
                                 className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border text-xs transition-all cursor-pointer ${
                                   selectedPlatform === intg.platform
-                                    ? "bg-[#E1F5EE] border-[#1D9E75] text-[#1D9E75] font-semibold"
-                                    : "bg-white border-gray-200 text-gray-500 hover:border-gray-300"
+                                    ? "bg-accent-dim border-accent text-accent font-semibold"
+                                    : "bg-panel border-line-strong text-tx-2 hover:border-line-strong"
                                 }`}
                               >
                                 <span className="text-sm">
-                                  {PLATFORM_ICON[intg.platform] || "🌐"}
+                                  {(() => {
+                                    const I =
+                                      PLATFORM_ICON[intg.platform] || Globe;
+                                    return <I size={14} strokeWidth={1.8} />;
+                                  })()}
                                 </span>
                                 <span className="capitalize">
                                   {intg.platform}
                                 </span>
                                 {intg.channel_name && (
-                                  <span className="ml-auto text-[10px] text-gray-400 truncate max-w-[80px]">
+                                  <span className="ml-auto text-[10px] text-tx-3 truncate max-w-[80px]">
                                     {intg.channel_name}
                                   </span>
                                 )}
@@ -746,19 +790,19 @@ export default function HistoryPage() {
                             value={scheduleDate}
                             min={today}
                             onChange={(e) => setScheduleDate(e.target.value)}
-                            className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                            className="flex-1 px-2 py-1.5 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
                           />
                           <input
                             type="time"
                             value={scheduleTime}
                             onChange={(e) => setScheduleTime(e.target.value)}
-                            className="w-20 px-2 py-1.5 rounded-lg border border-gray-200 text-xs outline-none focus:border-[#1D9E75] bg-white"
+                            className="w-20 px-2 py-1.5 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
                           />
                         </div>
                         <button
                           onClick={handleSchedule}
                           disabled={publishing || !selectedPlatform}
-                          className="w-full py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                          className="w-full py-2 bg-accent hover:opacity-90 text-on-accent text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                         >
                           {publishing ? "Сохраняем..." : "Запланировать"}
                         </button>
@@ -770,7 +814,7 @@ export default function HistoryPage() {
                       <button
                         onClick={handlePublishNow}
                         disabled={publishing || !selectedPlatform}
-                        className="w-full py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                        className="w-full py-2 bg-accent hover:opacity-90 text-on-accent text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                       >
                         {publishing ? "Публикуем..." : "Опубликовать сейчас"}
                       </button>
@@ -778,7 +822,7 @@ export default function HistoryPage() {
 
                     {/* Error */}
                     {publishError && (
-                      <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-600">
+                      <div className="bg-chip border border-line rounded-lg px-3 py-2 text-xs text-neg">
                         {publishError}
                       </div>
                     )}
@@ -790,18 +834,18 @@ export default function HistoryPage() {
             <button
               onClick={() => duplicateMutation.mutate(selected)}
               disabled={duplicateMutation.isPending}
-              className="w-full py-2 border border-gray-200 bg-white text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
+              className="w-full py-2 border border-line-strong bg-panel text-tx-2 text-xs font-semibold rounded-lg hover:bg-hover transition-colors cursor-pointer disabled:opacity-50"
             >
               {duplicateMutation.isPending
                 ? "Копируем..."
-                : "📋 Дублировать как черновик"}
+                : "Дублировать как черновик"}
             </button>
             <button
               onClick={() => deleteMutation.mutate(selected.id)}
               disabled={deleteMutation.isPending}
-              className="w-full py-2 border border-red-200 bg-red-50 text-red-500 text-xs font-semibold rounded-lg hover:bg-red-100 transition-colors cursor-pointer disabled:opacity-50"
+              className="w-full py-2 border border-line bg-chip text-neg text-xs font-semibold rounded-lg hover:bg-red-100 transition-colors cursor-pointer disabled:opacity-50"
             >
-              {deleteMutation.isPending ? t("deleting") : `🗑 ${t("delete")}`}
+              {deleteMutation.isPending ? t("deleting") : `${t("delete")}`}
             </button>
           </div>
         </div>

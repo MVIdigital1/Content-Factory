@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { Send, MessagesSquare } from "lucide-react";
 
 type Message = {
   id: string;
@@ -22,7 +23,6 @@ export default function ChatPage() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
 
-    // Загрузить историю
     supabase
       .from("chat_messages")
       .select("*")
@@ -33,19 +33,12 @@ export default function ChatPage() {
         setLoading(false);
       });
 
-    // Realtime подписка
     const channel = supabase
       .channel("chat")
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "chat_messages",
-        },
-        (payload) => {
-          setMessages((prev) => [...prev, payload.new as Message]);
-        },
+        { event: "INSERT", schema: "public", table: "chat_messages" },
+        (payload) => setMessages((prev) => [...prev, payload.new as Message]),
       )
       .subscribe();
 
@@ -76,22 +69,22 @@ export default function ChatPage() {
   const getInitials = (email: string) => email?.[0]?.toUpperCase() || "?";
 
   const COLORS = [
-    "#1D9E75",
-    "#3B82F6",
-    "#F59E0B",
+    "var(--accent)",
+    "var(--c-2)",
+    "var(--c-3)",
     "#8B5CF6",
     "#EC4899",
-    "#EF4444",
+    "var(--neg)",
   ];
   const getColor = (email: string) =>
     COLORS[email.charCodeAt(0) % COLORS.length];
 
   return (
     <div className="flex flex-col h-full">
-      <div className="h-11 border-b border-gray-100 px-6 flex items-center justify-between flex-shrink-0">
+      <div className="h-12 border-b border-line px-6 flex items-center flex-shrink-0 bg-panel">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-[#1D9E75] animate-pulse" />
-          <span className="text-xs font-medium text-gray-700">
+          <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+          <span className="text-[13px] font-medium text-tx-1">
             Командный чат
           </span>
         </div>
@@ -101,13 +94,21 @@ export default function ChatPage() {
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <div className="w-6 h-6 border-2 border-[#1D9E75] border-t-transparent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="text-4xl mb-3">💬</div>
-            <p className="text-sm font-medium text-gray-900">Чат пока пустой</p>
-            <p className="text-xs text-gray-400 mt-1">
+            <div className="w-12 h-12 rounded-2xl bg-accent-dim flex items-center justify-center mb-3">
+              <MessagesSquare
+                size={22}
+                className="text-accent"
+                strokeWidth={1.6}
+              />
+            </div>
+            <p className="text-[14px] font-semibold text-tx-1">
+              Чат пока пустой
+            </p>
+            <p className="text-[12px] text-tx-3 mt-1">
               Напиши первое сообщение команде
             </p>
           </div>
@@ -124,7 +125,7 @@ export default function ChatPage() {
               >
                 {showAvatar ? (
                   <div
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0"
                     style={{ background: getColor(email) }}
                   >
                     {getInitials(email)}
@@ -136,16 +137,20 @@ export default function ChatPage() {
                   className={`max-w-[70%] ${isMe ? "items-end" : "items-start"} flex flex-col gap-0.5`}
                 >
                   {showAvatar && !isMe && (
-                    <p className="text-[9px] text-gray-400 px-1">
+                    <p className="text-[10px] text-tx-3 px-1">
                       {email.split("@")[0]}
                     </p>
                   )}
                   <div
-                    className={`px-3 py-2 rounded-2xl text-sm ${isMe ? "bg-[#1D9E75] text-white rounded-br-sm" : "bg-gray-100 text-gray-900 rounded-bl-sm"}`}
+                    className={`px-3 py-2 rounded-2xl text-[13px] ${
+                      isMe
+                        ? "bg-accent text-on-accent rounded-br-sm"
+                        : "bg-panel-2 text-tx-1 rounded-bl-sm"
+                    }`}
                   >
                     {msg.content}
                   </div>
-                  <p className="text-[9px] text-gray-400 px-1">
+                  <p className="text-[10px] text-tx-3 px-1">
                     {formatTime(msg.created_at)}
                   </p>
                 </div>
@@ -157,31 +162,20 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="border-t border-gray-100 p-3 flex gap-2 bg-white">
+      <div className="border-t border-line p-3 flex gap-2 bg-panel">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
           placeholder="Написать команде..."
-          className="flex-1 px-4 py-2.5 bg-gray-50 rounded-xl text-sm outline-none focus:bg-white focus:ring-1 focus:ring-[#1D9E75] transition-all"
+          className="flex-1 px-4 py-2.5 bg-panel-2 rounded-xl text-[13px] text-tx-1 outline-none focus:ring-1 focus:ring-accent transition-all placeholder:text-tx-3"
         />
         <button
           onClick={send}
           disabled={!input.trim()}
-          className="px-4 py-2.5 bg-[#1D9E75] text-white rounded-xl hover:bg-[#0F6E56] disabled:opacity-40 cursor-pointer transition-colors"
+          className="px-4 py-2.5 bg-accent text-on-accent rounded-xl hover:opacity-90 disabled:opacity-40 cursor-pointer transition-opacity"
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
-          </svg>
+          <Send size={16} strokeWidth={2} />
         </button>
       </div>
     </div>

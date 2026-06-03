@@ -2,7 +2,20 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { useLocale } from "next-intl";
 import Link from "next/link";
+import {
+  Plus,
+  Lightbulb,
+  Sparkles,
+  Palette,
+  Eye,
+  CheckCircle2,
+  CalendarClock,
+  Rocket,
+  ArrowRight,
+  type LucideIcon,
+} from "lucide-react";
 
 type Content = {
   id: string;
@@ -17,71 +30,72 @@ type Content = {
 const PIPELINE: {
   key: string;
   label: string;
-  icon: string;
+  Icon: LucideIcon;
   color: string;
   bg: string;
 }[] = [
   {
     key: "idea",
     label: "Идея",
-    icon: "💡",
-    color: "text-gray-600",
-    bg: "bg-gray-50",
+    Icon: Lightbulb,
+    color: "text-tx-2",
+    bg: "bg-chip",
   },
   {
     key: "generated",
-    label: "AI Готово",
-    icon: "✦",
-    color: "text-purple-600",
-    bg: "bg-purple-50",
+    label: "AI готово",
+    Icon: Sparkles,
+    color: "text-c-2",
+    bg: "bg-chip",
   },
   {
     key: "design",
     label: "Дизайн",
-    icon: "🎨",
-    color: "text-pink-600",
-    bg: "bg-pink-50",
+    Icon: Palette,
+    color: "text-c-3",
+    bg: "bg-chip",
   },
   {
     key: "review",
     label: "Проверка",
-    icon: "👁",
-    color: "text-amber-600",
-    bg: "bg-amber-50",
+    Icon: Eye,
+    color: "text-c-3",
+    bg: "bg-chip",
   },
   {
     key: "approved",
     label: "Одобрено",
-    icon: "✅",
-    color: "text-blue-600",
-    bg: "bg-blue-50",
+    Icon: CheckCircle2,
+    color: "text-c-2",
+    bg: "bg-chip",
   },
   {
     key: "scheduled",
     label: "Запланировано",
-    icon: "📅",
-    color: "text-indigo-600",
-    bg: "bg-indigo-50",
+    Icon: CalendarClock,
+    color: "text-c-2",
+    bg: "bg-chip",
   },
   {
     key: "published",
     label: "Опубликовано",
-    icon: "🚀",
-    color: "text-[#1D9E75]",
-    bg: "bg-[#E1F5EE]",
+    Icon: Rocket,
+    color: "text-accent",
+    bg: "bg-accent-dim",
   },
 ];
 
-const PLATFORM_EMOJI: Record<string, string> = {
-  telegram: "✈️",
-  instagram: "📸",
-  tiktok: "🎵",
-  vk: "💙",
+const PLATFORM_DOT: Record<string, string> = {
+  telegram: "var(--accent)",
+  instagram: "var(--c-2)",
+  tiktok: "var(--c-3)",
+  vk: "var(--c-2)",
 };
 
 export default function PipelinePage() {
   const supabase = createClient();
   const queryClient = useQueryClient();
+  const locale = useLocale();
 
   const { data: contents = [], isLoading } = useQuery({
     queryKey: ["pipeline-contents"],
@@ -111,7 +125,6 @@ export default function PipelinePage() {
 
   const getByStage = (key: string) =>
     contents.filter((c) => (c.pipeline_status || "generated") === key);
-
   const getNextStage = (currentKey: string) => {
     const idx = PIPELINE.findIndex((p) => p.key === currentKey);
     return idx < PIPELINE.length - 1 ? PIPELINE[idx + 1] : null;
@@ -119,51 +132,63 @@ export default function PipelinePage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="h-11 border-b border-gray-100 px-6 flex items-center justify-between flex-shrink-0">
-        <div className="text-xs text-gray-400">Контент pipeline</div>
+      <div className="h-12 border-b border-line px-6 flex items-center justify-between flex-shrink-0 bg-panel">
+        <span className="text-xs text-tx-3">Контент · Pipeline</span>
         <Link
-          href="/create"
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1D9E75] text-white text-xs font-medium rounded-lg hover:bg-[#0F6E56] transition-colors"
+          href={`/${locale}/create`}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent text-on-accent text-xs font-medium rounded-lg hover:opacity-90 transition-opacity"
         >
-          + Создать
+          <Plus size={13} strokeWidth={2.4} /> Создать
         </Link>
       </div>
 
-      <div className="flex-1 overflow-x-auto p-5">
-        <div className="mb-4">
-          <h1 className="text-lg font-bold text-gray-900">Контент pipeline</h1>
-          <p className="text-xs text-gray-400 mt-0.5">
+      <div className="flex-1 overflow-x-auto p-6">
+        <div className="mb-5">
+          <div className="ui-label">Контент</div>
+          <h1 className="text-[24px] font-semibold tracking-tight text-tx-1 mt-1.5">
+            Pipeline
+          </h1>
+          <p className="text-[13px] text-tx-2 mt-1">
             Ведите контент от идеи до публикации
           </p>
+          <div className="inline-flex bg-chip rounded-lg p-0.5 gap-0.5 mt-3">
+            <Link
+              href={`/${locale}/history`}
+              className="px-3 py-1.5 text-xs rounded-md font-medium text-tx-3 hover:text-tx-1 transition-colors"
+            >
+              Статусы
+            </Link>
+            <span className="px-3 py-1.5 text-xs rounded-md font-medium bg-panel text-tx-1 shadow-sm">
+              Pipeline
+            </span>
+          </div>
         </div>
 
-        {/* Pipeline progress bar */}
-        <div className="flex items-center gap-0 mb-6 bg-white rounded-xl border border-gray-100 overflow-hidden">
-          {PIPELINE.map((stage, i) => {
+        <div className="flex items-center gap-0 mb-6 bg-panel rounded-xl border border-line overflow-hidden">
+          {PIPELINE.map((stage) => {
             const count = getByStage(stage.key).length;
             return (
               <div
                 key={stage.key}
-                className={`flex-1 px-3 py-2.5 text-center border-r border-gray-100 last:border-0 ${stage.bg}`}
+                className="flex-1 px-3 py-2.5 text-center border-r border-line last:border-0"
               >
-                <p className={`text-sm font-bold ${stage.color}`}>{count}</p>
-                <p
-                  className={`text-[9px] font-medium ${stage.color} opacity-70`}
-                >
-                  {stage.icon} {stage.label}
+                <p className={`ui-num text-sm font-bold ${stage.color}`}>
+                  {count}
+                </p>
+                <p className="text-[9px] font-medium text-tx-3 mt-0.5 flex items-center justify-center gap-1">
+                  <stage.Icon size={10} strokeWidth={1.8} /> {stage.label}
                 </p>
               </div>
             );
           })}
         </div>
 
-        {/* Kanban columns */}
         {isLoading ? (
-          <div className="flex gap-4">
+          <div className="flex gap-3">
             {PIPELINE.map((s) => (
               <div
                 key={s.key}
-                className="w-52 flex-shrink-0 h-32 bg-gray-100 rounded-xl animate-pulse"
+                className="w-52 flex-shrink-0 h-32 bg-panel-2 rounded-xl animate-pulse"
               />
             ))}
           </div>
@@ -177,7 +202,11 @@ export default function PipelinePage() {
                   <div
                     className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg mb-2 ${stage.bg}`}
                   >
-                    <span className="text-sm">{stage.icon}</span>
+                    <stage.Icon
+                      size={13}
+                      className={stage.color}
+                      strokeWidth={1.8}
+                    />
                     <span className={`text-xs font-semibold ${stage.color}`}>
                       {stage.label}
                     </span>
@@ -191,24 +220,28 @@ export default function PipelinePage() {
                     {stagePosts.map((c) => (
                       <div
                         key={c.id}
-                        className="bg-white border border-gray-100 rounded-xl p-3 hover:border-gray-200 transition-colors group"
+                        className="bg-panel border border-line rounded-xl p-3 hover:border-line-strong transition-colors group"
                       >
                         <div className="flex items-start gap-1.5 mb-2">
-                          <span className="text-sm flex-shrink-0">
-                            {PLATFORM_EMOJI[c.platform || ""] || "📄"}
-                          </span>
-                          <p className="text-xs font-medium text-gray-900 line-clamp-2 flex-1">
+                          <span
+                            className="w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0"
+                            style={{
+                              background:
+                                PLATFORM_DOT[c.platform || ""] || "var(--tx-3)",
+                            }}
+                          />
+                          <p className="text-[12px] font-medium text-tx-1 line-clamp-2 flex-1">
                             {c.title || "Без названия"}
                           </p>
                         </div>
-                        <p className="text-[10px] text-gray-400 mb-2">
+                        <p className="text-[10px] text-tx-3 mb-2">
                           {(c.projects as any)?.name || "—"} ·{" "}
                           {new Date(c.created_at).toLocaleDateString("ru-RU", {
                             day: "numeric",
                             month: "short",
                           })}
                         </p>
-                        <div className="flex gap-1 flex-wrap">
+                        <div className="flex gap-1 flex-wrap items-center">
                           {next && (
                             <button
                               onClick={() =>
@@ -217,14 +250,14 @@ export default function PipelinePage() {
                                   status: next.key,
                                 })
                               }
-                              className={`text-[9px] px-2 py-0.5 rounded-full font-medium cursor-pointer transition-colors ${next.bg} ${next.color}`}
+                              className={`inline-flex items-center gap-0.5 text-[9px] px-2 py-0.5 rounded-full font-medium cursor-pointer transition-colors bg-chip ${next.color}`}
                             >
-                              → {next.label}
+                              <ArrowRight size={9} /> {next.label}
                             </button>
                           )}
                           <Link
-                            href={`/history?id=${c.id}`}
-                            className="text-[9px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+                            href={`/${locale}/history?id=${c.id}`}
+                            className="text-[9px] px-2 py-0.5 rounded-full bg-chip text-tx-2 hover:bg-hover"
                           >
                             Открыть
                           </Link>
@@ -232,8 +265,8 @@ export default function PipelinePage() {
                       </div>
                     ))}
                     {stagePosts.length === 0 && (
-                      <div className="border-2 border-dashed border-gray-100 rounded-xl py-5 text-center">
-                        <p className="text-[10px] text-gray-300">Пусто</p>
+                      <div className="border-2 border-dashed border-line rounded-xl py-5 text-center">
+                        <p className="text-[10px] text-tx-3">Пусто</p>
                       </div>
                     )}
                   </div>

@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import type { Project } from "@/lib/supabase/types";
 import { useTranslations } from "next-intl";
+import { ChevronDown, Pencil, Trash2, FolderOpen } from "lucide-react";
 
 const NICHES = [
   "Товары для дома",
@@ -47,19 +48,18 @@ function CustomSelect({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-left flex items-center justify-between bg-white hover:border-[#1D9E75] outline-none transition-colors cursor-pointer"
+        className="w-full px-3 py-2.5 rounded-lg border border-line-strong text-sm text-left flex items-center justify-between bg-panel hover:border-accent outline-none transition-colors cursor-pointer"
       >
-        <span className={selected ? "text-gray-900" : "text-gray-400"}>
+        <span className={selected ? "text-tx-1" : "text-tx-3"}>
           {selected?.label || placeholder || "Выберите..."}
         </span>
-        <span
-          className={`text-gray-400 text-xs transition-transform ${open ? "rotate-180" : ""}`}
-        >
-          ▼
-        </span>
+        <ChevronDown
+          size={15}
+          className={`text-tx-3 transition-transform ${open ? "rotate-180" : ""}`}
+        />
       </button>
       {open && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+        <div className="absolute z-50 w-full mt-1 bg-panel border border-line-strong rounded-lg shadow-lg overflow-hidden">
           {placeholder && (
             <button
               type="button"
@@ -67,7 +67,7 @@ function CustomSelect({
                 onChange("");
                 setOpen(false);
               }}
-              className="w-full px-3 py-2 text-sm text-left text-gray-400 hover:bg-gray-50 cursor-pointer"
+              className="w-full px-3 py-2 text-sm text-left text-tx-3 hover:bg-hover cursor-pointer"
             >
               {placeholder}
             </button>
@@ -80,7 +80,7 @@ function CustomSelect({
                 onChange(o.value);
                 setOpen(false);
               }}
-              className={`w-full px-3 py-2 text-sm text-left hover:bg-[#E1F5EE] hover:text-[#1D9E75] cursor-pointer transition-colors ${value === o.value ? "bg-[#E1F5EE] text-[#1D9E75] font-medium" : "text-gray-700"}`}
+              className={`w-full px-3 py-2 text-sm text-left hover:bg-accent-dim hover:text-accent cursor-pointer transition-colors ${value === o.value ? "bg-accent-dim text-accent font-medium" : "text-tx-1"}`}
             >
               {o.label}
             </button>
@@ -113,12 +113,12 @@ function ProjectForm({
   nicheOptions: { value: string; label: string }[];
 }) {
   const inputClass =
-    "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white";
+    "w-full px-3 py-2.5 rounded-lg border border-line-strong text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors bg-panel";
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1.5">
+          <label className="block text-xs font-medium text-tx-2 mb-1.5">
             {labels.name}
           </label>
           <input
@@ -130,7 +130,7 @@ function ProjectForm({
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1.5">
+          <label className="block text-xs font-medium text-tx-2 mb-1.5">
             {labels.niche}
           </label>
           <CustomSelect
@@ -142,7 +142,7 @@ function ProjectForm({
         </div>
       </div>
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1.5">
+        <label className="block text-xs font-medium text-tx-2 mb-1.5">
           {labels.description}
         </label>
         <textarea
@@ -156,7 +156,7 @@ function ProjectForm({
         />
       </div>
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1.5">
+        <label className="block text-xs font-medium text-tx-2 mb-1.5">
           {labels.audience}
         </label>
         <input
@@ -170,7 +170,7 @@ function ProjectForm({
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1.5">
+          <label className="block text-xs font-medium text-tx-2 mb-1.5">
             {labels.tone}
           </label>
           <CustomSelect
@@ -180,7 +180,7 @@ function ProjectForm({
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1.5">
+          <label className="block text-xs font-medium text-tx-2 mb-1.5">
             {labels.language}
           </label>
           <CustomSelect
@@ -192,9 +192,9 @@ function ProjectForm({
       </div>
       {/* ← Новое поле: стоп-слова */}
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1.5">
+        <label className="block text-xs font-medium text-tx-2 mb-1.5">
           Стоп-слова{" "}
-          <span className="text-gray-400 font-normal">
+          <span className="text-tx-3 font-normal">
             (Claude никогда не использует)
           </span>
         </label>
@@ -209,16 +209,15 @@ function ProjectForm({
       </div>
       {/* Логотип */}
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1.5">
-          Логотип{" "}
-          <span className="text-gray-400 font-normal">(URL картинки)</span>
+        <label className="block text-xs font-medium text-tx-2 mb-1.5">
+          Логотип <span className="text-tx-3 font-normal">(URL картинки)</span>
         </label>
         <div className="flex gap-2 items-center">
           {values.logo_url && (
             <img
               src={values.logo_url}
               alt="logo"
-              className="w-9 h-9 rounded-lg object-cover border border-gray-200 flex-shrink-0"
+              className="w-9 h-9 rounded-lg object-cover border border-line-strong flex-shrink-0"
               onError={(e) => (e.currentTarget.style.display = "none")}
             />
           )}
@@ -236,14 +235,14 @@ function ProjectForm({
         <button
           type="submit"
           disabled={isPending}
-          className="px-4 py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60 cursor-pointer"
+          className="px-4 py-2 bg-accent hover:opacity-90 text-on-accent text-sm font-semibold rounded-lg transition-colors disabled:opacity-60 cursor-pointer"
         >
           {isPending ? labels.saving : labels.save}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+          className="px-4 py-2 border border-line-strong text-tx-2 text-sm rounded-lg hover:bg-hover transition-colors cursor-pointer"
         >
           {labels.cancel}
         </button>
@@ -338,11 +337,10 @@ export default function ProjectsPage() {
   });
 
   const getHealthScore = (thisWeek: number) => {
-    if (thisWeek >= 5) return { label: "🟢 Активный", color: "text-[#1D9E75]" };
-    if (thisWeek >= 2)
-      return { label: "🟡 Умеренный", color: "text-amber-500" };
-    if (thisWeek >= 1) return { label: "🟠 Низкий", color: "text-orange-500" };
-    return { label: "🔴 Неактивен", color: "text-red-400" };
+    if (thisWeek >= 5) return { label: "Активный", color: "text-accent" };
+    if (thisWeek >= 2) return { label: "Умеренный", color: "text-c-3" };
+    if (thisWeek >= 1) return { label: "Низкий", color: "text-c-3" };
+    return { label: "Неактивен", color: "text-neg" };
   };
 
   const createMutation = useMutation({
@@ -422,35 +420,38 @@ export default function ProjectsPage() {
     <div className="p-4 md:p-6 max-w-4xl w-full">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">{t("title")}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{t("subtitle")}</p>
+          <div className="ui-label">Проекты</div>
+          <h1 className="text-[26px] font-semibold tracking-tight text-tx-1 mt-1.5">
+            {t("title")}
+          </h1>
+          <p className="text-[13px] text-tx-2 mt-1">{t("subtitle")}</p>
         </div>
         <button
           onClick={() => {
             setShowForm(true);
             setEditingId(null);
           }}
-          className="flex items-center gap-2 px-4 py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2 bg-accent hover:opacity-90 text-on-accent text-sm font-semibold rounded-lg transition-colors cursor-pointer"
         >
           {t("newProject")}
         </button>
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5 mb-5 shadow-sm">
+        <div className="bg-panel rounded-xl border border-line-strong p-5 mb-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-gray-900">
+            <h3 className="text-sm font-semibold text-tx-1">
               {t("form.title")}
             </h3>
             <button
               onClick={() => setShowForm(false)}
-              className="text-gray-400 hover:text-gray-600 text-lg cursor-pointer"
+              className="text-tx-3 hover:text-tx-2 text-lg cursor-pointer"
             >
               ×
             </button>
           </div>
           {errorDetail && (
-            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-600 mb-4">
+            <div className="bg-chip border border-line rounded-lg px-3 py-2 text-sm text-neg mb-4">
               <p className="font-medium">{t("form.error")}</p>
               <p className="text-xs mt-1 font-mono">{errorDetail}</p>
             </div>
@@ -478,13 +479,13 @@ export default function ProjectsPage() {
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="bg-white rounded-xl border border-gray-100 p-4 animate-pulse"
+              className="bg-panel rounded-xl border border-line p-4 animate-pulse"
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gray-100 rounded-lg" />
+                <div className="w-10 h-10 bg-chip rounded-lg" />
                 <div className="flex-1">
-                  <div className="h-4 bg-gray-100 rounded w-1/3 mb-2" />
-                  <div className="h-3 bg-gray-100 rounded w-1/2" />
+                  <div className="h-4 bg-chip rounded w-1/3 mb-2" />
+                  <div className="h-3 bg-chip rounded w-1/2" />
                 </div>
               </div>
             </div>
@@ -499,15 +500,15 @@ export default function ProjectsPage() {
               return (
                 <div
                   key={p.id}
-                  className="col-span-2 md:col-span-3 lg:col-span-4 bg-white rounded-xl border border-gray-200 p-5 shadow-sm"
+                  className="col-span-2 md:col-span-3 lg:col-span-4 bg-panel rounded-xl border border-line-strong p-5 shadow-sm"
                 >
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-gray-900">
+                    <h3 className="text-sm font-semibold text-tx-1">
                       Редактировать проект
                     </h3>
                     <button
                       onClick={() => setEditingId(null)}
-                      className="text-gray-400 hover:text-gray-600 cursor-pointer text-lg"
+                      className="text-tx-3 hover:text-tx-2 cursor-pointer text-lg"
                     >
                       ×
                     </button>
@@ -531,12 +532,12 @@ export default function ProjectsPage() {
             return (
               <div
                 key={p.id}
-                className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:border-[#1D9E75]/30 hover:shadow-md transition-all group"
+                className="bg-panel rounded-2xl border border-line overflow-hidden hover:border-accent hover:shadow-md transition-all group"
               >
                 {/* Кликабельная карточка */}
                 <Link href={`/projects/${p.id}`} className="block p-4">
                   {/* Лого / аватар проекта */}
-                  <div className="w-14 h-14 rounded-2xl bg-[#E1F5EE] flex items-center justify-center text-2xl mb-3 overflow-hidden border border-[#1D9E75]/10">
+                  <div className="w-14 h-14 rounded-2xl bg-accent-dim flex items-center justify-center text-2xl mb-3 overflow-hidden border border-line">
                     {(p as any).logo_url ? (
                       <img
                         src={(p as any).logo_url}
@@ -547,29 +548,33 @@ export default function ProjectsPage() {
                         }}
                       />
                     ) : (
-                      <span>{p.name[0]?.toUpperCase() || "📁"}</span>
+                      <span>
+                        {p.name[0]?.toUpperCase() || (
+                          <FolderOpen size={16} className="opacity-70" />
+                        )}
+                      </span>
                     )}
                   </div>
-                  <p className="text-sm font-semibold text-gray-900 truncate mb-0.5">
+                  <p className="text-sm font-semibold text-tx-1 truncate mb-0.5">
                     {p.name}
                   </p>
-                  <p className="text-[10px] text-gray-400 truncate mb-3">
+                  <p className="text-[10px] text-tx-3 truncate mb-3">
                     {p.niche || "Без ниши"}
                   </p>
                   {/* Мини статистика */}
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-lg font-bold text-gray-900">
+                      <p className="text-lg font-bold text-tx-1">
                         {stats?.count || 0}
                       </p>
-                      <p className="text-[10px] text-gray-400">постов</p>
+                      <p className="text-[10px] text-tx-3">постов</p>
                     </div>
                     <div className="text-right">
                       <p className={`text-[10px] font-medium ${health.color}`}>
                         {health.label}
                       </p>
                       {stats && (
-                        <p className="text-[9px] text-gray-400">
+                        <p className="text-[9px] text-tx-3">
                           {getDaysAgo(stats.lastDate)}
                         </p>
                       )}
@@ -580,16 +585,16 @@ export default function ProjectsPage() {
                 <div className="px-4 pb-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => startEdit(p)}
-                    className="flex-1 py-1.5 text-[10px] font-medium border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 cursor-pointer"
+                    className="flex-1 py-1.5 text-[10px] font-medium border border-line-strong rounded-lg text-tx-2 hover:bg-hover cursor-pointer inline-flex items-center justify-center gap-1"
                   >
-                    ✏ Изменить
+                    <Pencil size={11} /> Изменить
                   </button>
                   <button
                     onClick={() => deleteMutation.mutate(p.id)}
                     disabled={deleteMutation.isPending}
-                    className="px-2 py-1.5 text-[10px] border border-red-100 rounded-lg text-red-400 hover:bg-red-50 cursor-pointer"
+                    className="px-2.5 py-1.5 text-[10px] border border-line rounded-lg text-neg hover:bg-hover cursor-pointer inline-flex items-center"
                   >
-                    🗑
+                    <Trash2 size={12} />
                   </button>
                 </div>
               </div>
@@ -597,15 +602,17 @@ export default function ProjectsPage() {
           })}
         </div>
       ) : (
-        <div className="text-center py-16 bg-white rounded-xl border border-gray-100">
-          <div className="text-4xl mb-3">📁</div>
-          <p className="text-sm font-medium text-gray-900 mb-1">
+        <div className="text-center py-16 bg-panel rounded-xl border border-line">
+          <div className="w-12 h-12 rounded-2xl bg-accent-dim flex items-center justify-center mb-3 mx-auto">
+            <FolderOpen size={22} className="text-accent" strokeWidth={1.6} />
+          </div>
+          <p className="text-sm font-medium text-tx-1 mb-1">
             {t("empty.title")}
           </p>
-          <p className="text-sm text-gray-400 mb-4">{t("empty.subtitle")}</p>
+          <p className="text-sm text-tx-3 mb-4">{t("empty.subtitle")}</p>
           <button
             onClick={() => setShowForm(true)}
-            className="px-4 py-2 bg-[#1D9E75] text-white text-sm font-semibold rounded-lg hover:bg-[#0F6E56] transition-colors cursor-pointer"
+            className="px-4 py-2 bg-accent text-on-accent text-sm font-semibold rounded-lg hover:opacity-90 transition-colors cursor-pointer"
           >
             {t("empty.btn")}
           </button>

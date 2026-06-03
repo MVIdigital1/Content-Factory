@@ -143,14 +143,17 @@ function SettingsContent() {
   return (
     <div className="p-6 max-w-4xl w-full relative">
       {toast && (
-        <div className="fixed top-4 right-4 z-50 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg animate-fade-in">
+        <div className="fixed top-4 right-4 z-50 bg-accent text-on-accent text-sm px-4 py-2.5 rounded-xl shadow-lg animate-fade-in">
           {toast}
         </div>
       )}
 
       <div className="mb-6">
-        <h1 className="text-xl font-semibold text-gray-900">Настройки</h1>
-        <p className="text-sm text-gray-400 mt-0.5">
+        <div className="ui-label">Аккаунт</div>
+        <h1 className="text-[26px] font-semibold tracking-tight text-tx-1 mt-1.5">
+          Настройки
+        </h1>
+        <p className="text-[13px] text-tx-2 mt-1">
           Управляйте аккаунтом и настройками
         </p>
       </div>
@@ -163,10 +166,10 @@ function SettingsContent() {
               <button
                 key={tab.key}
                 onClick={() => handleTabChange(tab.key)}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm rounded-lg transition-all text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#1D9E75]/30 ${
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm rounded-lg transition-all text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/30 ${
                   activeTab === tab.key
-                    ? "bg-[#F0FDF8] text-[#1D9E75] font-medium"
-                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                    ? "bg-accent-dim text-accent font-medium"
+                    : "text-tx-2 hover:text-tx-1 hover:bg-hover"
                 }`}
                 aria-current={activeTab === tab.key ? "page" : undefined}
               >
@@ -189,24 +192,22 @@ function SettingsContent() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 bg-white rounded-xl border border-gray-100 p-6">
+        <div className="flex-1 bg-panel rounded-xl border border-line p-6">
           {/* ── ПРОФИЛЬ ── */}
           {activeTab === "profile" && (
             <div className="space-y-5">
-              <h2 className="text-sm font-semibold text-gray-800 mb-4">
-                Профиль
-              </h2>
+              <h2 className="text-sm font-semibold text-tx-1 mb-4">Профиль</h2>
               <Link
                 href={`/${locale}/profile`}
-                className="flex items-center gap-3 p-4 border border-gray-100 rounded-xl hover:border-[#1D9E75]/30 hover:bg-[#F0FDF8]/50 transition-all group"
+                className="flex items-center gap-3 p-4 border border-line rounded-xl hover:border-accent hover:bg-accent-dim/50 transition-all group"
               >
-                <div className="w-10 h-10 bg-[#E1F5EE] rounded-full flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 bg-accent-dim rounded-full flex items-center justify-center flex-shrink-0">
                   <svg
                     width="18"
                     height="18"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke="#1D9E75"
+                    stroke="currentColor"
                     strokeWidth="1.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -215,10 +216,10 @@ function SettingsContent() {
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-medium text-tx-1">
                     Личный кабинет
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-xs text-tx-3 mt-0.5">
                     Имя, фото, email, пароль
                   </p>
                 </div>
@@ -231,7 +232,7 @@ function SettingsContent() {
                   strokeWidth="1.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="group-hover:stroke-[#1D9E75] transition-colors"
+                  className="group-hover:stroke-accent transition-colors"
                 >
                   <path d="M9 18l6-6-6-6" />
                 </svg>
@@ -242,7 +243,7 @@ function SettingsContent() {
           {/* ── ВОРКСПЕЙС ── */}
           {activeTab === "workspace" && (
             <div className="space-y-5">
-              <h2 className="text-sm font-semibold text-gray-800 mb-4">
+              <h2 className="text-sm font-semibold text-tx-1 mb-4">
                 Воркспейс
               </h2>
 
@@ -251,15 +252,15 @@ function SettingsContent() {
                   {[1, 2].map((i) => (
                     <div
                       key={i}
-                      className="h-16 bg-gray-100 rounded-xl animate-pulse"
+                      className="h-16 bg-chip rounded-xl animate-pulse"
                     />
                   ))}
                 </div>
               ) : (
                 <>
                   {/* Название */}
-                  <div className="p-4 border border-gray-100 rounded-xl">
-                    <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wide">
+                  <div className="p-4 border border-line rounded-xl">
+                    <p className="text-xs text-tx-3 mb-2 font-medium uppercase tracking-wide">
                       Название воркспейса
                     </p>
                     {wsEditing ? (
@@ -276,14 +277,14 @@ function SettingsContent() {
                               setWsName(workspace?.name || "");
                             }
                           }}
-                          className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#1D9E75]"
+                          className="flex-1 px-3 py-2 text-sm border border-line-strong rounded-lg outline-none focus:border-accent"
                         />
                         <button
                           onClick={() => updateWorkspaceMutation.mutate(wsName)}
                           disabled={
                             !wsName || updateWorkspaceMutation.isPending
                           }
-                          className="px-3 py-2 bg-[#1D9E75] text-white text-xs rounded-lg cursor-pointer disabled:opacity-50 hover:bg-[#0F6E56] transition-colors"
+                          className="px-3 py-2 bg-accent text-on-accent text-xs rounded-lg cursor-pointer disabled:opacity-50 hover:opacity-90 transition-colors"
                         >
                           {updateWorkspaceMutation.isPending
                             ? "..."
@@ -294,19 +295,19 @@ function SettingsContent() {
                             setWsEditing(false);
                             setWsName(workspace?.name || "");
                           }}
-                          className="px-3 py-2 text-gray-500 text-xs rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                          className="px-3 py-2 text-tx-2 text-xs rounded-lg cursor-pointer hover:bg-hover transition-colors"
                         >
                           Отмена
                         </button>
                       </div>
                     ) : (
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-gray-900">
+                        <p className="text-sm font-medium text-tx-1">
                           {workspace?.name || "Мой воркспейс"}
                         </p>
                         <button
                           onClick={() => setWsEditing(true)}
-                          className="text-xs text-[#1D9E75] hover:underline cursor-pointer"
+                          className="text-xs text-accent hover:underline cursor-pointer"
                         >
                           Изменить
                         </button>
@@ -315,22 +316,22 @@ function SettingsContent() {
                   </div>
 
                   {/* Тариф */}
-                  <div className="p-4 border border-gray-100 rounded-xl">
-                    <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wide">
+                  <div className="p-4 border border-line rounded-xl">
+                    <p className="text-xs text-tx-3 mb-2 font-medium uppercase tracking-wide">
                       Тариф
                     </p>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-900">
+                        <span className="text-sm font-medium text-tx-1">
                           {(workspace?.plan || "free").toUpperCase()}
                         </span>
-                        <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">
+                        <span className="text-[10px] bg-chip text-tx-2 px-2 py-0.5 rounded-full font-medium">
                           Активен
                         </span>
                       </div>
                       <button
                         onClick={() => handleTabChange("billing")}
-                        className="text-xs text-[#1D9E75] hover:underline cursor-pointer"
+                        className="text-xs text-accent hover:underline cursor-pointer"
                       >
                         Улучшить →
                       </button>
@@ -340,15 +341,15 @@ function SettingsContent() {
                   {/* Команда */}
                   <Link
                     href={`/${locale}/team`}
-                    className="flex items-center gap-3 p-4 border border-gray-100 rounded-xl hover:border-[#1D9E75]/30 hover:bg-[#F0FDF8]/50 transition-all group"
+                    className="flex items-center gap-3 p-4 border border-line rounded-xl hover:border-accent hover:bg-accent-dim/50 transition-all group"
                   >
-                    <div className="w-10 h-10 bg-[#E1F5EE] rounded-xl flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 bg-accent-dim rounded-xl flex items-center justify-center flex-shrink-0">
                       <svg
                         width="18"
                         height="18"
                         viewBox="0 0 24 24"
                         fill="none"
-                        stroke="#1D9E75"
+                        stroke="currentColor"
                         strokeWidth="1.5"
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -357,10 +358,10 @@ function SettingsContent() {
                       </svg>
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-sm font-medium text-tx-1">
                         Управление командой
                       </p>
-                      <p className="text-xs text-gray-400 mt-0.5">
+                      <p className="text-xs text-tx-3 mt-0.5">
                         Участники, роли, приглашения
                       </p>
                     </div>
@@ -373,7 +374,7 @@ function SettingsContent() {
                       strokeWidth="1.5"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      className="group-hover:stroke-[#1D9E75] transition-colors"
+                      className="group-hover:stroke-accent transition-colors"
                     >
                       <path d="M9 18l6-6-6-6" />
                     </svg>
@@ -386,20 +387,20 @@ function SettingsContent() {
           {/* ── ИНТЕГРАЦИИ ── */}
           {activeTab === "integrations" && (
             <div className="space-y-4">
-              <h2 className="text-sm font-semibold text-gray-800 mb-4">
+              <h2 className="text-sm font-semibold text-tx-1 mb-4">
                 Интеграции
               </h2>
               <Link
                 href={`/${locale}/integrations`}
-                className="flex items-center gap-3 p-4 border border-gray-100 rounded-xl hover:border-[#1D9E75]/30 hover:bg-[#F0FDF8]/50 transition-all group"
+                className="flex items-center gap-3 p-4 border border-line rounded-xl hover:border-accent hover:bg-accent-dim/50 transition-all group"
               >
-                <div className="w-10 h-10 bg-[#E1F5EE] rounded-xl flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 bg-accent-dim rounded-xl flex items-center justify-center flex-shrink-0">
                   <svg
                     width="18"
                     height="18"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke="#1D9E75"
+                    stroke="currentColor"
                     strokeWidth="1.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -408,10 +409,10 @@ function SettingsContent() {
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-medium text-tx-1">
                     Управление интеграциями
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-xs text-tx-3 mt-0.5">
                     Telegram, Instagram, TikTok
                   </p>
                 </div>
@@ -424,7 +425,7 @@ function SettingsContent() {
                   strokeWidth="1.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="group-hover:stroke-[#1D9E75] transition-colors"
+                  className="group-hover:stroke-accent transition-colors"
                 >
                   <path d="M9 18l6-6-6-6" />
                 </svg>
@@ -435,19 +436,17 @@ function SettingsContent() {
           {/* ── ТАРИФ ── */}
           {activeTab === "billing" && (
             <div className="space-y-4">
-              <h2 className="text-sm font-semibold text-gray-800 mb-4">
-                Тариф
-              </h2>
-              <div className="p-4 bg-[#F0FDF8] border border-[#A7F3D0] rounded-xl">
+              <h2 className="text-sm font-semibold text-tx-1 mb-4">Тариф</h2>
+              <div className="p-4 bg-accent-dim border border-line rounded-xl">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold text-[#065F46]">
+                  <span className="text-sm font-semibold text-accent">
                     Free план
                   </span>
-                  <span className="text-xs bg-[#1D9E75] text-white px-2 py-0.5 rounded-full font-medium">
+                  <span className="text-xs bg-accent text-on-accent px-2 py-0.5 rounded-full font-medium">
                     Активен
                   </span>
                 </div>
-                <p className="text-xs text-[#065F46]/70">
+                <p className="text-xs text-accent/70">
                   20 генераций в час · 1 проект · Telegram
                 </p>
               </div>
@@ -455,13 +454,13 @@ function SettingsContent() {
                 {PLANS.map((plan) => (
                   <div
                     key={plan.key}
-                    className="p-4 border border-gray-200 rounded-xl hover:border-[#1D9E75] transition-colors"
+                    className="p-4 border border-line-strong rounded-xl hover:border-accent transition-colors"
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-semibold text-gray-900">
+                      <span className="text-sm font-semibold text-tx-1">
                         {plan.name}
                       </span>
-                      <span className="text-xs font-semibold text-[#1D9E75]">
+                      <span className="text-xs font-semibold text-accent">
                         {plan.price}
                       </span>
                     </div>
@@ -469,14 +468,14 @@ function SettingsContent() {
                       {plan.features.map((f) => (
                         <li
                           key={f}
-                          className="text-xs text-gray-500 flex items-center gap-1.5"
+                          className="text-xs text-tx-2 flex items-center gap-1.5"
                         >
                           <svg
                             width="10"
                             height="10"
                             viewBox="0 0 24 24"
                             fill="none"
-                            stroke="#1D9E75"
+                            stroke="currentColor"
                             strokeWidth="2.5"
                             strokeLinecap="round"
                             strokeLinejoin="round"
@@ -490,7 +489,7 @@ function SettingsContent() {
                     <button
                       onClick={() => handleUpgrade(plan.key)}
                       disabled={pendingPlan === plan.key}
-                      className="w-full py-1.5 bg-[#1D9E75] text-white text-xs font-medium rounded-lg hover:bg-[#0F6E56] disabled:opacity-60 disabled:cursor-not-allowed transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#1D9E75]/30 flex items-center justify-center gap-1.5"
+                      className="w-full py-1.5 bg-accent text-on-accent text-xs font-medium rounded-lg hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/30 flex items-center justify-center gap-1.5"
                     >
                       {pendingPlan === plan.key ? (
                         <>
@@ -510,20 +509,20 @@ function SettingsContent() {
           {/* ── БЕЗОПАСНОСТЬ ── */}
           {activeTab === "security" && (
             <div className="space-y-4">
-              <h2 className="text-sm font-semibold text-gray-800 mb-4">
+              <h2 className="text-sm font-semibold text-tx-1 mb-4">
                 Безопасность
               </h2>
               <Link
                 href={`/${locale}/profile`}
-                className="flex items-center gap-3 p-4 border border-gray-100 rounded-xl hover:border-blue-200 hover:bg-blue-50/30 transition-all group"
+                className="flex items-center gap-3 p-4 border border-line rounded-xl hover:border-blue-200 hover:bg-chip/30 transition-all group"
               >
-                <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 bg-chip rounded-xl flex items-center justify-center flex-shrink-0">
                   <svg
                     width="18"
                     height="18"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke="#3B82F6"
+                    stroke="currentColor"
                     strokeWidth="1.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -533,10 +532,10 @@ function SettingsContent() {
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-medium text-tx-1">
                     Сменить пароль
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-xs text-tx-3 mt-0.5">
                     Обновите пароль аккаунта
                   </p>
                 </div>
@@ -554,16 +553,16 @@ function SettingsContent() {
                   <path d="M9 18l6-6-6-6" />
                 </svg>
               </Link>
-              <div className="p-4 border border-red-100 rounded-xl bg-red-50/50">
+              <div className="p-4 border border-line rounded-xl bg-chip/50">
                 <p className="text-sm font-medium text-red-700 mb-1">
                   Опасная зона
                 </p>
-                <p className="text-xs text-red-500 mb-3">
+                <p className="text-xs text-neg mb-3">
                   Удаление аккаунта необратимо
                 </p>
                 <Link
                   href={`/${locale}/profile`}
-                  className="text-xs text-red-500 font-medium hover:text-red-700 hover:underline transition-colors"
+                  className="text-xs text-neg font-medium hover:text-red-700 hover:underline transition-colors"
                 >
                   Перейти в личный кабинет →
                 </Link>
@@ -579,7 +578,7 @@ function SettingsContent() {
 export default function SettingsPage() {
   return (
     <Suspense
-      fallback={<div className="p-6 text-sm text-gray-400">Загрузка...</div>}
+      fallback={<div className="p-6 text-sm text-tx-3">Загрузка...</div>}
     >
       <SettingsContent />
     </Suspense>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { Plus, Users } from "lucide-react";
 
 type Member = {
   id: string;
@@ -14,20 +15,12 @@ type Member = {
 };
 
 const ROLES = [
-  {
-    value: "admin",
-    label: "Администратор",
-    color: "bg-purple-100 text-purple-700",
-  },
-  { value: "smm", label: "SMM", color: "bg-blue-100 text-blue-700" },
-  { value: "designer", label: "Дизайнер", color: "bg-pink-100 text-pink-700" },
-  {
-    value: "copywriter",
-    label: "Копирайтер",
-    color: "bg-amber-100 text-amber-700",
-  },
-  { value: "client", label: "Клиент", color: "bg-green-100 text-green-700" },
-  { value: "viewer", label: "Наблюдатель", color: "bg-gray-100 text-gray-600" },
+  { value: "admin", label: "Администратор", text: "text-c-2" },
+  { value: "smm", label: "SMM", text: "text-accent" },
+  { value: "designer", label: "Дизайнер", text: "text-c-3" },
+  { value: "copywriter", label: "Копирайтер", text: "text-c-3" },
+  { value: "client", label: "Клиент", text: "text-accent" },
+  { value: "viewer", label: "Наблюдатель", text: "text-tx-3" },
 ];
 
 const ROLE_PERMISSIONS: Record<string, string[]> = {
@@ -70,13 +63,11 @@ export default function TeamPage() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Не авторизован");
 
-      // Получить или создать workspace
       let { data: workspace } = await supabase
         .from("workspaces")
         .select("id")
         .eq("owner_id", user.id)
         .single();
-
       if (!workspace) {
         const { data: newWs } = await supabase
           .from("workspaces")
@@ -85,7 +76,6 @@ export default function TeamPage() {
           .single();
         workspace = newWs;
       }
-
       const { error } = await supabase.from("workspace_members").insert({
         workspace_id: workspace!.id,
         email,
@@ -130,53 +120,55 @@ export default function TeamPage() {
   });
 
   const getRoleStyle = (role: string) =>
-    ROLES.find((r) => r.value === role)?.color || "bg-gray-100 text-gray-600";
+    ROLES.find((r) => r.value === role)?.text || "text-tx-2";
 
-  const getRoleLabel = (role: string) =>
-    ROLES.find((r) => r.value === role)?.label || role;
+  const field =
+    "px-3 py-2.5 border border-line rounded-[10px] text-[13px] outline-none focus:border-accent bg-panel text-tx-1 placeholder:text-tx-3";
 
   return (
-    <div className="p-6 max-w-4xl w-full">
+    <div className="p-6 md:p-8 max-w-4xl w-full">
       {success && (
-        <div className="fixed top-4 right-4 z-50 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg">
+        <div className="fixed top-4 right-4 z-50 bg-accent text-on-accent text-[13px] px-4 py-2.5 rounded-xl shadow-lg">
           {success}
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-end justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Команда</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <div className="ui-label">Доступы</div>
+          <h1 className="text-[26px] font-semibold tracking-tight text-tx-1 mt-1.5">
+            Команда
+          </h1>
+          <p className="text-[13px] text-tx-2 mt-1">
             Управляй доступом и ролями
           </p>
         </div>
         <button
           onClick={() => setShowInvite(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-[#1D9E75] text-white text-sm font-medium rounded-lg hover:bg-[#0F6E56] transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-accent text-on-accent text-[13px] font-medium rounded-[10px] hover:opacity-90 transition-opacity cursor-pointer"
         >
-          + Пригласить
+          <Plus size={15} strokeWidth={2.2} /> Пригласить
         </button>
       </div>
 
-      {/* Форма приглашения */}
       {showInvite && (
-        <div className="bg-white border border-gray-200 rounded-xl p-5 mb-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">
+        <div className="ui-surface p-5 mb-5">
+          <h3 className="text-[14px] font-semibold text-tx-1 mb-4">
             Пригласить участника
           </h3>
-          {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
-          <div className="flex gap-3">
+          {error && <p className="text-[13px] text-neg mb-3">{error}</p>}
+          <div className="flex flex-col sm:flex-row gap-3">
             <input
               type="email"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
               placeholder="email@company.com"
-              className="flex-1 px-3 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-[#1D9E75]"
+              className={`flex-1 ${field}`}
             />
             <select
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value)}
-              className="px-3 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-[#1D9E75] bg-white cursor-pointer"
+              className={`${field} cursor-pointer`}
             >
               {ROLES.map((r) => (
                 <option key={r.value} value={r.value}>
@@ -189,7 +181,7 @@ export default function TeamPage() {
                 inviteMutation.mutate({ email: inviteEmail, role: inviteRole })
               }
               disabled={!inviteEmail || inviteMutation.isPending}
-              className="px-4 py-2.5 bg-[#1D9E75] text-white text-sm rounded-lg hover:bg-[#0F6E56] disabled:opacity-50 cursor-pointer"
+              className="px-4 py-2.5 bg-accent text-on-accent text-[13px] rounded-[10px] hover:opacity-90 disabled:opacity-50 cursor-pointer"
             >
               {inviteMutation.isPending ? "..." : "Отправить"}
             </button>
@@ -198,21 +190,20 @@ export default function TeamPage() {
                 setShowInvite(false);
                 setError("");
               }}
-              className="px-4 py-2.5 border border-gray-200 text-gray-500 text-sm rounded-lg hover:bg-gray-50 cursor-pointer"
+              className="px-4 py-2.5 border border-line text-tx-2 text-[13px] rounded-[10px] hover:bg-hover cursor-pointer"
             >
               Отмена
             </button>
           </div>
 
-          {/* Описание ролей */}
-          <div className="mt-4 grid grid-cols-3 gap-2">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
             {ROLES.map((r) => (
               <div
                 key={r.value}
-                className={`px-3 py-2 rounded-lg ${r.color} text-xs`}
+                className="px-3 py-2 rounded-lg bg-panel-2 border border-line text-[12px]"
               >
-                <p className="font-semibold mb-1">{r.label}</p>
-                <p className="opacity-70">
+                <p className={`font-semibold mb-1 ${r.text}`}>{r.label}</p>
+                <p className="text-tx-3">
                   {ROLE_PERMISSIONS[r.value]?.join(", ")}
                 </p>
               </div>
@@ -221,59 +212,49 @@ export default function TeamPage() {
         </div>
       )}
 
-      {/* Список участников */}
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="h-16 bg-gray-100 rounded-xl animate-pulse"
-            />
+            <div key={i} className="h-16 bg-panel-2 rounded-xl animate-pulse" />
           ))}
         </div>
       ) : members.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-xl border border-gray-100">
-          <div className="text-4xl mb-3">👥</div>
-          <p className="text-sm font-medium text-gray-900 mb-1">
+        <div className="ui-surface flex flex-col items-center justify-center text-center py-16 px-6">
+          <div className="w-12 h-12 rounded-2xl bg-accent-dim flex items-center justify-center mb-4">
+            <Users size={22} className="text-accent" strokeWidth={1.6} />
+          </div>
+          <p className="text-[15px] font-semibold text-tx-1 mb-1">
             Команда пока пуста
           </p>
-          <p className="text-sm text-gray-400 mb-4">
+          <p className="text-[12.5px] text-tx-3 mb-4">
             Пригласи первого участника
           </p>
           <button
             onClick={() => setShowInvite(true)}
-            className="px-4 py-2 bg-[#1D9E75] text-white text-sm font-medium rounded-lg hover:bg-[#0F6E56] cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-accent text-on-accent text-[13px] font-medium rounded-[10px] hover:opacity-90 cursor-pointer"
           >
-            + Пригласить
+            <Plus size={15} strokeWidth={2.2} /> Пригласить
           </button>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-          <div className="grid grid-cols-12 gap-4 px-5 py-2.5 bg-gray-50 border-b border-gray-100">
-            <div className="col-span-4 text-[10px] font-medium text-gray-400 uppercase tracking-wider">
-              Участник
-            </div>
-            <div className="col-span-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider">
-              Роль
-            </div>
-            <div className="col-span-3 text-[10px] font-medium text-gray-400 uppercase tracking-wider">
-              Статус
-            </div>
-            <div className="col-span-2 text-[10px] font-medium text-gray-400 uppercase tracking-wider">
-              Действия
-            </div>
+        <div className="ui-surface overflow-hidden">
+          <div className="grid grid-cols-12 gap-4 px-5 py-2.5 bg-panel-2 border-b border-line">
+            <div className="col-span-4 ui-label">Участник</div>
+            <div className="col-span-3 ui-label">Роль</div>
+            <div className="col-span-3 ui-label">Статус</div>
+            <div className="col-span-2 ui-label">Действия</div>
           </div>
           {members.map((m) => (
             <div
               key={m.id}
-              className="grid grid-cols-12 gap-4 px-5 py-3.5 border-b border-gray-50 last:border-0 hover:bg-gray-50/50 items-center"
+              className="grid grid-cols-12 gap-4 px-5 py-3.5 border-b border-line last:border-0 hover:bg-hover items-center"
             >
               <div className="col-span-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#E1F5EE] flex items-center justify-center text-sm font-semibold text-[#1D9E75] flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-accent-dim flex items-center justify-center text-[13px] font-semibold text-accent flex-shrink-0">
                     {m.email?.[0]?.toUpperCase() || "?"}
                   </div>
-                  <p className="text-sm text-gray-900 truncate">
+                  <p className="text-[13px] text-tx-1 truncate">
                     {m.email || "—"}
                   </p>
                 </div>
@@ -287,7 +268,7 @@ export default function TeamPage() {
                       role: e.target.value,
                     })
                   }
-                  className={`text-xs px-2.5 py-1 rounded-full font-medium border-0 outline-none cursor-pointer ${getRoleStyle(m.role)}`}
+                  className={`text-[12px] px-2.5 py-1 rounded-full font-medium border-0 outline-none cursor-pointer bg-chip ${getRoleStyle(m.role)}`}
                 >
                   {ROLES.map((r) => (
                     <option key={r.value} value={r.value}>
@@ -298,7 +279,7 @@ export default function TeamPage() {
               </div>
               <div className="col-span-3">
                 <span
-                  className={`text-xs px-2.5 py-1 rounded-full font-medium ${m.status === "active" ? "bg-[#E1F5EE] text-[#1D9E75]" : "bg-amber-50 text-amber-600"}`}
+                  className={`text-[12px] px-2.5 py-1 rounded-full font-medium ${m.status === "active" ? "bg-accent-dim text-accent" : "bg-chip text-c-3"}`}
                 >
                   {m.status === "active" ? "Активен" : "Ожидает"}
                 </span>
@@ -306,7 +287,7 @@ export default function TeamPage() {
               <div className="col-span-2">
                 <button
                   onClick={() => removeMutation.mutate(m.id)}
-                  className="text-xs text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
+                  className="text-[12px] text-tx-3 hover:text-neg transition-colors cursor-pointer"
                 >
                   Удалить
                 </button>

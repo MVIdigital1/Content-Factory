@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { Pencil, BarChart3 } from "lucide-react";
 
 type Integration = {
   id: string;
@@ -70,10 +71,10 @@ export default function IntegrationsPage() {
     const s = searchParams.get("success");
     const e = searchParams.get("error");
     if (s === "instagram") {
-      showToast("✅ Instagram успешно подключён!");
+      showToast("Instagram успешно подключён!");
       queryClient.invalidateQueries({ queryKey: ["integrations"] });
     } else if (e) {
-      showToast(`❌ Ошибка: ${decodeURIComponent(e)}`);
+      showToast(`Ошибка: ${decodeURIComponent(e)}`);
     }
   }, [searchParams]);
 
@@ -91,7 +92,7 @@ export default function IntegrationsPage() {
   const [loadingStats, setLoadingStats] = useState<string | null>(null);
 
   const inputClass =
-    "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white";
+    "w-full px-3 py-2.5 rounded-lg border border-line-strong text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors bg-panel";
 
   const { data: integrations, isLoading } = useQuery({
     queryKey: ["integrations"],
@@ -178,11 +179,11 @@ export default function IntegrationsPage() {
         setTestResult(`✓ Канал найден: ${data.result?.title || cId}`);
       } else {
         setTestResult(
-          `✗ Канал не найден. Убедитесь что @${BOT_USERNAME} добавлен как администратор`,
+          `Канал не найден. Убедитесь что @${BOT_USERNAME} добавлен как администратор`,
         );
       }
     } catch {
-      setTestResult("✗ Ошибка проверки");
+      setTestResult("Ошибка проверки");
     }
     setTesting(false);
   };
@@ -235,19 +236,22 @@ export default function IntegrationsPage() {
   return (
     <div className="p-4 md:p-6 max-w-2xl space-y-6 relative">
       {toast && (
-        <div className="fixed top-4 right-4 z-50 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg">
+        <div className="fixed top-4 right-4 z-50 bg-accent text-on-accent text-sm px-4 py-2.5 rounded-xl shadow-lg">
           {toast}
         </div>
       )}
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Интеграции</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
+        <div className="ui-label">Каналы</div>
+        <h1 className="text-[26px] font-semibold tracking-tight text-tx-1 mt-1.5">
+          Интеграции
+        </h1>
+        <p className="text-[13px] text-tx-2 mt-1">
           Подключите соцсети для автопостинга
         </p>
       </div>
 
       {success && (
-        <div className="bg-[#E1F5EE] border border-[#1D9E75]/30 rounded-xl px-4 py-3 text-sm text-[#1D9E75] font-medium">
+        <div className="bg-accent-dim border border-accent rounded-xl px-4 py-3 text-sm text-accent font-medium">
           {success}
         </div>
       )}
@@ -260,33 +264,33 @@ export default function IntegrationsPage() {
           return (
             <div
               key={platform.id}
-              className="bg-white rounded-xl border border-gray-100 p-4"
+              className="bg-panel rounded-xl border border-line p-4"
             >
               <div className="flex items-center gap-4">
                 <div
                   className={`w-12 h-12 rounded-xl bg-gradient-to-br ${platform.gradient} flex items-center justify-center flex-shrink-0`}
                 >
-                  <span className="text-white text-xs font-bold">
+                  <span className="text-on-accent text-xs font-bold">
                     {platform.name[0]}
                   </span>
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-gray-900">
+                    <p className="text-sm font-semibold text-tx-1">
                       {platform.name}
                     </p>
                     {(platform as any).comingSoon && (
-                      <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-400 rounded-full font-medium">
+                      <span className="text-[10px] px-2 py-0.5 bg-chip text-tx-3 rounded-full font-medium">
                         Скоро
                       </span>
                     )}
                     {isConnected && (
-                      <span className="text-[10px] px-2 py-0.5 bg-[#E1F5EE] text-[#1D9E75] rounded-full font-medium">
+                      <span className="text-[10px] px-2 py-0.5 bg-accent-dim text-accent rounded-full font-medium">
                         Подключён
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-xs text-tx-3 mt-0.5">
                     {platform.description}
                   </p>
                 </div>
@@ -295,18 +299,18 @@ export default function IntegrationsPage() {
                     onClick={
                       (platform as any).oauth ? connectInstagram : undefined
                     }
-                    className="px-4 py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                    className="px-4 py-2 bg-accent hover:opacity-90 text-on-accent text-xs font-semibold rounded-lg transition-colors cursor-pointer"
                   >
                     {isConnected ? "Добавить ещё" : "Подключить"}
                   </button>
                 )}
               </div>
               {accounts.length > 0 && (
-                <div className="mt-3 space-y-2 border-t border-gray-50 pt-3">
+                <div className="mt-3 space-y-2 border-t border-line pt-3">
                   {accounts.map((acc) => (
                     <div key={acc.id} className="flex items-center gap-3 py-1">
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-gray-900">
+                        <p className="text-xs font-semibold text-tx-1">
                           {acc.channel_name}
                         </p>
                       </div>
@@ -318,13 +322,13 @@ export default function IntegrationsPage() {
                               is_active: !acc.is_active,
                             })
                           }
-                          className={`text-[10px] px-2 py-1 rounded border font-medium cursor-pointer transition-colors ${acc.is_active ? "border-amber-200 text-amber-600 hover:bg-amber-50" : "border-[#1D9E75] text-[#1D9E75] hover:bg-[#E1F5EE]"}`}
+                          className={`text-[10px] px-2 py-1 rounded border font-medium cursor-pointer transition-colors ${acc.is_active ? "border-amber-200 text-c-3 hover:bg-chip" : "border-accent text-accent hover:bg-accent-dim"}`}
                         >
                           {acc.is_active ? "Откл." : "Вкл."}
                         </button>
                         <button
                           onClick={() => deleteMutation.mutate(acc.id)}
-                          className="text-[10px] px-2 py-1 rounded border border-red-200 text-red-400 hover:bg-red-50 cursor-pointer transition-colors"
+                          className="text-[10px] px-2 py-1 rounded border border-line text-neg hover:bg-chip cursor-pointer transition-colors"
                         >
                           Удалить
                         </button>
@@ -339,7 +343,7 @@ export default function IntegrationsPage() {
       </div>
 
       {/* Telegram */}
-      <div className="bg-white rounded-xl border border-gray-100 p-4">
+      <div className="bg-panel rounded-xl border border-line p-4">
         <div className="flex items-center gap-4 mb-4">
           <div className="w-12 h-12 rounded-xl bg-[#2AABEE] flex items-center justify-center flex-shrink-0">
             <svg
@@ -357,15 +361,15 @@ export default function IntegrationsPage() {
           </div>
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold text-gray-900">Telegram</p>
+              <p className="text-sm font-semibold text-tx-1">Telegram</p>
               {telegramChannels.length > 0 && (
-                <span className="text-[10px] px-2 py-0.5 bg-[#E1F5EE] text-[#1D9E75] rounded-full font-medium">
+                <span className="text-[10px] px-2 py-0.5 bg-accent-dim text-accent rounded-full font-medium">
                   {telegramChannels.length} канал
                   {telegramChannels.length > 1 ? "а" : ""}
                 </span>
               )}
             </div>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <p className="text-xs text-tx-3 mt-0.5">
               Автопостинг через @{BOT_USERNAME}
             </p>
           </div>
@@ -374,7 +378,7 @@ export default function IntegrationsPage() {
               setShowTelegramForm((v) => !v);
               setError("");
             }}
-            className="px-4 py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+            className="px-4 py-2 bg-accent hover:opacity-90 text-on-accent text-xs font-semibold rounded-lg transition-colors cursor-pointer"
           >
             + Добавить
           </button>
@@ -382,10 +386,10 @@ export default function IntegrationsPage() {
 
         {/* Форма добавления */}
         {showTelegramForm && (
-          <div className="border border-gray-100 rounded-xl p-4 mb-3 bg-gray-50">
+          <div className="border border-line rounded-xl p-4 mb-3 bg-panel-2">
             <form onSubmit={handleSave} className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                <label className="block text-xs font-medium text-tx-2 mb-1.5">
                   ID канала *
                 </label>
                 <div className="flex gap-2">
@@ -403,28 +407,28 @@ export default function IntegrationsPage() {
                     type="button"
                     onClick={() => testChannel(channelId)}
                     disabled={!channelId || testing}
-                    className="px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 cursor-pointer whitespace-nowrap bg-white"
+                    className="px-3 py-2.5 border border-line-strong rounded-lg text-sm text-tx-2 hover:bg-hover disabled:opacity-50 cursor-pointer whitespace-nowrap bg-panel"
                   >
                     {testing ? "..." : "Проверить"}
                   </button>
                 </div>
-                <p className="text-xs text-gray-400 mt-1.5">
+                <p className="text-xs text-tx-3 mt-1.5">
                   Добавьте{" "}
-                  <span className="font-semibold text-gray-600">
+                  <span className="font-semibold text-tx-2">
                     @{BOT_USERNAME}
                   </span>{" "}
                   как администратора в ваш канал
                 </p>
                 {testResult && (
                   <p
-                    className={`text-xs mt-1.5 font-medium ${testResult.startsWith("✓") ? "text-[#1D9E75]" : "text-red-500"}`}
+                    className={`text-xs mt-1.5 font-medium ${testResult.startsWith("✓") ? "text-accent" : "text-neg"}`}
                   >
                     {testResult}
                   </p>
                 )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                <label className="block text-xs font-medium text-tx-2 mb-1.5">
                   Название (необязательно)
                 </label>
                 <input
@@ -435,7 +439,7 @@ export default function IntegrationsPage() {
                 />
               </div>
               {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-600">
+                <div className="bg-chip border border-line rounded-lg px-3 py-2 text-sm text-neg">
                   {error}
                 </div>
               )}
@@ -443,7 +447,7 @@ export default function IntegrationsPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60 cursor-pointer"
+                  className="flex-1 py-2.5 bg-accent hover:opacity-90 text-on-accent text-sm font-semibold rounded-lg transition-colors disabled:opacity-60 cursor-pointer"
                 >
                   {loading ? "Проверяем права бота..." : "Подключить канал"}
                 </button>
@@ -454,7 +458,7 @@ export default function IntegrationsPage() {
                     setError("");
                     setTestResult("");
                   }}
-                  className="px-4 py-2.5 border border-gray-200 text-gray-500 text-sm rounded-lg hover:bg-gray-50 cursor-pointer"
+                  className="px-4 py-2.5 border border-line-strong text-tx-2 text-sm rounded-lg hover:bg-hover cursor-pointer"
                 >
                   Отмена
                 </button>
@@ -467,10 +471,7 @@ export default function IntegrationsPage() {
         {isLoading ? (
           <div className="space-y-2">
             {[1, 2].map((i) => (
-              <div
-                key={i}
-                className="h-12 bg-gray-100 rounded-lg animate-pulse"
-              />
+              <div key={i} className="h-12 bg-chip rounded-lg animate-pulse" />
             ))}
           </div>
         ) : telegramChannels.length > 0 ? (
@@ -478,9 +479,9 @@ export default function IntegrationsPage() {
             {telegramChannels.map((ch) => (
               <div
                 key={ch.id}
-                className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors"
+                className="flex items-center gap-3 p-3 rounded-xl border border-line hover:border-line-strong transition-colors"
               >
-                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-chip flex items-center justify-center flex-shrink-0">
                   <svg
                     width="14"
                     height="14"
@@ -500,7 +501,7 @@ export default function IntegrationsPage() {
                       <input
                         value={editingName}
                         onChange={(e) => setEditingName(e.target.value)}
-                        className="flex-1 px-2 py-1 text-xs border border-[#1D9E75] rounded outline-none"
+                        className="flex-1 px-2 py-1 text-xs border border-accent rounded outline-none"
                         autoFocus
                       />
                       <button
@@ -511,29 +512,29 @@ export default function IntegrationsPage() {
                           })
                         }
                         disabled={editMutation.isPending}
-                        className="text-[10px] px-2 py-1 bg-[#1D9E75] text-white rounded cursor-pointer"
+                        className="text-[10px] px-2 py-1 bg-accent text-on-accent rounded cursor-pointer"
                       >
                         {editMutation.isPending ? "..." : "OK"}
                       </button>
                       <button
                         onClick={() => setEditingId(null)}
-                        className="text-[10px] px-2 py-1 border border-gray-200 text-gray-500 rounded cursor-pointer"
+                        className="text-[10px] px-2 py-1 border border-line-strong text-tx-2 rounded cursor-pointer"
                       >
                         ✕
                       </button>
                     </div>
                   ) : (
                     <>
-                      <p className="text-sm font-semibold text-gray-900">
+                      <p className="text-sm font-semibold text-tx-1">
                         {ch.channel_name || ch.channel_id}
                       </p>
-                      <p className="text-xs text-gray-400">{ch.channel_id}</p>
+                      <p className="text-xs text-tx-3">{ch.channel_id}</p>
                     </>
                   )}
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${ch.is_active ? "bg-[#E1F5EE] text-[#1D9E75]" : "bg-gray-100 text-gray-400"}`}
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${ch.is_active ? "bg-accent-dim text-accent" : "bg-chip text-tx-3"}`}
                   >
                     {ch.is_active ? "Активен" : "Откл."}
                   </span>
@@ -542,10 +543,10 @@ export default function IntegrationsPage() {
                       setEditingId(ch.id);
                       setEditingName(ch.channel_name || ch.channel_id);
                     }}
-                    className="text-[10px] px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 cursor-pointer transition-colors"
+                    className="text-[10px] px-2 py-1 rounded border border-line-strong text-tx-2 hover:bg-hover cursor-pointer transition-colors"
                     title="Переименовать"
                   >
-                    ✎
+                    <Pencil size={12} strokeWidth={1.8} />
                   </button>
                   <button
                     onClick={() =>
@@ -554,21 +555,25 @@ export default function IntegrationsPage() {
                         is_active: !ch.is_active,
                       })
                     }
-                    className={`text-[10px] px-2 py-1 rounded border font-medium cursor-pointer transition-colors ${ch.is_active ? "border-amber-200 text-amber-600 hover:bg-amber-50" : "border-[#1D9E75] text-[#1D9E75] hover:bg-[#E1F5EE]"}`}
+                    className={`text-[10px] px-2 py-1 rounded border font-medium cursor-pointer transition-colors ${ch.is_active ? "border-amber-200 text-c-3 hover:bg-chip" : "border-accent text-accent hover:bg-accent-dim"}`}
                   >
                     {ch.is_active ? "Откл." : "Вкл."}
                   </button>
                   <button
                     onClick={() => fetchChannelStats(ch.channel_id)}
                     disabled={loadingStats === ch.channel_id}
-                    className="text-[10px] px-2 py-1 rounded border border-gray-200 text-gray-400 hover:bg-gray-50 cursor-pointer transition-colors disabled:opacity-50"
+                    className="text-[10px] px-2 py-1 rounded border border-line-strong text-tx-3 hover:bg-hover cursor-pointer transition-colors disabled:opacity-50"
                     title="Статистика"
                   >
-                    {loadingStats === ch.channel_id ? "..." : "📊"}
+                    {loadingStats === ch.channel_id ? (
+                      "..."
+                    ) : (
+                      <BarChart3 size={12} strokeWidth={1.8} />
+                    )}
                   </button>
                   <button
                     onClick={() => deleteMutation.mutate(ch.id)}
-                    className="text-[10px] px-2 py-1 rounded border border-red-200 text-red-400 hover:bg-red-50 cursor-pointer transition-colors"
+                    className="text-[10px] px-2 py-1 rounded border border-line text-neg hover:bg-chip cursor-pointer transition-colors"
                   >
                     Удалить
                   </button>
@@ -577,7 +582,7 @@ export default function IntegrationsPage() {
             ))}
           </div>
         ) : (
-          <div className="text-center py-6 text-sm text-gray-400">
+          <div className="text-center py-6 text-sm text-tx-3">
             Нет подключённых каналов
           </div>
         )}

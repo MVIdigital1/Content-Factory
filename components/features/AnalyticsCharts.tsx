@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -24,13 +25,15 @@ type Props = {
   statusCounts: Record<string, number>;
 };
 
-const COLORS = ["#1D9E75", "#3B82F6", "#F59E0B", "#8B5CF6", "#EC4899"];
+// Категориальные цвета (различимы в обеих темах)
+const COLORS = ["#159a6f", "#6c63d9", "#bd8312", "#8B5CF6", "#EC4899"];
 const STATUS_COLORS: Record<string, string> = {
   draft: "#9CA3AF",
-  generated: "#F59E0B",
+  generated: "#bd8312",
+  approved: "#6c63d9",
   scheduled: "#8B5CF6",
-  published: "#1D9E75",
-  failed: "#EF4444",
+  published: "#159a6f",
+  failed: "#c8512a",
 };
 const PLATFORM_LABELS: Record<string, string> = {
   telegram: "Telegram",
@@ -39,13 +42,34 @@ const PLATFORM_LABELS: Record<string, string> = {
   vk: "VK",
 };
 
-const tooltipStyle = {
-  fontSize: 12,
-  border: "0.5px solid #E5E7EB",
-  borderRadius: 8,
-  boxShadow: "none",
-  background: "#fff",
-};
+// Цвета из CSS-переменных, обновляются при смене темы
+function useThemeColors() {
+  const [c, setC] = useState({
+    accent: "#159a6f",
+    track: "rgba(128,128,128,0.15)",
+    axis: "#9CA3AF",
+  });
+  useEffect(() => {
+    const read = () => {
+      const cs = getComputedStyle(document.documentElement);
+      setC({
+        accent: cs.getPropertyValue("--accent").trim() || "#159a6f",
+        track:
+          cs.getPropertyValue("--track").trim() || "rgba(128,128,128,0.15)",
+        axis: cs.getPropertyValue("--tx-3").trim() || "#9CA3AF",
+      });
+    };
+    read();
+    const obs = new MutationObserver(read);
+    obs.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    return () => obs.disconnect();
+  }, []);
+  return c;
+}
+
 const EMPTY_7 = Array.from({ length: 7 }, (_, i) => ({
   date: `${i + 1}`,
   count: 0,
@@ -54,7 +78,6 @@ const EMPTY_30 = Array.from({ length: 30 }, (_, i) => ({
   date: `${i + 1}`,
   count: 0,
 }));
-const EMPTY_PIE = [{ name: "—", value: 1, fill: "#E5E7EB" }];
 
 const Card = ({
   title,
@@ -63,10 +86,8 @@ const Card = ({
   title: string;
   children: React.ReactNode;
 }) => (
-  <div className="bg-white rounded-xl border border-gray-100 p-4">
-    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">
-      {title}
-    </p>
+  <div className="ui-surface p-4">
+    <p className="ui-label mb-4">{title}</p>
     {children}
   </div>
 );
@@ -80,6 +101,17 @@ export default function AnalyticsCharts({
 }: Props) {
   const t = useTranslations("analytics");
   const tHistory = useTranslations("history");
+  const c = useThemeColors();
+
+  const tooltipStyle = {
+    fontSize: 12,
+    border: "0.5px solid var(--line-strong)",
+    borderRadius: 10,
+    boxShadow: "none",
+    background: "var(--panel)",
+    color: "var(--tx-1)",
+  };
+  const EMPTY_PIE = [{ name: "—", value: 1, fill: c.track }];
 
   const TYPE_LABELS: Record<string, string> = {
     post: "Пост",
@@ -87,7 +119,6 @@ export default function AnalyticsCharts({
     stories: "Stories",
     ad: "Реклама",
   };
-
   const STATUS_LABELS: Record<string, string> = {
     draft: tHistory("status.draft"),
     generated: tHistory("status.generated"),
@@ -124,22 +155,19 @@ export default function AnalyticsCharts({
             <BarChart data={days7.length > 0 ? days7 : EMPTY_7} barSize={20}>
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 10, fill: "#9CA3AF" }}
+                tick={{ fontSize: 10, fill: c.axis }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis hide allowDecimals={false} />
               <Tooltip
-                cursor={{ fill: "#F9FAFB" }}
+                cursor={{ fill: c.track }}
                 contentStyle={tooltipStyle}
                 formatter={(v: any) => [`${v}`, ""]}
               />
               <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                 {(days7.length > 0 ? days7 : EMPTY_7).map((entry, i) => (
-                  <Cell
-                    key={i}
-                    fill={entry.count > 0 ? "#1D9E75" : "#E5E7EB"}
-                  />
+                  <Cell key={i} fill={entry.count > 0 ? c.accent : c.track} />
                 ))}
               </Bar>
             </BarChart>
@@ -151,7 +179,7 @@ export default function AnalyticsCharts({
             <LineChart data={days30.length > 0 ? days30 : EMPTY_30}>
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 9, fill: "#9CA3AF" }}
+                tick={{ fontSize: 9, fill: c.axis }}
                 axisLine={false}
                 tickLine={false}
                 interval={4}
@@ -164,7 +192,7 @@ export default function AnalyticsCharts({
               <Line
                 type="monotone"
                 dataKey="count"
-                stroke={days30.some((d) => d.count > 0) ? "#1D9E75" : "#E5E7EB"}
+                stroke={days30.some((d) => d.count > 0) ? c.accent : c.track}
                 strokeWidth={2}
                 dot={false}
               />
@@ -188,7 +216,7 @@ export default function AnalyticsCharts({
               >
                 {(hasPlatforms ? platformArr : EMPTY_PIE).map(
                   (entry: any, i: number) => (
-                    <Cell key={i} fill={entry.fill || "#E5E7EB"} />
+                    <Cell key={i} fill={entry.fill || c.track} />
                   ),
                 )}
               </Pie>
@@ -197,7 +225,7 @@ export default function AnalyticsCharts({
                 <Legend
                   iconSize={9}
                   iconType="circle"
-                  wrapperStyle={{ fontSize: 11 }}
+                  wrapperStyle={{ fontSize: 11, color: "var(--tx-2)" }}
                 />
               )}
             </PieChart>
@@ -215,7 +243,7 @@ export default function AnalyticsCharts({
               <YAxis
                 type="category"
                 dataKey="name"
-                tick={{ fontSize: 11, fill: "#9CA3AF" }}
+                tick={{ fontSize: 11, fill: c.axis }}
                 axisLine={false}
                 tickLine={false}
                 width={50}
@@ -226,7 +254,7 @@ export default function AnalyticsCharts({
                   (_: any, i: number) => (
                     <Cell
                       key={i}
-                      fill={hasTypes ? COLORS[i % COLORS.length] : "#E5E7EB"}
+                      fill={hasTypes ? COLORS[i % COLORS.length] : c.track}
                     />
                   ),
                 )}
@@ -249,7 +277,7 @@ export default function AnalyticsCharts({
               >
                 {(hasStatuses ? statusArr : EMPTY_PIE).map(
                   (entry: any, i: number) => (
-                    <Cell key={i} fill={entry.fill || "#E5E7EB"} />
+                    <Cell key={i} fill={entry.fill || c.track} />
                   ),
                 )}
               </Pie>
@@ -258,7 +286,7 @@ export default function AnalyticsCharts({
                 <Legend
                   iconSize={9}
                   iconType="circle"
-                  wrapperStyle={{ fontSize: 11 }}
+                  wrapperStyle={{ fontSize: 11, color: "var(--tx-2)" }}
                 />
               )}
             </PieChart>
