@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Project } from "@/lib/supabase/types";
 import { useTranslations, useLocale } from "next-intl";
-import PostTemplates from "@/components/features/PostTemplates";
 import { Rocket, CalendarClock } from "lucide-react";
 
 const PLATFORMS = [
@@ -1505,13 +1504,6 @@ export default function CreatePage() {
                         rows={3}
                         className="w-full bg-transparent border-none outline-none text-[13px] text-tx-1 resize-none placeholder:text-tx-3"
                       />
-                      <div className="border-t border-line pt-2 mt-1">
-                        <PostTemplates
-                          onSelect={(topic) =>
-                            setForm((p) => ({ ...p, topic }))
-                          }
-                        />
-                      </div>
                     </div>
                     {/* Умные подсказки */}
                     <div className="mt-2">

@@ -9,11 +9,9 @@ import {
   Clock,
   FileText,
   Bot,
-  TrendingUp,
-  TrendingDown,
-  Minus,
   Lightbulb,
 } from "lucide-react";
+import HealthWidget from "@/components/features/HealthWidget";
 
 type RecentContent = {
   id: string;
@@ -253,154 +251,16 @@ export default async function DashboardPage() {
           </Link>
         </div>
 
-        {/* ЗДОРОВЬЕ КОНТЕНТА — без чарта */}
-        <div className="ui-surface overflow-hidden">
-          {/* Шапка */}
-          <div className="px-5 py-3.5 border-b border-line flex items-center justify-between">
-            <div>
-              <h2 className="text-[13px] font-semibold text-tx-1">
-                Здоровье контента
-              </h2>
-              <p className="text-[11px] text-tx-3 mt-0.5">
-                Активность и охват по каналам
-              </p>
-            </div>
-            <div className="flex items-center gap-1">
-              {["7д", "30д", "90д"].map((p, i) => (
-                <button
-                  key={p}
-                  className="text-[10px] px-2 py-1 rounded-[5px] border transition-colors cursor-pointer"
-                  style={{
-                    background:
-                      i === 1 ? "rgba(9,105,218,0.08)" : "transparent",
-                    color: i === 1 ? "var(--c-2)" : "var(--tx-3)",
-                    borderColor: i === 1 ? "var(--c-2)" : "var(--line)",
-                    fontWeight: i === 1 ? 500 : 400,
-                  }}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 4 метрики */}
-          <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-line border-b border-line">
-            {METRICS.map((m) => (
-              <div key={m.label} className="px-5 py-4">
-                <p className="ui-label mb-2">{m.label}</p>
-                <p className="ui-num text-[24px] font-semibold text-tx-1 leading-none">
-                  {m.value}
-                </p>
-                {m.delta !== null ? (
-                  <DeltaBadge delta={m.delta} />
-                ) : (
-                  <span className="text-[10px] text-tx-3 mt-1 block">
-                    за 30 дней
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* Каналы */}
-          <div className="px-5 py-4 space-y-3">
-            {ALL_PLATFORMS.map((platform) => {
-              const count = platformCounts[platform] ?? 0;
-              const published =
-                platform === "telegram" ? (pubThisWeek ?? 0) : 0;
-              const pct =
-                count > 0 ? Math.round((count / totalPlatform) * 100) : 0;
-              const isConnected = count > 0;
-              const isInstagram = platform === "instagram";
-
-              return (
-                <div
-                  key={platform}
-                  className="flex items-center gap-3"
-                  style={{ opacity: isConnected || isInstagram ? 1 : 0.5 }}
-                >
-                  <span className="text-[11px] font-medium text-tx-1 capitalize min-w-[76px] flex items-center gap-1.5 flex-shrink-0">
-                    <span
-                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                      style={{
-                        background: isConnected
-                          ? PLATFORM_COLOR[platform] || "var(--tx-3)"
-                          : "var(--track)",
-                      }}
-                    />
-                    {platform}
-                  </span>
-                  <div
-                    className="flex-1 h-[3px] rounded-full overflow-hidden"
-                    style={{ background: "var(--track)" }}
-                  >
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{
-                        width: `${pct}%`,
-                        background: PLATFORM_COLOR[platform] || "var(--accent)",
-                      }}
-                    />
-                  </div>
-                  <div className="flex items-center gap-3 flex-shrink-0 min-w-[160px] justify-end">
-                    {isConnected ? (
-                      <>
-                        <span className="text-[10px] text-tx-3">
-                          <span className="font-medium text-tx-1">{count}</span>{" "}
-                          постов
-                        </span>
-                        <span className="text-[10px] text-tx-3">
-                          <span className="font-medium text-tx-1">
-                            {published}
-                          </span>{" "}
-                          опубл.
-                        </span>
-                        <span
-                          className="text-[9.5px] font-medium px-2 py-0.5 rounded-[4px]"
-                          style={{
-                            background: "var(--accent-dim)",
-                            color: "var(--accent)",
-                          }}
-                        >
-                          Активен
-                        </span>
-                      </>
-                    ) : isInstagram ? (
-                      <>
-                        <span className="text-[10px] text-tx-3">0 постов</span>
-                        <span className="text-[10px] text-tx-3">0 опубл.</span>
-                        <span
-                          className="text-[9.5px] font-medium px-2 py-0.5 rounded-[4px]"
-                          style={{
-                            background: "rgba(154,103,0,0.1)",
-                            color: "var(--c-3)",
-                          }}
-                        >
-                          Ожидает
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-[10px] text-tx-3">—</span>
-                        <Link
-                          href={`/${locale}/integrations`}
-                          className="text-[9.5px] font-medium px-2 py-0.5 rounded-[4px] hover:opacity-80"
-                          style={{
-                            background: "rgba(9,105,218,0.1)",
-                            color: "var(--c-2)",
-                          }}
-                        >
-                          Подключить
-                        </Link>
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        {/* ЗДОРОВЬЕ КОНТЕНТА */}
+        <HealthWidget
+          publishedCount={publishedCount ?? 0}
+          generationsCount={generationsCount ?? 0}
+          scheduledCount={scheduledCount ?? 0}
+          pubDelta={pubDelta}
+          genDelta={genDelta}
+          platformCounts={platformCounts}
+          pubThisWeek={pubThisWeek ?? 0}
+        />
 
         {/* Нижний ряд */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
