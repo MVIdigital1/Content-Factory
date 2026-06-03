@@ -1041,365 +1041,265 @@ export default function CreatePage() {
   const inputClass =
     "w-full px-3 py-2.5 rounded-lg border border-line-strong text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors bg-panel";
 
-  return (
-    <div className="flex gap-0 min-h-screen">
-      <div className="p-4 md:p-6 w-full flex-1 max-w-3xl mx-auto">
-        <div className="mb-6">
-          <div className="ui-label">Создать</div>
-          <h1 className="text-[26px] font-semibold tracking-tight text-tx-1 mt-1.5">
-            {t("title")}
-          </h1>
-          <p className="text-sm text-tx-2 mt-0.5">{t("subtitle")}</p>
-        </div>
+  const RUBRICS = [
+    { value: "behind", label: "Закулисье", icon: "ti-eye" },
+    { value: "review", label: "Отзыв", icon: "ti-star" },
+    { value: "secret", label: "Секрет", icon: "ti-lock" },
+    { value: "fact", label: "Факт", icon: "ti-chart-bar" },
+    { value: "question", label: "Вопрос", icon: "ti-help-circle" },
+    { value: "tip", label: "Совет", icon: "ti-bulb" },
+    { value: "result", label: "Результат", icon: "ti-trophy" },
+    { value: "trend", label: "Тренд", icon: "ti-flame" },
+  ];
 
-        {/* Steps */}
-        <div className="flex items-center gap-2 mb-6">
+  const TONES = [
+    { value: "professional", label: "Профессиональный" },
+    { value: "friendly", label: "Дружелюбный" },
+    { value: "expert", label: "Экспертный" },
+    { value: "selling", label: "Продающий" },
+  ];
+
+  const GOAL_CHIPS = [
+    { value: t("goals.awareness"), label: "Охват" },
+    { value: t("goals.sales"), label: "Продажи" },
+    { value: t("goals.engagement"), label: "Вовлечение" },
+    { value: t("goals.traffic"), label: "Доверие" },
+  ];
+
+  const [rubric, setRubric] = useState("behind");
+  const [tone, setTone] = useState("professional");
+
+  const selectedProject = (projects || []).find(
+    (p: any) => p.id === form.projectId,
+  ) as any;
+
+  return (
+    <div className="flex flex-col min-h-screen">
+      {/* Topbar */}
+      <div className="h-11 border-b border-line px-5 flex items-center justify-between flex-shrink-0 sticky top-0 z-10 bg-panel">
+        <p className="text-[11px] text-tx-3">
+          Создать / <span className="text-tx-2 font-medium">Новый пост</span>
+        </p>
+        <div className="flex items-center gap-2">
           {[1, 2, 3].map((s) => (
-            <div key={s} className="flex items-center gap-2">
+            <div key={s} className="flex items-center gap-1.5">
               <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${step >= s ? "bg-accent text-on-accent" : "bg-chip text-tx-3"}`}
+                className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold transition-colors ${step >= s ? "bg-accent text-on-accent" : "bg-chip text-tx-3"}`}
               >
                 {step > s ? "✓" : s}
               </div>
-              {s < 3 && (
-                <div
-                  className={`w-8 h-px ${step > s ? "bg-accent" : "bg-track"}`}
-                />
-              )}
+              <span
+                className={`text-[11px] ${step === s ? "text-tx-1 font-medium" : "text-tx-3"}`}
+              >
+                {s === 1 ? "Настройка" : s === 2 ? "Генерация" : "Публикация"}
+              </span>
+              {s < 3 && <div className="w-4 h-px bg-track ml-1" />}
             </div>
           ))}
-          <div className="ml-2 text-xs text-tx-3">
-            {step === 1
-              ? t("steps.settings")
-              : step === 2
-                ? t("steps.generating")
-                : t("steps.result")}
-          </div>
         </div>
+      </div>
 
-        {/* Calendar link — shown on step 1 */}
-        {step === 1 && (
-          <div className="flex items-center justify-end mb-4">
-            <a
-              href={`/${locale}/calendar`}
-              className="flex items-center gap-1.5 text-xs text-tx-3 hover:text-accent transition-colors"
-            >
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <rect x="3" y="4" width="18" height="18" rx="2" />
-                <path d="M16 2v4M8 2v4M3 10h18" />
-              </svg>
-              Запланировать в календаре →
-            </a>
-          </div>
-        )}
-
-        {/* STEP 1 */}
-        {step === 1 && (
-          <div className="bg-panel rounded-xl border border-line-strong p-5 space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-tx-2 mb-1.5">
-                {t("form.project")}
-              </label>
-              <CustomSelect
-                value={form.projectId}
-                onChange={(v) =>
-                  setForm((p) => ({ ...p, projectId: v, campaignId: "" }))
-                }
-                options={(projects || []).map((p) => ({
-                  value: p.id,
-                  label: p.name,
-                }))}
-                placeholder={t("form.projectDefault")}
-              />
-            </div>
-            {form.projectId && (
-              <div>
-                <label className="block text-xs font-medium text-tx-2 mb-1.5">
-                  Кампания (необязательно)
-                </label>
-                <CustomSelect
-                  value={form.campaignId}
-                  onChange={(v) => setForm((p) => ({ ...p, campaignId: v }))}
-                  options={[
-                    { value: "", label: "Без кампании" },
-                    ...(
-                      (campaignsForProject || []) as {
-                        id: string;
-                        name: string;
-                      }[]
-                    ).map((c) => ({
-                      value: c.id,
-                      label: c.name,
-                    })),
-                  ]}
-                />
+      {/* TWO-COLUMN LAYOUT */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* LEFT — настройки + кнопка sticky внизу */}
+        <div
+          className="flex-1 flex flex-col overflow-hidden"
+          style={{ borderRight: "0.5px solid var(--line)" }}
+        >
+          <div className="flex-1 overflow-y-auto p-5 space-y-5">
+            {/* STEP 2 — генерация */}
+            {step === 2 && (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="w-12 h-12 bg-accent-dim rounded-full flex items-center justify-center mb-4">
+                  <svg
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="text-accent animate-pulse"
+                  >
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                  </svg>
+                </div>
+                <h3 className="text-[15px] font-semibold text-tx-1 mb-2">
+                  AI генерирует контент...
+                </h3>
+                <p className="text-[12px] text-tx-3 mb-6">
+                  {progressMsg || "Анализирую тему и создаю пост"}
+                </p>
+                <div className="w-48 bg-chip rounded-full h-1.5 mb-2">
+                  <div
+                    className="bg-accent h-1.5 rounded-full transition-all duration-500"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <p className="text-[11px] text-tx-3">{progress}%</p>
               </div>
             )}
-            <div>
-              <label className="block text-xs font-medium text-tx-2 mb-1.5">
-                {t("form.contentType")}
-              </label>
-              <div className="grid grid-cols-4 gap-2">
-                {CONTENT_TYPES.map((ct) => (
-                  <button
-                    key={ct.value}
-                    onClick={() =>
-                      setForm((f) => ({ ...f, contentType: ct.value }))
-                    }
-                    className={`py-2 rounded-lg border text-xs font-medium transition-colors ${form.contentType === ct.value ? "border-accent bg-accent-dim text-accent" : "border-line-strong text-tx-2 hover:bg-hover"}`}
-                  >
-                    {ct.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-tx-2 mb-1.5">
-                {t("form.goal")}
-              </label>
-              <CustomSelect
-                value={form.goal}
-                onChange={(v) => setForm((p) => ({ ...p, goal: v }))}
-                options={GOALS}
-                placeholder={t("form.goalDefault")}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-tx-2 mb-1.5">
-                {t("form.topic")}
-              </label>
-              <textarea
-                value={form.topic}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, topic: e.target.value }))
-                }
-                placeholder={t("form.topicPlaceholder")}
-                rows={3}
-                className={`${inputClass} resize-none`}
-              />
-              <PostTemplates
-                onSelect={(topic) => setForm((p) => ({ ...p, topic }))}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-tx-2 mb-1.5">
-                {t("form.image")}{" "}
-                <span className="text-tx-3 font-normal">
-                  {t("form.imageOptional")}
-                </span>
-              </label>
-              {imagePreview ? (
-                <div className="relative rounded-lg overflow-hidden border border-line-strong">
-                  <img
-                    src={imagePreview}
-                    alt="Preview"
-                    className="w-full max-h-40 object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setImageFile(null);
-                      setImagePreview(null);
-                    }}
-                    className="absolute top-2 right-2 w-6 h-6 bg-black/50 hover:bg-black/70 text-on-accent rounded-full flex items-center justify-center text-xs cursor-pointer"
-                  >
-                    ✕
-                  </button>
-                  <div className="absolute bottom-2 left-2 bg-black/50 text-on-accent text-xs px-2 py-0.5 rounded">
-                    {imageFile?.name}
-                  </div>
+
+            {/* STEP 1 — форма */}
+            {step === 1 && (
+              <>
+                <div>
+                  <h1 className="text-[20px] font-semibold text-tx-1">
+                    Создать контент
+                  </h1>
+                  <p className="text-[12px] text-tx-2 mt-1">
+                    Выбери тему — AI напишет за тебя
+                  </p>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  <div
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setDragOver(true);
-                    }}
-                    onDragLeave={() => setDragOver(false)}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setDragOver(false);
-                      const f = e.dataTransfer.files[0];
-                      if (f) handleFileSelect(f);
-                    }}
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition-colors ${dragOver ? "border-accent bg-accent-dim" : "border-line-strong hover:border-accent hover:bg-hover"}`}
-                  >
+
+                {/* Проект — одна строка */}
+                <div>
+                  <p className="ui-label mb-2">{t("form.project")}</p>
+                  <div className="relative">
+                    <select
+                      value={form.projectId}
+                      onChange={(e) =>
+                        setForm((p) => ({
+                          ...p,
+                          projectId: e.target.value,
+                          campaignId: "",
+                        }))
+                      }
+                      className="w-full px-3 py-2.5 rounded-[8px] border border-line-strong text-[12px] text-tx-1 bg-panel outline-none focus:border-accent appearance-none cursor-pointer"
+                    >
+                      <option value="">{t("form.projectDefault")}</option>
+                      {(projects || []).map((p: any) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
                     <svg
-                      width="24"
-                      height="24"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-tx-3"
+                      width="12"
+                      height="12"
                       viewBox="0 0 24 24"
                       fill="none"
-                      stroke="#9CA3AF"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="mx-auto mb-2"
+                      stroke="currentColor"
+                      strokeWidth="2"
                     >
-                      <rect x="3" y="3" width="18" height="18" rx="2" />
-                      <circle cx="8.5" cy="8.5" r="1.5" />
-                      <path d="M21 15l-5-5L5 21" />
+                      <path d="M6 9l6 6 6-6" />
                     </svg>
-                    <p className="text-xs text-tx-2 font-medium">
-                      {t("form.imageHint")}
-                    </p>
-                    <p className="text-xs text-tx-3 mt-0.5">
-                      {t("form.imageFormats")}
-                    </p>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) =>
-                        e.target.files?.[0] &&
-                        handleFileSelect(e.target.files[0])
-                      }
-                    />
                   </div>
-
-                  {/* Кнопка "Из хранилища" */}
-                  {form.projectId && (
-                    <button
-                      type="button"
-                      onClick={() => setShowStoragePicker((v) => !v)}
-                      className="w-full py-2 border border-line-strong rounded-lg text-xs text-tx-2 hover:bg-hover hover:text-accent hover:border-accent transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                    >
-                      Выбрать из хранилища проекта
-                    </button>
-                  )}
-
-                  {/* Пикер файлов из хранилища */}
-                  {showStoragePicker && form.projectId && (
-                    <div className="border border-line-strong rounded-xl p-3 bg-panel-2">
-                      {(projectFiles as any[]).length === 0 ? (
-                        <p className="text-xs text-tx-3 text-center py-3">
-                          Нет изображений в хранилище
-                        </p>
-                      ) : (
-                        <div className="grid grid-cols-3 gap-2">
-                          {(projectFiles as any[]).map((f: any) => (
-                            <button
-                              key={f.id}
-                              type="button"
-                              onClick={() => {
-                                setImagePreview(f.file_url);
-                                setImageFile(null);
-                                setShowStoragePicker(false);
-                                setForm(
-                                  (p) =>
-                                    ({ ...p, imageUrl: f.file_url }) as any,
-                                );
-                              }}
-                              className="relative rounded-lg overflow-hidden border-2 border-transparent hover:border-accent transition-colors cursor-pointer"
-                            >
-                              <img
-                                src={f.file_url}
-                                alt={f.name}
-                                className="w-full h-16 object-cover"
-                              />
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
-              )}
-            </div>
-            {error && (
-              <div className="bg-chip border border-line rounded-lg px-3 py-2 text-sm text-neg">
-                {error}
-              </div>
-            )}
-            {/* 3 варианта */}
-            <label className="flex items-center gap-2.5 cursor-pointer select-none">
-              <div
-                onClick={() => setThreeVariants((v) => !v)}
-                className={`w-9 h-5 rounded-full transition-colors relative flex-shrink-0 cursor-pointer ${threeVariants ? "bg-accent" : "bg-track"}`}
-              >
-                <div
-                  className={`absolute top-0.5 w-4 h-4 bg-panel rounded-full shadow transition-transform ${threeVariants ? "translate-x-4" : "translate-x-0.5"}`}
-                />
-              </div>
-              <div>
-                <p className="text-xs font-medium text-tx-1">
-                  Сгенерировать 3 варианта
-                  <span className="ml-1.5 text-[10px] font-normal text-c-3 bg-chip px-1.5 py-0.5 rounded">
-                    ×3 лимита
-                  </span>
-                </p>
-                <p className="text-[10px] text-tx-3">
-                  Дружелюбный · Вирусный · Экспертный — выберешь лучший
-                </p>
-              </div>
-            </label>
-            <button
-              onClick={handleGenerate}
-              disabled={!form.projectId || !form.topic || !form.goal}
-              className="w-full py-2.5 bg-accent hover:opacity-90 text-on-accent text-sm font-semibold rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-            >
-              {threeVariants
-                ? "Сгенерировать 3 варианта ✦"
-                : t("form.generateBtn")}
-            </button>
-          </div>
-        )}
 
-        {/* STEP 2 */}
-        {step === 2 && (
-          <div className="bg-panel rounded-xl border border-line-strong p-8 text-center">
-            <div className="w-12 h-12 bg-accent-dim rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-              </svg>
-            </div>
-            <h3 className="text-base font-semibold text-tx-1 mb-2">
-              {t("generating.title")}
-            </h3>
-            <p className="text-sm text-tx-3 mb-6">{t("generating.subtitle")}</p>
-            <div className="w-full bg-chip rounded-full h-2 mb-2">
-              <div
-                className="bg-accent h-2 rounded-full transition-all duration-500"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <p className="text-xs text-tx-3">{progressMsg || `${progress}%`}</p>
-            {threeVariants && (
-              <p className="text-[10px] text-tx-3 mt-1">
-                Генерирую 3 варианта параллельно...
-              </p>
-            )}
-          </div>
-        )}
+                {/* Платформа */}
+                <div>
+                  <p className="ui-label mb-2">Платформа</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {PLATFORMS.map((pl) => (
+                      <button
+                        key={pl.value}
+                        onClick={() =>
+                          setForm((f) => ({ ...f, platform: pl.value }))
+                        }
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[7px] border text-[11px] font-medium transition-colors cursor-pointer ${form.platform === pl.value ? "border-accent bg-accent-dim text-accent" : "border-line-strong text-tx-2 hover:bg-hover bg-panel"}`}
+                      >
+                        {pl.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-        {/* STEP 3 */}
-        {step === 3 && result && (
-          <div className="flex gap-6 items-start">
-            {/* Левая часть */}
-            <div className="flex-1 min-w-0 space-y-4 min-w-[420px]">
-              {/* Табы вариантов */}
-              {variants.length > 1 && (
-                <div className="space-y-2">
+                {/* Тип */}
+                <div>
+                  <p className="ui-label mb-2">{t("form.contentType")}</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {CONTENT_TYPES.map((ct) => (
+                      <button
+                        key={ct.value}
+                        onClick={() =>
+                          setForm((f) => ({ ...f, contentType: ct.value }))
+                        }
+                        className={`px-3 py-1.5 rounded-[7px] border text-[11px] font-medium transition-colors cursor-pointer ${form.contentType === ct.value ? "border-accent bg-accent-dim text-accent" : "border-line-strong text-tx-2 hover:bg-hover bg-panel"}`}
+                      >
+                        {ct.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Рубрика */}
+                <div>
+                  <p className="ui-label mb-2">Рубрика</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {RUBRICS.map((r) => (
+                      <button
+                        key={r.value}
+                        onClick={() => setRubric(r.value)}
+                        className={`flex flex-col items-center gap-1 py-2.5 px-2 rounded-[8px] border text-center transition-colors cursor-pointer ${rubric === r.value ? "border-accent bg-accent-dim" : "border-line-strong bg-panel hover:bg-hover"}`}
+                      >
+                        <i
+                          className={`ti ${r.icon} text-[15px] ${rubric === r.value ? "text-accent" : "text-tx-3"}`}
+                        />
+                        <span
+                          className={`text-[10px] font-medium ${rubric === r.value ? "text-accent" : "text-tx-2"}`}
+                        >
+                          {r.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Тема */}
+                <div>
+                  <p className="ui-label mb-2">{t("form.topic")}</p>
+                  <div className="bg-panel border border-line-strong rounded-[8px] p-3">
+                    <textarea
+                      value={form.topic}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, topic: e.target.value }))
+                      }
+                      placeholder={t("form.topicPlaceholder")}
+                      rows={3}
+                      className="w-full bg-transparent border-none outline-none text-[13px] text-tx-1 resize-none placeholder:text-tx-3"
+                    />
+                    <div className="border-t border-line pt-2 mt-1">
+                      <PostTemplates
+                        onSelect={(topic) => setForm((p) => ({ ...p, topic }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Цель */}
+                <div>
+                  <p className="ui-label mb-2">{t("form.goal")}</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {GOAL_CHIPS.map((g) => (
+                      <button
+                        key={g.value}
+                        onClick={() =>
+                          setForm((p) => ({ ...p, goal: g.value }))
+                        }
+                        className={`px-3 py-1.5 rounded-[7px] border text-[11px] font-medium transition-colors cursor-pointer ${form.goal === g.value ? "border-accent bg-accent-dim text-accent" : "border-line-strong text-tx-2 hover:bg-hover bg-panel"}`}
+                      >
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="bg-chip border border-line rounded-[8px] px-3 py-2 text-[12px] text-neg">
+                    {error}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* STEP 3 — результат */}
+            {step === 3 && result && (
+              <div className="space-y-4">
+                {/* Табы вариантов */}
+                {variants.length > 1 && (
                   <div className="flex gap-2 bg-panel-2 p-1 rounded-xl">
                     {variants.map((v, i) => (
                       <button
@@ -1408,787 +1308,416 @@ export default function CreatePage() {
                           setSelectedVariantIdx(i);
                           setResult(v);
                         }}
-                        className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors cursor-pointer ${selectedVariantIdx === i ? "bg-panel text-accent shadow-sm" : "text-tx-3 hover:text-tx-2"}`}
+                        className={`flex-1 py-2 text-[11px] font-medium rounded-lg transition-colors cursor-pointer ${selectedVariantIdx === i ? "bg-panel text-accent shadow-sm" : "text-tx-3 hover:text-tx-2"}`}
                       >
                         {(v as any).toneLabel || `Вариант ${i + 1}`}
                       </button>
                     ))}
                   </div>
+                )}
 
-                  {/* Запланировать оставшиеся */}
-                  {!leftoverScheduled ? (
-                    <div className="border border-dashed border-accent/40 rounded-xl p-3 bg-accent-dim">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-medium text-accent">
-                          {variants.length - 1} других вариант
-                          {variants.length - 1 > 1 ? "а" : ""} — запланировать?
-                        </p>
-                        <button
-                          onClick={() => setScheduleLeftover((v) => !v)}
-                          className="text-[10px] px-2.5 py-1 bg-accent text-on-accent rounded-lg cursor-pointer hover:opacity-90 transition-colors"
-                        >
-                          {scheduleLeftover ? "Скрыть" : "Выбрать дату"}
-                        </button>
-                      </div>
+                {/* Hook */}
+                {result.hook && (
+                  <div className="ui-surface p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[11px] font-semibold text-tx-1">
+                        Зацепка
+                      </p>
+                    </div>
+                    <p className="text-[13px] text-tx-1 leading-relaxed">
+                      {result.hook}
+                    </p>
+                  </div>
+                )}
 
-                      {scheduleLeftover && (
-                        <div className="space-y-2">
-                          {variants
-                            .map((v, i) => ({ ...v, idx: i }))
-                            .filter((_, i) => i !== selectedVariantIdx)
-                            .map((v) => (
-                              <div
-                                key={v.idx}
-                                className="flex items-center gap-2 bg-panel rounded-lg p-2 border border-line"
-                              >
-                                <span className="text-[10px] text-tx-2 flex-1 truncate">
-                                  {(v as any).toneLabel ||
-                                    `Вариант ${v.idx + 1}`}
-                                  : {(v as any).title || "—"}
-                                </span>
-                                <input
-                                  type="datetime-local"
-                                  value={leftoverDates[v.idx] || ""}
-                                  onChange={(e) =>
-                                    setLeftoverDates((prev) => ({
-                                      ...prev,
-                                      [v.idx]: e.target.value,
-                                    }))
-                                  }
-                                  className="text-[10px] px-2 py-1 border border-line-strong rounded outline-none focus:border-accent cursor-pointer"
-                                  min={new Date().toISOString().slice(0, 16)}
-                                />
-                              </div>
-                            ))}
-                          <button
-                            onClick={scheduleLeftoverVariants}
-                            disabled={
-                              schedulingLeftover ||
-                              Object.keys(leftoverDates).length === 0
-                            }
-                            className="w-full py-2 bg-accent text-on-accent text-xs font-medium rounded-lg hover:opacity-90 disabled:opacity-50 cursor-pointer transition-colors"
-                          >
-                            {schedulingLeftover
-                              ? "Планируем..."
-                              : "✓ Запланировать"}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 bg-accent-dim rounded-xl px-3 py-2">
-                      <span className="text-xs text-accent font-medium">
-                        Остальные варианты запланированы
-                      </span>
-                      <a
-                        href="/calendar"
-                        className="ml-auto text-[10px] text-accent underline cursor-pointer"
-                      >
-                        Открыть календарь →
-                      </a>
-                    </div>
-                  )}
-                </div>
-              )}
-              {result.source_image_url && (
-                <div className="bg-panel rounded-xl border border-line-strong overflow-hidden">
-                  <img
-                    src={result.source_image_url}
-                    alt="preview"
-                    className="w-full object-cover max-h-72"
-                  />
-                </div>
-              )}
-              <div className="bg-panel rounded-xl border border-line-strong p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-semibold text-tx-3 uppercase tracking-wide">
-                    {t("result.caption")}
-                  </p>
-                  <button
-                    onClick={() => handleRegenPart("caption")}
-                    disabled={regenField === "caption"}
-                    className="text-[10px] px-2 py-1 border border-line-strong rounded-lg text-tx-3 hover:text-accent hover:border-accent transition-colors cursor-pointer disabled:opacity-50"
-                  >
-                    {regenField === "caption" ? "..." : "↺ Переписать"}
-                  </button>
-                </div>
-                {inlineEdit === "caption" ? (
-                  <div className="space-y-2">
-                    <textarea
-                      value={inlineValue}
-                      onChange={(e) => setInlineValue(e.target.value)}
-                      rows={6}
-                      className="w-full px-3 py-2 text-sm border border-accent rounded-lg outline-none resize-none"
-                      autoFocus
-                    />
+                {/* Caption */}
+                <div className="ui-surface p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[11px] font-semibold text-tx-1">
+                      {t("result.caption")}
+                    </p>
                     <div className="flex gap-2">
                       <button
-                        onClick={saveInlineEdit}
-                        className="px-3 py-1.5 bg-accent text-on-accent text-xs rounded-lg hover:opacity-90 cursor-pointer"
+                        onClick={() => handleRegenPart("caption")}
+                        disabled={regenField === "caption"}
+                        className="text-[10px] text-tx-3 hover:text-accent transition-colors cursor-pointer disabled:opacity-40"
                       >
-                        Сохранить
+                        {regenField === "caption" ? "..." : "↺ Переписать"}
                       </button>
                       <button
-                        onClick={() => setInlineEdit(null)}
-                        className="px-3 py-1.5 border border-line-strong text-xs text-tx-2 rounded-lg cursor-pointer"
+                        onClick={() => {
+                          setInlineEdit("caption");
+                          setInlineValue(result.caption);
+                        }}
+                        className="text-[10px] text-tx-3 hover:text-accent transition-colors cursor-pointer"
                       >
-                        Отмена
+                        ✏ Редактировать
                       </button>
                     </div>
                   </div>
-                ) : (
-                  <p
-                    className="text-sm text-tx-1 whitespace-pre-wrap leading-relaxed cursor-text hover:bg-hover rounded-lg p-1 -m-1 transition-colors"
-                    onClick={() => {
-                      setInlineEdit("caption");
-                      setInlineValue(result.caption);
-                    }}
-                    title="Нажми чтобы редактировать"
-                  >
-                    {result.caption}
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-1.5 mt-4 items-center">
-                  {result.hashtags?.map((h) => (
-                    <span
-                      key={h}
-                      className="text-xs text-accent bg-accent-dim px-2.5 py-0.5 rounded-full"
-                    >
-                      {h}
-                    </span>
-                  ))}
-                  <button
-                    onClick={() => handleRegenPart("hashtags")}
-                    disabled={regenField === "hashtags"}
-                    className="ml-auto text-[10px] px-2 py-1 border border-line-strong rounded-lg text-tx-3 hover:text-accent hover:border-accent transition-colors cursor-pointer disabled:opacity-50"
-                  >
-                    {regenField === "hashtags" ? "..." : "↺ Хэштеги"}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Правая часть — сайдбар */}
-            <div className="w-72 flex-shrink-0 space-y-3 sticky top-4">
-              <div className="bg-panel rounded-xl border border-line-strong p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-sm">
-                    {publishMode === "now" ? (
-                      <Rocket
-                        size={15}
-                        className="text-accent"
-                        strokeWidth={1.8}
+                  {inlineEdit === "caption" ? (
+                    <div>
+                      <textarea
+                        value={inlineValue}
+                        onChange={(e) => setInlineValue(e.target.value)}
+                        rows={6}
+                        className="w-full text-[13px] text-tx-1 bg-panel-2 border border-line-strong rounded-[8px] p-3 outline-none resize-none"
                       />
-                    ) : (
-                      <CalendarClock
-                        size={15}
-                        className="text-c-2"
-                        strokeWidth={1.8}
-                      />
-                    )}
-                  </span>
-                  <p className="text-xs font-semibold text-tx-1">
-                    {publishMode === "now"
-                      ? "Опубликовать сейчас"
-                      : "Запланировать"}
-                  </p>
-                  <button
-                    onClick={() =>
-                      setPublishMode(publishMode === "now" ? "schedule" : "now")
-                    }
-                    className="ml-auto text-[10px] text-accent hover:underline cursor-pointer font-medium"
-                  >
-                    Изменить
-                  </button>
-                </div>
-                <div className="space-y-3">
-                  {publishMode === "schedule" && (
-                    <div className="flex gap-1.5 mb-3">
-                      <input
-                        type="date"
-                        value={today}
-                        min={today}
-                        onChange={(e) => {
-                          // apply date to all channels
-                          setAccountActions((prev) => {
-                            const next: Record<string, any> = { ...prev };
-                            (allChannels || []).forEach((ch: any) => {
-                              next[ch.id] = {
-                                ...(next[ch.id] || {
-                                  action: "schedule",
-                                  slots: [],
-                                }),
-                                date: e.target.value,
-                                action: "schedule",
-                              };
-                            });
-                            return next;
-                          });
-                        }}
-                        className="flex-1 px-2 py-1.5 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
-                      />
-                      <input
-                        type="time"
-                        defaultValue="12:00"
-                        onChange={(e) => {
-                          setAccountActions((prev) => {
-                            const next: Record<string, any> = { ...prev };
-                            (allChannels || []).forEach((ch: any) => {
-                              next[ch.id] = {
-                                ...(next[ch.id] || {
-                                  action: "schedule",
-                                  slots: [],
-                                }),
-                                time: e.target.value,
-                                action: "schedule",
-                              };
-                            });
-                            return next;
-                          });
-                        }}
-                        className="w-20 px-2 py-1.5 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
-                      />
-                    </div>
-                  )}
-
-                  {(allChannels || []).length === 0 ? (
-                    <div className="text-center py-6">
-                      <p className="text-xs text-tx-2 mb-2">
-                        Нет подключённых каналов
-                      </p>
-                      <a
-                        href={`/${locale}/integrations`}
-                        className="text-xs text-accent font-semibold hover:underline"
-                      >
-                        Подключить →
-                      </a>
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={() => {
+                            setResult((r) =>
+                              r ? { ...r, caption: inlineValue } : r,
+                            );
+                            setInlineEdit(null);
+                          }}
+                          className="text-[11px] px-3 py-1.5 bg-accent text-on-accent rounded-[6px] cursor-pointer"
+                        >
+                          Сохранить
+                        </button>
+                        <button
+                          onClick={() => setInlineEdit(null)}
+                          className="text-[11px] px-3 py-1.5 bg-chip text-tx-2 rounded-[6px] cursor-pointer"
+                        >
+                          Отмена
+                        </button>
+                      </div>
                     </div>
                   ) : (
-                    (allChannels || []).map((ch: any) => {
-                      const act = accountActions[ch.id] || {
-                        action: publishMode,
-                        date: today,
-                        time: "12:00",
-                        slots: [],
-                      };
-                      return (
-                        <div
-                          key={ch.id}
-                          className={`rounded-xl border p-3 transition-all ${act.action !== "none" ? "border-accent bg-accent-dim" : "border-line"}`}
+                    <p className="text-[13px] text-tx-1 leading-relaxed whitespace-pre-wrap">
+                      {result.caption}
+                    </p>
+                  )}
+                </div>
+
+                {/* Hashtags */}
+                {result.hashtags?.length > 0 && (
+                  <div className="ui-surface p-4">
+                    <p className="text-[11px] font-semibold text-tx-1 mb-2">
+                      {t("result.hashtags")}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {result.hashtags.map((h, i) => (
+                        <span
+                          key={i}
+                          className="text-[11px] text-accent bg-accent-dim px-2 py-0.5 rounded-full"
                         >
-                          <div className="flex items-center gap-2 mb-2.5">
-                            <div className="w-7 h-7 rounded-lg bg-chip flex items-center justify-center flex-shrink-0">
-                              <svg
-                                width="12"
-                                height="12"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="#2AABEE"
-                                strokeWidth="1.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
-                              </svg>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-semibold text-tx-1 truncate">
-                                {ch.channel_name || ch.channel_id}
-                              </p>
-                              <p className="text-[10px] text-tx-3">
-                                {ch.channel_id}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-1">
-                            {(["now", "schedule", "plan", "none"] as const).map(
-                              (type) => (
-                                <button
-                                  key={type}
-                                  onClick={() => {
-                                    if (type === "plan") {
-                                      handleOpenPlan(
-                                        ch.id,
-                                        ch.channel_name || ch.channel_id,
-                                      );
-                                    } else {
-                                      setAccountActions((prev) => ({
-                                        ...prev,
-                                        [ch.id]: { ...act, action: type },
-                                      }));
-                                    }
-                                  }}
-                                  className={`py-1.5 text-[9px] font-semibold rounded-lg border transition-all cursor-pointer ${
-                                    act.action === type
-                                      ? type === "none"
-                                        ? "bg-chip border-line-strong text-tx-2"
-                                        : type === "plan"
-                                          ? "bg-purple-600 border-purple-600 text-on-accent"
-                                          : "bg-accent border-accent text-on-accent"
-                                      : type === "plan"
-                                        ? "bg-panel border-purple-200 text-purple-400 hover:border-purple-400"
-                                        : "bg-panel border-line-strong text-tx-3 hover:border-line-strong"
-                                  }`}
-                                >
-                                  {type === "now"
-                                    ? "Сейчас"
-                                    : type === "schedule"
-                                      ? "Запланировать"
-                                      : type === "plan"
-                                        ? "План"
-                                        : "Пропустить"}
-                                </button>
-                              ),
-                            )}
-                          </div>
-                          {act.action === "schedule" && (
-                            <div className="mt-2 space-y-1.5">
-                              {act.slots.length === 0 ? (
-                                <div className="space-y-1.5">
-                                  <div className="flex gap-1.5">
-                                    <input
-                                      type="date"
-                                      value={act.date}
-                                      min={today}
-                                      onChange={(e) =>
-                                        setAccountActions((prev) => ({
-                                          ...prev,
-                                          [ch.id]: {
-                                            ...act,
-                                            date: e.target.value,
-                                          },
-                                        }))
-                                      }
-                                      className="flex-1 px-2 py-1.5 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
-                                    />
-                                    <input
-                                      type="time"
-                                      value={act.time}
-                                      onChange={(e) =>
-                                        setAccountActions((prev) => ({
-                                          ...prev,
-                                          [ch.id]: {
-                                            ...act,
-                                            time: e.target.value,
-                                          },
-                                        }))
-                                      }
-                                      className="w-20 px-2 py-1.5 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
-                                    />
-                                  </div>
-                                  <button
-                                    onClick={() =>
-                                      setAccountActions((prev) => ({
-                                        ...prev,
-                                        [ch.id]: {
-                                          ...act,
-                                          slots: [
-                                            { date: act.date, time: act.time },
-                                            { date: today, time: "18:00" },
-                                          ],
-                                        },
-                                      }))
-                                    }
-                                    className="text-[10px] text-accent cursor-pointer"
-                                  >
-                                    + Добавить ещё дату
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="space-y-1.5">
-                                  {act.slots.map((slot: any, i: number) => (
-                                    <div
-                                      key={i}
-                                      className="flex items-center gap-1"
-                                    >
-                                      <input
-                                        type="date"
-                                        value={slot.date}
-                                        min={today}
-                                        onChange={(e) => {
-                                          const s = [...act.slots];
-                                          s[i] = {
-                                            ...s[i],
-                                            date: e.target.value,
-                                          };
-                                          setAccountActions((prev) => ({
-                                            ...prev,
-                                            [ch.id]: { ...act, slots: s },
-                                          }));
-                                        }}
-                                        className="flex-1 px-2 py-1.5 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
-                                      />
-                                      <input
-                                        type="time"
-                                        value={slot.time}
-                                        onChange={(e) => {
-                                          const s = [...act.slots];
-                                          s[i] = {
-                                            ...s[i],
-                                            time: e.target.value,
-                                          };
-                                          setAccountActions((prev) => ({
-                                            ...prev,
-                                            [ch.id]: { ...act, slots: s },
-                                          }));
-                                        }}
-                                        className="w-20 px-2 py-1.5 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
-                                      />
-                                      <button
-                                        onClick={() =>
-                                          setAccountActions((prev) => ({
-                                            ...prev,
-                                            [ch.id]: {
-                                              ...act,
-                                              slots: act.slots.filter(
-                                                (_: any, idx: number) =>
-                                                  idx !== i,
-                                              ),
-                                            },
-                                          }))
-                                        }
-                                        className="text-tx-3 hover:text-neg cursor-pointer text-sm"
-                                      >
-                                        ×
-                                      </button>
-                                    </div>
-                                  ))}
-                                  <button
-                                    onClick={() =>
-                                      setAccountActions((prev) => ({
-                                        ...prev,
-                                        [ch.id]: {
-                                          ...act,
-                                          slots: [
-                                            ...act.slots,
-                                            { date: today, time: "12:00" },
-                                          ],
-                                        },
-                                      }))
-                                    }
-                                    className="text-[10px] text-accent cursor-pointer"
-                                  >
-                                    + Ещё дату
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })
+                          {h}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* CTA */}
+                {result.cta && (
+                  <div className="ui-surface p-4">
+                    <p className="text-[11px] font-semibold text-tx-1 mb-2">
+                      {t("result.cta")}
+                    </p>
+                    <p className="text-[13px] text-tx-1">{result.cta}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* КНОПКА — sticky внизу левой колонки */}
+          <div className="flex-shrink-0 px-5 py-4 border-t border-line bg-panel">
+            {step === 1 && (
+              <div className="space-y-3">
+                {/* 3 варианта toggle */}
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <div
+                    onClick={() => setThreeVariants((v) => !v)}
+                    className={`w-8 h-4 rounded-full transition-colors relative flex-shrink-0 cursor-pointer ${threeVariants ? "bg-accent" : "bg-track"}`}
+                  >
+                    <div
+                      className={`absolute top-0.5 w-3 h-3 bg-panel rounded-full shadow transition-transform ${threeVariants ? "translate-x-4" : "translate-x-0.5"}`}
+                    />
+                  </div>
+                  <span className="text-[11px] text-tx-2">
+                    Сгенерировать 3 варианта
+                    <span className="ml-1.5 text-[9px] text-c-3 bg-chip px-1 py-0.5 rounded">
+                      ×3 лимита
+                    </span>
+                  </span>
+                </label>
+                <button
+                  onClick={handleGenerate}
+                  disabled={!form.projectId || !form.topic || !form.goal}
+                  className="w-full py-3 bg-accent hover:opacity-90 text-on-accent text-[13px] font-semibold rounded-[8px] transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                  </svg>
+                  {threeVariants
+                    ? "Сгенерировать 3 варианта"
+                    : t("form.generateBtn")}
+                </button>
+              </div>
+            )}
+            {step === 3 && result && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setStep(1);
+                    setResult(null);
+                    setVariants([]);
+                  }}
+                  className="px-4 py-2.5 border border-line-strong text-tx-2 text-[12px] rounded-[8px] hover:bg-hover cursor-pointer"
+                >
+                  ← Новый пост
+                </button>
+                <button
+                  onClick={handlePublishNow}
+                  disabled={publishing}
+                  className="flex-1 py-2.5 bg-accent text-on-accent text-[12px] font-semibold rounded-[8px] hover:opacity-90 cursor-pointer disabled:opacity-40 flex items-center justify-center gap-2"
+                >
+                  {publishing ? "Публикуем..." : "Опубликовать сейчас"}
+                </button>
+                <button
+                  onClick={() => setShowSchedule((v) => !v)}
+                  className="px-4 py-2.5 border border-line-strong text-tx-2 text-[12px] rounded-[8px] hover:bg-hover cursor-pointer"
+                >
+                  📅 Запланировать
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT — превью */}
+        <div className="w-[300px] flex-shrink-0 bg-panel flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-5 space-y-5">
+            <div className="flex items-center justify-between">
+              <p className="text-[12px] font-semibold text-tx-1">
+                Предпросмотр
+              </p>
+              <span className="text-[10px] text-tx-3 capitalize">
+                {form.platform} · {form.contentType}
+              </span>
+            </div>
+
+            {/* Telegram preview */}
+            {form.platform === "telegram" && (
+              <div className="border border-line rounded-[10px] overflow-hidden">
+                <div
+                  className="flex items-center gap-2 px-3 py-2.5"
+                  style={{ background: "#229ED9" }}
+                >
+                  <div
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0"
+                    style={{ background: "rgba(255,255,255,0.2)" }}
+                  >
+                    {selectedProject?.name?.[0] || "M"}
+                  </div>
+                  <span className="text-[12px] font-semibold text-white">
+                    {selectedProject?.name || "Выбери проект"}
+                  </span>
+                </div>
+                <div className="p-3" style={{ background: "#f5f7fa" }}>
+                  {imagePreview && (
+                    <img
+                      src={imagePreview}
+                      alt=""
+                      className="w-full rounded-[6px] mb-2 max-h-32 object-cover"
+                    />
+                  )}
+                  {step === 3 && result ? (
+                    <p className="text-[12px] text-[#1a1f2e] leading-relaxed whitespace-pre-wrap">
+                      {result.hook
+                        ? `${result.hook}
+
+`
+                        : ""}
+                      {result.caption}
+                    </p>
+                  ) : (
+                    <>
+                      <div className="h-12 bg-black/5 rounded-[5px] flex items-center justify-center gap-1.5 mb-2 text-[10px] text-[#a0aab4]">
+                        <svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                        </svg>
+                        Текст появится после генерации
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="h-1.5 bg-black/8 rounded-full w-full" />
+                        <div className="h-1.5 bg-black/8 rounded-full w-4/5" />
+                        <div className="h-1.5 bg-black/8 rounded-full w-3/5" />
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
+            )}
 
-              {publishError && (
-                <div className="bg-chip border border-line rounded-xl px-4 py-3 text-sm text-neg">
-                  {publishError}
+            {/* Instagram preview */}
+            {form.platform === "instagram" && (
+              <div className="border border-line rounded-[10px] overflow-hidden bg-white">
+                <div className="flex items-center gap-2 px-3 py-2.5 border-b border-line">
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-[10px] font-bold text-white">
+                    {selectedProject?.name?.[0] || "M"}
+                  </div>
+                  <span className="text-[12px] font-semibold text-[#1a1f2e]">
+                    {selectedProject?.name || "Выбери проект"}
+                  </span>
                 </div>
-              )}
-              {publishSuccess && (
-                <div className="bg-accent-dim border border-accent rounded-xl px-4 py-3 text-sm text-accent font-medium">
-                  ✓ Опубликовано!
+                <div className="h-28 bg-panel-2 flex items-center justify-center text-[10px] text-tx-3">
+                  {imagePreview ? (
+                    <img
+                      src={imagePreview}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    "Фото / видео"
+                  )}
                 </div>
-              )}
-              {scheduleSuccess && (
-                <div className="bg-accent-dim border border-accent rounded-xl px-4 py-3 text-sm text-accent font-medium">
-                  ✓ Запланировано!
+                <div className="px-3 py-2">
+                  {step === 3 && result ? (
+                    <p className="text-[11px] text-[#1a1f2e] leading-relaxed">
+                      {result.caption}
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <div className="h-1.5 bg-black/8 rounded-full w-full" />
+                      <div className="h-1.5 bg-black/8 rounded-full w-3/4" />
+                    </div>
+                  )}
                 </div>
-              )}
-
-              <button
-                onClick={handleApplyActions}
-                disabled={
-                  !(allChannels || []).some(
-                    (ch: any) =>
-                      accountActions[ch.id]?.action &&
-                      accountActions[ch.id].action !== "none",
-                  ) || publishing
-                }
-                className="w-full py-3 bg-accent hover:opacity-90 text-on-accent text-sm font-semibold rounded-xl transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {publishing ? "Публикуем..." : "Применить"}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-      {/* Plan Modal */}
-      {planModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() =>
-              !planGenerating &&
-              setPlanModal({ open: false, channelId: "", channelName: "" })
-            }
-          />
-          <div className="relative bg-panel rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="px-5 py-4 border-b border-line flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-tx-1">Контент-план</h3>
-                <p className="text-[11px] text-tx-3 mt-0.5">
-                  {planModal.channelName}
-                </p>
               </div>
-              {!planGenerating && (
-                <button
-                  onClick={() =>
-                    setPlanModal({
-                      open: false,
-                      channelId: "",
-                      channelName: "",
-                    })
-                  }
-                  className="w-7 h-7 rounded-full bg-chip hover:bg-hover flex items-center justify-center text-tx-3 cursor-pointer transition-colors"
+            )}
+
+            {/* Тон */}
+            <div>
+              <p className="ui-label mb-2">Тон</p>
+              <div className="flex flex-wrap gap-1.5">
+                {TONES.map((t) => (
+                  <button
+                    key={t.value}
+                    onClick={() => setTone(t.value)}
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-medium border transition-colors cursor-pointer ${tone === t.value ? "border-accent bg-accent-dim text-accent" : "border-line-strong text-tx-2 hover:bg-hover bg-panel"}`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Картинка */}
+            <div>
+              <p className="ui-label mb-2">
+                {t("form.image")}{" "}
+                <span className="text-[10px] text-tx-3 font-normal normal-case tracking-normal">
+                  (необязательно)
+                </span>
+              </p>
+              {imagePreview ? (
+                <div className="relative rounded-[8px] overflow-hidden border border-line-strong">
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    className="w-full max-h-32 object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImageFile(null);
+                      setImagePreview(null);
+                    }}
+                    className="absolute top-1.5 right-1.5 w-5 h-5 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center text-[10px] cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                  }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOver(false);
+                    const f = e.dataTransfer.files[0];
+                    if (f) handleFileSelect(f);
+                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-[8px] p-4 text-center cursor-pointer transition-colors ${dragOver ? "border-accent bg-accent-dim" : "border-line-strong hover:border-accent hover:bg-hover"}`}
                 >
-                  ✕
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#9CA3AF"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="mx-auto mb-1.5"
+                  >
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <path d="M21 15l-5-5L5 21" />
+                  </svg>
+                  <p className="text-[11px] text-tx-2 font-medium">
+                    {t("form.imageHint")}
+                  </p>
+                  <p className="text-[10px] text-tx-3">
+                    {t("form.imageFormats")}
+                  </p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) =>
+                      e.target.files?.[0] && handleFileSelect(e.target.files[0])
+                    }
+                  />
+                </div>
+              )}
+              {form.projectId && (
+                <button
+                  type="button"
+                  onClick={() => setShowStoragePicker((v) => !v)}
+                  className="w-full mt-2 py-1.5 border border-line-strong rounded-[7px] text-[11px] text-tx-2 hover:bg-hover hover:text-accent hover:border-accent transition-colors cursor-pointer"
+                >
+                  Из хранилища проекта
                 </button>
               )}
             </div>
 
-            <div className="p-5 space-y-4">
-              {planDone ? (
-                <div className="text-center py-8">
-                  <div className="w-14 h-14 bg-accent-dim rounded-full flex items-center justify-center mx-auto mb-3">
-                    <span className="text-2xl">✓</span>
-                  </div>
-                  <p className="text-sm font-semibold text-tx-1 mb-1">
-                    План создан!
-                  </p>
-                  <p className="text-xs text-tx-3 mb-4">
-                    Посты запланированы и сохранены в очередь публикаций.
-                  </p>
-                  <button
-                    onClick={() =>
-                      setPlanModal({
-                        open: false,
-                        channelId: "",
-                        channelName: "",
-                      })
-                    }
-                    className="px-5 py-2 bg-accent text-on-accent text-sm font-semibold rounded-xl cursor-pointer"
-                  >
-                    Готово
-                  </button>
-                </div>
-              ) : planGenerating ? (
-                <div className="text-center py-8">
-                  <div className="w-14 h-14 bg-chip rounded-full flex items-center justify-center mx-auto mb-3">
-                    <svg
-                      width="24"
-                      height="24"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#7C3AED"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="animate-spin"
-                    >
-                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                    </svg>
-                  </div>
-                  <p className="text-sm font-semibold text-tx-1 mb-1">
-                    Генерируем посты...
-                  </p>
-                  <p className="text-xs text-tx-3 mb-4">
-                    Claude создаёт уникальный контент для каждого слота
-                  </p>
-                  <div className="w-full bg-chip rounded-full h-2 mb-1">
-                    <div
-                      className="bg-chip0 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${planProgress}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-tx-3">{planProgress}%</p>
-                </div>
-              ) : (
-                <>
-                  {/* Date range */}
-                  <div>
-                    <label className="block text-xs font-semibold text-tx-2 mb-2">
-                      Период публикаций
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="date"
-                        value={planConfig.dateFrom}
-                        min={today}
-                        onChange={(e) =>
-                          setPlanConfig((p) => ({
-                            ...p,
-                            dateFrom: e.target.value,
-                          }))
-                        }
-                        className="flex-1 px-3 py-2 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
-                      />
-                      <span className="text-tx-3 text-xs">→</span>
-                      <input
-                        type="date"
-                        value={planConfig.dateTo}
-                        min={planConfig.dateFrom}
-                        onChange={(e) =>
-                          setPlanConfig((p) => ({
-                            ...p,
-                            dateTo: e.target.value,
-                          }))
-                        }
-                        className="flex-1 px-3 py-2 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Frequency */}
-                  <div>
-                    <label className="block text-xs font-semibold text-tx-2 mb-2">
-                      Частота публикаций
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[1, 2, 3].map((f) => (
-                        <button
-                          key={f}
-                          onClick={() => handlePlanFrequencyChange(f)}
-                          className={`py-2 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
-                            planConfig.frequency === f
-                              ? "bg-purple-600 border-purple-600 text-on-accent"
-                              : "bg-panel border-line-strong text-tx-3 hover:border-purple-300"
-                          }`}
-                        >
-                          {f}x в день
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Time slots */}
-                  <div>
-                    <label className="block text-xs font-semibold text-tx-2 mb-2">
-                      Время публикации
-                    </label>
-                    <div className="space-y-2">
-                      {planConfig.times.map((t, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <span className="text-[10px] text-tx-3 w-10">
-                            Слот {i + 1}
-                          </span>
-                          <input
-                            type="time"
-                            value={t}
-                            onChange={(e) => {
-                              const times = [...planConfig.times];
-                              times[i] = e.target.value;
-                              setPlanConfig((p) => ({ ...p, times }));
-                            }}
-                            className="flex-1 px-3 py-2 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Topic mode */}
-                  <div>
-                    <label className="block text-xs font-semibold text-tx-2 mb-2">
-                      Темы постов
-                    </label>
-                    <div className="grid grid-cols-2 gap-2 mb-3">
-                      {(["auto", "manual"] as const).map((mode) => (
-                        <button
-                          key={mode}
-                          onClick={() =>
-                            setPlanConfig((p) => ({ ...p, topicMode: mode }))
-                          }
-                          className={`py-2 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
-                            planConfig.topicMode === mode
-                              ? "bg-accent border-accent text-on-accent"
-                              : "bg-panel border-line-strong text-tx-3 hover:border-accent"
-                          }`}
-                        >
-                          {mode === "auto" ? "Авто (Claude)" : "Вручную"}
-                        </button>
-                      ))}
-                    </div>
-
-                    {planConfig.topicMode === "manual" &&
-                      (() => {
-                        const slots = buildPlanSlots(
-                          planConfig.dateFrom,
-                          planConfig.dateTo,
-                          planConfig.times,
-                        );
-                        return (
-                          <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                            {slots.map((slot, i) => (
-                              <div key={i} className="flex items-center gap-2">
-                                <span className="text-[9px] text-tx-3 whitespace-nowrap">
-                                  {slot.date.slice(5)} {slot.time}
-                                </span>
-                                <input
-                                  type="text"
-                                  placeholder={`Тема ${i + 1}...`}
-                                  value={planConfig.topics[i] || ""}
-                                  onChange={(e) => {
-                                    const topics = [...planConfig.topics];
-                                    topics[i] = e.target.value;
-                                    setPlanConfig((p) => ({ ...p, topics }));
-                                  }}
-                                  className="flex-1 px-2 py-1.5 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
-
-                    {planConfig.topicMode === "auto" && (
-                      <p className="text-[11px] text-tx-3 bg-panel-2 rounded-lg px-3 py-2">
-                        Claude будет использовать тему «{form.topic}» и
-                        генерировать уникальный контент для каждого слота.
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Summary */}
-                  <div className="bg-chip rounded-xl px-4 py-3">
-                    <p className="text-[11px] text-c-2 font-semibold mb-1">
-                      Итого постов:
-                    </p>
-                    <p className="text-lg font-bold text-c-2">
-                      {
-                        buildPlanSlots(
-                          planConfig.dateFrom,
-                          planConfig.dateTo,
-                          planConfig.times,
-                        ).length
-                      }
-                    </p>
-                    <p className="text-[10px] text-purple-400 mt-0.5">
-                      {planConfig.frequency}x в день · с{" "}
-                      {planConfig.dateFrom.slice(5)} по{" "}
-                      {planConfig.dateTo.slice(5)}
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={handleGeneratePlan}
-                    disabled={
-                      !planConfig.dateFrom ||
-                      !planConfig.dateTo ||
-                      planConfig.dateFrom > planConfig.dateTo
-                    }
-                    className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-on-accent text-sm font-semibold rounded-xl transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Создать план
-                  </button>
-                </>
-              )}
-            </div>
+            {/* Publish success */}
+            {publishSuccess && (
+              <div className="bg-accent-dim border border-accent/20 rounded-[8px] px-3 py-2.5 text-[12px] text-accent font-medium text-center">
+                Опубликовано успешно!
+              </div>
+            )}
+            {publishError && (
+              <div className="bg-chip border border-line rounded-[8px] px-3 py-2 text-[11px] text-neg">
+                {publishError}
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

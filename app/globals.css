@@ -16,8 +16,8 @@
   --panel-2: #f0f2f5;
 
   /* Sidebar — чуть темнее фона но не тёмный */
-  --sidebar: #e2e5e9;
-  --sb-bg: #e2e5e9;
+  --sidebar: #d1d5db;
+  --sb-bg: #d1d5db;
   --sb-border: rgba(20, 20, 22, 0.1);
   --sb-tx-1: #1a1f2e;
   --sb-tx-2: #4b5564;
