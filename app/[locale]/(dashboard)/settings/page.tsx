@@ -514,7 +514,7 @@ function SettingsContent() {
               </h2>
               <Link
                 href={`/${locale}/profile`}
-                className="flex items-center gap-3 p-4 border border-line rounded-xl hover:border-blue-200 hover:bg-chip/30 transition-all group"
+                className="flex items-center gap-3 p-4 border border-line rounded-xl hover:border-accent hover:bg-chip/30 transition-all group"
               >
                 <div className="w-10 h-10 bg-chip rounded-xl flex items-center justify-center flex-shrink-0">
                   <svg

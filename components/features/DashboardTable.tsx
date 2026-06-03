@@ -28,7 +28,7 @@ type ScheduledRow = {
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  published: "bg-blue-50 text-blue-600",
+  published: "bg-accent text-accent",
   scheduled: "bg-[#F0FDF8] text-[#1D9E75]",
   generated: "bg-amber-50 text-amber-600",
   draft: "bg-gray-100 text-gray-500",

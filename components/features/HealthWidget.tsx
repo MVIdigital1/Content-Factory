@@ -187,7 +187,7 @@ export default function HealthWidget({
                     <span
                       className="text-[9.5px] font-medium px-2 py-0.5 rounded-[4px]"
                       style={{
-                        background: "rgba(154,103,0,0.1)",
+                        background: "var(--accent-dim)",
                         color: "var(--c-3)",
                       }}
                     >

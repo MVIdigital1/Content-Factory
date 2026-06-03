@@ -298,7 +298,7 @@ export default async function DashboardPage() {
                   const iconStyle =
                     c.status === "published"
                       ? {
-                          background: "rgba(35,134,54,0.1)",
+                          background: "var(--accent-dim)",
                           color: "var(--accent)",
                         }
                       : c.status === "scheduled"

@@ -58,7 +58,7 @@ type Integration = {
 
 const PLAN_COLORS: Record<string, string> = {
   free: "bg-gray-100 text-gray-500",
-  pro: "bg-blue-50 text-blue-600",
+  pro: "bg-accent text-accent",
   business: "bg-purple-50 text-purple-600",
 };
 
@@ -66,7 +66,7 @@ const STATUS_COLORS: Record<string, string> = {
   pending: "bg-amber-50 text-amber-600",
   published: "bg-[#E1F5EE] text-[#1D9E75]",
   failed: "bg-red-50 text-red-500",
-  generated: "bg-blue-50 text-blue-600",
+  generated: "bg-accent text-accent",
   scheduled: "bg-purple-50 text-purple-600",
 };
 
@@ -370,8 +370,8 @@ export default function AdminDashboardClient({
                 {
                   label: "Генераций",
                   value: stats.totalContents,
-                  color: "text-blue-500",
-                  bg: "bg-blue-50",
+                  color: "text-accent",
+                  bg: "bg-accent",
                   icon: (
                     <svg
                       width="16"
@@ -483,7 +483,7 @@ export default function AdminDashboardClient({
                       <span className="text-xs text-gray-700 flex-1 truncate">
                         {u.full_name || u.email}
                       </span>
-                      <span className="text-xs font-semibold text-blue-500">
+                      <span className="text-xs font-semibold text-accent">
                         {u.contents_count || 0}
                       </span>
                     </div>
@@ -793,7 +793,7 @@ export default function AdminDashboardClient({
                           key={ch.id}
                           className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100"
                         >
-                          <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                          <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center flex-shrink-0">
                             <svg
                               width="13"
                               height="13"

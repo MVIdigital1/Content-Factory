@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { format } from "date-fns";
@@ -38,19 +38,19 @@ const STATUS_CONFIG: Record<
     labelKey: "status.generated",
     bg: "bg-chip",
     text: "text-c-3",
-    dot: "bg-amber-400",
+    dot: "bg-c-3",
   },
   approved: {
     labelKey: "status.approved",
     bg: "bg-chip",
     text: "text-c-2",
-    dot: "bg-blue-400",
+    dot: "bg-accent",
   },
   scheduled: {
     labelKey: "status.scheduled",
     bg: "bg-chip",
     text: "text-c-2",
-    dot: "bg-purple-400",
+    dot: "bg-accent",
   },
   published: {
     labelKey: "status.published",
@@ -62,7 +62,7 @@ const STATUS_CONFIG: Record<
     labelKey: "status.failed",
     bg: "bg-chip",
     text: "text-neg",
-    dot: "bg-red-400",
+    dot: "bg-neg",
   },
 };
 
@@ -86,7 +86,7 @@ const TYPE_ICON: Record<string, LucideIcon> = {
   ad: Megaphone,
 };
 
-export default function HistoryPage() {
+function HistoryPageInner() {
   const supabase = createClient();
   const queryClient = useQueryClient();
   const t = useTranslations("history");
@@ -843,7 +843,7 @@ export default function HistoryPage() {
             <button
               onClick={() => deleteMutation.mutate(selected.id)}
               disabled={deleteMutation.isPending}
-              className="w-full py-2 border border-line bg-chip text-neg text-xs font-semibold rounded-lg hover:bg-red-100 transition-colors cursor-pointer disabled:opacity-50"
+              className="w-full py-2 border border-line bg-chip text-neg text-xs font-semibold rounded-lg hover:bg-chip transition-colors cursor-pointer disabled:opacity-50"
             >
               {deleteMutation.isPending ? t("deleting") : `${t("delete")}`}
             </button>
@@ -851,5 +851,20 @@ export default function HistoryPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function HistoryPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-6 animate-pulse">
+          <div className="h-7 bg-chip rounded-lg w-48 mb-2" />
+          <div className="h-4 bg-chip rounded w-64 mb-6" />
+        </div>
+      }
+    >
+      <HistoryPageInner />
+    </Suspense>
   );
 }

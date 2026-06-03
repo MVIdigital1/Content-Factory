@@ -545,11 +545,11 @@ export default function ProfilePage() {
                     </button>
                   </div>
                 ) : telegramToken ? (
-                  <div className="bg-chip border border-blue-100 rounded-xl p-4">
+                  <div className="bg-chip border border-accent rounded-xl p-4">
                     <p className="text-xs font-medium text-c-2 mb-2">
                       Отправь боту эту команду:
                     </p>
-                    <div className="bg-panel border border-blue-200 rounded-lg px-3 py-2 font-mono text-sm text-tx-1 mb-3 select-all">
+                    <div className="bg-panel border border-accent rounded-lg px-3 py-2 font-mono text-sm text-tx-1 mb-3 select-all">
                       /link {telegramToken}
                     </div>
                     <a
