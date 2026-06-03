@@ -12,12 +12,8 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
-  X,
   Lightbulb,
-  Target,
-  ChevronRight,
 } from "lucide-react";
-import KpiWidget from "@/components/features/KpiWidget";
 
 type RecentContent = {
   id: string;
@@ -50,13 +46,11 @@ export default async function DashboardPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
   const firstName = user?.user_metadata?.full_name?.split(" ")[0] || "друг";
 
   const now = new Date();
   const oneWeekAgo = new Date(now.getTime() - 7 * 864e5).toISOString();
   const twoWeeksAgo = new Date(now.getTime() - 14 * 864e5).toISOString();
-  const thirtyAgo = new Date(now.getTime() - 29 * 864e5).toISOString();
 
   const [
     { count: generationsCount },
@@ -66,7 +60,6 @@ export default async function DashboardPage() {
     { count: genLastWeek },
     { count: pubThisWeek },
     { count: pubLastWeek },
-    { data: activityData },
     { data: platformData },
     { data: upcomingPosts },
     { data: recentContents },
@@ -100,7 +93,6 @@ export default async function DashboardPage() {
       .eq("status", "published")
       .gte("created_at", twoWeeksAgo)
       .lt("created_at", oneWeekAgo),
-    supabase.from("contents").select("created_at").gte("created_at", thirtyAgo),
     supabase.from("contents").select("platform"),
     supabase
       .from("scheduled_posts")
@@ -113,29 +105,12 @@ export default async function DashboardPage() {
       .from("contents")
       .select("id, title, platform, status, created_at, project:projects(name)")
       .order("created_at", { ascending: false })
-      .limit(5),
+      .limit(4),
   ]);
 
-  // Дельты
   const genDelta = (genThisWeek ?? 0) - (genLastWeek ?? 0);
   const pubDelta = (pubThisWeek ?? 0) - (pubLastWeek ?? 0);
 
-  // 30-дневная активность
-  const days30 = Array.from({ length: 30 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (29 - i));
-    return {
-      dateKey: d.toISOString().split("T")[0],
-      date: d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" }),
-      count: 0,
-    };
-  });
-  activityData?.forEach((c: any) => {
-    const day = days30.find((d) => d.dateKey === c.created_at.split("T")[0]);
-    if (day) day.count++;
-  });
-
-  // Каналы
   const platformCounts: Record<string, number> = {};
   platformData?.forEach((c: any) => {
     platformCounts[c.platform] = (platformCounts[c.platform] || 0) + 1;
@@ -143,20 +118,17 @@ export default async function DashboardPage() {
   const totalPlatform =
     Object.values(platformCounts).reduce((a, b) => a + b, 0) || 1;
 
-  // SVG chart
-  const N = days30.length;
-  const maxC = Math.max(1, ...days30.map((d) => d.count));
-  const x0 = 8,
-    x1 = 592,
-    top = 8,
-    bot = 72;
-  const xs = days30.map((_, i) => x0 + (i * (x1 - x0)) / (N - 1));
-  const ys = days30.map((d) => bot - (d.count / maxC) * (bot - top));
-  let lineD = `M ${xs[0].toFixed(1)},${ys[0].toFixed(1)}`;
-  for (let i = 1; i < N; i++)
-    lineD += ` L ${xs[i].toFixed(1)},${ys[i].toFixed(1)}`;
-  const areaD = `${lineD} L ${xs[N - 1].toFixed(1)},${bot} L ${xs[0].toFixed(1)},${bot} Z`;
-  const labelIdx = [0, 9, 19, 29];
+  const successRate =
+    (publishedCount ?? 0) > 0
+      ? Math.round(((publishedCount ?? 0) / (generationsCount || 1)) * 100) +
+        "%"
+      : "0%";
+
+  const todayLabel = now.toLocaleDateString("ru-RU", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
 
   const formatScheduledAt = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -174,31 +146,34 @@ export default async function DashboardPage() {
     );
   };
 
-  const todayLabel = now.toLocaleDateString("ru-RU", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-
   const DeltaBadge = ({ delta }: { delta: number }) => {
     if (delta === 0)
       return (
-        <span className="text-[10px] text-tx-3 flex items-center gap-0.5">
-          <Minus size={10} /> без изм.
+        <span className="text-[10px] text-tx-3 flex items-center gap-0.5 mt-1">
+          <Minus size={9} /> без изм.
         </span>
       );
     if (delta > 0)
       return (
-        <span className="text-[10px] text-pos flex items-center gap-0.5">
-          <TrendingUp size={10} /> +{delta} к прошлой нед.
+        <span className="text-[10px] text-pos flex items-center gap-0.5 mt-1">
+          <TrendingUp size={9} /> +{delta} за неделю
         </span>
       );
     return (
-      <span className="text-[10px] text-neg flex items-center gap-0.5">
-        <TrendingDown size={10} /> {delta} к прошлой нед.
+      <span className="text-[10px] text-neg flex items-center gap-0.5 mt-1">
+        <TrendingDown size={9} /> {delta} за неделю
       </span>
     );
   };
+
+  const METRICS = [
+    { label: "Опубликовано", value: publishedCount ?? 0, delta: pubDelta },
+    { label: "Генераций", value: generationsCount ?? 0, delta: genDelta },
+    { label: "Запланировано", value: scheduledCount ?? 0, delta: null },
+    { label: "Успешность", value: successRate, delta: null },
+  ];
+
+  const ALL_PLATFORMS = ["telegram", "instagram", "tiktok"];
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -212,21 +187,19 @@ export default async function DashboardPage() {
             href={`/${locale}/calendar`}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-line rounded-[7px] text-[11px] text-tx-2 hover:text-tx-1 hover:border-line-strong transition-colors"
           >
-            <Calendar size={12} strokeWidth={1.6} />
-            Запланировать
+            <Calendar size={12} strokeWidth={1.6} /> Запланировать
           </Link>
           <Link
             href={`/${locale}/create`}
             className="inline-flex items-center gap-1.5 bg-accent text-on-accent rounded-[7px] px-3 py-1.5 text-[11px] font-medium hover:opacity-90 transition-opacity"
           >
-            <Plus size={12} strokeWidth={2.4} />
-            Создать контент
+            <Plus size={12} strokeWidth={2.4} /> Создать контент
           </Link>
         </div>
       </div>
 
       <div className="p-5 space-y-4 flex-1">
-        {/* Приветствие + быстрые действия */}
+        {/* Приветствие */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-[22px] font-semibold tracking-tight text-tx-1">
@@ -239,17 +212,15 @@ export default async function DashboardPage() {
           <div className="hidden md:flex items-center gap-2">
             <Link
               href={`/${locale}/ai-workers`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-line rounded-[7px] text-[11px] text-tx-2 hover:text-tx-1 hover:border-line-strong transition-colors bg-panel"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-line rounded-[7px] text-[11px] text-tx-2 hover:text-tx-1 transition-colors bg-panel"
             >
-              <Bot size={13} strokeWidth={1.6} />
-              AI-план на неделю
+              <Bot size={13} strokeWidth={1.6} /> AI-план на неделю
             </Link>
             <Link
               href={`/${locale}/create`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-line rounded-[7px] text-[11px] text-tx-2 hover:text-tx-1 hover:border-line-strong transition-colors bg-panel"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-line rounded-[7px] text-[11px] text-tx-2 hover:text-tx-1 transition-colors bg-panel"
             >
-              <Sparkles size={13} strokeWidth={1.6} />
-              Быстрый пост
+              <Sparkles size={13} strokeWidth={1.6} /> Быстрый пост
             </Link>
           </div>
         </div>
@@ -258,7 +229,7 @@ export default async function DashboardPage() {
         <div className="flex items-center gap-3 bg-panel border border-line rounded-[9px] px-4 py-2.5">
           <div
             className="w-6 h-6 rounded-[6px] flex items-center justify-center flex-shrink-0"
-            style={{ background: "rgba(130,80,223,0.12)" }}
+            style={{ background: "rgba(130,80,223,0.1)" }}
           >
             <Lightbulb
               size={13}
@@ -282,197 +253,156 @@ export default async function DashboardPage() {
           </Link>
         </div>
 
-        {/* ЗДОРОВЬЕ КОНТЕНТА */}
-        <div className="ui-surface p-4">
-          <div className="flex items-center justify-between mb-4">
+        {/* ЗДОРОВЬЕ КОНТЕНТА — без чарта */}
+        <div className="ui-surface overflow-hidden">
+          {/* Шапка */}
+          <div className="px-5 py-3.5 border-b border-line flex items-center justify-between">
             <div>
               <h2 className="text-[13px] font-semibold text-tx-1">
                 Здоровье контента
               </h2>
               <p className="text-[11px] text-tx-3 mt-0.5">
-                Активность и охват по каналам — 30 дней
+                Активность и охват по каналам
               </p>
             </div>
-            <Link
-              href={`/${locale}/analytics`}
-              className="text-[11px] text-c-2 hover:opacity-80 font-medium"
-            >
-              Подробнее →
-            </Link>
+            <div className="flex items-center gap-1">
+              {["7д", "30д", "90д"].map((p, i) => (
+                <button
+                  key={p}
+                  className="text-[10px] px-2 py-1 rounded-[5px] border transition-colors cursor-pointer"
+                  style={{
+                    background:
+                      i === 1 ? "rgba(9,105,218,0.08)" : "transparent",
+                    color: i === 1 ? "var(--c-2)" : "var(--tx-3)",
+                    borderColor: i === 1 ? "var(--c-2)" : "var(--line)",
+                    fontWeight: i === 1 ? 500 : 400,
+                  }}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* 4 метрики */}
-          <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-line border border-line rounded-[8px] mb-4 overflow-hidden">
-            {[
-              {
-                label: "Опубликовано",
-                value: publishedCount ?? 0,
-                delta: pubDelta,
-              },
-              {
-                label: "Генераций",
-                value: generationsCount ?? 0,
-                delta: genDelta,
-              },
-              {
-                label: "Запланировано",
-                value: scheduledCount ?? 0,
-                delta: null,
-              },
-              {
-                label: "Успешность",
-                value:
-                  (publishedCount ?? 0) > 0
-                    ? Math.round(
-                        ((publishedCount ?? 0) / (generationsCount || 1)) * 100,
-                      ) + "%"
-                    : "0%",
-                delta: null,
-              },
-            ].map((m) => (
-              <div key={m.label} className="px-4 py-3 bg-panel">
+          <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-line border-b border-line">
+            {METRICS.map((m) => (
+              <div key={m.label} className="px-5 py-4">
                 <p className="ui-label mb-2">{m.label}</p>
-                <p className="ui-num text-[22px] font-semibold text-tx-1 leading-none">
+                <p className="ui-num text-[24px] font-semibold text-tx-1 leading-none">
                   {m.value}
                 </p>
-                <div className="mt-1.5">
-                  {m.delta !== null ? (
-                    <DeltaBadge delta={m.delta} />
-                  ) : (
-                    <span className="text-[10px] text-tx-3">за 30 дней</span>
-                  )}
-                </div>
+                {m.delta !== null ? (
+                  <DeltaBadge delta={m.delta} />
+                ) : (
+                  <span className="text-[10px] text-tx-3 mt-1 block">
+                    за 30 дней
+                  </span>
+                )}
               </div>
             ))}
           </div>
 
-          {/* График */}
-          <div className="mb-4">
-            <svg viewBox="0 0 600 84" style={{ width: "100%", height: "auto" }}>
-              <line
-                x1="8"
-                y1="72"
-                x2="592"
-                y2="72"
-                style={{ stroke: "var(--line-strong)", strokeWidth: 1 }}
-              />
-              <line
-                x1="8"
-                y1="44"
-                x2="592"
-                y2="44"
-                style={{ stroke: "var(--line)", strokeWidth: 1 }}
-              />
-              <line
-                x1="8"
-                y1="16"
-                x2="592"
-                y2="16"
-                style={{ stroke: "var(--line)", strokeWidth: 1 }}
-              />
-              <path d={areaD} style={{ fill: "var(--accent-dim)" }} />
-              <path
-                d={lineD}
-                fill="none"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{ stroke: "var(--accent)" }}
-              />
-              <circle
-                cx={xs[N - 1]}
-                cy={ys[N - 1]}
-                r="3"
-                style={{ fill: "var(--accent)" }}
-              />
-              {labelIdx.map((i) => (
-                <text
-                  key={i}
-                  x={xs[i]}
-                  y="83"
-                  textAnchor="middle"
-                  style={{ fill: "var(--tx-3)", fontSize: 9 }}
-                >
-                  {days30[i].date}
-                </text>
-              ))}
-            </svg>
-          </div>
-
           {/* Каналы */}
-          <div className="space-y-2.5">
-            {Object.keys(platformCounts).length === 0 ? (
-              <p className="text-[12px] text-tx-3">Нет данных по каналам</p>
-            ) : (
-              Object.entries(platformCounts).map(([platform, count]) => {
-                const pct = Math.round((count / totalPlatform) * 100);
-                return (
-                  <div key={platform} className="flex items-center gap-3">
-                    <span className="text-[11px] text-tx-2 capitalize min-w-[80px] flex items-center gap-1.5">
-                      <span
-                        className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                        style={{
-                          background: PLATFORM_COLOR[platform] || "var(--tx-3)",
-                        }}
-                      />
-                      {platform}
-                    </span>
-                    <div
-                      className="flex-1 h-1.5 rounded-full overflow-hidden"
-                      style={{ background: "var(--track)" }}
-                    >
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${pct}%`,
-                          background:
-                            PLATFORM_COLOR[platform] || "var(--accent)",
-                        }}
-                      />
-                    </div>
-                    <span className="text-[11px] text-tx-2 min-w-[28px] text-right ui-num">
-                      {count}
-                    </span>
-                    <span
-                      className="text-[9px] font-medium px-1.5 py-0.5 rounded-[4px] min-w-[52px] text-center"
-                      style={{
-                        background:
-                          count > 0 ? "var(--accent-dim)" : "var(--chip)",
-                        color: count > 0 ? "var(--accent)" : "var(--tx-3)",
-                      }}
-                    >
-                      {count > 0 ? "Активен" : "Нет данных"}
-                    </span>
-                  </div>
-                );
-              })
-            )}
-            {/* Неподключённые каналы */}
-            {!platformCounts["instagram"] && (
-              <div className="flex items-center gap-3 opacity-50">
-                <span className="text-[11px] text-tx-3 min-w-[80px] flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-tx-3" />
-                  instagram
-                </span>
+          <div className="px-5 py-4 space-y-3">
+            {ALL_PLATFORMS.map((platform) => {
+              const count = platformCounts[platform] ?? 0;
+              const published =
+                platform === "telegram" ? (pubThisWeek ?? 0) : 0;
+              const pct =
+                count > 0 ? Math.round((count / totalPlatform) * 100) : 0;
+              const isConnected = count > 0;
+              const isInstagram = platform === "instagram";
+
+              return (
                 <div
-                  className="flex-1 h-1.5 rounded-full"
-                  style={{ background: "var(--track)" }}
-                />
-                <span className="text-[11px] text-tx-3 min-w-[28px] text-right">
-                  —
-                </span>
-                <Link
-                  href={`/${locale}/integrations`}
-                  className="text-[9px] font-medium px-1.5 py-0.5 rounded-[4px] min-w-[52px] text-center bg-chip text-c-2 hover:opacity-80"
+                  key={platform}
+                  className="flex items-center gap-3"
+                  style={{ opacity: isConnected || isInstagram ? 1 : 0.5 }}
                 >
-                  Подключить
-                </Link>
-              </div>
-            )}
+                  <span className="text-[11px] font-medium text-tx-1 capitalize min-w-[76px] flex items-center gap-1.5 flex-shrink-0">
+                    <span
+                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                      style={{
+                        background: isConnected
+                          ? PLATFORM_COLOR[platform] || "var(--tx-3)"
+                          : "var(--track)",
+                      }}
+                    />
+                    {platform}
+                  </span>
+                  <div
+                    className="flex-1 h-[3px] rounded-full overflow-hidden"
+                    style={{ background: "var(--track)" }}
+                  >
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${pct}%`,
+                        background: PLATFORM_COLOR[platform] || "var(--accent)",
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0 min-w-[160px] justify-end">
+                    {isConnected ? (
+                      <>
+                        <span className="text-[10px] text-tx-3">
+                          <span className="font-medium text-tx-1">{count}</span>{" "}
+                          постов
+                        </span>
+                        <span className="text-[10px] text-tx-3">
+                          <span className="font-medium text-tx-1">
+                            {published}
+                          </span>{" "}
+                          опубл.
+                        </span>
+                        <span
+                          className="text-[9.5px] font-medium px-2 py-0.5 rounded-[4px]"
+                          style={{
+                            background: "var(--accent-dim)",
+                            color: "var(--accent)",
+                          }}
+                        >
+                          Активен
+                        </span>
+                      </>
+                    ) : isInstagram ? (
+                      <>
+                        <span className="text-[10px] text-tx-3">0 постов</span>
+                        <span className="text-[10px] text-tx-3">0 опубл.</span>
+                        <span
+                          className="text-[9.5px] font-medium px-2 py-0.5 rounded-[4px]"
+                          style={{
+                            background: "rgba(154,103,0,0.1)",
+                            color: "var(--c-3)",
+                          }}
+                        >
+                          Ожидает
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-[10px] text-tx-3">—</span>
+                        <Link
+                          href={`/${locale}/integrations`}
+                          className="text-[9.5px] font-medium px-2 py-0.5 rounded-[4px] hover:opacity-80"
+                          style={{
+                            background: "rgba(9,105,218,0.1)",
+                            color: "var(--c-2)",
+                          }}
+                        >
+                          Подключить
+                        </Link>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Нижний ряд: лента + публикации */}
+        {/* Нижний ряд */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Последние действия */}
           <div className="ui-surface overflow-hidden">
@@ -482,7 +412,8 @@ export default async function DashboardPage() {
               </p>
               <Link
                 href={`/${locale}/history`}
-                className="text-[11px] text-c-2 hover:opacity-80 font-medium"
+                className="text-[11px] font-medium hover:opacity-80"
+                style={{ color: "var(--c-2)" }}
               >
                 История →
               </Link>
@@ -501,7 +432,7 @@ export default async function DashboardPage() {
                       : c.status === "scheduled"
                         ? Clock
                         : FileText;
-                  const iconBg =
+                  const iconStyle =
                     c.status === "published"
                       ? {
                           background: "rgba(35,134,54,0.1)",
@@ -512,7 +443,12 @@ export default async function DashboardPage() {
                             background: "rgba(154,103,0,0.1)",
                             color: "var(--c-3)",
                           }
-                        : { background: "var(--chip)", color: "var(--tx-3)" };
+                        : c.status === "generated"
+                          ? {
+                              background: "rgba(130,80,223,0.1)",
+                              color: "#8250df",
+                            }
+                          : { background: "var(--chip)", color: "var(--tx-3)" };
                   return (
                     <Link
                       key={c.id}
@@ -521,7 +457,7 @@ export default async function DashboardPage() {
                     >
                       <div
                         className="w-7 h-7 rounded-[7px] flex items-center justify-center flex-shrink-0"
-                        style={iconBg}
+                        style={iconStyle}
                       >
                         <Icon size={13} strokeWidth={1.6} />
                       </div>
@@ -529,7 +465,7 @@ export default async function DashboardPage() {
                         <p className="text-[12px] font-medium text-tx-1 truncate">
                           {c.title || "Без названия"}
                         </p>
-                        <p className="text-[10.5px] text-tx-3 mt-0.5 capitalize">
+                        <p className="text-[10px] text-tx-3 mt-0.5 capitalize">
                           {c.platform} · {c.project?.name || "—"}
                         </p>
                       </div>
@@ -553,7 +489,8 @@ export default async function DashboardPage() {
               </p>
               <Link
                 href={`/${locale}/calendar`}
-                className="text-[11px] text-c-2 hover:opacity-80 font-medium"
+                className="text-[11px] font-medium hover:opacity-80"
+                style={{ color: "var(--c-2)" }}
               >
                 Календарь →
               </Link>
@@ -591,7 +528,7 @@ export default async function DashboardPage() {
                         <p className="text-[12px] font-medium text-tx-1 truncate">
                           {content?.title || "—"}
                         </p>
-                        <p className="text-[10.5px] text-tx-3 mt-0.5">
+                        <p className="text-[10px] text-tx-3 mt-0.5">
                           {formatScheduledAt(p.scheduled_at)}
                         </p>
                       </div>
@@ -609,9 +546,6 @@ export default async function DashboardPage() {
             )}
           </div>
         </div>
-
-        {/* KPI */}
-        <KpiWidget />
       </div>
     </div>
   );
