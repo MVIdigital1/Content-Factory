@@ -1,19 +1,27 @@
 import type { Config } from "tailwindcss";
 
-/**
- * ВАЖНО: если у тебя уже есть tailwind.config.(js|ts) — НЕ заменяй его целиком,
- * а перенеси в свой `theme.extend` два блока: `colors` и `fontFamily` ниже,
- * и убедись что `content` покрывает ./app и ./components.
- *
- * Тёмная тема работает БЕЗ варианта `dark:` — цвета берутся из CSS-переменных,
- * которые меняются по атрибуту [data-theme="dark"] на <html>. Поэтому нигде
- * не нужно писать `dark:bg-...` — достаточно `bg-panel`, `text-tx-2` и т.д.
- */
 const config: Config = {
-  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
+  content: [
+    "./pages/**/*.{js,ts,jsx,tsx,mdx}",
+    "./components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+  ],
   theme: {
     extend: {
       colors: {
+        // ── старые цвета ──────────────────────────────────
+        accent: {
+          DEFAULT: "#1D9E75",
+          light: "#E1F5EE",
+          dark: "#0F6E56",
+        },
+        brand: {
+          blue: "#185FA5",
+          "blue-light": "#E6F1FB",
+          orange: "#854F0B",
+          "orange-light": "#FAEEDA",
+        },
+        // ── новые CSS-переменные (тёмная тема без dark:) ──
         bg: "var(--bg)",
         sidebar: "var(--sidebar)",
         panel: "var(--panel)",
@@ -23,7 +31,6 @@ const config: Config = {
         "tx-1": "var(--tx-1)",
         "tx-2": "var(--tx-2)",
         "tx-3": "var(--tx-3)",
-        accent: "var(--accent)",
         "accent-dim": "var(--accent-dim)",
         "on-accent": "var(--on-accent)",
         pos: "var(--pos)",
@@ -42,7 +49,6 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
 };
 
 export default config;
