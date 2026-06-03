@@ -11,15 +11,15 @@
    ============================================================ */
 
 :root {
-  --bg: #f6f8fa;
+  --bg: #e9e9e4;
   --panel: #ffffff;
-  --panel-2: #f0f2f5;
+  --panel-2: #f8f5f5;
 
-  --sb-bg: #1c2128;
+  --sb-bg: #30302e;
   --sb-border: rgba(255, 255, 255, 0.07);
-  --sb-tx-1: #cdd9e5;
-  --sb-tx-2: #768390;
-  --sb-tx-3: #4b5564;
+  --sb-tx-1: #ffffff;
+  --sb-tx-2: #f8f5f5;
+  --sb-tx-3: #dad8d8;
   --sb-active-bg: rgba(35, 134, 54, 0.2);
   --sb-active-tx: #4ac26b;
   --sb-hover: rgba(255, 255, 255, 0.05);
@@ -55,11 +55,11 @@
   --panel: #30302e;
   --panel-2: #30302e;
 
-  --sb-bg: #222220;
+  --sb-bg: #30302e;
   --sb-border: rgba(255, 255, 255, 0.07);
-  --sb-tx-1: #cdd9e5;
-  --sb-tx-2: #768390;
-  --sb-tx-3: #4b5564;
+  --sb-tx-1: #ffffff;
+  --sb-tx-2: #f8f5f5;
+  --sb-tx-3: #dad8d8;
   --sb-active-bg: rgba(35, 134, 54, 0.22);
   --sb-active-tx: #4ac26b;
   --sb-hover: rgba(255, 255, 255, 0.05);
