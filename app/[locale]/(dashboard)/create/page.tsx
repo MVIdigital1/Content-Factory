@@ -694,6 +694,27 @@ export default function CreatePage() {
     enabled: !!form.projectId && showStoragePicker,
   });
 
+  const { data: generationsCount } = useQuery({
+    queryKey: ["create-gen-count"],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("contents")
+        .select("*", { count: "exact", head: true });
+      return count ?? 0;
+    },
+  });
+
+  const { data: publishedCount } = useQuery({
+    queryKey: ["create-pub-count"],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("contents")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "published");
+      return count ?? 0;
+    },
+  });
+
   const { data: projects } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
@@ -1066,9 +1087,91 @@ export default function CreatePage() {
     { value: t("goals.traffic"), label: "Доверие" },
   ];
 
+  const RUBRICS = [
+    { value: "behind", label: "Закулисье", icon: "ti-eye" },
+    { value: "review", label: "Отзыв", icon: "ti-star" },
+    { value: "secret", label: "Секрет", icon: "ti-lock" },
+    { value: "fact", label: "Факт", icon: "ti-chart-bar" },
+    { value: "question", label: "Вопрос", icon: "ti-help-circle" },
+    { value: "tip", label: "Совет", icon: "ti-bulb" },
+    { value: "result", label: "Результат", icon: "ti-trophy" },
+    { value: "trend", label: "Тренд", icon: "ti-flame" },
+  ];
+
+  const TONES = [
+    { value: "professional", label: "Профессиональный" },
+    { value: "friendly", label: "Дружелюбный" },
+    { value: "expert", label: "Экспертный" },
+    { value: "selling", label: "Продающий" },
+  ];
+
+  const GOAL_CHIPS = [
+    { value: t("goals.awareness"), label: "Охват" },
+    { value: t("goals.sales"), label: "Продажи" },
+    { value: t("goals.engagement"), label: "Вовлечение" },
+    { value: t("goals.traffic"), label: "Доверие" },
+  ];
+
+  const RUBRIC_EXAMPLES: Record<string, string[]> = {
+    behind: [
+      "Как мы работаем удалённо",
+      "Наш рабочий процесс",
+      "День нового сотрудника",
+    ],
+    review: [
+      "Отзыв клиента о продукте",
+      "История успеха партнёра",
+      "Что говорят пользователи",
+    ],
+    secret: [
+      "Секрет нашего роста",
+      "То, о чём не говорят конкуренты",
+      "Закрытая информация",
+    ],
+    fact: [
+      "Интересный факт о нише",
+      "Цифры которые удивят",
+      "Статистика рынка",
+    ],
+    question: [
+      "Что важнее для вас?",
+      "Как вы решаете эту проблему?",
+      "Ваш опыт с этим",
+    ],
+    tip: ["Лайфхак для SMM", "Как сэкономить время", "Совет по продуктивности"],
+    result: [
+      "Наш результат за месяц",
+      "Кейс клиента",
+      "До и после работы с нами",
+    ],
+    trend: [
+      "Тренд который меняет рынок",
+      "Что сейчас в топе",
+      "Новинка недели",
+    ],
+  };
+
+  const RUBRIC_PREVIEWS: Record<string, string> = {
+    behind:
+      '"Показываем как выглядит наш рабочий процесс изнутри. Спойлер: стикеры и Notion — наше всё..."',
+    review:
+      '"Клиент пришёл с нулём подписчиков. За 3 месяца — 12к живой аудитории. Вот как это было..."',
+    secret:
+      '"Расскажем то, о чём молчат конкуренты. Этот приём увеличил наши продажи на 40%..."',
+    fact: '"78% SMM-специалистов тратят на создание контента более 3 часов в день. Мы это меняем..."',
+    question:
+      '"Как вы обычно находите идеи для постов? Минуты вдохновения или планирование заранее?"',
+    tip: '"Один простой лайфхак который сэкономит вам 2 часа в неделю на создании контента..."',
+    result:
+      '"Запустили рекламу в пятницу вечером. К понедельнику — 847 новых подписчиков..."',
+    trend:
+      '"AI-контент захватывает соцсети. Вот что это значит для вашего бренда прямо сейчас..."',
+  };
+
   const [rubric, setRubric] = useState("behind");
   const [tone, setTone] = useState("professional");
 
+  const tokenBalance = Math.max(0, 50 - (generationsCount ?? 0));
   const selectedProject = (projects || []).find(
     (p: any) => p.id === form.projectId,
   ) as any;
@@ -1080,36 +1183,78 @@ export default function CreatePage() {
         <p className="text-[11px] text-tx-3">
           Создать / <span className="text-tx-2 font-medium">Новый пост</span>
         </p>
-        <div className="flex items-center gap-2">
-          {[1, 2, 3].map((s) => (
-            <div key={s} className="flex items-center gap-1.5">
+        <div className="flex items-center gap-4">
+          {[
+            { n: 1, label: "Настройка" },
+            { n: 2, label: "Генерация" },
+            { n: 3, label: "Публикация" },
+          ].map(({ n, label }, i) => (
+            <div key={n} className="flex items-center gap-1.5">
+              {i > 0 && <div className="w-4 h-px bg-track mr-1" />}
               <div
-                className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold transition-colors ${step >= s ? "bg-accent text-on-accent" : "bg-chip text-tx-3"}`}
+                className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold transition-colors ${step >= n ? "bg-accent text-on-accent" : "bg-chip text-tx-3"}`}
               >
-                {step > s ? "✓" : s}
+                {step > n ? "✓" : n}
               </div>
               <span
-                className={`text-[11px] ${step === s ? "text-tx-1 font-medium" : "text-tx-3"}`}
+                className={`text-[11px] ${step === n ? "text-tx-1 font-medium" : "text-tx-3"}`}
               >
-                {s === 1 ? "Настройка" : s === 2 ? "Генерация" : "Публикация"}
+                {label}
               </span>
-              {s < 3 && <div className="w-4 h-px bg-track ml-1" />}
             </div>
           ))}
         </div>
       </div>
 
-      {/* TWO-COLUMN LAYOUT */}
+      {/* TWO-COLUMN */}
       <div className="flex flex-1 overflow-hidden">
-        {/* LEFT — настройки + кнопка sticky внизу */}
+        {/* LEFT */}
         <div
           className="flex-1 flex flex-col overflow-hidden"
           style={{ borderRight: "0.5px solid var(--line)" }}
         >
-          <div className="flex-1 overflow-y-auto p-5 space-y-5">
-            {/* STEP 2 — генерация */}
+          <div className="flex-1 overflow-y-auto">
+            {/* HERO */}
+            {step === 1 && (
+              <div className="px-5 py-4 border-b border-line flex items-center justify-between gap-4 bg-panel">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+                    <span className="text-[9px] font-semibold tracking-widest uppercase text-accent">
+                      AI генерация контента
+                    </span>
+                  </div>
+                  <h1 className="text-[18px] font-semibold text-tx-1 leading-snug">
+                    Напиши тему —<br />
+                    AI создаст пост за тебя
+                  </h1>
+                  <p className="text-[11px] text-tx-2 mt-1">
+                    Занимает 30 секунд. Публикуй сразу или запланируй.
+                  </p>
+                </div>
+                <div className="hidden md:flex border border-line rounded-[10px] overflow-hidden flex-shrink-0">
+                  {[
+                    { val: generationsCount ?? 0, label: "постов создано" },
+                    { val: publishedCount ?? 0, label: "опубликовано" },
+                    { val: tokenBalance, label: "токенов" },
+                  ].map(({ val, label }, i) => (
+                    <div
+                      key={label}
+                      className={`px-4 py-2.5 text-center ${i > 0 ? "border-l border-line" : ""}`}
+                    >
+                      <div className="text-[17px] font-semibold text-tx-1 leading-none">
+                        {val}
+                      </div>
+                      <div className="text-[9px] text-tx-3 mt-1">{label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2 — generating */}
             {step === 2 && (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="flex flex-col items-center justify-center h-full py-20 text-center px-6">
                 <div className="w-12 h-12 bg-accent-dim rounded-full flex items-center justify-center mb-4">
                   <svg
                     width="22"
@@ -1141,149 +1286,317 @@ export default function CreatePage() {
               </div>
             )}
 
-            {/* STEP 1 — форма */}
+            {/* STEP 1 — form */}
             {step === 1 && (
-              <>
-                <div>
-                  <h1 className="text-[20px] font-semibold text-tx-1">
-                    Создать контент
-                  </h1>
-                  <p className="text-[12px] text-tx-2 mt-1">
-                    Выбери тему — AI напишет за тебя
-                  </p>
-                </div>
-
-                {/* Проект — одна строка */}
-                <div>
-                  <p className="ui-label mb-2">{t("form.project")}</p>
-                  <div className="relative">
-                    <select
-                      value={form.projectId}
-                      onChange={(e) =>
-                        setForm((p) => ({
-                          ...p,
-                          projectId: e.target.value,
-                          campaignId: "",
-                        }))
-                      }
-                      className="w-full px-3 py-2.5 rounded-[8px] border border-line-strong text-[12px] text-tx-1 bg-panel outline-none focus:border-accent appearance-none cursor-pointer"
-                    >
-                      <option value="">{t("form.projectDefault")}</option>
-                      {(projects || []).map((p: any) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                    <svg
-                      className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-tx-3"
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path d="M6 9l6 6 6-6" />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* Платформа */}
-                <div>
-                  <p className="ui-label mb-2">Платформа</p>
-                  <div className="flex gap-2 flex-wrap">
-                    {PLATFORMS.map((pl) => (
-                      <button
-                        key={pl.value}
-                        onClick={() =>
-                          setForm((f) => ({ ...f, platform: pl.value }))
-                        }
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[7px] border text-[11px] font-medium transition-colors cursor-pointer ${form.platform === pl.value ? "border-accent bg-accent-dim text-accent" : "border-line-strong text-tx-2 hover:bg-hover bg-panel"}`}
+              <div className="p-5 flex flex-col gap-4">
+                {/* ROW: Проект + Платформа */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div
+                    className="bg-panel border border-line rounded-[10px] overflow-hidden"
+                    style={{ borderLeft: "2px solid var(--accent)" }}
+                  >
+                    <div className="px-3 pt-2.5 pb-0">
+                      <p
+                        className="ui-label"
+                        style={{ color: "var(--accent)" }}
                       >
-                        {pl.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Тип */}
-                <div>
-                  <p className="ui-label mb-2">{t("form.contentType")}</p>
-                  <div className="flex gap-2 flex-wrap">
-                    {CONTENT_TYPES.map((ct) => (
-                      <button
-                        key={ct.value}
-                        onClick={() =>
-                          setForm((f) => ({ ...f, contentType: ct.value }))
-                        }
-                        className={`px-3 py-1.5 rounded-[7px] border text-[11px] font-medium transition-colors cursor-pointer ${form.contentType === ct.value ? "border-accent bg-accent-dim text-accent" : "border-line-strong text-tx-2 hover:bg-hover bg-panel"}`}
-                      >
-                        {ct.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Рубрика */}
-                <div>
-                  <p className="ui-label mb-2">Рубрика</p>
-                  <div className="grid grid-cols-4 gap-2">
-                    {RUBRICS.map((r) => (
-                      <button
-                        key={r.value}
-                        onClick={() => setRubric(r.value)}
-                        className={`flex flex-col items-center gap-1 py-2.5 px-2 rounded-[8px] border text-center transition-colors cursor-pointer ${rubric === r.value ? "border-accent bg-accent-dim" : "border-line-strong bg-panel hover:bg-hover"}`}
-                      >
-                        <i
-                          className={`ti ${r.icon} text-[15px] ${rubric === r.value ? "text-accent" : "text-tx-3"}`}
-                        />
-                        <span
-                          className={`text-[10px] font-medium ${rubric === r.value ? "text-accent" : "text-tx-2"}`}
+                        Проект
+                      </p>
+                    </div>
+                    <div className="px-3 pb-3 pt-2">
+                      <div className="relative">
+                        <select
+                          value={form.projectId}
+                          onChange={(e) =>
+                            setForm((p) => ({
+                              ...p,
+                              projectId: e.target.value,
+                              campaignId: "",
+                            }))
+                          }
+                          className="w-full pl-3 pr-8 py-2 rounded-[7px] border border-line text-[12px] text-tx-1 bg-panel-2 outline-none focus:border-accent appearance-none cursor-pointer"
                         >
-                          {r.label}
-                        </span>
-                      </button>
-                    ))}
+                          <option value="">{t("form.projectDefault")}</option>
+                          {(projects || []).map((p: any) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                        <svg
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-tx-3"
+                          width="11"
+                          height="11"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
+                      </div>
+                    </div>
                   </div>
-                </div>
 
-                {/* Тема */}
-                <div>
-                  <p className="ui-label mb-2">{t("form.topic")}</p>
-                  <div className="bg-panel border border-line-strong rounded-[8px] p-3">
-                    <textarea
-                      value={form.topic}
-                      onChange={(e) =>
-                        setForm((p) => ({ ...p, topic: e.target.value }))
-                      }
-                      placeholder={t("form.topicPlaceholder")}
-                      rows={3}
-                      className="w-full bg-transparent border-none outline-none text-[13px] text-tx-1 resize-none placeholder:text-tx-3"
-                    />
-                    <div className="border-t border-line pt-2 mt-1">
-                      <PostTemplates
-                        onSelect={(topic) => setForm((p) => ({ ...p, topic }))}
-                      />
+                  <div
+                    className="bg-panel border border-line rounded-[10px] overflow-hidden"
+                    style={{ borderLeft: "2px solid var(--accent)" }}
+                  >
+                    <div className="px-3 pt-2.5 pb-0">
+                      <p
+                        className="ui-label"
+                        style={{ color: "var(--accent)" }}
+                      >
+                        Платформа
+                      </p>
+                    </div>
+                    <div className="px-3 pb-3 pt-2 flex gap-1.5 flex-wrap">
+                      {PLATFORMS.map((pl) => (
+                        <button
+                          key={pl.value}
+                          onClick={() =>
+                            setForm((f) => ({ ...f, platform: pl.value }))
+                          }
+                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[6px] border text-[11px] font-medium transition-colors cursor-pointer ${form.platform === pl.value ? "border-accent bg-accent-dim text-accent" : "border-line text-tx-2 hover:bg-hover bg-panel-2"}`}
+                        >
+                          {pl.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>
 
-                {/* Цель */}
-                <div>
-                  <p className="ui-label mb-2">{t("form.goal")}</p>
-                  <div className="flex gap-2 flex-wrap">
-                    {GOAL_CHIPS.map((g) => (
-                      <button
-                        key={g.value}
-                        onClick={() =>
-                          setForm((p) => ({ ...p, goal: g.value }))
+                {/* ROW: Тип + Картинка */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-panel border border-line rounded-[10px] overflow-hidden">
+                    <div className="px-3 pt-2.5 pb-0">
+                      <p className="ui-label">Тип контента</p>
+                    </div>
+                    <div className="px-3 pb-3 pt-2 flex gap-1.5 flex-wrap">
+                      {CONTENT_TYPES.map((ct) => (
+                        <button
+                          key={ct.value}
+                          onClick={() =>
+                            setForm((f) => ({ ...f, contentType: ct.value }))
+                          }
+                          className={`px-2.5 py-1.5 rounded-[6px] border text-[11px] font-medium transition-colors cursor-pointer ${form.contentType === ct.value ? "border-accent bg-accent-dim text-accent" : "border-line text-tx-2 hover:bg-hover bg-panel-2"}`}
+                        >
+                          {ct.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-panel border border-line rounded-[10px] overflow-hidden">
+                    <div className="px-3 pt-2.5 pb-0">
+                      <p className="ui-label">
+                        Картинка{" "}
+                        <span className="text-[9px] font-normal text-tx-3 normal-case tracking-normal">
+                          (необяз.)
+                        </span>
+                      </p>
+                    </div>
+                    <div className="px-3 pb-3 pt-2">
+                      {imagePreview ? (
+                        <div className="relative rounded-[7px] overflow-hidden border border-line">
+                          <img
+                            src={imagePreview}
+                            alt="Preview"
+                            className="w-full max-h-24 object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setImageFile(null);
+                              setImagePreview(null);
+                            }}
+                            className="absolute top-1 right-1 w-5 h-5 bg-black/50 text-white rounded-full flex items-center justify-center text-[10px] cursor-pointer"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <div
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            setDragOver(true);
+                          }}
+                          onDragLeave={() => setDragOver(false)}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            setDragOver(false);
+                            const f = e.dataTransfer.files[0];
+                            if (f) handleFileSelect(f);
+                          }}
+                          onClick={() => fileInputRef.current?.click()}
+                          className={`border-2 border-dashed rounded-[7px] p-3 text-center cursor-pointer transition-colors ${dragOver ? "border-accent bg-accent-dim" : "border-line hover:border-accent"}`}
+                        >
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="mx-auto mb-1 text-tx-3"
+                          >
+                            <rect x="3" y="3" width="18" height="18" rx="2" />
+                            <circle cx="8.5" cy="8.5" r="1.5" />
+                            <path d="M21 15l-5-5L5 21" />
+                          </svg>
+                          <p className="text-[10px] text-tx-2 font-medium">
+                            Перетащи или нажми
+                          </p>
+                          <p className="text-[9px] text-tx-3">
+                            PNG, JPG до 10 МБ
+                          </p>
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) =>
+                              e.target.files?.[0] &&
+                              handleFileSelect(e.target.files[0])
+                            }
+                          />
+                        </div>
+                      )}
+                      {form.projectId && (
+                        <button
+                          type="button"
+                          onClick={() => setShowStoragePicker((v) => !v)}
+                          className="w-full mt-1.5 py-1.5 border border-line rounded-[6px] text-[10px] text-tx-2 hover:bg-hover transition-colors cursor-pointer"
+                        >
+                          Из хранилища проекта
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Рубрика */}
+                <div
+                  className="bg-panel border border-line rounded-[10px] overflow-hidden"
+                  style={{ borderLeft: "2px solid var(--accent)" }}
+                >
+                  <div className="px-3 pt-2.5 pb-0">
+                    <p className="ui-label" style={{ color: "var(--accent)" }}>
+                      Рубрика — задаёт структуру поста
+                    </p>
+                  </div>
+                  <div className="px-3 pb-3 pt-2">
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {RUBRICS.map((r) => (
+                        <button
+                          key={r.value}
+                          onClick={() => setRubric(r.value)}
+                          className={`flex flex-col items-center gap-1 py-2.5 rounded-[8px] border text-center transition-colors cursor-pointer ${rubric === r.value ? "border-accent bg-accent-dim" : "border-line bg-panel-2 hover:bg-hover"}`}
+                        >
+                          <i
+                            className={`ti ${r.icon} text-[14px] ${rubric === r.value ? "text-accent" : "text-tx-3"}`}
+                          />
+                          <span
+                            className={`text-[9.5px] font-medium ${rubric === r.value ? "text-accent" : "text-tx-2"}`}
+                          >
+                            {r.label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Тема */}
+                <div
+                  className="bg-panel border border-line rounded-[10px] overflow-hidden"
+                  style={{ borderLeft: "2px solid var(--accent)" }}
+                >
+                  <div className="px-3 pt-2.5 pb-0">
+                    <p className="ui-label" style={{ color: "var(--accent)" }}>
+                      Тема или идея
+                    </p>
+                  </div>
+                  <div className="px-3 pb-3 pt-2">
+                    <div className="bg-panel-2 border border-line rounded-[7px] p-3">
+                      <textarea
+                        value={form.topic}
+                        onChange={(e) =>
+                          setForm((p) => ({ ...p, topic: e.target.value }))
                         }
-                        className={`px-3 py-1.5 rounded-[7px] border text-[11px] font-medium transition-colors cursor-pointer ${form.goal === g.value ? "border-accent bg-accent-dim text-accent" : "border-line-strong text-tx-2 hover:bg-hover bg-panel"}`}
-                      >
-                        {g.label}
-                      </button>
-                    ))}
+                        placeholder={t("form.topicPlaceholder")}
+                        rows={3}
+                        className="w-full bg-transparent border-none outline-none text-[13px] text-tx-1 resize-none placeholder:text-tx-3"
+                      />
+                      <div className="border-t border-line pt-2 mt-1">
+                        <PostTemplates
+                          onSelect={(topic) =>
+                            setForm((p) => ({ ...p, topic }))
+                          }
+                        />
+                      </div>
+                    </div>
+                    {/* Умные подсказки */}
+                    <div className="mt-2">
+                      <p className="text-[9px] text-tx-3 mb-1.5">
+                        Примеры для «
+                        {RUBRICS.find((r) => r.value === rubric)?.label}» —
+                        нажми чтобы вставить:
+                      </p>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {(RUBRIC_EXAMPLES[rubric] || []).map((ex: string) => (
+                          <button
+                            key={ex}
+                            onClick={() =>
+                              setForm((p) => ({ ...p, topic: ex }))
+                            }
+                            className="px-2.5 py-1 rounded-full text-[10px] bg-accent-dim border border-accent/20 text-accent hover:bg-accent hover:text-on-accent transition-colors cursor-pointer"
+                          >
+                            {ex}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ROW: Тон + Цель */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-panel border border-line rounded-[10px] overflow-hidden">
+                    <div className="px-3 pt-2.5 pb-0">
+                      <p className="ui-label">Тон</p>
+                    </div>
+                    <div className="px-3 pb-3 pt-2 flex gap-1.5 flex-wrap">
+                      {TONES.map((t) => (
+                        <button
+                          key={t.value}
+                          onClick={() => setTone(t.value)}
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-medium border transition-colors cursor-pointer ${tone === t.value ? "border-accent bg-accent-dim text-accent" : "border-line text-tx-2 hover:bg-hover bg-panel-2"}`}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="bg-panel border border-line rounded-[10px] overflow-hidden">
+                    <div className="px-3 pt-2.5 pb-0">
+                      <p className="ui-label">Цель</p>
+                    </div>
+                    <div className="px-3 pb-3 pt-2 flex gap-1.5 flex-wrap">
+                      {GOAL_CHIPS.map((g) => (
+                        <button
+                          key={g.value}
+                          onClick={() =>
+                            setForm((p) => ({ ...p, goal: g.value }))
+                          }
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-medium border transition-colors cursor-pointer ${form.goal === g.value ? "border-accent bg-accent-dim text-accent" : "border-line text-tx-2 hover:bg-hover bg-panel-2"}`}
+                        >
+                          {g.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -1292,13 +1605,12 @@ export default function CreatePage() {
                     {error}
                   </div>
                 )}
-              </>
+              </div>
             )}
 
-            {/* STEP 3 — результат */}
+            {/* STEP 3 — result */}
             {step === 3 && result && (
-              <div className="space-y-4">
-                {/* Табы вариантов */}
+              <div className="p-5 space-y-4">
                 {variants.length > 1 && (
                   <div className="flex gap-2 bg-panel-2 p-1 rounded-xl">
                     {variants.map((v, i) => (
@@ -1315,22 +1627,16 @@ export default function CreatePage() {
                     ))}
                   </div>
                 )}
-
-                {/* Hook */}
                 {result.hook && (
                   <div className="ui-surface p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-[11px] font-semibold text-tx-1">
-                        Зацепка
-                      </p>
-                    </div>
+                    <p className="text-[11px] font-semibold text-tx-1 mb-2">
+                      Зацепка
+                    </p>
                     <p className="text-[13px] text-tx-1 leading-relaxed">
                       {result.hook}
                     </p>
                   </div>
                 )}
-
-                {/* Caption */}
                 <div className="ui-surface p-4">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-[11px] font-semibold text-tx-1">
@@ -1340,7 +1646,7 @@ export default function CreatePage() {
                       <button
                         onClick={() => handleRegenPart("caption")}
                         disabled={regenField === "caption"}
-                        className="text-[10px] text-tx-3 hover:text-accent transition-colors cursor-pointer disabled:opacity-40"
+                        className="text-[10px] text-tx-3 hover:text-accent cursor-pointer disabled:opacity-40"
                       >
                         {regenField === "caption" ? "..." : "↺ Переписать"}
                       </button>
@@ -1349,7 +1655,7 @@ export default function CreatePage() {
                           setInlineEdit("caption");
                           setInlineValue(result.caption);
                         }}
-                        className="text-[10px] text-tx-3 hover:text-accent transition-colors cursor-pointer"
+                        className="text-[10px] text-tx-3 hover:text-accent cursor-pointer"
                       >
                         ✏ Редактировать
                       </button>
@@ -1361,7 +1667,7 @@ export default function CreatePage() {
                         value={inlineValue}
                         onChange={(e) => setInlineValue(e.target.value)}
                         rows={6}
-                        className="w-full text-[13px] text-tx-1 bg-panel-2 border border-line-strong rounded-[8px] p-3 outline-none resize-none"
+                        className="w-full text-[13px] text-tx-1 bg-panel-2 border border-line rounded-[8px] p-3 outline-none resize-none"
                       />
                       <div className="flex gap-2 mt-2">
                         <button
@@ -1389,8 +1695,6 @@ export default function CreatePage() {
                     </p>
                   )}
                 </div>
-
-                {/* Hashtags */}
                 {result.hashtags?.length > 0 && (
                   <div className="ui-surface p-4">
                     <p className="text-[11px] font-semibold text-tx-1 mb-2">
@@ -1408,8 +1712,6 @@ export default function CreatePage() {
                     </div>
                   </div>
                 )}
-
-                {/* CTA */}
                 {result.cta && (
                   <div className="ui-surface p-4">
                     <p className="text-[11px] font-semibold text-tx-1 mb-2">
@@ -1422,35 +1724,40 @@ export default function CreatePage() {
             )}
           </div>
 
-          {/* КНОПКА — sticky внизу левой колонки */}
-          <div className="flex-shrink-0 px-5 py-4 border-t border-line bg-panel">
+          {/* STICKY FOOTER */}
+          <div className="flex-shrink-0 px-5 py-3.5 border-t border-line bg-panel">
             {step === 1 && (
-              <div className="space-y-3">
-                {/* 3 варианта toggle */}
-                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+              <div className="space-y-2.5">
+                <div className="bg-panel-2 border border-line rounded-[8px] px-3 py-2.5 flex items-start gap-2.5">
                   <div
                     onClick={() => setThreeVariants((v) => !v)}
-                    className={`w-8 h-4 rounded-full transition-colors relative flex-shrink-0 cursor-pointer ${threeVariants ? "bg-accent" : "bg-track"}`}
+                    className={`w-8 h-4 rounded-full transition-colors relative flex-shrink-0 cursor-pointer mt-0.5 ${threeVariants ? "bg-accent" : "bg-track"}`}
                   >
                     <div
                       className={`absolute top-0.5 w-3 h-3 bg-panel rounded-full shadow transition-transform ${threeVariants ? "translate-x-4" : "translate-x-0.5"}`}
                     />
                   </div>
-                  <span className="text-[11px] text-tx-2">
-                    Сгенерировать 3 варианта
-                    <span className="ml-1.5 text-[9px] text-c-3 bg-chip px-1 py-0.5 rounded">
-                      ×3 лимита
-                    </span>
-                  </span>
-                </label>
+                  <div>
+                    <p className="text-[11px] font-medium text-tx-1">
+                      Сгенерировать 3 варианта
+                      <span className="ml-1.5 text-[9px] text-c-3 bg-chip px-1.5 py-0.5 rounded">
+                        ×3 лимита
+                      </span>
+                    </p>
+                    <p className="text-[10px] text-tx-3 mt-0.5">
+                      AI напишет Дружелюбный, Вирусный и Экспертный — выберешь
+                      лучший
+                    </p>
+                  </div>
+                </div>
                 <button
                   onClick={handleGenerate}
                   disabled={!form.projectId || !form.topic || !form.goal}
                   className="w-full py-3 bg-accent hover:opacity-90 text-on-accent text-[13px] font-semibold rounded-[8px] transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
                 >
                   <svg
-                    width="14"
-                    height="14"
+                    width="13"
+                    height="13"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -1472,7 +1779,7 @@ export default function CreatePage() {
                     setResult(null);
                     setVariants([]);
                   }}
-                  className="px-4 py-2.5 border border-line-strong text-tx-2 text-[12px] rounded-[8px] hover:bg-hover cursor-pointer"
+                  className="px-4 py-2.5 border border-line text-tx-2 text-[12px] rounded-[8px] hover:bg-hover cursor-pointer"
                 >
                   ← Новый пост
                 </button>
@@ -1485,18 +1792,31 @@ export default function CreatePage() {
                 </button>
                 <button
                   onClick={() => setShowSchedule((v) => !v)}
-                  className="px-4 py-2.5 border border-line-strong text-tx-2 text-[12px] rounded-[8px] hover:bg-hover cursor-pointer"
+                  className="px-4 py-2.5 border border-line text-tx-2 text-[12px] rounded-[8px] hover:bg-hover cursor-pointer"
                 >
-                  📅 Запланировать
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                  >
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <path d="M16 2v4M8 2v4M3 10h18" />
+                  </svg>
                 </button>
               </div>
             )}
           </div>
         </div>
 
-        {/* RIGHT — превью */}
-        <div className="w-[300px] flex-shrink-0 bg-panel flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-5 space-y-5">
+        {/* RIGHT — preview */}
+        <div className="w-[280px] flex-shrink-0 bg-panel flex flex-col overflow-hidden">
+          <div
+            className="flex-1 overflow-y-auto p-4 flex flex-direction-col gap-4"
+            style={{ display: "flex", flexDirection: "column", gap: "14px" }}
+          >
             <div className="flex items-center justify-between">
               <p className="text-[12px] font-semibold text-tx-1">
                 Предпросмотр
@@ -1506,205 +1826,186 @@ export default function CreatePage() {
               </span>
             </div>
 
-            {/* Telegram preview */}
-            {form.platform === "telegram" && (
+            {/* Live preview */}
+            <div className="relative">
+              <span className="absolute -top-1.5 right-2 z-10 bg-accent text-on-accent text-[9px] font-semibold px-2 py-0.5 rounded-full">
+                Live
+              </span>
               <div className="border border-line rounded-[10px] overflow-hidden">
-                <div
-                  className="flex items-center gap-2 px-3 py-2.5"
-                  style={{ background: "#229ED9" }}
-                >
-                  <div
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0"
-                    style={{ background: "rgba(255,255,255,0.2)" }}
-                  >
-                    {selectedProject?.name?.[0] || "M"}
-                  </div>
-                  <span className="text-[12px] font-semibold text-white">
-                    {selectedProject?.name || "Выбери проект"}
-                  </span>
-                </div>
-                <div className="p-3" style={{ background: "#f5f7fa" }}>
-                  {imagePreview && (
-                    <img
-                      src={imagePreview}
-                      alt=""
-                      className="w-full rounded-[6px] mb-2 max-h-32 object-cover"
-                    />
-                  )}
-                  {step === 3 && result ? (
-                    <p className="text-[12px] text-[#1a1f2e] leading-relaxed whitespace-pre-wrap">
-                      {result.hook
-                        ? `${result.hook}
+                {form.platform === "instagram" ? (
+                  <>
+                    <div className="flex items-center gap-2 px-3 py-2 border-b border-line bg-panel">
+                      <div
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
+                        style={{
+                          background:
+                            "linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045)",
+                        }}
+                      >
+                        {selectedProject?.name?.[0] || "M"}
+                      </div>
+                      <span className="text-[11px] font-semibold text-tx-1">
+                        {selectedProject?.name || "Выбери проект"}
+                      </span>
+                    </div>
+                    <div className="h-24 bg-panel-2 flex items-center justify-center text-[10px] text-tx-3">
+                      {imagePreview ? (
+                        <img
+                          src={imagePreview}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        "Фото / видео"
+                      )}
+                    </div>
+                    <div className="px-3 py-2 bg-panel">
+                      {step === 3 && result ? (
+                        <p className="text-[11px] text-tx-1 leading-relaxed">
+                          {result.caption}
+                        </p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <div className="h-1.5 bg-track rounded-full w-full" />
+                          <div className="h-1.5 bg-track rounded-full w-3/4" />
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div
+                      className="flex items-center gap-2 px-3 py-2"
+                      style={{ background: "#229ED9" }}
+                    >
+                      <div
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0"
+                        style={{ background: "rgba(255,255,255,0.2)" }}
+                      >
+                        {selectedProject?.name?.[0] || "M"}
+                      </div>
+                      <span className="text-[12px] font-semibold text-white">
+                        {selectedProject?.name || "Выбери проект"}
+                      </span>
+                    </div>
+                    <div className="p-3 bg-panel-2">
+                      {imagePreview && (
+                        <img
+                          src={imagePreview}
+                          alt=""
+                          className="w-full rounded-[5px] mb-2 max-h-28 object-cover"
+                        />
+                      )}
+                      {step === 3 && result ? (
+                        <p className="text-[12px] text-tx-1 leading-relaxed whitespace-pre-wrap">
+                          {result.hook
+                            ? `${result.hook}
 
 `
-                        : ""}
-                      {result.caption}
-                    </p>
-                  ) : (
-                    <>
-                      <div className="h-12 bg-black/5 rounded-[5px] flex items-center justify-center gap-1.5 mb-2 text-[10px] text-[#a0aab4]">
-                        <svg
-                          width="13"
-                          height="13"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                        </svg>
-                        Текст появится после генерации
-                      </div>
-                      <div className="space-y-1.5">
-                        <div className="h-1.5 bg-black/8 rounded-full w-full" />
-                        <div className="h-1.5 bg-black/8 rounded-full w-4/5" />
-                        <div className="h-1.5 bg-black/8 rounded-full w-3/5" />
-                      </div>
-                    </>
-                  )}
-                </div>
+                            : ""}
+                          {result.caption}
+                        </p>
+                      ) : (
+                        <div className="h-12 bg-panel rounded-[5px] flex items-center justify-center gap-1.5 mb-2 text-[10px] text-tx-3">
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                          </svg>
+                          Текст появится после генерации
+                        </div>
+                      )}
+                      {step !== 3 && (
+                        <div className="space-y-1.5 mt-2">
+                          <div className="h-1.5 bg-panel rounded-full w-full" />
+                          <div className="h-1.5 bg-panel rounded-full w-4/5" />
+                          <div className="h-1.5 bg-panel rounded-full w-3/5" />
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
-            )}
+            </div>
 
-            {/* Instagram preview */}
-            {form.platform === "instagram" && (
-              <div className="border border-line rounded-[10px] overflow-hidden bg-white">
-                <div className="flex items-center gap-2 px-3 py-2.5 border-b border-line">
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-[10px] font-bold text-white">
-                    {selectedProject?.name?.[0] || "M"}
+            {/* Токены */}
+            <div className="bg-panel-2 border border-line rounded-[8px] p-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="ui-label">AI токены</span>
+                <span className="text-[12px] font-semibold text-tx-1">
+                  {tokenBalance} / 50
+                </span>
+              </div>
+              <div className="h-1 bg-track rounded-full overflow-hidden mb-1.5">
+                <div
+                  className="h-full bg-accent rounded-full"
+                  style={{
+                    width: `${Math.min(100, (tokenBalance / 50) * 100)}%`,
+                  }}
+                />
+              </div>
+              <p className="text-[10px] text-tx-3">
+                Осталось {tokenBalance} генераций · Free план
+              </p>
+            </div>
+
+            {/* Пример рубрики */}
+            <div>
+              <p className="ui-label mb-2">
+                Пример для «{RUBRICS.find((r) => r.value === rubric)?.label}»
+              </p>
+              <div className="bg-accent-dim border border-accent/20 rounded-[8px] p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-5 h-5 rounded-[5px] bg-panel flex items-center justify-center flex-shrink-0">
+                    <i
+                      className={`ti ${RUBRICS.find((r) => r.value === rubric)?.icon} text-[12px] text-accent`}
+                    />
                   </div>
-                  <span className="text-[12px] font-semibold text-[#1a1f2e]">
-                    {selectedProject?.name || "Выбери проект"}
+                  <span className="text-[10px] font-semibold text-accent">
+                    {RUBRICS.find((r) => r.value === rubric)?.label}
                   </span>
                 </div>
-                <div className="h-28 bg-panel-2 flex items-center justify-center text-[10px] text-tx-3">
-                  {imagePreview ? (
-                    <img
-                      src={imagePreview}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    "Фото / видео"
-                  )}
-                </div>
-                <div className="px-3 py-2">
-                  {step === 3 && result ? (
-                    <p className="text-[11px] text-[#1a1f2e] leading-relaxed">
-                      {result.caption}
-                    </p>
-                  ) : (
-                    <div className="space-y-1.5">
-                      <div className="h-1.5 bg-black/8 rounded-full w-full" />
-                      <div className="h-1.5 bg-black/8 rounded-full w-3/4" />
-                    </div>
-                  )}
-                </div>
+                <p className="text-[10px] text-tx-2 leading-relaxed italic">
+                  {RUBRIC_PREVIEWS[rubric]}
+                </p>
               </div>
-            )}
+            </div>
 
-            {/* Тон */}
+            {/* Советы */}
             <div>
-              <p className="ui-label mb-2">Тон</p>
-              <div className="flex flex-wrap gap-1.5">
-                {TONES.map((t) => (
-                  <button
-                    key={t.value}
-                    onClick={() => setTone(t.value)}
-                    className={`px-2.5 py-1 rounded-full text-[10px] font-medium border transition-colors cursor-pointer ${tone === t.value ? "border-accent bg-accent-dim text-accent" : "border-line-strong text-tx-2 hover:bg-hover bg-panel"}`}
-                  >
-                    {t.label}
-                  </button>
+              <p className="ui-label mb-2">Для лучшего результата</p>
+              <div className="space-y-2">
+                {[
+                  "Опиши тему подробнее — AI даст лучший результат",
+                  "Рубрика задаёт структуру поста",
+                  "Картинка увеличивает охват на 30–40%",
+                  "Посты сохраняются в хранилище автоматически",
+                ].map((tip) => (
+                  <div key={tip} className="flex items-start gap-2">
+                    <svg
+                      className="flex-shrink-0 mt-0.5 text-accent"
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    >
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                    <span className="text-[10px] text-tx-2 leading-relaxed">
+                      {tip}
+                    </span>
+                  </div>
                 ))}
               </div>
             </div>
 
-            {/* Картинка */}
-            <div>
-              <p className="ui-label mb-2">
-                {t("form.image")}{" "}
-                <span className="text-[10px] text-tx-3 font-normal normal-case tracking-normal">
-                  (необязательно)
-                </span>
-              </p>
-              {imagePreview ? (
-                <div className="relative rounded-[8px] overflow-hidden border border-line-strong">
-                  <img
-                    src={imagePreview}
-                    alt="Preview"
-                    className="w-full max-h-32 object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setImageFile(null);
-                      setImagePreview(null);
-                    }}
-                    className="absolute top-1.5 right-1.5 w-5 h-5 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center text-[10px] cursor-pointer"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ) : (
-                <div
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setDragOver(true);
-                  }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setDragOver(false);
-                    const f = e.dataTransfer.files[0];
-                    if (f) handleFileSelect(f);
-                  }}
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`border-2 border-dashed rounded-[8px] p-4 text-center cursor-pointer transition-colors ${dragOver ? "border-accent bg-accent-dim" : "border-line-strong hover:border-accent hover:bg-hover"}`}
-                >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#9CA3AF"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="mx-auto mb-1.5"
-                  >
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                    <circle cx="8.5" cy="8.5" r="1.5" />
-                    <path d="M21 15l-5-5L5 21" />
-                  </svg>
-                  <p className="text-[11px] text-tx-2 font-medium">
-                    {t("form.imageHint")}
-                  </p>
-                  <p className="text-[10px] text-tx-3">
-                    {t("form.imageFormats")}
-                  </p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) =>
-                      e.target.files?.[0] && handleFileSelect(e.target.files[0])
-                    }
-                  />
-                </div>
-              )}
-              {form.projectId && (
-                <button
-                  type="button"
-                  onClick={() => setShowStoragePicker((v) => !v)}
-                  className="w-full mt-2 py-1.5 border border-line-strong rounded-[7px] text-[11px] text-tx-2 hover:bg-hover hover:text-accent hover:border-accent transition-colors cursor-pointer"
-                >
-                  Из хранилища проекта
-                </button>
-              )}
-            </div>
-
-            {/* Publish success */}
             {publishSuccess && (
               <div className="bg-accent-dim border border-accent/20 rounded-[8px] px-3 py-2.5 text-[12px] text-accent font-medium text-center">
                 Опубликовано успешно!

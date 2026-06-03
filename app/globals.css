@@ -4,50 +4,43 @@
 @tailwind utilities;
 
 /* ============================================================
-   MVI Content — design tokens v3
-   Light: sidebar #e8eaed, content #ffffff
-   Dark:  весь сайт #1c2128, sidebar чуть темнее #161b22
+   MVI Content — design tokens v5
+   Light: белый фон, карточки #f6f8fa, акцент зелёный #238636
+   Dark:  #1c2128 фон, #2d333b карточки — как на скрине
+   Sidebar всегда тёмный: light=#1c2128, dark=#161b22
    ============================================================ */
 
 :root {
-  /* Контент */
-  --bg: #f0f2f5;
+  --bg: #f6f8fa;
   --panel: #ffffff;
   --panel-2: #f0f2f5;
 
-  /* Sidebar — чуть темнее фона но не тёмный */
-  --sidebar: #d1d5db;
-  --sb-bg: #d1d5db;
-  --sb-border: rgba(20, 20, 22, 0.1);
-  --sb-tx-1: #1a1f2e;
-  --sb-tx-2: #4b5564;
-  --sb-tx-3: #8c959f;
-  --sb-active-bg: rgba(35, 134, 54, 0.12);
-  --sb-active-tx: #1a7f37;
-  --sb-hover: rgba(20, 20, 22, 0.05);
+  --sb-bg: #1c2128;
+  --sb-border: rgba(255, 255, 255, 0.07);
+  --sb-tx-1: #cdd9e5;
+  --sb-tx-2: #768390;
+  --sb-tx-3: #4b5564;
+  --sb-active-bg: rgba(35, 134, 54, 0.18);
+  --sb-active-tx: #4ac26b;
+  --sb-hover: rgba(255, 255, 255, 0.05);
 
-  /* Borders */
   --line: rgba(20, 20, 22, 0.08);
   --line-strong: rgba(20, 20, 22, 0.14);
 
-  /* Text */
   --tx-1: #1a1f2e;
   --tx-2: rgba(26, 31, 46, 0.58);
   --tx-3: rgba(26, 31, 46, 0.38);
 
-  /* Accent — зелёный */
   --accent: #238636;
   --accent-rgb: 35, 134, 54;
   --accent-dim: rgba(35, 134, 54, 0.1);
   --on-accent: #ffffff;
 
-  /* Semantic */
   --pos: #1a7f37;
   --neg: #cf222e;
   --c-2: #0969da;
   --c-3: #9a6700;
 
-  /* Misc */
   --hover: rgba(20, 20, 22, 0.04);
   --chip: rgba(20, 20, 22, 0.06);
   --track: rgba(20, 20, 22, 0.08);
@@ -58,44 +51,36 @@
 }
 
 [data-theme="dark"] {
-  /* Контент — как sidebar в light, чуть светлее текст */
-  --bg: #161b22;
-  --panel: #1c2128;
+  --bg: #1c2128;
+  --panel: #2d333b;
   --panel-2: #22272e;
 
-  /* Sidebar — чуть темнее контента */
-  --sidebar: #0d1117;
-  --sb-bg: #0d1117;
+  --sb-bg: #161b22;
   --sb-border: rgba(255, 255, 255, 0.07);
   --sb-tx-1: #cdd9e5;
   --sb-tx-2: #768390;
   --sb-tx-3: #4b5564;
-  --sb-active-bg: rgba(35, 134, 54, 0.2);
+  --sb-active-bg: rgba(63, 185, 80, 0.2);
   --sb-active-tx: #4ac26b;
   --sb-hover: rgba(255, 255, 255, 0.05);
 
-  /* Borders */
   --line: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.14);
 
-  /* Text — чуть белее в страницах */
-  --tx-1: #e6edf3;
-  --tx-2: rgba(230, 237, 243, 0.62);
-  --tx-3: rgba(230, 237, 243, 0.38);
+  --tx-1: #cdd9e5;
+  --tx-2: rgba(205, 217, 229, 0.62);
+  --tx-3: rgba(205, 217, 229, 0.38);
 
-  /* Accent */
   --accent: #3fb950;
   --accent-rgb: 63, 185, 80;
   --accent-dim: rgba(63, 185, 80, 0.12);
   --on-accent: #040d06;
 
-  /* Semantic */
   --pos: #3fb950;
   --neg: #f85149;
   --c-2: #58a6ff;
   --c-3: #d29922;
 
-  /* Misc */
   --hover: rgba(255, 255, 255, 0.04);
   --chip: rgba(255, 255, 255, 0.06);
   --track: rgba(255, 255, 255, 0.08);
