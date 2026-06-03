@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { format } from "date-fns";
@@ -38,19 +38,19 @@ const STATUS_CONFIG: Record<
     labelKey: "status.generated",
     bg: "bg-chip",
     text: "text-c-3",
-    dot: "bg-c-3",
+    dot: "bg-amber-400",
   },
   approved: {
     labelKey: "status.approved",
     bg: "bg-chip",
     text: "text-c-2",
-    dot: "bg-accent",
+    dot: "bg-blue-400",
   },
   scheduled: {
     labelKey: "status.scheduled",
     bg: "bg-chip",
     text: "text-c-2",
-    dot: "bg-accent",
+    dot: "bg-purple-400",
   },
   published: {
     labelKey: "status.published",
@@ -62,7 +62,7 @@ const STATUS_CONFIG: Record<
     labelKey: "status.failed",
     bg: "bg-chip",
     text: "text-neg",
-    dot: "bg-neg",
+    dot: "bg-red-400",
   },
 };
 
@@ -86,7 +86,7 @@ const TYPE_ICON: Record<string, LucideIcon> = {
   ad: Megaphone,
 };
 
-function HistoryPageInner() {
+export default function HistoryPage() {
   const supabase = createClient();
   const queryClient = useQueryClient();
   const t = useTranslations("history");
@@ -447,7 +447,18 @@ function HistoryPageInner() {
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] text-tx-3">
-                              {PLATFORM_ICON[item.platform]} {item.platform}
+                              {(() => {
+                                const I =
+                                  PLATFORM_ICON[item.platform || ""] || Globe;
+                                return (
+                                  <I
+                                    size={12}
+                                    strokeWidth={1.8}
+                                    className="inline-block align-[-2px]"
+                                  />
+                                );
+                              })()}{" "}
+                              {item.platform}
                             </span>
                             <span className="text-tx-3">·</span>
                             <span className="text-[10px] text-tx-3">
@@ -487,7 +498,17 @@ function HistoryPageInner() {
                     {t(`status.${selected.status}` as any)}
                   </span>
                   <span className="text-[10px] text-tx-3">
-                    {PLATFORM_ICON[selected.platform]} {selected.platform}
+                    {(() => {
+                      const I = PLATFORM_ICON[selected.platform || ""] || Globe;
+                      return (
+                        <I
+                          size={14}
+                          strokeWidth={1.8}
+                          className="inline-block align-[-2px]"
+                        />
+                      );
+                    })()}{" "}
+                    {selected.platform}
                   </span>
                 </div>
               </div>
@@ -843,7 +864,7 @@ function HistoryPageInner() {
             <button
               onClick={() => deleteMutation.mutate(selected.id)}
               disabled={deleteMutation.isPending}
-              className="w-full py-2 border border-line bg-chip text-neg text-xs font-semibold rounded-lg hover:bg-chip transition-colors cursor-pointer disabled:opacity-50"
+              className="w-full py-2 border border-line bg-chip text-neg text-xs font-semibold rounded-lg hover:bg-red-100 transition-colors cursor-pointer disabled:opacity-50"
             >
               {deleteMutation.isPending ? t("deleting") : `${t("delete")}`}
             </button>
@@ -851,20 +872,5 @@ function HistoryPageInner() {
         </div>
       )}
     </div>
-  );
-}
-
-export default function HistoryPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="p-6 animate-pulse">
-          <div className="h-7 bg-chip rounded-lg w-48 mb-2" />
-          <div className="h-4 bg-chip rounded w-64 mb-6" />
-        </div>
-      }
-    >
-      <HistoryPageInner />
-    </Suspense>
   );
 }
