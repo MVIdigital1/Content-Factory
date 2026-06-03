@@ -10,6 +10,9 @@ import {
   FileText,
   Bot,
   Lightbulb,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from "lucide-react";
 import HealthWidget from "@/components/features/HealthWidget";
 
