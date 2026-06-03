@@ -1087,31 +1087,6 @@ export default function CreatePage() {
     { value: t("goals.traffic"), label: "Доверие" },
   ];
 
-  const RUBRICS = [
-    { value: "behind", label: "Закулисье", icon: "ti-eye" },
-    { value: "review", label: "Отзыв", icon: "ti-star" },
-    { value: "secret", label: "Секрет", icon: "ti-lock" },
-    { value: "fact", label: "Факт", icon: "ti-chart-bar" },
-    { value: "question", label: "Вопрос", icon: "ti-help-circle" },
-    { value: "tip", label: "Совет", icon: "ti-bulb" },
-    { value: "result", label: "Результат", icon: "ti-trophy" },
-    { value: "trend", label: "Тренд", icon: "ti-flame" },
-  ];
-
-  const TONES = [
-    { value: "professional", label: "Профессиональный" },
-    { value: "friendly", label: "Дружелюбный" },
-    { value: "expert", label: "Экспертный" },
-    { value: "selling", label: "Продающий" },
-  ];
-
-  const GOAL_CHIPS = [
-    { value: t("goals.awareness"), label: "Охват" },
-    { value: t("goals.sales"), label: "Продажи" },
-    { value: t("goals.engagement"), label: "Вовлечение" },
-    { value: t("goals.traffic"), label: "Доверие" },
-  ];
-
   const RUBRIC_EXAMPLES: Record<string, string[]> = {
     behind: [
       "Как мы работаем удалённо",
