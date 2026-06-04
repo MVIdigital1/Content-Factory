@@ -11,7 +11,7 @@
 
 :root {
   /* Фоны */
-  --bg: ##f8f8f6;
+  --bg: #f8f8f6;
   --panel: #ffffff;
   --panel-2: #f8f8f6;
 
@@ -41,7 +41,7 @@
   --on-accent: #ffffff;
 
   /* Semantic */
-  --pos: #2d6a4f;
+  --pos: #3a7d6b;
   --neg: #c1121f;
   --c-2: #1a1a18;
   --c-3: #b5500a;
@@ -88,7 +88,7 @@
   --on-accent: #1f1d1b;
 
   /* Semantic */
-  --pos: #52b788;
+  --pos: #6b9e8a;
   --neg: #e63946;
   --c-2: #f0ece6;
   --c-3: #e07a2f;
@@ -133,6 +133,31 @@ body {
     border: 1px solid var(--line);
     border-radius: var(--radius);
   }
+}
+
+/* Custom native select styling */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: var(--panel-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--tx-1);
+  padding: 0.5rem 2rem 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  outline: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg width='11' height='11' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 9l6 6 6-6' stroke='%239a9690' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.625rem center;
+  transition: border-color 0.15s;
+}
+select:focus {
+  border-color: var(--accent);
+}
+select option {
+  background-color: var(--panel);
+  color: var(--tx-1);
 }
 
 ::-webkit-scrollbar {

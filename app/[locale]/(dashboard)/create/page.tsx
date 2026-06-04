@@ -47,7 +47,7 @@ function CustomSelect({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full px-3 py-2.5 rounded-lg border border-line-strong text-sm text-left flex items-center justify-between bg-panel hover:border-accent focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-colors cursor-pointer"
+        className="w-full px-3 py-2.5 rounded-lg border border-line-strong text-sm text-left flex items-center justify-between bg-panel hover:border-accent focus:border-accent outline-none transition-colors cursor-pointer"
       >
         <span className={selected ? "text-tx-1" : "text-tx-3"}>
           {selected?.label || placeholder || "Выберите..."}
@@ -61,7 +61,7 @@ function CustomSelect({
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className={`transition-transform flex-shrink-0 text-tx-3 ${open ? "rotate-180" : ""}`}
+          className={`transition-transform duration-200 flex-shrink-0 text-tx-3 ${open ? "rotate-180" : ""}`}
         >
           <path d="M6 9l6 6 6-6" />
         </svg>
@@ -69,7 +69,7 @@ function CustomSelect({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute z-50 w-full mt-1 bg-panel border border-line-strong rounded-lg shadow-lg overflow-hidden">
+          <div className="absolute z-50 w-full mt-1.5 bg-panel border border-line-strong rounded-lg shadow-[0_8px_24px_rgba(0,0,0,0.12)] overflow-hidden ui-rise">
             {placeholder && (
               <button
                 type="button"
@@ -77,24 +77,40 @@ function CustomSelect({
                   onChange("");
                   setOpen(false);
                 }}
-                className="w-full px-3 py-2.5 text-sm text-left text-tx-3 hover:bg-hover cursor-pointer"
+                className="w-full px-3 py-2.5 text-sm text-left text-tx-3 hover:bg-hover cursor-pointer border-b border-line"
               >
                 {placeholder}
               </button>
             )}
-            {options.map((o) => (
-              <button
-                key={o.value}
-                type="button"
-                onClick={() => {
-                  onChange(o.value);
-                  setOpen(false);
-                }}
-                className={`w-full px-3 py-2.5 text-sm text-left transition-colors cursor-pointer ${value === o.value ? "bg-accent-dim text-accent font-medium" : "text-tx-1 hover:bg-accent-dim hover:text-accent"}`}
-              >
-                {o.label}
-              </button>
-            ))}
+            <div className="max-h-[200px] overflow-y-auto">
+              {options.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                  className={`w-full px-3 py-2.5 text-sm text-left transition-colors cursor-pointer flex items-center justify-between gap-2 ${value === o.value ? "bg-accent-dim text-accent font-medium" : "text-tx-1 hover:bg-hover"}`}
+                >
+                  <span>{o.label}</span>
+                  {value === o.value && (
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
         </>
       )}
@@ -1059,7 +1075,7 @@ export default function CreatePage() {
   };
 
   const inputClass =
-    "w-full px-3 py-2.5 rounded-lg border border-line-strong text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors bg-panel";
+    "w-full px-3 py-2.5 rounded-lg border border-line-strong text-sm outline-none focus:border-accent transition-colors bg-panel";
 
   const RUBRICS = [
     { value: "behind", label: "Закулисье", icon: "ti-eye" },
@@ -1278,37 +1294,21 @@ export default function CreatePage() {
                       </p>
                     </div>
                     <div className="px-3 pb-3 pt-2">
-                      <div className="relative">
-                        <select
-                          value={form.projectId}
-                          onChange={(e) =>
-                            setForm((p) => ({
-                              ...p,
-                              projectId: e.target.value,
-                              campaignId: "",
-                            }))
-                          }
-                          className="w-full pl-3 pr-8 py-2 rounded-[7px] border border-line text-[12px] text-tx-1 bg-panel-2 outline-none focus:border-accent appearance-none cursor-pointer"
-                        >
-                          <option value="">{t("form.projectDefault")}</option>
-                          {(projects || []).map((p: any) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                            </option>
-                          ))}
-                        </select>
-                        <svg
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-tx-3"
-                          width="11"
-                          height="11"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          <path d="M6 9l6 6 6-6" />
-                        </svg>
-                      </div>
+                      <CustomSelect
+                        value={form.projectId}
+                        onChange={(v) =>
+                          setForm((p) => ({
+                            ...p,
+                            projectId: v,
+                            campaignId: "",
+                          }))
+                        }
+                        placeholder={t("form.projectDefault")}
+                        options={(projects || []).map((p: any) => ({
+                          value: p.id,
+                          label: p.name,
+                        }))}
+                      />
                     </div>
                   </div>
 
@@ -1846,12 +1846,12 @@ export default function CreatePage() {
                       style={{ background: "var(--accent)" }}
                     >
                       <div
-                        className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0"
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-on-accent flex-shrink-0"
                         style={{ background: "rgba(255,255,255,0.2)" }}
                       >
                         {selectedProject?.name?.[0] || "M"}
                       </div>
-                      <span className="text-[12px] font-semibold text-white">
+                      <span className="text-[12px] font-semibold text-on-accent">
                         {selectedProject?.name || "Выбери проект"}
                       </span>
                     </div>
