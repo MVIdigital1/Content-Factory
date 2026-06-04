@@ -192,7 +192,7 @@ export default async function DashboardPage() {
           </Link>
           <Link
             href={`/${locale}/create`}
-            className="inline-flex items-center gap-1.5 bg-accent text-on-accent rounded-[7px] px-3 py-1.5 text-[11px] font-medium hover:opacity-90 transition-opacity"
+            className="inline-flex items-center gap-1.5 bg-[#343230] text-on-accent rounded-[7px] px-3 py-1.5 text-[11px] font-medium hover:opacity-90 transition-opacity"
           >
             <Plus size={12} strokeWidth={2.4} /> Создать контент
           </Link>

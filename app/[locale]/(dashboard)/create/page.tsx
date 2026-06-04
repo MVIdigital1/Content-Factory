@@ -1209,8 +1209,8 @@ export default function CreatePage() {
               <div className="px-5 py-4 border-b border-line flex items-center justify-between gap-4 bg-panel">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <div className="w-1.5 h-1.5 rounded-full bg-accent" />
-                    <span className="text-[9px] font-semibold tracking-widest uppercase text-accent">
+                    <div className="w-1.5 h-1.5 rounded-full" />
+                    <span className="text-[9px] font-semibold tracking-widest uppercase text-tx-1">
                       AI генерация контента
                     </span>
                   </div>
@@ -1331,7 +1331,7 @@ export default function CreatePage() {
                           onClick={() =>
                             setForm((f) => ({ ...f, platform: pl.value }))
                           }
-                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[6px] border text-[11px] font-medium transition-colors cursor-pointer ${form.platform === pl.value ? "border-accent bg-accent-dim text-accent" : "border-line text-tx-2 hover:bg-hover bg-panel-2"}`}
+                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[6px] border text-[11px] font-medium transition-colors cursor-pointer ${form.platform === pl.value ? "border-sb-border bg-accent-dim text-tx-1" : "border-line text-tx-2 hover:bg-hover bg-panel-2"}`}
                         >
                           {pl.label}
                         </button>
@@ -1353,7 +1353,7 @@ export default function CreatePage() {
                           onClick={() =>
                             setForm((f) => ({ ...f, contentType: ct.value }))
                           }
-                          className={`px-2.5 py-1.5 rounded-[6px] border text-[11px] font-medium transition-colors cursor-pointer ${form.contentType === ct.value ? "border-accent bg-accent-dim text-accent" : "border-line text-tx-2 hover:bg-hover bg-panel-2"}`}
+                          className={`px-2.5 py-1.5 rounded-[6px] border text-[11px] font-medium transition-colors cursor-pointer ${form.contentType === ct.value ? "border-sb-border bg-accent-dim text-tx-1" : "border-line text-tx-2 hover:bg-hover bg-panel-2"}`}
                         >
                           {ct.label}
                         </button>
@@ -1403,7 +1403,7 @@ export default function CreatePage() {
                             if (f) handleFileSelect(f);
                           }}
                           onClick={() => fileInputRef.current?.click()}
-                          className={`border-2 border-dashed rounded-[7px] p-3 text-center cursor-pointer transition-colors ${dragOver ? "border-accent bg-accent-dim" : "border-line hover:border-accent"}`}
+                          className={`border-2 border-dashed rounded-[7px] p-3 text-center cursor-pointer transition-colors ${dragOver ? "border-sb-border bg-accent-dim" : "border-line hover:border-sb-border"}`}
                         >
                           <svg
                             width="18"
@@ -1470,10 +1470,10 @@ export default function CreatePage() {
                           className={`flex flex-col items-center gap-1 py-2.5 rounded-[8px] border text-center transition-colors cursor-pointer ${rubric === r.value ? "border-accent bg-accent-dim" : "border-line bg-panel-2 hover:bg-hover"}`}
                         >
                           <i
-                            className={`ti ${r.icon} text-[14px] ${rubric === r.value ? "text-accent" : "text-tx-3"}`}
+                            className={`ti ${r.icon} text-[14px] ${rubric === r.value ? "text-tx-1" : "text-tx-3"}`}
                           />
                           <span
-                            className={`text-[9.5px] font-medium ${rubric === r.value ? "text-accent" : "text-tx-2"}`}
+                            className={`text-[9.5px] font-medium ${rubric === r.value ? "text-tx-1" : "text-tx-2"}`}
                           >
                             {r.label}
                           </span>
@@ -1540,7 +1540,7 @@ export default function CreatePage() {
                         <button
                           key={t.value}
                           onClick={() => setTone(t.value)}
-                          className={`px-2.5 py-1 rounded-full text-[10px] font-medium border transition-colors cursor-pointer ${tone === t.value ? "border-accent bg-accent-dim text-accent" : "border-line text-tx-2 hover:bg-hover bg-panel-2"}`}
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-medium border transition-colors cursor-pointer ${tone === t.value ? "border-sb-border bg-accent-dim text-tx-1" : "border-line text-tx-2 hover:bg-hover bg-panel-2"}`}
                         >
                           {t.label}
                         </button>
@@ -1558,7 +1558,7 @@ export default function CreatePage() {
                           onClick={() =>
                             setForm((p) => ({ ...p, goal: g.value }))
                           }
-                          className={`px-2.5 py-1 rounded-full text-[10px] font-medium border transition-colors cursor-pointer ${form.goal === g.value ? "border-accent bg-accent-dim text-accent" : "border-line text-tx-2 hover:bg-hover bg-panel-2"}`}
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-medium border transition-colors cursor-pointer ${form.goal === g.value ? "border-sb-border bg-accent-dim text-tx-1" : "border-line text-tx-2 hover:bg-hover bg-panel-2"}`}
                         >
                           {g.label}
                         </button>
@@ -1613,7 +1613,7 @@ export default function CreatePage() {
                       <button
                         onClick={() => handleRegenPart("caption")}
                         disabled={regenField === "caption"}
-                        className="text-[10px] text-tx-3 hover:text-accent cursor-pointer disabled:opacity-40"
+                        className="text-[10px] text-tx-3 hover:text-tx-1 cursor-pointer disabled:opacity-40"
                       >
                         {regenField === "caption" ? "..." : "↺ Переписать"}
                       </button>
@@ -1622,7 +1622,7 @@ export default function CreatePage() {
                           setInlineEdit("caption");
                           setInlineValue(result.caption);
                         }}
-                        className="text-[10px] text-tx-3 hover:text-accent cursor-pointer"
+                        className="text-[10px] text-tx-3 hover:text-tx-1 cursor-pointer"
                       >
                         ✏ Редактировать
                       </button>
@@ -1644,7 +1644,7 @@ export default function CreatePage() {
                             );
                             setInlineEdit(null);
                           }}
-                          className="text-[11px] px-3 py-1.5 bg-accent text-on-accent rounded-[6px] cursor-pointer"
+                          className="text-[11px] px-3 py-1.5 bg-sb-bg text-on-accent rounded-[6px] cursor-pointer"
                         >
                           Сохранить
                         </button>
@@ -1671,7 +1671,7 @@ export default function CreatePage() {
                       {result.hashtags.map((h, i) => (
                         <span
                           key={i}
-                          className="text-[11px] text-accent bg-accent-dim px-2 py-0.5 rounded-full"
+                          className="text-[11px] text-tx-1 bg-accent-dim px-2 py-0.5 rounded-full"
                         >
                           {h}
                         </span>
@@ -1720,7 +1720,7 @@ export default function CreatePage() {
                 <button
                   onClick={handleGenerate}
                   disabled={!form.projectId || !form.topic || !form.goal}
-                  className="w-full py-3 bg-accent hover:opacity-90 text-on-accent text-[13px] font-semibold rounded-[8px] transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-sb-bg hover:opacity-90 text-on-accent text-[13px] font-semibold rounded-[8px] transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
                 >
                   <svg
                     width="13"
@@ -1753,7 +1753,7 @@ export default function CreatePage() {
                 <button
                   onClick={handlePublishNow}
                   disabled={publishing}
-                  className="flex-1 py-2.5 bg-accent text-on-accent text-[12px] font-semibold rounded-[8px] hover:opacity-90 cursor-pointer disabled:opacity-40 flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 bg-sb-bg text-on-accent text-[12px] font-semibold rounded-[8px] hover:opacity-90 cursor-pointer disabled:opacity-40 flex items-center justify-center gap-2"
                 >
                   {publishing ? "Публикуем..." : "Опубликовать сейчас"}
                 </button>
@@ -1795,7 +1795,7 @@ export default function CreatePage() {
 
             {/* Live preview */}
             <div className="relative">
-              <span className="absolute -top-1.5 right-2 z-10 bg-accent text-on-accent text-[9px] font-semibold px-2 py-0.5 rounded-full">
+              <span className="absolute -top-1.5 right-2 z-10 bg-sb-bg text-on-accent text-[9px] font-semibold px-2 py-0.5 rounded-full">
                 Live
               </span>
               <div className="border border-line rounded-[10px] overflow-hidden">
