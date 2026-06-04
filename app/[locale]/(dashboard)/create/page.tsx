@@ -26,7 +26,10 @@ type GeneratedContent = {
   voiceover: string;
   screen_text: string;
   source_image_url?: string;
-  id?: sfunction CustomSelect({
+  id?: string;
+};
+
+function CustomSelect({
   value,
   onChange,
   options,
@@ -59,7 +62,9 @@ type GeneratedContent = {
         className="w-full px-3 py-2.5 rounded-lg border border-line-strong text-sm text-left flex items-center justify-between bg-panel hover:border-accent focus:border-accent outline-none transition-colors cursor-pointer"
       >
         <span className={selected ? "text-tx-1" : "text-tx-3"}>
-          {selected?.label || placeholder || "\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435..."}
+          {selected?.label ||
+            placeholder ||
+            "\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435..."}
         </span>
         <svg
           width="12"
@@ -121,8 +126,6 @@ type GeneratedContent = {
         </div>
       )}
     </div>
-  );
-}div>
   );
 }
 
