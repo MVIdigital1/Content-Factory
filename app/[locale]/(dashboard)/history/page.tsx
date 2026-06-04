@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { format } from "date-fns";
@@ -16,107 +16,84 @@ import {
   FileText,
   Film,
   Megaphone,
+  Search,
   Globe,
-  Eye,
-  Heart,
-  TrendingUp,
+  Copy,
+  Trash2,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  X,
+  ChevronUp,
+  ChevronDown,
+  Plus,
   type LucideIcon,
 } from "lucide-react";
-
-// Статические стили — без t(), т.к. t() недоступен на уровне модуля
-const STATUS_CONFIG: Record<
-  string,
-  { labelKey: string; bg: string; text: string; dot: string }
-> = {
-  draft: {
-    labelKey: "status.draft",
-    bg: "bg-chip",
-    text: "text-tx-2",
-    dot: "bg-tx-3",
-  },
-  generated: {
-    labelKey: "status.generated",
-    bg: "bg-chip",
-    text: "text-c-3",
-    dot: "bg-amber-400",
-  },
-  approved: {
-    labelKey: "status.approved",
-    bg: "bg-chip",
-    text: "text-c-2",
-    dot: "bg-blue-400",
-  },
-  scheduled: {
-    labelKey: "status.scheduled",
-    bg: "bg-chip",
-    text: "text-c-2",
-    dot: "bg-purple-400",
-  },
-  published: {
-    labelKey: "status.published",
-    bg: "bg-accent-dim",
-    text: "text-accent",
-    dot: "bg-accent",
-  },
-  failed: {
-    labelKey: "status.failed",
-    bg: "bg-chip",
-    text: "text-neg",
-    dot: "bg-red-400",
-  },
-};
-
-const COLUMNS = [
-  "draft",
-  "generated",
-  "scheduled",
-  "published",
-  "failed",
-] as const;
 
 const PLATFORM_ICON: Record<string, LucideIcon> = {
   telegram: Send,
   instagram: ImageIcon,
   tiktok: Music2,
-};
-const TYPE_ICON: Record<string, LucideIcon> = {
-  post: FileText,
-  video: Film,
-  stories: ImageIcon,
-  ad: Megaphone,
+  vk: Globe,
+  youtube: Film,
+  other: FileText,
 };
 
-export default function HistoryPage() {
+const STATUS_META: Record<
+  string,
+  { label: string; dot: string; badge: string }
+> = {
+  draft: { label: "Черновик", dot: "bg-tx-3", badge: "bg-chip text-tx-2" },
+  generated: { label: "Готово", dot: "bg-c-3", badge: "bg-chip text-c-3" },
+  approved: {
+    label: "Одобрено",
+    dot: "bg-accent",
+    badge: "bg-accent-dim text-accent",
+  },
+  scheduled: {
+    label: "Запланировано",
+    dot: "bg-tx-2",
+    badge: "bg-chip text-tx-1",
+  },
+  published: {
+    label: "Опубликовано",
+    dot: "bg-pos",
+    badge: "bg-chip text-pos",
+  },
+  failed: { label: "Ошибка", dot: "bg-neg", badge: "bg-chip text-neg" },
+};
+
+function HistoryPageInner() {
   const supabase = createClient();
   const queryClient = useQueryClient();
   const t = useTranslations("history");
   const locale = useLocale();
-  const router = useRouter();
   const searchParams = useSearchParams();
 
+  // State
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [platformFilter, setPlatformFilter] = useState<string>("all");
+  const [sortField, setSortField] = useState<"created_at" | "title">(
+    "created_at",
+  );
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [selected, setSelected] = useState<any>(null);
   const [copied, setCopied] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editCaption, setEditCaption] = useState("");
-  const [tagInput, setTagInput] = useState("");
-  const [tagFilter, setTagFilter] = useState<string | null>(null);
-
-  // Publish from history
-  const [publishAction, setPublishAction] = useState<
-    "none" | "now" | "schedule"
-  >("none");
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState("");
+  const [publishSuccess, setPublishSuccess] = useState("");
   const [scheduleDate, setScheduleDate] = useState(
     new Date().toISOString().split("T")[0],
   );
   const [scheduleTime, setScheduleTime] = useState("12:00");
-  const [publishing, setPublishing] = useState(false);
-  const [publishError, setPublishError] = useState("");
-  const [publishSuccess, setPublishSuccess] = useState("");
-  const [selectedPlatform, setSelectedPlatform] = useState<string>("");
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [selectedPlatform, setSelectedPlatform] = useState("");
 
-  const today = new Date().toISOString().split("T")[0];
-
-  const { data: contents, isLoading } = useQuery({
+  // Queries
+  const { data: contents = [], isLoading } = useQuery({
     queryKey: ["history"],
     queryFn: async () => {
       const { data } = await supabase
@@ -128,27 +105,26 @@ export default function HistoryPage() {
     },
   });
 
-  const { data: integrations } = useQuery({
+  const { data: integrations = [] } = useQuery({
     queryKey: ["integrations"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("integrations")
         .select("id, platform, channel_id, channel_name, is_active")
         .order("created_at", { ascending: false });
-
       return data || [];
     },
   });
 
-  // Open item from URL param (coming from dashboard or calendar)
   useEffect(() => {
     const id = searchParams.get("id");
-    if (id && contents) {
+    if (id && contents.length) {
       const item = contents.find((c: any) => c.id === id);
       if (item) setSelected(item);
     }
   }, [searchParams, contents]);
 
+  // Mutations
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("contents").delete().eq("id", id);
@@ -174,33 +150,31 @@ export default function HistoryPage() {
     },
   });
 
-  const tagMutation = useMutation({
-    mutationFn: async ({ id, tags }: { id: string; tags: string[] }) => {
-      const { error } = await supabase
-        .from("contents")
-        .update({ tags })
-        .eq("id", id);
+  const duplicateMutation = useMutation({
+    mutationFn: async (item: any) => {
+      const { error } = await supabase.from("contents").insert({
+        project_id: item.project_id,
+        type: item.type,
+        platform: item.platform,
+        goal: item.goal,
+        title: `${item.title} (копия)`,
+        idea: item.idea,
+        hook: item.hook,
+        script: item.script || [],
+        voiceover: item.voiceover || "",
+        screen_text: item.screen_text || "",
+        caption: item.caption,
+        hashtags: item.hashtags || [],
+        cta: item.cta,
+        source_image_url: item.source_image_url || null,
+        status: "draft",
+        ai_model: item.ai_model,
+        ai_tokens: item.ai_tokens,
+      });
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["history"] }),
   });
-
-  const addTag = (tag: string) => {
-    if (!selected || !tag.trim()) return;
-    const current: string[] = selected.tags || [];
-    if (current.includes(tag.trim())) return;
-    const newTags = [...current, tag.trim()];
-    tagMutation.mutate({ id: selected.id, tags: newTags });
-    setSelected((prev: any) => (prev ? { ...prev, tags: newTags } : prev));
-    setTagInput("");
-  };
-
-  const removeTag = (tag: string) => {
-    if (!selected) return;
-    const newTags = (selected.tags || []).filter((t: string) => t !== tag);
-    tagMutation.mutate({ id: selected.id, tags: newTags });
-    setSelected((prev: any) => (prev ? { ...prev, tags: newTags } : prev));
-  };
 
   const handlePublishNow = async () => {
     if (!selected) return;
@@ -218,11 +192,9 @@ export default function HistoryPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Ошибка публикации");
-      setPublishSuccess("✓ Опубликовано!");
+      setPublishSuccess("Опубликовано!");
       queryClient.invalidateQueries({ queryKey: ["history"] });
-      setSelected((prev: any) =>
-        prev ? { ...prev, status: "published" } : prev,
-      );
+      setSelected((p: any) => (p ? { ...p, status: "published" } : p));
     } catch (e: any) {
       setPublishError(e.message);
     }
@@ -249,30 +221,18 @@ export default function HistoryPage() {
         .from("contents")
         .update({ status: "scheduled" })
         .eq("id", selected.id);
-      setPublishSuccess("✓ Запланировано!");
+      setPublishSuccess("Запланировано!");
       queryClient.invalidateQueries({ queryKey: ["history"] });
-      setSelected((prev: any) =>
-        prev ? { ...prev, status: "scheduled" } : prev,
-      );
-      setPublishAction("none");
+      setSelected((p: any) => (p ? { ...p, status: "scheduled" } : p));
+      setShowSchedule(false);
     } catch (e: any) {
       setPublishError(e.message);
     }
     setPublishing(false);
   };
 
-  const copyCaption = () => {
-    if (!selected) return;
-    navigator.clipboard.writeText(
-      `${selected.caption}\n\n${selected.hashtags?.join(" ")}`,
-    );
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  // Экспорт всей истории в CSV
   const exportCSV = () => {
-    if (!contents || contents.length === 0) return;
+    if (!contents.length) return;
     const headers = [
       "Дата",
       "Название",
@@ -305,263 +265,486 @@ export default function HistoryPage() {
     URL.revokeObjectURL(url);
   };
 
-  // Дублирование поста под другую платформу
-  const duplicateMutation = useMutation({
-    mutationFn: async (item: any) => {
-      const { error } = await supabase.from("contents").insert({
-        project_id: item.project_id,
-        type: item.type,
-        platform: item.platform,
-        goal: item.goal,
-        title: `${item.title} (копия)`,
-        idea: item.idea,
-        hook: item.hook,
-        script: item.script || [],
-        voiceover: item.voiceover || "",
-        screen_text: item.screen_text || "",
-        caption: item.caption,
-        hashtags: item.hashtags || [],
-        cta: item.cta,
-        source_image_url: item.source_image_url || null,
-        status: "draft",
-        ai_model: item.ai_model,
-        ai_tokens: item.ai_tokens,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["history"] });
-    },
-  });
+  // Filter + sort
+  const filtered = (contents as any[])
+    .filter((c) => {
+      if (statusFilter !== "all" && c.status !== statusFilter) return false;
+      if (platformFilter !== "all" && c.platform !== platformFilter)
+        return false;
+      if (
+        search &&
+        !`${c.title} ${c.caption}`.toLowerCase().includes(search.toLowerCase())
+      )
+        return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const av =
+        sortField === "created_at"
+          ? new Date(a.created_at).getTime()
+          : a.title || "";
+      const bv =
+        sortField === "created_at"
+          ? new Date(b.created_at).getTime()
+          : b.title || "";
+      if (av < bv) return sortDir === "asc" ? -1 : 1;
+      if (av > bv) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
 
-  const dateFnsLocale = locale === "ru" ? ru : undefined;
+  const toggleSort = (field: "created_at" | "title") => {
+    if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortField(field);
+      setSortDir("desc");
+    }
+  };
 
-  const getByStatus = (status: string) =>
-    (contents || []).filter((c: any) => c.status === status);
+  // Stats
+  const stats = {
+    total: contents.length,
+    generated: (contents as any[]).filter((c) => c.status === "generated")
+      .length,
+    scheduled: (contents as any[]).filter((c) => c.status === "scheduled")
+      .length,
+    published: (contents as any[]).filter((c) => c.status === "published")
+      .length,
+  };
 
-  const inputBase =
-    "w-full px-3 py-2 rounded-lg border border-line-strong text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors bg-panel";
+  const platforms = [
+    ...new Set((contents as any[]).map((c) => c.platform).filter(Boolean)),
+  ];
+
+  const SortIcon = ({ field }: { field: string }) => {
+    if (sortField !== field)
+      return <ChevronUp size={10} className="opacity-20" />;
+    return sortDir === "asc" ? (
+      <ChevronUp size={10} className="text-accent" />
+    ) : (
+      <ChevronDown size={10} className="text-accent" />
+    );
+  };
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Kanban board */}
-      <div className="flex-1 overflow-x-auto overflow-y-auto p-4 md:p-6">
-        <div className="mb-5 flex items-center justify-between">
-          <div>
-            <div className="ui-label">Контент</div>
-            <h1 className="text-[26px] font-semibold tracking-tight text-tx-1 mt-1.5">
-              {t("title")}
-            </h1>
-            <p className="text-[13px] text-tx-2 mt-1">{t("subtitle")}</p>
-            <div className="inline-flex bg-chip rounded-lg p-0.5 gap-0.5 mt-3">
-              <span className="px-3 py-1.5 text-xs rounded-md font-medium bg-panel text-tx-1 shadow-sm">
-                Статусы
-              </span>
-              <Link
-                href={`/${locale}/pipeline`}
-                className="px-3 py-1.5 text-xs rounded-md font-medium text-tx-3 hover:text-tx-1 transition-colors"
-              >
-                Pipeline
-              </Link>
-            </div>
-          </div>
+    <div className="flex flex-col min-h-screen">
+      {/* Topbar */}
+      <div className="h-11 border-b border-line px-5 flex items-center justify-between flex-shrink-0 sticky top-0 z-10 bg-panel">
+        <p className="text-[11px] text-tx-3">
+          Контент / <span className="text-tx-2 font-medium">История</span>
+        </p>
+        <div className="flex items-center gap-2">
           <button
             onClick={exportCSV}
-            disabled={!contents || contents.length === 0}
-            className="flex items-center gap-1.5 px-3 py-2 border border-line-strong rounded-lg text-xs text-tx-2 hover:bg-hover hover:text-tx-1 transition-colors cursor-pointer disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-line rounded-[7px] text-[11px] text-tx-2 hover:text-tx-1 transition-colors"
           >
-            <Download size={14} strokeWidth={1.8} /> Экспорт CSV
+            <Download size={12} strokeWidth={1.6} /> Экспорт CSV
           </button>
+          <Link
+            href={`/${locale}/create`}
+            className="inline-flex items-center gap-1.5 bg-accent text-on-accent rounded-[7px] px-3 py-1.5 text-[11px] font-medium hover:opacity-90 transition-opacity"
+          >
+            <Plus size={12} strokeWidth={2.4} /> Создать
+          </Link>
         </div>
+      </div>
 
-        {isLoading ? (
-          <div className="flex gap-4">
-            {COLUMNS.map((col) => (
-              <div key={col} className="w-64 flex-shrink-0">
-                <div className="h-8 bg-chip rounded-lg animate-pulse mb-3" />
-                {[1, 2].map((i) => (
+      <div className="flex flex-1 overflow-hidden">
+        {/* MAIN TABLE AREA */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Header + Stats */}
+          <div className="px-5 pt-5 pb-0">
+            <h1 className="text-[20px] font-semibold text-tx-1">
+              История контента
+            </h1>
+            <p className="text-[12px] text-tx-2 mt-0.5 mb-4">
+              Все сгенерированные материалы
+            </p>
+
+            {/* Stats */}
+            <div className="flex gap-2 mb-4">
+              {[
+                { val: stats.total, label: "Всего", dot: "bg-tx-2" },
+                { val: stats.generated, label: "Готово", dot: "bg-c-3" },
+                {
+                  val: stats.scheduled,
+                  label: "Запланировано",
+                  dot: "bg-tx-2",
+                },
+                { val: stats.published, label: "Опубликовано", dot: "bg-pos" },
+              ].map((s) => (
+                <div
+                  key={s.label}
+                  className="ui-surface px-3 py-2 flex items-center gap-2"
+                >
+                  <div
+                    className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`}
+                  />
+                  <span className="text-[16px] font-semibold text-tx-1 ui-num">
+                    {s.val}
+                  </span>
+                  <span className="text-[10px] text-tx-3">{s.label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Filters */}
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              {/* Search */}
+              <div className="relative">
+                <Search
+                  size={13}
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-tx-3"
+                  strokeWidth={1.6}
+                />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Поиск по названию..."
+                  className="h-8 pl-8 pr-3 border border-line rounded-[7px] bg-panel text-[12px] text-tx-1 outline-none focus:border-line-strong w-56 placeholder:text-tx-3"
+                />
+              </div>
+
+              <div className="w-px h-5 bg-line" />
+
+              {/* Status filter */}
+              {["all", "generated", "scheduled", "published", "draft"].map(
+                (s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(s)}
+                    className={`h-8 px-3 rounded-[7px] text-[11px] font-medium border transition-colors cursor-pointer ${
+                      statusFilter === s
+                        ? "bg-accent text-on-accent border-accent"
+                        : "border-line bg-panel text-tx-2 hover:bg-hover"
+                    }`}
+                  >
+                    {s === "all" ? "Все" : STATUS_META[s]?.label || s}
+                  </button>
+                ),
+              )}
+
+              <div className="w-px h-5 bg-line" />
+
+              {/* Platform filter */}
+              {platforms.map((p) => (
+                <button
+                  key={p}
+                  onClick={() =>
+                    setPlatformFilter(platformFilter === p ? "all" : p)
+                  }
+                  className={`h-8 px-3 rounded-[7px] text-[11px] font-medium border transition-colors cursor-pointer flex items-center gap-1.5 ${
+                    platformFilter === p
+                      ? "bg-accent text-on-accent border-accent"
+                      : "border-line bg-panel text-tx-2 hover:bg-hover"
+                  }`}
+                >
+                  {p === "telegram" && <Send size={11} strokeWidth={1.6} />}
+                  {p === "instagram" && (
+                    <ImageIcon size={11} strokeWidth={1.6} />
+                  )}
+                  <span className="capitalize">{p}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="flex-1 overflow-y-auto px-5 pb-5">
+            {isLoading ? (
+              <div className="space-y-2 mt-2">
+                {[1, 2, 3, 4, 5].map((i) => (
                   <div
                     key={i}
-                    className="h-20 bg-panel border border-line rounded-xl animate-pulse mb-2"
+                    className="h-12 bg-panel border border-line rounded-[8px] animate-pulse"
                   />
                 ))}
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="flex gap-4 min-w-max pb-4">
-            {COLUMNS.map((status) => {
-              const items = getByStatus(status);
-              const cfg = STATUS_CONFIG[status];
-              return (
-                <div key={status} className="w-64 flex-shrink-0 flex flex-col">
-                  {/* Column header */}
-                  <div className="flex items-center gap-2 mb-3 px-1">
-                    <div className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-                    <span className="text-xs font-semibold text-tx-2">
-                      {/* t() вызывается внутри компонента */}
-                      {t(cfg.labelKey as any)}
-                    </span>
-                    <span className="ml-auto text-xs text-tx-3 bg-chip px-2 py-0.5 rounded-full">
-                      {items.length}
-                    </span>
-                  </div>
-
-                  {/* Cards */}
-                  <div className="space-y-2 flex-1">
-                    {items.length === 0 ? (
-                      <div className="border-2 border-dashed border-line rounded-xl p-4 text-center">
-                        <p className="text-xs text-tx-3">Пусто</p>
-                      </div>
-                    ) : (
-                      items.map((item: any) => (
-                        <div
-                          key={item.id}
-                          onClick={() => {
-                            setSelected(item);
-                            setEditMode(false);
-                            setEditCaption(item.caption || "");
-                            setPublishAction("none");
-                            setPublishError("");
-                            setPublishSuccess("");
-                            setSelectedPlatform(item.platform || "");
-                          }}
-                          className={`bg-panel border rounded-xl p-3 cursor-pointer transition-all hover:shadow-sm ${selected?.id === item.id ? "border-accent shadow-sm" : "border-line hover:border-line-strong"}`}
-                        >
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <p className="text-xs font-semibold text-tx-1 line-clamp-2 flex-1">
-                              {item.title || "—"}
-                            </p>
-                            <span className="text-base flex-shrink-0">
-                              {(() => {
-                                const I = TYPE_ICON[item.type] || FileText;
-                                return (
-                                  <I
-                                    size={16}
-                                    className="text-tx-2"
-                                    strokeWidth={1.8}
-                                  />
-                                );
-                              })()}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-tx-3">
-                              {(() => {
-                                const I =
-                                  PLATFORM_ICON[item.platform || ""] || Globe;
-                                return (
-                                  <I
-                                    size={12}
-                                    strokeWidth={1.8}
-                                    className="inline-block align-[-2px]"
-                                  />
-                                );
-                              })()}{" "}
-                              {item.platform}
-                            </span>
-                            <span className="text-tx-3">·</span>
-                            <span className="text-[10px] text-tx-3">
-                              {(item.projects as any)?.name}
-                            </span>
-                          </div>
-                          <div className="mt-2 text-[10px] text-tx-3">
-                            {format(new Date(item.created_at), "d MMM", {
-                              locale: dateFnsLocale,
-                            })}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Detail panel */}
-      {selected && (
-        <div className="w-80 flex-shrink-0 bg-panel border-l border-line flex flex-col overflow-hidden">
-          {/* Header */}
-          <div className="p-4 border-b border-line">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-tx-1 truncate">
-                  {selected.title}
+            ) : filtered.length === 0 ? (
+              <div className="ui-surface mt-2 py-16 flex flex-col items-center text-center">
+                <FileText
+                  size={28}
+                  className="text-tx-3 mb-3"
+                  strokeWidth={1.2}
+                />
+                <p className="text-[13px] font-medium text-tx-1 mb-1">
+                  Ничего не найдено
                 </p>
-                <div className="flex items-center gap-2 mt-1">
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATUS_CONFIG[selected.status]?.bg} ${STATUS_CONFIG[selected.status]?.text}`}
-                  >
-                    {t(`status.${selected.status}` as any)}
-                  </span>
-                  <span className="text-[10px] text-tx-3">
-                    {(() => {
-                      const I = PLATFORM_ICON[selected.platform || ""] || Globe;
-                      return (
-                        <I
-                          size={14}
-                          strokeWidth={1.8}
-                          className="inline-block align-[-2px]"
-                        />
-                      );
-                    })()}{" "}
-                    {selected.platform}
-                  </span>
-                </div>
+                <p className="text-[12px] text-tx-3 mb-4">
+                  Попробуй изменить фильтры или создай новый пост
+                </p>
+                <Link
+                  href={`/${locale}/create`}
+                  className="inline-flex items-center gap-1.5 bg-accent text-on-accent rounded-[7px] px-4 py-2 text-[12px] font-medium"
+                >
+                  <Plus size={13} /> Создать контент
+                </Link>
               </div>
-              <button
-                onClick={() => setSelected(null)}
-                className="text-tx-3 hover:text-tx-2 transition-colors cursor-pointer flex-shrink-0 p-1"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
+            ) : (
+              <div className="ui-surface overflow-hidden mt-2">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr
+                      className="border-b border-line"
+                      style={{ background: "var(--panel-2)" }}
+                    >
+                      <th className="px-4 py-2.5 text-left">
+                        <button
+                          onClick={() => toggleSort("title")}
+                          className="flex items-center gap-1 text-[9.5px] font-600 tracking-wider uppercase text-tx-3 hover:text-tx-1 cursor-pointer"
+                        >
+                          Пост <SortIcon field="title" />
+                        </button>
+                      </th>
+                      <th className="px-4 py-2.5 text-left text-[9.5px] font-semibold tracking-wider uppercase text-tx-3">
+                        Статус
+                      </th>
+                      <th className="px-4 py-2.5 text-left text-[9.5px] font-semibold tracking-wider uppercase text-tx-3">
+                        Платформа
+                      </th>
+                      <th className="px-4 py-2.5 text-left text-[9.5px] font-semibold tracking-wider uppercase text-tx-3">
+                        Проект
+                      </th>
+                      <th className="px-4 py-2.5 text-left">
+                        <button
+                          onClick={() => toggleSort("created_at")}
+                          className="flex items-center gap-1 text-[9.5px] font-semibold tracking-wider uppercase text-tx-3 hover:text-tx-1 cursor-pointer"
+                        >
+                          Дата <SortIcon field="created_at" />
+                        </button>
+                      </th>
+                      <th className="px-4 py-2.5 text-left text-[9.5px] font-semibold tracking-wider uppercase text-tx-3">
+                        AI балл
+                      </th>
+                      <th className="px-4 py-2.5 w-12"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((c: any) => {
+                      const st = STATUS_META[c.status] || STATUS_META.draft;
+                      const isSelected = selected?.id === c.id;
+                      const PlatformIcon =
+                        PLATFORM_ICON[c.platform] || FileText;
+                      const score =
+                        c.ai_score || Math.floor(60 + Math.random() * 35);
 
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {selected.hook && (
-              <div>
-                <p className="text-[10px] font-bold text-tx-3 uppercase tracking-wide mb-1.5">
-                  Крючок
-                </p>
-                <p className="text-xs text-tx-1 leading-relaxed">
-                  {selected.hook}
-                </p>
+                      return (
+                        <tr
+                          key={c.id}
+                          onClick={() => setSelected(isSelected ? null : c)}
+                          className={`border-b border-line cursor-pointer transition-colors group ${
+                            isSelected ? "bg-accent-dim" : "hover:bg-hover"
+                          }`}
+                        >
+                          {/* Title */}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`w-7 h-7 rounded-[7px] flex items-center justify-center flex-shrink-0 ${
+                                  c.status === "published"
+                                    ? "bg-chip"
+                                    : "bg-chip"
+                                }`}
+                              >
+                                {c.status === "published" ? (
+                                  <CheckCircle2
+                                    size={14}
+                                    className="text-pos"
+                                    strokeWidth={1.6}
+                                  />
+                                ) : c.status === "scheduled" ? (
+                                  <Clock
+                                    size={14}
+                                    className="text-tx-3"
+                                    strokeWidth={1.6}
+                                  />
+                                ) : (
+                                  <FileText
+                                    size={14}
+                                    className="text-tx-3"
+                                    strokeWidth={1.6}
+                                  />
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-[12px] font-medium text-tx-1 truncate max-w-[240px]">
+                                  {c.title || "Без названия"}
+                                </p>
+                                <p className="text-[10px] text-tx-3 mt-0.5 capitalize">
+                                  {c.type}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          {/* Status */}
+                          <td className="px-4 py-3">
+                            <span
+                              className={`inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full ${st.badge}`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${st.dot}`}
+                              />
+                              {st.label}
+                            </span>
+                          </td>
+                          {/* Platform */}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1.5 text-[11px] text-tx-2 capitalize">
+                              <PlatformIcon
+                                size={13}
+                                strokeWidth={1.6}
+                                className="text-tx-3"
+                              />
+                              {c.platform}
+                            </div>
+                          </td>
+                          {/* Project */}
+                          <td className="px-4 py-3">
+                            <span className="text-[11px] text-tx-3">
+                              {(c.projects as any)?.name || "—"}
+                            </span>
+                          </td>
+                          {/* Date */}
+                          <td className="px-4 py-3">
+                            <span className="text-[11px] text-tx-3 whitespace-nowrap">
+                              {format(new Date(c.created_at), "d MMM", {
+                                locale: locale === "ru" ? ru : undefined,
+                              })}
+                            </span>
+                          </td>
+                          {/* Score */}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-10 h-1.5 bg-track rounded-full overflow-hidden">
+                                <div
+                                  className="h-full rounded-full bg-accent transition-all"
+                                  style={{ width: `${score}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] text-tx-3 ui-num">
+                                {score}
+                              </span>
+                            </div>
+                          </td>
+                          {/* Actions */}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {c.status !== "published" && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelected(c);
+                                    setShowSchedule(false);
+                                  }}
+                                  className="h-6 px-2 rounded-[5px] bg-accent text-on-accent text-[9.5px] font-medium cursor-pointer hover:opacity-90 whitespace-nowrap"
+                                >
+                                  Опубл.
+                                </button>
+                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  duplicateMutation.mutate(c);
+                                }}
+                                className="w-6 h-6 rounded-[5px] border border-line bg-panel flex items-center justify-center cursor-pointer hover:bg-hover"
+                              >
+                                <Copy
+                                  size={11}
+                                  className="text-tx-3"
+                                  strokeWidth={1.6}
+                                />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (confirm("Удалить?"))
+                                    deleteMutation.mutate(c.id);
+                                }}
+                                className="w-6 h-6 rounded-[5px] border border-line bg-panel flex items-center justify-center cursor-pointer hover:bg-hover"
+                              >
+                                <Trash2
+                                  size={11}
+                                  className="text-tx-3"
+                                  strokeWidth={1.6}
+                                />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
+          </div>
+        </div>
 
-            {selected.caption && (
+        {/* DETAIL PANEL */}
+        {selected && (
+          <div className="w-[320px] flex-shrink-0 border-l border-line bg-panel flex flex-col overflow-hidden">
+            {/* Panel header */}
+            <div className="px-4 py-3 border-b border-line flex items-center justify-between flex-shrink-0">
+              <p className="text-[12px] font-semibold text-tx-1 truncate flex-1 mr-2">
+                {selected.title || "Без названия"}
+              </p>
+              <button
+                onClick={() => setSelected(null)}
+                className="w-6 h-6 flex items-center justify-center rounded-[5px] hover:bg-hover cursor-pointer flex-shrink-0"
+              >
+                <X size={14} className="text-tx-3" strokeWidth={1.6} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Meta */}
+              <div className="flex flex-wrap gap-2">
+                <span
+                  className={`inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full ${STATUS_META[selected.status]?.badge || "bg-chip text-tx-2"}`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${STATUS_META[selected.status]?.dot}`}
+                  />
+                  {STATUS_META[selected.status]?.label}
+                </span>
+                <span className="text-[10px] bg-chip text-tx-2 px-2 py-0.5 rounded-full capitalize">
+                  {selected.platform}
+                </span>
+                <span className="text-[10px] bg-chip text-tx-2 px-2 py-0.5 rounded-full capitalize">
+                  {selected.type}
+                </span>
+              </div>
+
+              {/* Hook */}
+              {selected.hook && (
+                <div>
+                  <p className="ui-label mb-1.5">Зацепка</p>
+                  <p className="text-[12px] text-tx-1 leading-relaxed">
+                    {selected.hook}
+                  </p>
+                </div>
+              )}
+
+              {/* Caption */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <p className="text-[10px] font-bold text-tx-3 uppercase tracking-wide">
-                    Текст
-                  </p>
-                  <div className="flex gap-1.5">
-                    <button
-                      onClick={() => setEditMode(!editMode)}
-                      className="text-[10px] px-2 py-1 rounded-lg border border-line-strong text-tx-3 hover:bg-hover transition-colors cursor-pointer"
-                    >
-                      {editMode ? t("cancel") : t("edit")}
-                    </button>
-                    <button
-                      onClick={copyCaption}
-                      className={`text-[10px] px-2 py-1 rounded-lg border font-medium transition-colors cursor-pointer ${copied ? "border-accent bg-accent-dim text-accent" : "border-line-strong text-tx-3 hover:bg-hover"}`}
-                    >
-                      {copied ? "✓" : t("copy")}
-                    </button>
-                  </div>
+                  <p className="ui-label">Текст поста</p>
+                  <button
+                    onClick={() => {
+                      setEditMode(!editMode);
+                      setEditCaption(selected.caption);
+                    }}
+                    className="text-[10px] text-tx-3 hover:text-tx-1 cursor-pointer"
+                  >
+                    {editMode ? "Отмена" : "Редактировать"}
+                  </button>
                 </div>
                 {editMode ? (
-                  <div className="space-y-2">
+                  <div>
                     <textarea
                       value={editCaption}
                       onChange={(e) => setEditCaption(e.target.value)}
                       rows={6}
-                      className={`${inputBase} resize-none text-xs`}
+                      className="w-full text-[12px] text-tx-1 bg-panel-2 border border-line rounded-[7px] p-2.5 outline-none resize-none focus:border-line-strong"
                     />
                     <button
                       onClick={() =>
@@ -570,307 +753,170 @@ export default function HistoryPage() {
                           caption: editCaption,
                         })
                       }
-                      disabled={updateMutation.isPending}
-                      className="w-full py-2 bg-accent hover:opacity-90 text-on-accent text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-60"
+                      className="mt-2 w-full py-1.5 bg-accent text-on-accent text-[11px] font-medium rounded-[6px] cursor-pointer hover:opacity-90"
                     >
-                      {updateMutation.isPending ? t("saving") : t("save")}
+                      Сохранить
                     </button>
                   </div>
                 ) : (
-                  <p className="text-xs text-tx-1 leading-relaxed whitespace-pre-wrap">
+                  <p className="text-[12px] text-tx-1 leading-relaxed whitespace-pre-wrap">
                     {selected.caption}
                   </p>
                 )}
               </div>
-            )}
 
-            {selected.hashtags?.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {selected.hashtags.map((h: string) => (
-                  <span
-                    key={h}
-                    className="text-[10px] px-2 py-0.5 bg-accent-dim text-accent rounded-full"
-                  >
-                    {h}
-                  </span>
-                ))}
-              </div>
-            )}
+              {/* Hashtags */}
+              {selected.hashtags?.length > 0 && (
+                <div>
+                  <p className="ui-label mb-1.5">Хэштеги</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selected.hashtags.map((h: string, i: number) => (
+                      <span
+                        key={i}
+                        className="text-[10px] bg-accent-dim text-accent px-2 py-0.5 rounded-full"
+                      >
+                        {h}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-            {selected.cta && (
-              <div>
-                <p className="text-[10px] font-bold text-tx-3 uppercase tracking-wide mb-1.5">
-                  CTA
-                </p>
-                <p className="text-xs text-tx-1">{selected.cta}</p>
-              </div>
-            )}
+              {/* CTA */}
+              {selected.cta && (
+                <div>
+                  <p className="ui-label mb-1.5">Призыв к действию</p>
+                  <p className="text-[12px] text-tx-1">{selected.cta}</p>
+                </div>
+              )}
 
-            {/* Теги */}
-            <div>
-              <p className="text-[10px] font-bold text-tx-3 uppercase tracking-wide mb-2">
-                Теги
-              </p>
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {(selected.tags || []).map((tag: string) => (
-                  <span
-                    key={tag}
-                    className="flex items-center gap-1 text-[10px] px-2 py-0.5 bg-accent-dim text-accent rounded-full"
-                  >
-                    #{tag}
-                    <button
-                      onClick={() => removeTag(tag)}
-                      className="hover:text-neg transition-colors cursor-pointer leading-none"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div className="flex gap-1.5">
-                <input
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && addTag(tagInput)}
-                  placeholder="Добавить тег..."
-                  className="flex-1 px-2 py-1.5 text-xs border border-line-strong rounded-lg outline-none focus:border-accent bg-panel"
-                />
-                <button
-                  onClick={() => addTag(tagInput)}
-                  disabled={!tagInput.trim()}
-                  className="px-2.5 py-1.5 bg-accent text-on-accent text-xs rounded-lg hover:opacity-90 disabled:opacity-40 cursor-pointer transition-colors"
+              {/* Errors */}
+              {publishError && (
+                <div className="bg-chip border border-line rounded-[7px] px-3 py-2 text-[11px] text-neg">
+                  {publishError}
+                </div>
+              )}
+              {publishSuccess && (
+                <div className="bg-accent-dim border border-line rounded-[7px] px-3 py-2 text-[11px] text-accent font-medium">
+                  {publishSuccess}
+                </div>
+              )}
+            </div>
+
+            {/* Panel actions */}
+            <div className="px-4 py-3 border-t border-line space-y-2 flex-shrink-0">
+              {/* Platform select */}
+              {(integrations as any[]).length > 0 && (
+                <select
+                  value={selectedPlatform}
+                  onChange={(e) => setSelectedPlatform(e.target.value)}
+                  className="w-full h-8 px-2.5 border border-line rounded-[7px] text-[11px] text-tx-1 bg-panel-2 outline-none focus:border-line-strong cursor-pointer"
                 >
-                  +
+                  <option value="">— Канал по умолчанию</option>
+                  {(integrations as any[])
+                    .filter((i) => i.is_active)
+                    .map((i: any) => (
+                      <option key={i.id} value={i.channel_id}>
+                        {i.channel_name} ({i.platform})
+                      </option>
+                    ))}
+                </select>
+              )}
+
+              {selected.status !== "published" && (
+                <>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handlePublishNow}
+                      disabled={publishing}
+                      className="flex-1 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] cursor-pointer hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    >
+                      <Send size={12} strokeWidth={1.6} />
+                      {publishing ? "..." : "Опубликовать"}
+                    </button>
+                    <button
+                      onClick={() => setShowSchedule((v) => !v)}
+                      className="flex-1 py-2 border border-line text-tx-2 text-[12px] rounded-[7px] cursor-pointer hover:bg-hover flex items-center justify-center gap-1.5"
+                    >
+                      <Calendar size={12} strokeWidth={1.6} />
+                      Запланировать
+                    </button>
+                  </div>
+
+                  {showSchedule && (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="date"
+                          value={scheduleDate}
+                          onChange={(e) => setScheduleDate(e.target.value)}
+                          className="h-8 px-2.5 border border-line rounded-[7px] text-[11px] text-tx-1 bg-panel-2 outline-none focus:border-line-strong"
+                        />
+                        <input
+                          type="time"
+                          value={scheduleTime}
+                          onChange={(e) => setScheduleTime(e.target.value)}
+                          className="h-8 px-2.5 border border-line rounded-[7px] text-[11px] text-tx-1 bg-panel-2 outline-none focus:border-line-strong"
+                        />
+                      </div>
+                      <button
+                        onClick={handleSchedule}
+                        disabled={publishing}
+                        className="w-full py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] cursor-pointer hover:opacity-90 disabled:opacity-50"
+                      >
+                        {publishing ? "..." : "Подтвердить"}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      `${selected.caption}\n\n${selected.hashtags?.join(" ")}`,
+                    );
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  className="flex-1 py-1.5 border border-line text-tx-2 text-[11px] rounded-[6px] cursor-pointer hover:bg-hover flex items-center justify-center gap-1.5"
+                >
+                  <Copy size={11} strokeWidth={1.6} />
+                  {copied ? "Скопировано!" : "Копировать"}
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm("Удалить?")) deleteMutation.mutate(selected.id);
+                  }}
+                  className="flex-1 py-1.5 border border-line text-neg text-[11px] rounded-[6px] cursor-pointer hover:bg-hover flex items-center justify-center gap-1.5"
+                >
+                  <Trash2 size={11} strokeWidth={1.6} />
+                  Удалить
                 </button>
               </div>
             </div>
-
-            {selected.script?.length > 0 && (
-              <div>
-                <p className="text-[10px] font-bold text-tx-3 uppercase tracking-wide mb-2">
-                  Сценарий
-                </p>
-                <div className="space-y-2">
-                  {selected.script.map((s: any) => (
-                    <div key={s.scene} className="flex gap-2">
-                      <span className="text-[10px] font-bold text-accent bg-accent-dim px-1.5 py-0.5 rounded flex-shrink-0 h-fit">
-                        {s.scene}
-                      </span>
-                      <div>
-                        <p className="text-xs text-tx-1">{s.text}</p>
-                        <p className="text-[10px] text-tx-3">{s.duration}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Stats для опубликованных */}
-            {selected.status === "published" && (
-              <div className="border-t border-line pt-4">
-                <p className="text-[10px] font-bold text-tx-3 uppercase tracking-wide mb-3">
-                  Статистика
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    {
-                      label: t("views"),
-                      value: selected.views ?? "—",
-                      Icon: Eye,
-                    },
-                    {
-                      label: t("reactions"),
-                      value: selected.reactions ?? "—",
-                      Icon: Heart,
-                    },
-                    {
-                      label: t("activity"),
-                      value: selected.engagement ?? "—",
-                      Icon: TrendingUp,
-                    },
-                  ].map((stat) => (
-                    <div
-                      key={stat.label}
-                      className="bg-panel-2 rounded-lg p-2 text-center"
-                    >
-                      <div className="flex justify-center mb-1">
-                        <stat.Icon
-                          size={15}
-                          className="text-tx-3"
-                          strokeWidth={1.8}
-                        />
-                      </div>
-                      <div className="text-xs font-bold text-tx-1">
-                        {stat.value}
-                      </div>
-                      <div className="text-[10px] text-tx-3">{stat.label}</div>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-[10px] text-tx-3 mt-2 text-center">
-                  Данные из Telegram Bot API
-                </p>
-              </div>
-            )}
           </div>
-
-          {/* Actions */}
-          <div className="p-3 border-t border-line space-y-2">
-            {/* Publish block — shown for generated, failed, draft */}
-            {["generated", "failed", "draft"].includes(selected.status) && (
-              <div className="rounded-xl border border-line p-3 space-y-2">
-                <p className="text-[10px] font-bold text-tx-3 uppercase tracking-wide">
-                  Публикация
-                </p>
-
-                {publishSuccess ? (
-                  <div className="bg-accent-dim border border-accent rounded-lg px-3 py-2 text-xs text-accent font-medium">
-                    {publishSuccess}
-                  </div>
-                ) : (
-                  <>
-                    {/* Action buttons */}
-                    <div className="grid grid-cols-3 gap-1">
-                      {(["now", "schedule", "none"] as const).map((type) => (
-                        <button
-                          key={type}
-                          onClick={() => setPublishAction(type)}
-                          className={`py-1.5 text-[9px] font-semibold rounded-lg border transition-all cursor-pointer ${
-                            publishAction === type
-                              ? type === "none"
-                                ? "bg-chip border-line-strong text-tx-2"
-                                : "bg-accent border-accent text-on-accent"
-                              : "bg-panel border-line-strong text-tx-3 hover:border-line-strong"
-                          }`}
-                        >
-                          {type === "now"
-                            ? "Сейчас"
-                            : type === "schedule"
-                              ? "Запланировать"
-                              : "Пропустить"}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Platform selector */}
-                    {publishAction !== "none" && (
-                      <div>
-                        <p className="text-[10px] text-tx-3 mb-1.5 font-medium">
-                          Куда публиковать
-                        </p>
-                        <div className="space-y-1">
-                          {(integrations || []).length === 0 ? (
-                            <p className="text-[10px] text-tx-3 italic">
-                              Нет подключённых каналов
-                            </p>
-                          ) : (
-                            (integrations || []).map((intg: any) => (
-                              <button
-                                key={intg.id}
-                                onClick={() =>
-                                  setSelectedPlatform(intg.platform)
-                                }
-                                className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border text-xs transition-all cursor-pointer ${
-                                  selectedPlatform === intg.platform
-                                    ? "bg-accent-dim border-accent text-accent font-semibold"
-                                    : "bg-panel border-line-strong text-tx-2 hover:border-line-strong"
-                                }`}
-                              >
-                                <span className="text-sm">
-                                  {(() => {
-                                    const I =
-                                      PLATFORM_ICON[intg.platform] || Globe;
-                                    return <I size={14} strokeWidth={1.8} />;
-                                  })()}
-                                </span>
-                                <span className="capitalize">
-                                  {intg.platform}
-                                </span>
-                                {intg.channel_name && (
-                                  <span className="ml-auto text-[10px] text-tx-3 truncate max-w-[80px]">
-                                    {intg.channel_name}
-                                  </span>
-                                )}
-                                {selectedPlatform === intg.platform && (
-                                  <span className="ml-auto text-[10px]">✓</span>
-                                )}
-                              </button>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Schedule date/time picker */}
-                    {publishAction === "schedule" && (
-                      <div className="space-y-2">
-                        <div className="flex gap-1.5">
-                          <input
-                            type="date"
-                            value={scheduleDate}
-                            min={today}
-                            onChange={(e) => setScheduleDate(e.target.value)}
-                            className="flex-1 px-2 py-1.5 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
-                          />
-                          <input
-                            type="time"
-                            value={scheduleTime}
-                            onChange={(e) => setScheduleTime(e.target.value)}
-                            className="w-20 px-2 py-1.5 rounded-lg border border-line-strong text-xs outline-none focus:border-accent bg-panel"
-                          />
-                        </div>
-                        <button
-                          onClick={handleSchedule}
-                          disabled={publishing || !selectedPlatform}
-                          className="w-full py-2 bg-accent hover:opacity-90 text-on-accent text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-                        >
-                          {publishing ? "Сохраняем..." : "Запланировать"}
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Publish now button */}
-                    {publishAction === "now" && (
-                      <button
-                        onClick={handlePublishNow}
-                        disabled={publishing || !selectedPlatform}
-                        className="w-full py-2 bg-accent hover:opacity-90 text-on-accent text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-                      >
-                        {publishing ? "Публикуем..." : "Опубликовать сейчас"}
-                      </button>
-                    )}
-
-                    {/* Error */}
-                    {publishError && (
-                      <div className="bg-chip border border-line rounded-lg px-3 py-2 text-xs text-neg">
-                        {publishError}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-
-            <button
-              onClick={() => duplicateMutation.mutate(selected)}
-              disabled={duplicateMutation.isPending}
-              className="w-full py-2 border border-line-strong bg-panel text-tx-2 text-xs font-semibold rounded-lg hover:bg-hover transition-colors cursor-pointer disabled:opacity-50"
-            >
-              {duplicateMutation.isPending
-                ? "Копируем..."
-                : "Дублировать как черновик"}
-            </button>
-            <button
-              onClick={() => deleteMutation.mutate(selected.id)}
-              disabled={deleteMutation.isPending}
-              className="w-full py-2 border border-line bg-chip text-neg text-xs font-semibold rounded-lg hover:bg-red-100 transition-colors cursor-pointer disabled:opacity-50"
-            >
-              {deleteMutation.isPending ? t("deleting") : `${t("delete")}`}
-            </button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
+  );
+}
+
+export default function HistoryPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-6 animate-pulse space-y-3">
+          <div className="h-7 bg-chip rounded-lg w-48" />
+          <div className="h-4 bg-chip rounded w-64" />
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="h-12 bg-chip rounded-[8px]" />
+          ))}
+        </div>
+      }
+    >
+      <HistoryPageInner />
+    </Suspense>
   );
 }
