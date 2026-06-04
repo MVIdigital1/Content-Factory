@@ -17,7 +17,7 @@ const SCORE_LABELS: Record<string, string> = {
 };
 
 const getColor = (score: number) => {
-  if (score >= 80) return { bar: "bg-[#1D9E75]", text: "text-[#1D9E75]" };
+  if (score >= 80) return { bar: "bg-pos", text: "text-pos" };
   if (score >= 60) return { bar: "bg-amber-400", text: "text-amber-500" };
   return { bar: "bg-red-400", text: "text-red-500" };
 };
@@ -36,7 +36,9 @@ export default function AiScoreWidget({ contentId }: { contentId: string }) {
       });
       const data = await res.json();
       if (data.score) setScore(data.score);
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
     setLoading(false);
   };
 
@@ -45,10 +47,13 @@ export default function AiScoreWidget({ contentId }: { contentId: string }) {
       <button
         onClick={analyze}
         disabled={loading}
-        className="w-full py-2.5 border border-dashed border-[#1D9E75] text-[#1D9E75] text-xs font-medium rounded-xl hover:bg-[#E1F5EE] transition-colors cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
+        className="w-full py-2.5 border border-dashed border-accent text-accent text-xs font-medium rounded-xl hover:bg-accent-dim transition-colors cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
       >
         {loading ? (
-          <><div className="w-3 h-3 border border-[#1D9E75] border-t-transparent rounded-full animate-spin" /> Анализирую пост...</>
+          <>
+            <div className="w-3 h-3 border border-accent border-t-transparent rounded-full animate-spin" />{" "}
+            Анализирую пост...
+          </>
         ) : (
           <>✦ AI-оценка поста</>
         )}
@@ -62,7 +67,9 @@ export default function AiScoreWidget({ contentId }: { contentId: string }) {
     <div className="bg-white border border-gray-100 rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-semibold text-gray-700">✦ AI-оценка поста</p>
-        <div className={`text-xl font-bold ${overall.text}`}>{score.overall}</div>
+        <div className={`text-xl font-bold ${overall.text}`}>
+          {score.overall}
+        </div>
       </div>
 
       <div className="space-y-2 mb-3">
@@ -73,10 +80,15 @@ export default function AiScoreWidget({ contentId }: { contentId: string }) {
             <div key={key}>
               <div className="flex items-center justify-between mb-0.5">
                 <span className="text-[10px] text-gray-500">{label}</span>
-                <span className={`text-[10px] font-semibold ${c.text}`}>{val}</span>
+                <span className={`text-[10px] font-semibold ${c.text}`}>
+                  {val}
+                </span>
               </div>
               <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full transition-all duration-700 ${c.bar}`} style={{ width: `${val}%` }} />
+                <div
+                  className={`h-full rounded-full transition-all duration-700 ${c.bar}`}
+                  style={{ width: `${val}%` }}
+                />
               </div>
             </div>
           );

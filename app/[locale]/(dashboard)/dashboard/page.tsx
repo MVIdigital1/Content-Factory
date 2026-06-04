@@ -27,10 +27,10 @@ type RecentContent = {
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
   draft: { label: "Черновик", cls: "bg-chip text-tx-3" },
-  generated: { label: "Готово", cls: "bg-accent-dim text-accent" },
-  approved: { label: "Одобрено", cls: "bg-accent-dim text-accent" },
+  generated: { label: "Готово", cls: "bg-pos-dim text-pos" },
+  approved: { label: "Одобрено", cls: "bg-pos-dim text-pos" },
   scheduled: { label: "Запланировано", cls: "bg-chip text-c-3" },
-  published: { label: "Опубликовано", cls: "bg-accent-dim text-accent" },
+  published: { label: "Опубликовано", cls: "bg-pos-dim text-pos" },
   failed: { label: "Ошибка", cls: "bg-chip text-neg" },
 };
 

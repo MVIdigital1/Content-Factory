@@ -28,7 +28,7 @@ export default function LangSwitcher() {
           onClick={() => handleChange(lang.value)}
           className={`flex-1 py-1 text-xs font-semibold rounded-md transition-all ${
             locale === lang.value
-              ? "bg-[#1D9E75] text-white"
+              ? "bg-accent text-white"
               : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
           }`}
         >

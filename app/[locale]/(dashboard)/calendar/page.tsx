@@ -512,7 +512,7 @@ export default function CalendarPage() {
                     Статус
                   </div>
                   <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${selectedPost.status === "published" ? "bg-accent-dim text-accent" : selectedPost.status === "failed" ? "bg-chip text-neg" : "bg-chip text-c-3"}`}
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${selectedPost.status === "published" ? "bg-pos-dim text-pos" : selectedPost.status === "failed" ? "bg-chip text-neg" : "bg-chip text-c-3"}`}
                   >
                     {selectedPost.status === "published"
                       ? "Опубликовано"
@@ -580,7 +580,7 @@ export default function CalendarPage() {
                       {p.contents?.title || "—"}
                     </p>
                     <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-medium mt-1.5 inline-block ${p.status === "published" ? "bg-accent-dim text-accent" : p.status === "failed" ? "bg-chip text-neg" : "bg-chip text-c-3"}`}
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-medium mt-1.5 inline-block ${p.status === "published" ? "bg-pos-dim text-pos" : p.status === "failed" ? "bg-chip text-neg" : "bg-chip text-c-3"}`}
                     >
                       {p.status === "published"
                         ? "Опубликовано"

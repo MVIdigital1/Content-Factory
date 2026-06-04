@@ -34,7 +34,7 @@
   --tx-2: rgba(26, 26, 24, 0.58);
   --tx-3: rgba(26, 26, 24, 0.38);
 
-  /* Accent — графит */
+  /* Accent — нейтральный */
   --accent: #1a1a18;
   --accent-rgb: 26, 26, 24;
   --accent-dim: rgba(26, 26, 24, 0.08);
@@ -42,6 +42,7 @@
 
   /* Semantic */
   --pos: #3a7d6b;
+  --pos-dim: rgba(58, 125, 107, 0.08);
   --neg: #c1121f;
   --c-2: #1a1a18;
   --c-3: #b5500a;
@@ -65,8 +66,8 @@
   /* Sidebar — чуть темнее контента */
   --sb-bg: #1f1d1b;
   --sb-border: rgba(255, 255, 255, 0.07);
-  --sb-tx-1: #f0ece6;
-  --sb-tx-2: #9a9690;
+  --sb-tx-1: #ffffff;
+  --sb-tx-2: #faf7f7;
   --sb-tx-3: #5a5654;
   --sb-active-bg: rgba(240, 236, 230, 0.1);
   --sb-active-tx: #f0ece6;
@@ -81,7 +82,7 @@
   --tx-2: rgba(240, 236, 230, 0.62);
   --tx-3: rgba(240, 236, 230, 0.38);
 
-  /* Accent */
+  /* Accent — нейтральный */
   --accent: #f0ece6;
   --accent-rgb: 240, 236, 230;
   --accent-dim: rgba(240, 236, 230, 0.1);
@@ -89,6 +90,7 @@
 
   /* Semantic */
   --pos: #6b9e8a;
+  --pos-dim: rgba(107, 158, 138, 0.1);
   --neg: #e63946;
   --c-2: #f0ece6;
   --c-3: #e07a2f;

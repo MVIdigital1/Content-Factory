@@ -52,7 +52,7 @@ export default function ProjectDetailPage() {
 
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [uploadType, setUploadType] = useState("image");
-  const [newColor, setNewColor] = useState("#1D9E75");
+  const [newColor, setNewColor] = useState("#3B82F6");
   const [colorLabel, setColorLabel] = useState("");
   const [guidelinesText, setGuidelinesText] = useState("");
 

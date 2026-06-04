@@ -72,7 +72,7 @@ export default function DashboardCharts({
                 {k.charAt(0).toUpperCase() + k.slice(1)}
               </div>
             ))}
-            <span className="text-xs text-gray-300 group-hover:text-[#1D9E75] transition-colors ml-2">
+            <span className="text-xs text-gray-300 group-hover:text-accent transition-colors ml-2">
               Подробнее →
             </span>
           </div>
@@ -116,8 +116,16 @@ export default function DashboardCharts({
             >
               <defs>
                 <linearGradient id="actGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#1D9E75" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#1D9E75" stopOpacity={0} />
+                  <stop
+                    offset="5%"
+                    stopColor="var(--accent)"
+                    stopOpacity={0.15}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor="var(--accent)"
+                    stopOpacity={0}
+                  />
                 </linearGradient>
               </defs>
               <XAxis
@@ -140,11 +148,11 @@ export default function DashboardCharts({
               <Area
                 type="monotone"
                 dataKey="count"
-                stroke="#1D9E75"
+                stroke="var(--accent)"
                 strokeWidth={1.5}
                 fill="url(#actGrad)"
                 dot={false}
-                activeDot={{ r: 3, fill: "#1D9E75" }}
+                activeDot={{ r: 3, fill: "var(--accent)" }}
               />
             </AreaChart>
           </ResponsiveContainer>

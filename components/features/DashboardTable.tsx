@@ -28,8 +28,8 @@ type ScheduledRow = {
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  published: "bg-accent text-accent",
-  scheduled: "bg-[#F0FDF8] text-[#1D9E75]",
+  published: "bg-pos text-pos",
+  scheduled: "bg-accent-dim text-accent",
   generated: "bg-amber-50 text-amber-600",
   draft: "bg-gray-100 text-gray-500",
   approved: "bg-indigo-50 text-indigo-600",
@@ -162,13 +162,13 @@ export default function DashboardTable({
             onClick={() => setActiveTab(tab.key)}
             className={`text-xs font-medium pb-0.5 transition-colors cursor-pointer focus:outline-none ${
               activeTab === tab.key
-                ? "text-gray-900 border-b-2 border-[#1D9E75]"
+                ? "text-gray-900 border-b-2 border-accent"
                 : "text-gray-400 hover:text-gray-600"
             }`}
           >
             {tab.label}
             {activeTab === tab.key && (
-              <span className="ml-1.5 bg-[#E8F5EE] text-[#1D9E75] text-[10px] px-1.5 py-0.5 rounded-full">
+              <span className="ml-1.5 bg-accent-dim text-accent text-[10px] px-1.5 py-0.5 rounded-full">
                 {isLoading ? "…" : activeCount}
               </span>
             )}
@@ -177,7 +177,7 @@ export default function DashboardTable({
 
         <div className="ml-auto flex items-center gap-2">
           {/* Live search */}
-          <div className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-2.5 py-1 text-xs text-gray-400 focus-within:border-[#1D9E75] transition-colors">
+          <div className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-2.5 py-1 text-xs text-gray-400 focus-within:border-accent transition-colors">
             <svg
               width="11"
               height="11"
@@ -368,7 +368,7 @@ export default function DashboardTable({
               {!search && (
                 <Link
                   href="/create"
-                  className="text-sm text-[#1D9E75] font-medium hover:underline"
+                  className="text-sm text-accent font-medium hover:underline"
                 >
                   Создать первый пост →
                 </Link>
@@ -402,7 +402,7 @@ export default function DashboardTable({
                   </span>
                 </div>
                 <div className="col-span-2 flex items-center">
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-[#F0FDF8] text-[#1D9E75]">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-accent-dim text-accent">
                     {STATUS_LABELS[s.status] ?? s.status}
                   </span>
                 </div>
@@ -438,7 +438,7 @@ export default function DashboardTable({
               {!search && (
                 <Link
                   href="/calendar"
-                  className="text-sm text-[#1D9E75] font-medium hover:underline"
+                  className="text-sm text-accent font-medium hover:underline"
                 >
                   Открыть календарь →
                 </Link>

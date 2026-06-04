@@ -59,7 +59,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-11 h-11 bg-[#1D9E75] rounded-xl flex items-center justify-center mx-auto mb-3 text-xl">
+          <div className="w-11 h-11 bg-accent rounded-xl flex items-center justify-center mx-auto mb-3 text-xl">
             ⚡
           </div>
           <h1 className="text-xl font-bold text-gray-900">
@@ -111,7 +111,7 @@ export default function LoginPage() {
                 }
                 placeholder="you@example.com"
                 required
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors"
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors"
               />
             </div>
             <div>
@@ -126,7 +126,7 @@ export default function LoginPage() {
                 }
                 placeholder="••••••••"
                 required
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors"
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors"
               />
             </div>
             {form.error && (
@@ -137,7 +137,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={form.loading}
-              className="w-full py-2.5 rounded-lg bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold transition-colors disabled:opacity-60"
+              className="w-full py-2.5 rounded-lg bg-accent hover:bg-accent-darker text-white text-sm font-semibold transition-colors disabled:opacity-60"
             >
               {form.loading ? t("loading") : t("btn")}
             </button>

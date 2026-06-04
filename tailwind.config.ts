@@ -10,11 +10,7 @@ const config: Config = {
     extend: {
       colors: {
         // ── старые цвета ──────────────────────────────────
-        accent: {
-          DEFAULT: "#1D9E75",
-          light: "#E1F5EE",
-          dark: "#0F6E56",
-        },
+        accent: "var(--accent)",
         brand: {
           blue: "#185FA5",
           "blue-light": "#E6F1FB",
@@ -33,6 +29,7 @@ const config: Config = {
         "tx-3": "var(--tx-3)",
         "accent-dim": "var(--accent-dim)",
         "on-accent": "var(--on-accent)",
+        "pos-dim": "var(--pos-dim)",
         pos: "var(--pos)",
         neg: "var(--neg)",
         "c-2": "var(--c-2)",

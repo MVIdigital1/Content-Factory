@@ -21,12 +21,12 @@ type Props = {
   statusCounts: Record<string, number>;
 };
 
-const COLORS = ["#1D9E75", "#3B82F6", "#F59E0B", "#8B5CF6", "#EC4899"];
+const COLORS = ["#3B82F6", "#F59E0B", "#8B5CF6", "#EC4899", "#6366F1"];
 const STATUS_COLORS: Record<string, string> = {
   draft: "#9CA3AF",
   generated: "#F59E0B",
   scheduled: "#8B5CF6",
-  published: "#1D9E75",
+  published: "var(--pos)",
   failed: "#EF4444",
 };
 const PLATFORM_LABELS: Record<string, string> = {
@@ -97,7 +97,7 @@ export default function DashboardMiniCharts({
           <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">
             Статистика
           </p>
-          <span className="text-xs text-[#1D9E75] group-hover:underline">
+          <span className="text-xs text-accent group-hover:underline">
             Подробнее →
           </span>
         </div>
@@ -132,7 +132,7 @@ export default function DashboardMiniCharts({
                   ).map((entry, i) => (
                     <Cell
                       key={i}
-                      fill={entry.count > 0 ? "#1D9E75" : "#E5E7EB"}
+                      fill={entry.count > 0 ? "#3B82F6" : "#E5E7EB"}
                     />
                   ))}
                 </Bar>

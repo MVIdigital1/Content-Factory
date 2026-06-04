@@ -75,7 +75,7 @@ export default function SupportChat() {
           style={{ height: "480px" }}
         >
           {/* Header */}
-          <div className="bg-[#1D9E75] px-4 py-3 flex items-center gap-3">
+          <div className="bg-accent px-4 py-3 flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
               <svg
                 width="16"
@@ -125,7 +125,7 @@ export default function SupportChat() {
                 className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 {msg.role === "assistant" && (
-                  <div className="w-6 h-6 rounded-full bg-[#1D9E75] flex items-center justify-center flex-shrink-0 mr-2 mt-0.5">
+                  <div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center flex-shrink-0 mr-2 mt-0.5">
                     <svg
                       width="10"
                       height="10"
@@ -143,7 +143,7 @@ export default function SupportChat() {
                 <div
                   className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
                     msg.role === "user"
-                      ? "bg-[#1D9E75] text-white rounded-tr-sm"
+                      ? "bg-accent text-white rounded-tr-sm"
                       : "bg-gray-100 text-gray-800 rounded-tl-sm"
                   }`}
                 >
@@ -153,7 +153,7 @@ export default function SupportChat() {
             ))}
             {loading && (
               <div className="flex justify-start">
-                <div className="w-6 h-6 rounded-full bg-[#1D9E75] flex items-center justify-center flex-shrink-0 mr-2 mt-0.5">
+                <div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center flex-shrink-0 mr-2 mt-0.5">
                   <svg
                     width="10"
                     height="10"
@@ -195,13 +195,13 @@ export default function SupportChat() {
                 onKeyDown={handleKey}
                 placeholder="Напишите вопрос..."
                 rows={1}
-                className="flex-1 resize-none px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white max-h-24"
+                className="flex-1 resize-none px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors bg-white max-h-24"
                 style={{ lineHeight: "1.4" }}
               />
               <button
                 onClick={send}
                 disabled={!input.trim() || loading}
-                className="w-9 h-9 bg-[#1D9E75] hover:bg-[#0F6E56] disabled:opacity-40 text-white rounded-xl flex items-center justify-center transition-colors cursor-pointer flex-shrink-0"
+                className="w-9 h-9 bg-accent hover:bg-accent-darker disabled:opacity-40 text-white rounded-xl flex items-center justify-center transition-colors cursor-pointer flex-shrink-0"
               >
                 <svg
                   width="14"
@@ -227,7 +227,7 @@ export default function SupportChat() {
       {/* Toggle button */}
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-14 h-14 bg-[#1D9E75] hover:bg-[#0F6E56] text-white rounded-full shadow-lg hover:shadow-xl transition-all cursor-pointer flex items-center justify-center relative"
+        className="w-14 h-14 bg-accent hover:bg-accent-darker text-white rounded-full shadow-lg hover:shadow-xl transition-all cursor-pointer flex items-center justify-center relative"
       >
         {open ? (
           <svg
@@ -257,7 +257,7 @@ export default function SupportChat() {
               <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
             </svg>
             {/* Online dot */}
-            <span className="absolute top-1 right-1 w-3 h-3 bg-accent rounded-full border-2 border-white" />
+            <span className="absolute top-1 right-1 w-3 h-3 bg-pos rounded-full border-2 border-white" />
           </>
         )}
       </button>

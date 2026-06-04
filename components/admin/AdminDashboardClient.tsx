@@ -64,7 +64,7 @@ const PLAN_COLORS: Record<string, string> = {
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "bg-amber-50 text-amber-600",
-  published: "bg-[#E1F5EE] text-[#1D9E75]",
+  published: "bg-accent-dim text-accent",
   failed: "bg-red-50 text-red-500",
   generated: "bg-accent text-accent",
   scheduled: "bg-purple-50 text-purple-600",
@@ -348,8 +348,8 @@ export default function AdminDashboardClient({
                 {
                   label: "Пользователей",
                   value: stats.totalUsers,
-                  color: "text-[#1D9E75]",
-                  bg: "bg-[#E1F5EE]",
+                  color: "text-accent",
+                  bg: "bg-accent-dim",
                   icon: (
                     <svg
                       width="16"
@@ -477,7 +477,7 @@ export default function AdminDashboardClient({
                       <span className="text-xs font-bold text-gray-300 w-4">
                         {i + 1}
                       </span>
-                      <div className="w-6 h-6 rounded-full bg-[#E1F5EE] flex items-center justify-center text-[10px] font-bold text-[#1D9E75]">
+                      <div className="w-6 h-6 rounded-full bg-accent-dim flex items-center justify-center text-[10px] font-bold text-accent">
                         {(u.full_name || u.email || "?")[0].toUpperCase()}
                       </div>
                       <span className="text-xs text-gray-700 flex-1 truncate">
@@ -505,7 +505,7 @@ export default function AdminDashboardClient({
                     }}
                     className="flex items-center gap-3 py-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 transition-colors"
                   >
-                    <div className="w-6 h-6 rounded-full bg-[#E1F5EE] flex items-center justify-center text-[10px] font-bold text-[#1D9E75]">
+                    <div className="w-6 h-6 rounded-full bg-accent-dim flex items-center justify-center text-[10px] font-bold text-accent">
                       {(u.full_name || u.email || "?")[0].toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -593,7 +593,7 @@ export default function AdminDashboardClient({
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-[#E1F5EE] flex items-center justify-center text-xs font-bold text-[#1D9E75] flex-shrink-0">
+                          <div className="w-7 h-7 rounded-full bg-accent-dim flex items-center justify-center text-xs font-bold text-accent flex-shrink-0">
                             {(u.full_name || u.email || "?")[0].toUpperCase()}
                           </div>
                           <span className="text-xs font-medium text-gray-900 truncate max-w-[100px]">
@@ -626,7 +626,7 @@ export default function AdminDashboardClient({
                       </td>
                       <td className="px-4 py-3">
                         <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${u.is_blocked ? "bg-red-50 text-red-500" : "bg-[#E1F5EE] text-[#1D9E75]"}`}
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${u.is_blocked ? "bg-red-50 text-red-500" : "bg-accent-dim text-accent"}`}
                         >
                           {u.is_blocked ? "Заблокирован" : "Активен"}
                         </span>
@@ -638,7 +638,7 @@ export default function AdminDashboardClient({
                         <button
                           onClick={() => handleToggleBlock(u.id, u.is_blocked)}
                           disabled={loadingId === u.id}
-                          className={`text-[10px] px-2.5 py-1 rounded-lg border font-medium transition-colors cursor-pointer disabled:opacity-50 ${u.is_blocked ? "border-[#1D9E75] text-[#1D9E75] hover:bg-[#E1F5EE]" : "border-red-200 text-red-500 hover:bg-red-50"}`}
+                          className={`text-[10px] px-2.5 py-1 rounded-lg border font-medium transition-colors cursor-pointer disabled:opacity-50 ${u.is_blocked ? "border-accent text-accent hover:bg-accent-dim" : "border-red-200 text-red-500 hover:bg-red-50"}`}
                         >
                           {loadingId === u.id
                             ? "..."
@@ -669,7 +669,7 @@ export default function AdminDashboardClient({
             <div className="bg-white rounded-xl border border-gray-100 p-6">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-[#E1F5EE] flex items-center justify-center text-xl font-bold text-[#1D9E75]">
+                  <div className="w-14 h-14 rounded-2xl bg-accent-dim flex items-center justify-center text-xl font-bold text-accent">
                     {(selectedUser.full_name ||
                       selectedUser.email ||
                       "?")[0].toUpperCase()}
@@ -688,7 +688,7 @@ export default function AdminDashboardClient({
                         {selectedUser.plan || "free"}
                       </span>
                       <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${selectedUser.is_blocked ? "bg-red-50 text-red-500" : "bg-[#E1F5EE] text-[#1D9E75]"}`}
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${selectedUser.is_blocked ? "bg-red-50 text-red-500" : "bg-accent-dim text-accent"}`}
                       >
                         {selectedUser.is_blocked ? "Заблокирован" : "Активен"}
                       </span>
@@ -704,7 +704,7 @@ export default function AdminDashboardClient({
                       )
                     }
                     disabled={loadingId === selectedUser.id}
-                    className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors cursor-pointer disabled:opacity-50 ${selectedUser.is_blocked ? "border-[#1D9E75] text-[#1D9E75] hover:bg-[#E1F5EE]" : "border-amber-200 text-amber-600 hover:bg-amber-50"}`}
+                    className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors cursor-pointer disabled:opacity-50 ${selectedUser.is_blocked ? "border-accent text-accent hover:bg-accent-dim" : "border-amber-200 text-amber-600 hover:bg-amber-50"}`}
                   >
                     {selectedUser.is_blocked
                       ? "Разблокировать"
@@ -816,7 +816,7 @@ export default function AdminDashboardClient({
                             </p>
                           </div>
                           <span
-                            className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${ch.is_active ? "bg-[#E1F5EE] text-[#1D9E75]" : "bg-gray-100 text-gray-400"}`}
+                            className={`text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${ch.is_active ? "bg-accent-dim text-accent" : "bg-gray-100 text-gray-400"}`}
                           >
                             {ch.is_active ? "Активен" : "Откл."}
                           </span>
@@ -976,7 +976,7 @@ export default function AdminDashboardClient({
                   >
                     {i + 1}
                   </span>
-                  <div className="w-7 h-7 rounded-full bg-[#E1F5EE] flex items-center justify-center text-xs font-bold text-[#1D9E75] flex-shrink-0">
+                  <div className="w-7 h-7 rounded-full bg-accent-dim flex items-center justify-center text-xs font-bold text-accent flex-shrink-0">
                     {(u.full_name || u.email || "?")[0].toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -1068,7 +1068,7 @@ export default function AdminDashboardClient({
                   >
                     {i + 1}
                   </span>
-                  <div className="w-7 h-7 rounded-full bg-[#E1F5EE] flex items-center justify-center text-xs font-bold text-[#1D9E75] flex-shrink-0">
+                  <div className="w-7 h-7 rounded-full bg-accent-dim flex items-center justify-center text-xs font-bold text-accent flex-shrink-0">
                     {(u.full_name || u.email || "?")[0].toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">

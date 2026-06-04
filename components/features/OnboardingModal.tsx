@@ -52,7 +52,7 @@ export default function OnboardingModal() {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-[#0F6E56] to-[#1D9E75] px-6 py-5 text-white">
+        <div className="bg-gradient-to-r from-accent-darker to-accent px-6 py-5 text-white">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-medium text-white/70">
               Добро пожаловать в MVI Content Factory
@@ -89,7 +89,7 @@ export default function OnboardingModal() {
             <Link
               href={current.action.href}
               onClick={dismiss}
-              className="flex-1 py-2.5 bg-[#1D9E75] text-white text-sm font-semibold rounded-xl text-center hover:bg-[#0F6E56] transition-colors"
+              className="flex-1 py-2.5 bg-accent text-white text-sm font-semibold rounded-xl text-center hover:bg-accent-darker transition-colors"
             >
               {current.action.label}
             </Link>
@@ -117,7 +117,7 @@ export default function OnboardingModal() {
                 dismiss();
                 window.location.reload();
               }}
-              className="flex-1 text-xs text-[#1D9E75] hover:underline cursor-pointer py-1"
+              className="flex-1 text-xs text-accent hover:underline cursor-pointer py-1"
             >
               Попробовать с демо-данными
             </button>

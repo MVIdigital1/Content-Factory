@@ -22,7 +22,7 @@ export default function WorkspaceSwitcher() {
   const [currentId, setCurrentId] = useState<string | null>(() =>
     typeof window !== "undefined"
       ? localStorage.getItem("current_workspace_id")
-      : null
+      : null,
   );
 
   const { data: workspaces = [], isLoading } = useQuery({
@@ -71,7 +71,7 @@ export default function WorkspaceSwitcher() {
 
   const PLAN_BADGE: Record<string, string> = {
     free: "bg-gray-100 text-gray-500",
-    pro: "bg-[#E1F5EE] text-[#1D9E75]",
+    pro: "bg-accent-dim text-accent",
     business: "bg-purple-100 text-purple-600",
   };
 
@@ -84,7 +84,7 @@ export default function WorkspaceSwitcher() {
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-white/60 rounded-lg transition-all cursor-pointer group"
       >
-        <div className="w-7 h-7 rounded-lg bg-[#1D9E75] flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden">
+        <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden">
           {current?.logo_url ? (
             <img
               src={current.logo_url}
@@ -129,10 +129,10 @@ export default function WorkspaceSwitcher() {
               key={w.id}
               onClick={() => switchMutation.mutate(w.id)}
               className={`w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-gray-50 transition-colors cursor-pointer text-left ${
-                w.id === current?.id ? "bg-[#E1F5EE]" : ""
+                w.id === current?.id ? "bg-accent-dim" : ""
               }`}
             >
-              <div className="w-7 h-7 rounded-lg bg-[#1D9E75] flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden">
+              <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden">
                 {w.logo_url ? (
                   <img
                     src={w.logo_url}
@@ -149,7 +149,7 @@ export default function WorkspaceSwitcher() {
                 </p>
               </div>
               {w.id === current?.id && (
-                <span className="text-[#1D9E75] text-xs">✓</span>
+                <span className="text-accent text-xs">✓</span>
               )}
             </button>
           ))}
@@ -162,12 +162,12 @@ export default function WorkspaceSwitcher() {
                   onChange={(e) => setNewName(e.target.value)}
                   placeholder="Название"
                   autoFocus
-                  className="flex-1 px-2 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#1D9E75]"
+                  className="flex-1 px-2 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-accent"
                 />
                 <button
                   onClick={() => createMutation.mutate(newName)}
                   disabled={!newName || createMutation.isPending}
-                  className="px-2.5 py-1.5 bg-[#1D9E75] text-white text-xs rounded-lg cursor-pointer disabled:opacity-50"
+                  className="px-2.5 py-1.5 bg-accent text-white text-xs rounded-lg cursor-pointer disabled:opacity-50"
                 >
                   {createMutation.isPending ? "..." : "OK"}
                 </button>

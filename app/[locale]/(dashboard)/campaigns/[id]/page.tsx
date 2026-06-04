@@ -263,7 +263,7 @@ export default function CampaignDetailPage() {
               Бюджет и результаты
             </h2>
             {savedFlash && (
-              <span className="text-[11.5px] text-accent">Сохранено</span>
+              <span className="text-[11.5px] text-pos">Сохранено</span>
             )}
           </div>
 

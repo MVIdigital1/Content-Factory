@@ -17,7 +17,7 @@ type TicketRow = {
 const STATUS_CONFIG = {
   open: { label: "Открыт", color: "bg-chip text-c-2" },
   in_progress: { label: "В работе", color: "bg-chip text-c-3" },
-  resolved: { label: "Решён", color: "bg-accent-dim text-accent" },
+  resolved: { label: "Решён", color: "bg-pos-dim text-pos" },
 };
 
 const PRIORITY_CONFIG = {
