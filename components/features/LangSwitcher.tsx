@@ -26,11 +26,16 @@ export default function LangSwitcher() {
         <button
           key={lang.value}
           onClick={() => handleChange(lang.value)}
-          className={`flex-1 py-1 text-xs font-semibold rounded-md transition-all ${
+          className={`flex-1 py-2 px-2 text-xs font-semibold rounded-md transition-all ${
             locale === lang.value
-              ? "bg-accent text-white"
+              ? "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
               : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
           }`}
+          style={
+            locale === lang.value
+              ? { background: "var(--on-accent)", color: "var(--accent)" }
+              : {}
+          }
         >
           {lang.label}
         </button>

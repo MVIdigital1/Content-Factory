@@ -1346,7 +1346,7 @@ export default function CreatePage() {
                 {/* ROW: Проект + Платформа */}
                 <div className="grid grid-cols-2 gap-3">
                   <div
-                    className="bg-panel border border-line rounded-[10px] overflow-hidden"
+                    className="bg-panel border border-line rounded-[10px] overflow-visible"
                     style={{ borderLeft: "2px solid var(--accent)" }}
                   >
                     <div className="px-3 pt-2.5 pb-0">
@@ -1377,17 +1377,9 @@ export default function CreatePage() {
                   </div>
 
                   <div
-                    className="bg-panel border border-line rounded-[10px] overflow-hidden"
+                    className="bg-panel border border-line rounded-[10px] overflow-visible"
                     style={{ borderLeft: "2px solid var(--accent)" }}
                   >
-                    <div className="px-3 pt-2.5 pb-0">
-                      <p
-                        className="ui-label"
-                        style={{ color: "var(--accent)" }}
-                      >
-                        Платформа
-                      </p>
-                    </div>
                     <div className="px-3 pb-3 pt-2 flex gap-1.5 flex-wrap">
                       {PLATFORMS.map((pl) => (
                         <button

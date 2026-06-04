@@ -167,7 +167,11 @@ export default function WorkspaceSwitcher() {
                 <button
                   onClick={() => createMutation.mutate(newName)}
                   disabled={!newName || createMutation.isPending}
-                  className="px-2.5 py-1.5 bg-accent text-white text-xs rounded-lg cursor-pointer disabled:opacity-50"
+                  className="px-2.5 py-1.5 text-xs rounded-lg cursor-pointer disabled:opacity-50 font-medium"
+                  style={{
+                    background: "var(--on-accent)",
+                    color: "var(--accent)",
+                  }}
                 >
                   {createMutation.isPending ? "..." : "OK"}
                 </button>
