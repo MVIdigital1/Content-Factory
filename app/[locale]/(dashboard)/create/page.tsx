@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -26,10 +26,7 @@ type GeneratedContent = {
   voiceover: string;
   screen_text: string;
   source_image_url?: string;
-  id?: string;
-};
-
-function CustomSelect({
+  id?: sfunction CustomSelect({
   value,
   onChange,
   options,
@@ -41,16 +38,28 @@ function CustomSelect({
   placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
   const selected = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    if (open) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
   return (
-    <div className="relative">
+    <div ref={ref} className="relative">
       <button
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={() => setOpen((v) => !v)}
         className="w-full px-3 py-2.5 rounded-lg border border-line-strong text-sm text-left flex items-center justify-between bg-panel hover:border-accent focus:border-accent outline-none transition-colors cursor-pointer"
       >
         <span className={selected ? "text-tx-1" : "text-tx-3"}>
-          {selected?.label || placeholder || "Выберите..."}
+          {selected?.label || placeholder || "\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435..."}
         </span>
         <svg
           width="12"
@@ -67,54 +76,53 @@ function CustomSelect({
         </svg>
       </button>
       {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute z-50 w-full mt-1.5 bg-panel border border-line-strong rounded-lg shadow-[0_8px_24px_rgba(0,0,0,0.12)] overflow-hidden ui-rise">
-            {placeholder && (
+        <div className="absolute z-50 w-full mt-1.5 bg-panel border border-line-strong rounded-lg shadow-[0_8px_24px_rgba(0,0,0,0.12)] overflow-hidden ui-rise">
+          {placeholder && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange("");
+                setOpen(false);
+              }}
+              className="w-full px-3 py-2.5 text-sm text-left text-tx-3 hover:bg-hover cursor-pointer border-b border-line"
+            >
+              {placeholder}
+            </button>
+          )}
+          <div className="max-h-[200px] overflow-y-auto">
+            {options.map((o) => (
               <button
+                key={o.value}
                 type="button"
                 onClick={() => {
-                  onChange("");
+                  onChange(o.value);
                   setOpen(false);
                 }}
-                className="w-full px-3 py-2.5 text-sm text-left text-tx-3 hover:bg-hover cursor-pointer border-b border-line"
+                className={`w-full px-3 py-2.5 text-sm text-left transition-colors cursor-pointer flex items-center justify-between gap-2 ${value === o.value ? "bg-accent-dim text-accent font-medium" : "text-tx-1 hover:bg-hover"}`}
               >
-                {placeholder}
+                <span>{o.label}</span>
+                {value === o.value && (
+                  <svg
+                    width="11"
+                    height="11"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M20 6L9 17l-5-5" />
+                  </svg>
+                )}
               </button>
-            )}
-            <div className="max-h-[200px] overflow-y-auto">
-              {options.map((o) => (
-                <button
-                  key={o.value}
-                  type="button"
-                  onClick={() => {
-                    onChange(o.value);
-                    setOpen(false);
-                  }}
-                  className={`w-full px-3 py-2.5 text-sm text-left transition-colors cursor-pointer flex items-center justify-between gap-2 ${value === o.value ? "bg-accent-dim text-accent font-medium" : "text-tx-1 hover:bg-hover"}`}
-                >
-                  <span>{o.label}</span>
-                  {value === o.value && (
-                    <svg
-                      width="11"
-                      height="11"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M20 6L9 17l-5-5" />
-                    </svg>
-                  )}
-                </button>
-              ))}
-            </div>
+            ))}
           </div>
-        </>
+        </div>
       )}
     </div>
+  );
+}div>
   );
 }
 
@@ -1467,7 +1475,7 @@ export default function CreatePage() {
                         <button
                           key={r.value}
                           onClick={() => setRubric(r.value)}
-                          className={`flex flex-col items-center gap-1 py-2.5 rounded-[8px] border text-center transition-colors cursor-pointer ${rubric === r.value ? "border-accent bg-accent-dim" : "border-line bg-panel-2 hover:bg-hover"}`}
+                          className={`flex flex-col items-center gap-1 py-2.5 rounded-[8px] border text-center transition-colors cursor-pointer ${rubric === r.value ? "border-sb-bg bg-accent-dim" : "border-line bg-panel-2 hover:bg-hover"}`}
                         >
                           <i
                             className={`ti ${r.icon} text-[14px] ${rubric === r.value ? "text-tx-1" : "text-tx-3"}`}
