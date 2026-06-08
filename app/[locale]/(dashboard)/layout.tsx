@@ -1,4 +1,4 @@
-import Sidebar from "@/components/features/Sidebar";
+import { Sidebar } from "@/components/dashboard/Sidebar";
 
 export default function DashboardLayout({
   children,
@@ -6,10 +6,25 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex h-screen bg-bg overflow-hidden">
+    <div
+      style={{
+        display: "flex",
+        height: "100vh",
+        background: "var(--bg)",
+        overflow: "hidden",
+      }}
+    >
       <Sidebar />
-      <main className="flex-1 overflow-hidden md:pt-1.5 md:pr-1.5 md:pb-3 md:pl-2">
-        <div className="h-full bg-panel border border-line rounded-2xl overflow-y-auto md:pt-0 pt-14">
+      <main style={{ flex: 1, overflow: "hidden", padding: "6px 6px 6px 0" }}>
+        <div
+          style={{
+            height: "100%",
+            background: "var(--bg-card)",
+            border: "0.5px solid var(--border)",
+            borderRadius: 12,
+            overflowY: "auto",
+          }}
+        >
           {children}
         </div>
       </main>

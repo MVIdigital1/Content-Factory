@@ -84,7 +84,7 @@ export default function WorkspaceSwitcher() {
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-white/60 rounded-lg transition-all cursor-pointer group"
       >
-        <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden">
+        <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center text-on-accent text-xs font-bold flex-shrink-0 overflow-hidden">
           {current?.logo_url ? (
             <img
               src={current.logo_url}
@@ -132,7 +132,7 @@ export default function WorkspaceSwitcher() {
                 w.id === current?.id ? "bg-accent-dim" : ""
               }`}
             >
-              <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden">
+              <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center text-on-accent text-xs font-bold flex-shrink-0 overflow-hidden">
                 {w.logo_url ? (
                   <img
                     src={w.logo_url}
