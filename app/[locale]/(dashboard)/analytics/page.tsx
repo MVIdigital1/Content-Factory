@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
 import { getTranslations, getLocale } from "next-intl/server";
-import AnalyticsCharts from "@/components/features/AnalyticsCharts";
 import Link from "next/link";
 
 export default async function AnalyticsPage({
@@ -277,14 +276,6 @@ export default async function AnalyticsPage({
           </div>
         </div>
       ) : null}
-
-      <AnalyticsCharts
-        days7={days7}
-        days30={days30}
-        platformCounts={platformCounts}
-        typeCounts={typeCounts}
-        statusCounts={statusCounts}
-      />
     </div>
   );
 }
