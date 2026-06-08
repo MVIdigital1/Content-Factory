@@ -14,6 +14,7 @@ import {
   TrendingDown,
   Minus,
 } from "lucide-react";
+import HealthWidget from "@/components/features/HealthWidget";
 
 type RecentContent = {
   id: string;
@@ -252,6 +253,17 @@ export default async function DashboardPage() {
             Создать →
           </Link>
         </div>
+
+        {/* ЗДОРОВЬЕ КОНТЕНТА */}
+        <HealthWidget
+          publishedCount={publishedCount ?? 0}
+          generationsCount={generationsCount ?? 0}
+          scheduledCount={scheduledCount ?? 0}
+          pubDelta={pubDelta}
+          genDelta={genDelta}
+          platformCounts={platformCounts}
+          pubThisWeek={pubThisWeek ?? 0}
+        />
 
         {/* Нижний ряд */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
