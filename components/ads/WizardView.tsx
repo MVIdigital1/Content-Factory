@@ -60,14 +60,13 @@ const PLATFORM_SUBTYPES: Record<
   ],
 };
 
-// Creative variants - one per subtype
 const CREATIVE_BY_SUBTYPE: Record<
   string,
   { emoji: string; title: string; desc: string }[]
 > = {
   post: [
-    { emoji: "📝", title: "Информационный пост", desc: "Польза для аудитории" },
-    { emoji: "💬", title: "Вовлекающий пост", desc: "Вопрос или опрос" },
+    { emoji: "📝", title: "Информационный", desc: "Польза для аудитории" },
+    { emoji: "💬", title: "Вовлекающий", desc: "Вопрос или опрос" },
   ],
   video: [
     { emoji: "🎬", title: "Короткое видео", desc: "15-30 секунд" },
@@ -79,11 +78,11 @@ const CREATIVE_BY_SUBTYPE: Record<
   ],
   reels: [
     { emoji: "✨", title: "Reels-хук", desc: "Первые 3 секунды" },
-    { emoji: "🌀", title: "Трендовый формат", desc: "Популярный стиль" },
+    { emoji: "🌀", title: "Трендовый", desc: "Популярный стиль" },
   ],
   stories: [
     { emoji: "⭕", title: "Stories с кнопкой", desc: "Свайп вверх" },
-    { emoji: "📲", title: "Интерактивный", desc: "Опрос или вопрос" },
+    { emoji: "📲", title: "Интерактивный", desc: "Опрос" },
   ],
   feed: [
     { emoji: "🖼", title: "Карусель", desc: "Несколько слайдов" },
@@ -98,8 +97,8 @@ const CREATIVE_BY_SUBTYPE: Record<
     { emoji: "🎯", title: "Динамическое", desc: "Под запрос" },
   ],
   rsya: [
-    { emoji: "📊", title: "Баннер РСЯ", desc: "240×400 или 728×90" },
-    { emoji: "🖼", title: "Адаптивный", desc: "Все форматы" },
+    { emoji: "📊", title: "Баннер РСЯ", desc: "Все форматы" },
+    { emoji: "🖼", title: "Адаптивный", desc: "240×400" },
   ],
   display: [
     { emoji: "🖼", title: "Медийный баннер", desc: "КМС Google" },
@@ -107,11 +106,11 @@ const CREATIVE_BY_SUBTYPE: Record<
   ],
   banner: [
     { emoji: "🖼", title: "Статичный баннер", desc: "Яркий дизайн" },
-    { emoji: "🔄", title: "Анимированный", desc: "GIF формат" },
+    { emoji: "🔄", title: "Анимированный", desc: "GIF" },
   ],
 };
 
-const STORAGE_KEY = "wizard_draft_v3";
+const STORAGE_KEY = "wizard_draft_v4";
 function loadDraft() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
@@ -200,7 +199,6 @@ export function WizardView({
   const [projectId, setProjectId] = useState(
     draft?.projectId ?? defaultProjectId ?? "",
   );
-
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(
     new Set(draft?.platforms ?? []),
   );
@@ -218,11 +216,20 @@ export function WizardView({
     new Set(draft?.creatives ?? []),
   );
   const [creativePlatformFilter, setCreativePlatformFilter] = useState("all");
-
   const [launching, setLaunching] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [error, setError] = useState("");
   const [autoSaved, setAutoSaved] = useState(false);
+
+  // Schedule state for creatives
+  const [scheduleModal, setScheduleModal] = useState<{
+    cId: string;
+    platform: string;
+    title: string;
+  } | null>(null);
+  const [scheduleTime, setScheduleTime] = useState("");
+  const [scheduling, setScheduling] = useState(false);
+  const [publishingNow, setPublishingNow] = useState<string | null>(null);
 
   const [projectOpen, setProjectOpen] = useState(false);
   const [cloneOpen, setCloneOpen] = useState(false);
@@ -231,14 +238,14 @@ export function WizardView({
   const [newProjectNiche, setNewProjectNiche] = useState("");
   const [creatingProject, setCreatingProject] = useState(false);
 
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [productImage, setProductImage] = useState<File | null>(null);
   const [productImagePreview, setProductImagePreview] = useState<string | null>(
     null,
   );
   const imgRef = useRef<HTMLInputElement>(null);
   const productImgRef = useRef<HTMLInputElement>(null);
+
+  // ── Real data queries ────────────────────────────────────────────────────────
 
   const { data: projects = [], refetch: refetchProjects } = useQuery({
     queryKey: ["projects"],
@@ -273,8 +280,9 @@ export function WizardView({
     },
   });
 
-  const { data: connectedPlatforms = [] } = useQuery({
-    queryKey: ["ad_platforms_keys"],
+  // Only REAL connected platforms from ad_platforms + integrations
+  const { data: connectedAdPlatforms = [] } = useQuery({
+    queryKey: ["ad_platforms_real"],
     queryFn: async () => {
       const {
         data: { user },
@@ -282,15 +290,97 @@ export function WizardView({
       if (!user) return [];
       const { data } = await supabase
         .from("ad_platforms")
-        .select("platform_key")
+        .select("platform_key, name, account_name, account_id, color, abbr")
         .eq("user_id", user.id)
         .eq("is_active", true);
-      return (data ?? []).map((p: any) => p.platform_key);
+      return data ?? [];
     },
   });
 
+  const { data: connectedIntegrations = [] } = useQuery({
+    queryKey: ["integrations_real"],
+    queryFn: async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return [];
+      const { data } = await supabase
+        .from("integrations")
+        .select("platform, channel_name, channel_id")
+        .eq("user_id", user.id)
+        .eq("is_active", true);
+      return data ?? [];
+    },
+  });
+
+  // Build REAL platforms list — only connected ones
+  type RealPlatform = {
+    key: string;
+    name: string;
+    abbr: string;
+    color: string;
+    textColor?: string;
+    accountInfo: string;
+    channels: string[];
+  };
+
+  const realPlatforms: RealPlatform[] = (() => {
+    const result: RealPlatform[] = [];
+    const seen = new Set<string>();
+
+    // From ad_platforms
+    for (const p of connectedAdPlatforms) {
+      if (seen.has(p.platform_key)) continue;
+      seen.add(p.platform_key);
+      const meta = PLATFORM_META[p.platform_key] ?? {
+        color: p.color ?? "#888",
+        abbr: p.abbr ?? "?",
+        name: p.name,
+      };
+      result.push({
+        key: p.platform_key,
+        name: meta.name,
+        abbr: meta.abbr,
+        color: meta.color,
+        textColor: (meta as any).textColor,
+        accountInfo: p.account_name ?? p.account_id ?? "Подключён",
+        channels: [],
+      });
+    }
+
+    // From integrations (Telegram, Instagram)
+    const integByPlatform: Record<string, string[]> = {};
+    for (const i of connectedIntegrations) {
+      if (!integByPlatform[i.platform]) integByPlatform[i.platform] = [];
+      integByPlatform[i.platform].push(`@${i.channel_name}`);
+    }
+    for (const [platform, channels] of Object.entries(integByPlatform)) {
+      if (seen.has(platform)) {
+        const existing = result.find((r) => r.key === platform);
+        if (existing) existing.channels = channels;
+      } else {
+        seen.add(platform);
+        const meta = PLATFORM_META[platform];
+        if (meta) {
+          result.push({
+            key: platform,
+            name: meta.name,
+            abbr: meta.abbr,
+            color: meta.color,
+            textColor: (meta as any).textColor,
+            accountInfo: channels.join(", "),
+            channels,
+          });
+        }
+      }
+    }
+
+    return result;
+  })();
+
+  // Autosave
   useEffect(() => {
-    const subtypesSerializable = Object.fromEntries(
+    const subtypesSer = Object.fromEntries(
       Object.entries(selectedSubtypes).map(([k, v]) => [k, [...v]]),
     );
     saveDraft({
@@ -302,7 +392,7 @@ export function WizardView({
       budget,
       projectId,
       platforms: [...selectedPlatforms],
-      subtypes: subtypesSerializable,
+      subtypes: subtypesSer,
       creatives: [...selectedCreatives],
     });
     if (name || product) {
@@ -339,7 +429,12 @@ export function WizardView({
     setGoal(c.goal ?? "Продажи / заявки");
     setProduct(c.description ?? "");
     setBudget(c.budget_total ? String(c.budget_total) : "");
-    setSelectedPlatforms(new Set(c.platforms ?? []));
+    // Only select platforms that are actually connected
+    const connectedKeys = new Set(realPlatforms.map((p) => p.key));
+    const clonePlatforms = (c.platforms ?? []).filter((p: string) =>
+      connectedKeys.has(p),
+    );
+    setSelectedPlatforms(new Set(clonePlatforms));
     setCloneOpen(false);
   };
 
@@ -465,6 +560,7 @@ export function WizardView({
     }
   };
 
+  // Launch: creates campaign + all selected creatives in Supabase
   const handleLaunch = async () => {
     if (!name.trim()) {
       setError("Введите название");
@@ -495,7 +591,6 @@ export function WizardView({
         roas: 0,
         project_id: projectId || undefined,
       });
-
       for (const cId of selectedCreatives) {
         const [platformKey, subtype, idxStr] = cId.split("__");
         const variants = CREATIVE_BY_SUBTYPE[subtype] ?? [];
@@ -526,9 +621,106 @@ export function WizardView({
     }
   };
 
+  // Schedule creative directly from wizard
+  const handleScheduleCreative = async () => {
+    if (!scheduleModal || !scheduleTime) return;
+    setScheduling(true);
+    try {
+      // Create creative first then schedule
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Не авторизован");
+      const [platformKey, subtype, idxStr] = scheduleModal.cId.split("__");
+      const variants = CREATIVE_BY_SUBTYPE[subtype] ?? [];
+      const variant = variants[Number(idxStr)];
+      if (!variant) return;
+      const { data: creative } = await supabase
+        .from("ad_creatives")
+        .insert({
+          user_id: user.id,
+          platform: platformKey,
+          format: subtype,
+          title: variant.title,
+          caption: variant.desc,
+          status: "active",
+          ai_generated: true,
+          ctr: 0,
+          impressions: 0,
+          clicks: 0,
+          is_winner: false,
+          scheduled_at: new Date(scheduleTime).toISOString(),
+        })
+        .select()
+        .single();
+      if (creative) {
+        await supabase.from("scheduled_posts").insert({
+          content_id: creative.id,
+          platform: platformKey,
+          scheduled_at: new Date(scheduleTime).toISOString(),
+          status: "pending",
+          retry_count: 0,
+        });
+      }
+      setScheduleModal(null);
+      setScheduleTime("");
+      alert("Запланировано! Можно увидеть в Календаре.");
+    } catch (e: any) {
+      alert("Ошибка: " + e.message);
+    } finally {
+      setScheduling(false);
+    }
+  };
+
+  // Publish creative now directly from wizard
+  const handlePublishNow = async (cId: string, platformKey: string) => {
+    setPublishingNow(cId);
+    try {
+      const [, subtype, idxStr] = cId.split("__");
+      const variants = CREATIVE_BY_SUBTYPE[subtype] ?? [];
+      const variant = variants[Number(idxStr)];
+      if (!variant) return;
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Не авторизован");
+      const { data: creative } = await supabase
+        .from("ad_creatives")
+        .insert({
+          user_id: user.id,
+          platform: platformKey,
+          format: subtype,
+          title: variant.title,
+          caption: variant.desc,
+          status: "active",
+          ai_generated: true,
+          ctr: 0,
+          impressions: 0,
+          clicks: 0,
+          is_winner: false,
+        })
+        .select()
+        .single();
+      if (creative) {
+        await fetch("/api/content/publish-now", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contentId: creative.id,
+            platform: platformKey,
+          }),
+        });
+      }
+      alert("Опубликовано!");
+    } catch (e: any) {
+      alert("Ошибка: " + e.message);
+    } finally {
+      setPublishingNow(null);
+    }
+  };
+
   const inp =
     "w-full px-3 py-2.5 rounded-[8px] border border-line text-[12px] outline-none focus:border-line-strong bg-panel text-tx-1 placeholder:text-tx-3 transition-colors";
-
   const platformsForCreatives =
     creativePlatformFilter === "all"
       ? [...selectedPlatforms]
@@ -628,7 +820,6 @@ export function WizardView({
                   />
                 </div>
 
-                {/* Project dropdown */}
                 <div>
                   <label className="block ui-label mb-1">Проект</label>
                   <Dropdown
@@ -641,7 +832,7 @@ export function WizardView({
                           {activeProject.name.slice(0, 1).toUpperCase()}
                         </div>
                       ) : (
-                        <span className="text-[14px]">📁</span>
+                        <span>📁</span>
                       )
                     }
                     open={projectOpen}
@@ -725,14 +916,13 @@ export function WizardView({
                   </Dropdown>
                 </div>
 
-                {/* Clone dropdown */}
                 <div>
                   <label className="block ui-label mb-1">
                     Клонировать кампанию
                   </label>
                   <Dropdown
                     label="Выбрать существующую..."
-                    icon={<span className="text-[14px]">📋</span>}
+                    icon={<span>📋</span>}
                     open={cloneOpen}
                     onToggle={() => {
                       setCloneOpen(!cloneOpen);
@@ -744,7 +934,7 @@ export function WizardView({
                         <button
                           key={c.id}
                           onClick={() => handleClone(c)}
-                          className="w-full flex items-center gap-3 px-3 py-2 rounded-[7px] cursor-pointer hover:bg-hover transition-colors text-left"
+                          className="w-full flex items-center gap-3 px-3 py-2 rounded-[7px] cursor-pointer hover:bg-hover text-left"
                         >
                           <div className="flex gap-1 flex-shrink-0">
                             {(c.platforms ?? [])
@@ -759,7 +949,7 @@ export function WizardView({
                                       height: 13,
                                       borderRadius: 2,
                                       background: pm.color,
-                                      color: pm.textColor ?? "#fff",
+                                      color: (pm as any).textColor ?? "#fff",
                                       fontSize: 7,
                                       fontWeight: 700,
                                       display: "flex",
@@ -858,8 +1048,7 @@ export function WizardView({
                     Загрузите фото продукта — AI создаст баннеры под все форматы
                     платформ.
                     <br />
-                    Бренд-информацию AI возьмёт из вашего профиля автоматически
-                    — если нужно уточнить, опишите ниже.
+                    Бренд-информацию AI возьмёт из вашего профиля автоматически.
                   </p>
                 </div>
                 <input
@@ -869,7 +1058,6 @@ export function WizardView({
                   multiple
                   onChange={(e) => {
                     const files = Array.from(e.target.files ?? []);
-                    setImageFiles((prev) => [...prev, ...files]);
                     files.forEach((f) => {
                       const r = new FileReader();
                       r.onload = (ev) =>
@@ -890,9 +1078,6 @@ export function WizardView({
                   <span className="text-[12px] font-medium text-tx-1">
                     Загрузите фото продукта
                   </span>
-                  <span className="text-[10px] text-tx-3">
-                    JPG, PNG · несколько файлов
-                  </span>
                 </button>
                 {imagePreviews.length > 0 && (
                   <div className="grid grid-cols-3 gap-2">
@@ -904,12 +1089,9 @@ export function WizardView({
                           className="w-full h-20 object-cover rounded-[7px]"
                         />
                         <button
-                          onClick={() => {
-                            setImageFiles((f) => f.filter((_, j) => j !== i));
-                            setImagePreviews((p) =>
-                              p.filter((_, j) => j !== i),
-                            );
-                          }}
+                          onClick={() =>
+                            setImagePreviews((p) => p.filter((_, j) => j !== i))
+                          }
                           className="absolute top-1 right-1 w-5 h-5 bg-black/60 text-white rounded-full flex items-center justify-center text-[9px] cursor-pointer"
                         >
                           ✕
@@ -952,7 +1134,6 @@ export function WizardView({
                   multiple
                   onChange={(e) => {
                     const files = Array.from(e.target.files ?? []);
-                    setImageFiles((prev) => [...prev, ...files]);
                     files.forEach((f) => {
                       const r = new FileReader();
                       r.onload = (ev) =>
@@ -967,11 +1148,11 @@ export function WizardView({
                 />
                 <button
                   onClick={() => imgRef.current?.click()}
-                  className="w-full py-8 border border-dashed border-line hover:border-line-strong rounded-[9px] flex flex-col items-center gap-3 cursor-pointer hover:bg-hover transition-colors"
+                  className="w-full py-8 border border-dashed border-line hover:border-line-strong rounded-[9px] flex flex-col items-center gap-3 cursor-pointer hover:bg-hover"
                 >
                   <span className="text-[36px]">🎬</span>
                   <span className="text-[12px] font-medium text-tx-1">
-                    Загрузите фото продукта (необязательно)
+                    Загрузите фото (необязательно)
                   </span>
                   <span className="text-[10px] text-tx-3">
                     AI возьмёт за основу при создании видео
@@ -987,12 +1168,9 @@ export function WizardView({
                           className="w-full h-16 object-cover rounded-[6px]"
                         />
                         <button
-                          onClick={() => {
-                            setImageFiles((f) => f.filter((_, j) => j !== i));
-                            setImagePreviews((p) =>
-                              p.filter((_, j) => j !== i),
-                            );
-                          }}
+                          onClick={() =>
+                            setImagePreviews((p) => p.filter((_, j) => j !== i))
+                          }
                           className="absolute top-1 right-1 w-4 h-4 bg-black/60 text-white rounded-full flex items-center justify-center text-[8px] cursor-pointer"
                         >
                           ✕
@@ -1003,12 +1181,12 @@ export function WizardView({
                 )}
                 <div>
                   <label className="block ui-label mb-1">
-                    Уточнение для AI (необязательно)
+                    Уточнение для AI
                   </label>
                   <textarea
                     value={product}
                     onChange={(e) => setProduct(e.target.value)}
-                    placeholder="Опишите идею или стиль видео..."
+                    placeholder="Опишите стиль или идею видео..."
                     className={`${inp} resize-none h-14`}
                   />
                 </div>
@@ -1030,7 +1208,6 @@ export function WizardView({
                   onChange={(e) => {
                     const f = e.target.files?.[0];
                     if (!f) return;
-                    setProductImage(f);
                     const r = new FileReader();
                     r.onload = (ev) =>
                       setProductImagePreview(ev.target?.result as string);
@@ -1046,10 +1223,7 @@ export function WizardView({
                       className="w-full h-48 object-cover rounded-[9px]"
                     />
                     <button
-                      onClick={() => {
-                        setProductImage(null);
-                        setProductImagePreview(null);
-                      }}
+                      onClick={() => setProductImagePreview(null)}
                       className="absolute top-2 right-2 w-7 h-7 bg-black/60 text-white rounded-full flex items-center justify-center text-[12px] cursor-pointer"
                     >
                       ✕
@@ -1070,10 +1244,10 @@ export function WizardView({
                   </button>
                 )}
                 <div className="mt-3 p-3 bg-chip/40 rounded-[8px] flex items-start gap-2">
-                  <span className="text-[14px] flex-shrink-0">✦</span>
+                  <span className="text-[14px]">✦</span>
                   <p className="text-[11px] text-tx-2 leading-relaxed">
-                    <strong>AI готов</strong> — получит контекст и сгенерирует
-                    по 1-2 креатива для каждого типа поста на каждой платформе
+                    <strong>AI готов</strong> — создаст по 1-2 креатива для
+                    каждого типа поста на каждой платформе
                   </p>
                 </div>
               </div>
@@ -1114,96 +1288,121 @@ export function WizardView({
         </div>
       )}
 
-      {/* ══ STEP 1: Platforms ══ */}
+      {/* ══ STEP 1: Platforms — only real connected ══ */}
       {step === 1 && (
         <div className="space-y-3">
-          <p className="text-[12px] text-tx-2 mb-4">
-            Выберите платформы и типы постов. AI создаст по 1-2 креатива для
-            каждого типа.
-          </p>
-          {Object.entries(PLATFORM_META).map(([key, meta]) => {
-            const sel = selectedPlatforms.has(key);
-            const isConn = connectedPlatforms.includes(key);
-            const subtypes = PLATFORM_SUBTYPES[key] ?? [];
-            const selSubs = selectedSubtypes[key] ?? new Set();
-            return (
-              <div
-                key={key}
-                className={`border rounded-[9px] overflow-hidden transition-colors ${sel ? "border-pos/40" : "border-line"}`}
+          {realPlatforms.length === 0 ? (
+            <div className="ui-surface flex flex-col items-center py-14 text-center">
+              <p className="text-[32px] mb-3">🔌</p>
+              <p className="text-[13px] font-semibold text-tx-1 mb-2">
+                Нет подключённых платформ
+              </p>
+              <p className="text-[11px] text-tx-3 max-w-[300px] leading-relaxed mb-4">
+                Сначала добавьте рекламные кабинеты или каналы в разделе{" "}
+                <strong>Подключения</strong>
+              </p>
+              <button
+                onClick={() => router.push(`/${locale}/campaigns?tab=connect`)}
+                className="px-4 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
               >
-                <div
-                  className="flex items-center gap-3 p-3 cursor-pointer hover:bg-hover transition-colors"
-                  onClick={() => togglePlatform(key)}
-                >
+                → Перейти в Подключения
+              </button>
+            </div>
+          ) : (
+            <>
+              <p className="text-[12px] text-tx-2 mb-3">
+                Ваши подключённые платформы · выберите для кампании
+              </p>
+              {realPlatforms.map((rp) => {
+                const sel = selectedPlatforms.has(rp.key);
+                const subtypes = PLATFORM_SUBTYPES[rp.key] ?? [];
+                const selSubs = selectedSubtypes[rp.key] ?? new Set();
+                return (
                   <div
-                    className={`w-4 h-4 rounded-[4px] border flex items-center justify-center text-[9px] flex-shrink-0 transition-colors ${sel ? "bg-accent border-accent text-on-accent" : "border-line-strong"}`}
+                    key={rp.key}
+                    className={`border rounded-[9px] overflow-hidden transition-colors ${sel ? "border-pos/40" : "border-line"}`}
                   >
-                    {sel && "✓"}
-                  </div>
-                  <PlatformLogo
-                    abbr={meta.abbr}
-                    color={meta.color}
-                    textColor={meta.textColor}
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-[12px] font-medium text-tx-1">
-                        {meta.name}
-                      </p>
-                      {isConn && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-chip text-pos">
-                          Подключён
-                        </span>
-                      )}
+                    <div
+                      className="flex items-center gap-3 p-3 cursor-pointer hover:bg-hover transition-colors"
+                      onClick={() => togglePlatform(rp.key)}
+                    >
+                      <div
+                        className={`w-4 h-4 rounded-[4px] border flex items-center justify-center text-[9px] flex-shrink-0 transition-colors ${sel ? "bg-accent border-accent text-on-accent" : "border-line-strong"}`}
+                      >
+                        {sel && "✓"}
+                      </div>
+                      <PlatformLogo
+                        abbr={rp.abbr}
+                        color={rp.color}
+                        textColor={rp.textColor}
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-[12px] font-medium text-tx-1">
+                            {rp.name}
+                          </p>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-chip text-pos">
+                            Подключён
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-tx-3">
+                          {rp.accountInfo}
+                        </p>
+                        {rp.channels.length > 0 && (
+                          <p className="text-[10px] text-tx-3">
+                            {rp.channels.join(" · ")}
+                          </p>
+                        )}
+                        {sel && (
+                          <p className="text-[10px] text-pos mt-0.5">
+                            {selSubs.size} типов ·{" "}
+                            {[...selSubs].reduce(
+                              (s, st) =>
+                                s + (CREATIVE_BY_SUBTYPE[st]?.length ?? 0),
+                              0,
+                            )}{" "}
+                            креативов
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    {sel && (
-                      <p className="text-[10px] text-tx-3">
-                        {selSubs.size} типов выбрано ·{" "}
-                        {[...selSubs].reduce(
-                          (s, st) => s + (CREATIVE_BY_SUBTYPE[st]?.length ?? 0),
-                          0,
-                        )}{" "}
-                        креативов
-                      </p>
+                    {sel && subtypes.length > 0 && (
+                      <div className="px-4 pb-3 pt-2 border-t border-line bg-panel-2">
+                        <p className="text-[10px] text-tx-3 mb-2">
+                          Типы контента для этой платформы:
+                        </p>
+                        <div className="flex gap-2 flex-wrap">
+                          {subtypes.map((st) => {
+                            const isSel = selSubs.has(st.value);
+                            const count =
+                              CREATIVE_BY_SUBTYPE[st.value]?.length ?? 0;
+                            return (
+                              <button
+                                key={st.value}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleSubtype(rp.key, st.value);
+                                }}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] border cursor-pointer transition-colors ${isSel ? "bg-accent text-on-accent border-accent" : "border-line text-tx-3 hover:bg-hover"}`}
+                              >
+                                <span>{st.emoji}</span>
+                                {st.label}
+                                <span
+                                  className={`text-[8px] ${isSel ? "opacity-70" : "text-tx-3"}`}
+                                >
+                                  ×{count}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     )}
                   </div>
-                </div>
-
-                {sel && subtypes.length > 0 && (
-                  <div className="px-4 pb-3 pt-2 border-t border-line bg-panel-2">
-                    <p className="text-[10px] text-tx-3 mb-2">
-                      Выберите типы контента:
-                    </p>
-                    <div className="flex gap-2 flex-wrap">
-                      {subtypes.map((st) => {
-                        const isSel = selSubs.has(st.value);
-                        const count =
-                          CREATIVE_BY_SUBTYPE[st.value]?.length ?? 0;
-                        return (
-                          <button
-                            key={st.value}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleSubtype(key, st.value);
-                            }}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] border cursor-pointer transition-colors ${isSel ? "bg-accent text-on-accent border-accent" : "border-line text-tx-3 hover:bg-hover"}`}
-                          >
-                            <span>{st.emoji}</span>
-                            {st.label}
-                            <span
-                              className={`text-[8px] ${isSel ? "opacity-70" : "text-tx-3"}`}
-                            >
-                              ×{count}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                );
+              })}
+            </>
+          )}
 
           <div className="flex justify-between pt-3">
             <button
@@ -1212,35 +1411,36 @@ export function WizardView({
             >
               ← Назад
             </button>
-            <button
-              onClick={() => {
-                if (selectedPlatforms.size === 0) {
-                  setError("Выберите платформу");
-                  return;
-                }
-                setError("");
-                setStep(2);
-              }}
-              className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
-            >
-              Далее: Креативы →
-            </button>
+            {realPlatforms.length > 0 && (
+              <button
+                onClick={() => {
+                  if (selectedPlatforms.size === 0) {
+                    setError("Выберите платформу");
+                    return;
+                  }
+                  setError("");
+                  setStep(2);
+                }}
+                className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
+              >
+                Далее: Креативы →
+              </button>
+            )}
           </div>
         </div>
       )}
 
-      {/* ══ STEP 2: Creatives ══ */}
+      {/* ══ STEP 2: Creatives with schedule/publish ══ */}
       {step === 2 && (
         <div>
           <div className="flex items-center gap-3 p-3 bg-chip/30 rounded-[9px] mb-4">
             <span className="text-[16px]">✦</span>
             <div>
               <p className="text-[11px] font-medium text-tx-1">
-                AI создаёт по 1-2 варианта для каждого типа поста
+                По 1-2 варианта для каждого типа поста
               </p>
               <p className="text-[10px] text-tx-3">
-                Итого: {getAllCreativeIds().length} креативов для{" "}
-                {selectedPlatforms.size} платформ
+                Итого: {getAllCreativeIds().length} креативов · выберите нужные
               </p>
             </div>
             <button
@@ -1260,17 +1460,17 @@ export function WizardView({
               Все
             </button>
             {[...selectedPlatforms].map((key) => {
-              const pm = PLATFORM_META[key];
-              return pm ? (
+              const rp = realPlatforms.find((p) => p.key === key);
+              return rp ? (
                 <button
                   key={key}
                   onClick={() => setCreativePlatformFilter(key)}
                   style={
                     creativePlatformFilter === key
                       ? {
-                          background: pm.color,
-                          color: pm.textColor ?? "#fff",
-                          borderColor: pm.color,
+                          background: rp.color,
+                          color: rp.textColor ?? "#fff",
+                          borderColor: rp.color,
                         }
                       : {}
                   }
@@ -1284,7 +1484,7 @@ export function WizardView({
                       background:
                         creativePlatformFilter === key
                           ? "rgba(255,255,255,0.3)"
-                          : pm.color,
+                          : rp.color,
                       color: "#fff",
                       fontSize: 7,
                       fontWeight: 700,
@@ -1293,29 +1493,34 @@ export function WizardView({
                       justifyContent: "center",
                     }}
                   >
-                    {pm.abbr}
+                    {rp.abbr}
                   </div>
-                  {pm.name.split(" ")[0]}
+                  {rp.name.split(" ")[0]}
                 </button>
               ) : null;
             })}
           </div>
 
           {platformsForCreatives.map((platformKey) => {
-            const pm = PLATFORM_META[platformKey];
-            if (!pm) return null;
+            const rp = realPlatforms.find((p) => p.key === platformKey);
+            if (!rp) return null;
             const selSubs = selectedSubtypes[platformKey] ?? new Set();
             return (
               <div key={platformKey} className="mb-6">
                 <div className="flex items-center gap-2 mb-3">
                   <PlatformLogo
-                    abbr={pm.abbr}
-                    color={pm.color}
-                    textColor={pm.textColor}
+                    abbr={rp.abbr}
+                    color={rp.color}
+                    textColor={rp.textColor}
                   />
                   <p className="text-[12px] font-semibold text-tx-1">
-                    {pm.name}
+                    {rp.name}
                   </p>
+                  {rp.accountInfo && (
+                    <span className="text-[10px] text-tx-3">
+                      {rp.accountInfo}
+                    </span>
+                  )}
                 </div>
 
                 {[...selSubs].map((subtype) => {
@@ -1331,37 +1536,66 @@ export function WizardView({
                         <p className="text-[11px] font-medium text-tx-2">
                           {st.label}
                         </p>
-                        <span className="text-[9px] text-tx-3">
-                          {variants.length} варианта
-                        </span>
                       </div>
-                      <div className="grid grid-cols-5 gap-2">
+                      <div className="grid grid-cols-4 gap-3">
                         {variants.map((v, i) => {
                           const cId = `${platformKey}__${subtype}__${i}`;
                           const sel = selectedCreatives.has(cId);
+                          const isPublishing = publishingNow === cId;
                           return (
                             <div
                               key={cId}
-                              onClick={() => toggleCreative(cId)}
-                              className={`p-2 border rounded-[8px] cursor-pointer transition-colors ${sel ? "border-accent bg-accent-dim" : "border-line hover:border-line-strong"}`}
+                              className={`border rounded-[9px] overflow-hidden transition-colors ${sel ? "border-accent" : "border-line"}`}
                             >
+                              {/* Card top - click to select */}
                               <div
-                                className="h-12 rounded-[5px] flex items-center justify-center text-[20px] mb-2 relative overflow-hidden"
-                                style={{
-                                  background: `linear-gradient(135deg, ${pm.color}, #111)`,
-                                }}
+                                onClick={() => toggleCreative(cId)}
+                                className="p-3 cursor-pointer hover:bg-hover transition-colors"
                               >
-                                {sel && (
-                                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-accent text-[16px] font-bold">
-                                    ✓
-                                  </div>
-                                )}
-                                {v.emoji}
+                                <div
+                                  className="h-14 rounded-[6px] flex items-center justify-center text-[22px] mb-2 relative overflow-hidden"
+                                  style={{
+                                    background: `linear-gradient(135deg, ${rp.color}, #111)`,
+                                  }}
+                                >
+                                  {sel && (
+                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-accent text-[18px] font-bold">
+                                      ✓
+                                    </div>
+                                  )}
+                                  {v.emoji}
+                                </div>
+                                <p className="text-[10px] font-medium text-tx-1 mb-0.5">
+                                  {v.title}
+                                </p>
+                                <p className="text-[9px] text-tx-3">{v.desc}</p>
                               </div>
-                              <p className="text-[9px] font-medium text-tx-1 leading-tight mb-0.5">
-                                {v.title}
-                              </p>
-                              <p className="text-[8px] text-tx-3">{v.desc}</p>
+                              {/* Action buttons */}
+                              <div className="border-t border-line flex">
+                                <button
+                                  onClick={() =>
+                                    setScheduleModal({
+                                      cId,
+                                      platform: platformKey,
+                                      title: v.title,
+                                    })
+                                  }
+                                  className="flex-1 py-1.5 text-[9px] text-tx-2 hover:bg-hover cursor-pointer border-r border-line transition-colors text-center"
+                                  title="Запланировать"
+                                >
+                                  📅 Запланировать
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    handlePublishNow(cId, platformKey)
+                                  }
+                                  disabled={isPublishing}
+                                  className="flex-1 py-1.5 text-[9px] text-tx-2 hover:bg-hover cursor-pointer transition-colors text-center disabled:opacity-50"
+                                  title="Опубликовать сейчас"
+                                >
+                                  {isPublishing ? "..." : "🚀 Сейчас"}
+                                </button>
+                              </div>
                             </div>
                           );
                         })}
@@ -1408,7 +1642,9 @@ export function WizardView({
                 l: "Платформы",
                 v:
                   [...selectedPlatforms]
-                    .map((k) => PLATFORM_META[k]?.name ?? k)
+                    .map(
+                      (k) => realPlatforms.find((p) => p.key === k)?.name ?? k,
+                    )
                     .join(", ") || "—",
               },
               {
@@ -1429,7 +1665,7 @@ export function WizardView({
           <div className="flex items-center gap-2 p-3 bg-chip/30 rounded-[9px] mb-5">
             <span>✦</span>
             <p className="text-[11px] text-tx-2">
-              После запуска откроется страница кампании — там запланируйте
+              После запуска откроется страница кампании — там можно доплановать
               публикации
             </p>
           </div>
@@ -1446,7 +1682,7 @@ export function WizardView({
                 disabled={savingDraft}
                 className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer disabled:opacity-50"
               >
-                {savingDraft ? "Сохранение..." : "💾 Черновик"}
+                {savingDraft ? "..." : "💾 Черновик"}
               </button>
               <button
                 onClick={handleLaunch}
@@ -1454,6 +1690,56 @@ export function WizardView({
                 className="px-6 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-50"
               >
                 {launching ? "⟳ Создаю..." : "🚀 Запустить"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule modal */}
+      {scheduleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/30 backdrop-blur-[3px]"
+            onClick={() => setScheduleModal(null)}
+          />
+          <div className="relative w-full max-w-[380px] bg-panel border border-line rounded-[14px] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[14px] font-semibold text-tx-1">
+                Запланировать
+              </h2>
+              <button
+                onClick={() => setScheduleModal(null)}
+                className="w-7 h-7 flex items-center justify-center rounded-[7px] border border-line hover:bg-hover cursor-pointer text-tx-3"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-[11px] text-tx-3 mb-4">
+              {scheduleModal.title} · {scheduleModal.platform}
+            </p>
+            <div className="mb-4">
+              <label className="block ui-label mb-1">Дата и время</label>
+              <input
+                type="datetime-local"
+                value={scheduleTime}
+                onChange={(e) => setScheduleTime(e.target.value)}
+                className={inp}
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setScheduleModal(null)}
+                className="flex-1 py-2.5 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleScheduleCreative}
+                disabled={!scheduleTime || scheduling}
+                className="flex-1 py-2.5 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-50"
+              >
+                {scheduling ? "..." : "📅 Запланировать"}
               </button>
             </div>
           </div>
