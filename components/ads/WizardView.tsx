@@ -12,7 +12,7 @@ import { useLocale } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
 
-const STEPS = ["Цель", "Платформы", "Запуск"];
+const STEPS = ["Цель", "Платформы", "Креативы", "Запуск"];
 
 const PLATFORM_SUBTYPES: Record<
   string,
@@ -672,47 +672,33 @@ export function WizardView({
 
       qc.invalidateQueries({ queryKey: ["ad_campaigns"] });
 
-      // Generate real creatives via Claude API for each platform+subtype
+      // Save already generated creatives to DB (don't regenerate)
       const allCreatives: any[] = [];
-      for (const platformKey of selectedPlatforms) {
-        const rp = realPlatforms.find((p) => p.key === platformKey);
-        const subs = selectedSubtypes[platformKey] ?? new Set();
-        for (const subtype of subs) {
-          setLaunchProgress(
-            `Генерирую ${rp?.name ?? platformKey} — ${subtype}...`,
-          );
-          try {
-            const content = await generateCreativeContent({
-              platform: platformKey,
-              subtype,
-              product: product || activeProject?.description || "",
-              goal,
-              audience,
-              projectName: activeProject?.name ?? name,
-            });
-            const { data: creative } = await supabase
-              .from("ad_creatives")
-              .insert({
-                user_id: user.id,
-                campaign_id: campaignId,
-                project_id: projectId || null,
-                platform: platformKey,
-                format: subtype,
-                title: content.title,
-                caption: content.caption,
-                status: "draft",
-                ai_generated: true,
-                ctr: 0,
-                impressions: 0,
-                clicks: 0,
-                is_winner: false,
-              })
-              .select()
-              .single();
-            if (creative) allCreatives.push(creative);
-          } catch (e) {
-            console.error("Creative gen error:", e);
-          }
+      setLaunchProgress(`Сохраняю ${generatedCreatives.length} креативов...`);
+      for (const c of generatedCreatives) {
+        try {
+          const { data: creative } = await supabase
+            .from("ad_creatives")
+            .insert({
+              user_id: user.id,
+              campaign_id: campaignId,
+              project_id: projectId || null,
+              platform: c.platform,
+              format: c.subtype,
+              title: c.title,
+              caption: c.caption,
+              status: "draft",
+              ai_generated: true,
+              ctr: 0,
+              impressions: 0,
+              clicks: 0,
+              is_winner: false,
+            })
+            .select()
+            .single();
+          if (creative) allCreatives.push(creative);
+        } catch (e) {
+          console.error("Save creative error:", e);
         }
       }
 
@@ -1474,25 +1460,303 @@ export function WizardView({
               }}
               className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
             >
+              Далее: Креативы →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ══ STEP 2: Creatives ══ */}
+      {step === 2 && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3 p-3 bg-chip/30 rounded-[9px] flex-1 mr-3">
+              <span className="text-[16px]">✦</span>
+              <div>
+                <p className="text-[11px] font-medium text-tx-1">
+                  AI генерирует реальные тексты для каждого типа
+                </p>
+                <p className="text-[10px] text-tx-3">
+                  Удалите что не нравится — остальное попадёт в кампанию
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                setGenerating(true);
+                const creatives: any[] = [];
+                for (const platformKey of selectedPlatforms) {
+                  const rp = realPlatforms.find((p) => p.key === platformKey);
+                  const subs = selectedSubtypes[platformKey] ?? new Set();
+                  for (const subtype of subs) {
+                    for (let i = 0; i < 2; i++) {
+                      try {
+                        const content = await generateCreativeContent({
+                          platform: platformKey,
+                          subtype,
+                          product:
+                            product ||
+                            (activeProject as any)?.description ||
+                            "",
+                          goal,
+                          audience,
+                          projectName: (activeProject as any)?.name ?? name,
+                        });
+                        creatives.push({
+                          id: `${platformKey}__${subtype}__${Date.now()}__${i}`,
+                          platform: platformKey,
+                          subtype,
+                          ...content,
+                          rp,
+                        });
+                      } catch {}
+                    }
+                  }
+                }
+                setGeneratedCreatives(creatives);
+                setGenerating(false);
+              }}
+              disabled={generating}
+              className="px-4 py-2.5 bg-accent text-on-accent text-[11px] font-medium rounded-[8px] hover:opacity-90 cursor-pointer disabled:opacity-60 flex items-center gap-2 flex-shrink-0"
+            >
+              {generating ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Генерирую...
+                </>
+              ) : (
+                <>
+                  ✦{" "}
+                  {generatedCreatives.length > 0
+                    ? "Перегенерировать"
+                    : "Сгенерировать"}
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Platform filter */}
+          {generatedCreatives.length > 0 && (
+            <div className="flex gap-2 mb-4 flex-wrap">
+              <button
+                onClick={() => setCreativePlatformFilter("all")}
+                className={`px-3 py-1.5 rounded-full text-[11px] border cursor-pointer transition-colors ${creativePlatformFilter === "all" ? "bg-accent text-on-accent border-accent" : "border-line text-tx-3 hover:bg-hover"}`}
+              >
+                Все · {generatedCreatives.length}
+              </button>
+              {[...selectedPlatforms].map((key) => {
+                const rp = realPlatforms.find((p) => p.key === key);
+                const count = generatedCreatives.filter(
+                  (c) => c.platform === key,
+                ).length;
+                if (count === 0) return null;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setCreativePlatformFilter(key)}
+                    style={
+                      creativePlatformFilter === key
+                        ? {
+                            background: rp?.color,
+                            color: rp?.textColor ?? "#fff",
+                            borderColor: rp?.color,
+                          }
+                        : {}
+                    }
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] border cursor-pointer transition-colors ${creativePlatformFilter !== key ? "border-line text-tx-3 hover:bg-hover" : ""}`}
+                  >
+                    <div
+                      style={{
+                        width: 14,
+                        height: 10,
+                        borderRadius: 2,
+                        background:
+                          creativePlatformFilter === key
+                            ? "rgba(255,255,255,0.3)"
+                            : (rp?.color ?? "#888"),
+                        color: "#fff",
+                        fontSize: 7,
+                        fontWeight: 700,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {rp?.abbr ?? "?"}
+                    </div>
+                    {rp?.name.split(" ")[0] ?? key} · {count}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!generating && generatedCreatives.length === 0 && (
+            <div className="ui-surface flex flex-col items-center py-16 text-center">
+              <span className="text-[40px] mb-3">✦</span>
+              <p className="text-[13px] font-medium text-tx-1 mb-2">
+                Нажмите «Сгенерировать»
+              </p>
+              <p className="text-[11px] text-tx-3 max-w-[280px] leading-relaxed">
+                AI создаст реальные тексты постов для каждого типа и платформы
+              </p>
+            </div>
+          )}
+
+          {/* Loading */}
+          {generating && (
+            <div className="ui-surface flex flex-col items-center py-16 text-center">
+              <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mb-4" />
+              <p className="text-[13px] font-medium text-tx-1 mb-2">
+                AI создаёт креативы...
+              </p>
+              <p className="text-[11px] text-tx-3">
+                Генерирую тексты для {[...selectedPlatforms].length} платформ
+              </p>
+            </div>
+          )}
+
+          {/* Grid - horizontal 4 columns */}
+          {!generating && generatedCreatives.length > 0 && (
+            <div className="grid grid-cols-4 gap-3 mb-4">
+              {generatedCreatives
+                .filter(
+                  (c) =>
+                    creativePlatformFilter === "all" ||
+                    c.platform === creativePlatformFilter,
+                )
+                .map((c, idx) => {
+                  const rp = realPlatforms.find((p) => p.key === c.platform);
+                  const meta = PLATFORM_META[c.platform];
+                  const color = rp?.color ?? meta?.color ?? "#333";
+                  const abbr = rp?.abbr ?? meta?.abbr ?? "?";
+                  const emojiMap: Record<string, string> = {
+                    post: "📝",
+                    video: "🎬",
+                    ad: "📣",
+                    reels: "🎬",
+                    stories: "⭕",
+                    feed: "📱",
+                    search: "🔍",
+                    rsya: "📊",
+                    display: "🖼",
+                    banner: "🖼",
+                  };
+                  return (
+                    <div
+                      key={c.id}
+                      className="ui-surface overflow-hidden flex flex-col"
+                    >
+                      <div
+                        className="h-14 flex items-center justify-center relative flex-shrink-0"
+                        style={{
+                          background: `linear-gradient(135deg, ${color}, #111)`,
+                        }}
+                      >
+                        <span className="text-[24px]">
+                          {emojiMap[c.subtype] ?? "📝"}
+                        </span>
+                        <div className="absolute top-2 left-2 flex items-center gap-1">
+                          <div
+                            style={{
+                              width: 18,
+                              height: 13,
+                              borderRadius: 2,
+                              background: color,
+                              color: "#fff",
+                              fontSize: 7,
+                              fontWeight: 700,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              opacity: 0.85,
+                            }}
+                          >
+                            {abbr}
+                          </div>
+                          <span className="text-[8px] text-white/70">
+                            {c.subtype}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() =>
+                            setGeneratedCreatives((prev) =>
+                              prev.filter((cr) => cr.id !== c.id),
+                            )
+                          }
+                          className="absolute top-1.5 right-1.5 w-5 h-5 bg-black/50 hover:bg-black/80 text-white rounded-full flex items-center justify-center text-[9px] cursor-pointer transition-colors"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <div className="p-3 flex-1 flex flex-col min-h-0">
+                        <p className="text-[11px] font-semibold text-tx-1 mb-1 leading-tight">
+                          {c.title}
+                        </p>
+                        {c.hook && (
+                          <p className="text-[10px] text-accent mb-1.5 italic leading-snug">
+                            {c.hook}
+                          </p>
+                        )}
+                        <p className="text-[10px] text-tx-2 leading-relaxed line-clamp-3">
+                          {c.caption}
+                        </p>
+                      </div>
+                      <div className="border-t border-line flex flex-shrink-0">
+                        <button
+                          onClick={() =>
+                            setScheduleModal({
+                              creativeId: c.id,
+                              platform: c.platform,
+                              title: c.title,
+                            })
+                          }
+                          className="flex-1 py-1.5 text-[9px] text-tx-2 hover:bg-hover cursor-pointer border-r border-line text-center"
+                        >
+                          📅 Запланировать
+                        </button>
+                        <button className="flex-1 py-1.5 text-[9px] text-tx-2 hover:bg-hover cursor-pointer text-center">
+                          🚀 Сейчас
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+
+          <div className="flex justify-between pt-2">
+            <button
+              onClick={() => setStep(1)}
+              className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
+            >
+              ← Назад
+            </button>
+            <button
+              onClick={() => {
+                if (generatedCreatives.length === 0) {
+                  setError("Сначала сгенерируйте креативы");
+                  return;
+                }
+                setError("");
+                setStep(3);
+              }}
+              className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
+            >
               Далее: Запуск →
             </button>
           </div>
         </div>
       )}
 
-      {/* ══ STEP 2: Launch ══ */}
-      {step === 2 && (
+      {/* ══ STEP 3: Launch ══ */}
+      {step === 3 && (
         <div>
           <div className="ui-surface p-4 mb-4 space-y-2">
             {[
               { l: "Название", v: name },
-              { l: "Проект", v: activeProject?.name ?? "—" },
-              {
-                l: "Тип",
-                v: { text: "Текст", image: "Картинка", video: "Видео" }[
-                  genMode
-                ],
-              },
+              { l: "Проект", v: (activeProject as any)?.name ?? "—" },
               { l: "Цель", v: goal },
               {
                 l: "Платформы",
@@ -1510,6 +1774,7 @@ export function WizardView({
                 l: "Бюджет",
                 v: budget ? `₽${Number(budget).toLocaleString("ru")}` : "—",
               },
+              { l: "Креативов", v: `${generatedCreatives.length} штук готово` },
             ].map((row) => (
               <div
                 key={row.l}
@@ -1521,57 +1786,12 @@ export function WizardView({
             ))}
           </div>
 
-          {/* What will be generated */}
-          <div className="ui-surface p-4 mb-4">
-            <p className="ui-label mb-3">AI сгенерирует</p>
-            <div className="space-y-2">
-              {[...selectedPlatforms].map((platformKey) => {
-                const rp = realPlatforms.find((p) => p.key === platformKey);
-                const meta = PLATFORM_META[platformKey];
-                const subs = selectedSubtypes[platformKey] ?? new Set();
-                const totalCreatives = [...subs].length * 2;
-                return (
-                  <div
-                    key={platformKey}
-                    className="flex items-center gap-3 p-2 bg-panel-2 rounded-[7px]"
-                  >
-                    <PlatformLogo
-                      abbr={rp?.abbr ?? meta?.abbr ?? "?"}
-                      color={rp?.color ?? meta?.color ?? "#888"}
-                      textColor={rp?.textColor ?? (meta as any)?.textColor}
-                    />
-                    <p className="text-[11px] text-tx-1 flex-1">
-                      {rp?.name ?? meta?.name ?? platformKey}
-                    </p>
-                    <div className="flex gap-1 flex-wrap justify-end">
-                      {[...subs].map((s) => {
-                        const st = PLATFORM_SUBTYPES[platformKey]?.find(
-                          (p) => p.value === s,
-                        );
-                        return st ? (
-                          <span
-                            key={s}
-                            className="text-[9px] px-1.5 py-0.5 rounded-full bg-chip text-tx-2"
-                          >
-                            {st.emoji} {st.label} ×2
-                          </span>
-                        ) : null;
-                      })}
-                    </div>
-                    <span className="text-[10px] font-medium text-pos ml-2">
-                      {totalCreatives} кр.
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
           <div className="p-3 bg-chip/30 rounded-[9px] mb-5 flex items-start gap-2">
             <span>✦</span>
             <p className="text-[11px] text-tx-2">
-              AI создаст реальные тексты для каждого типа поста. После запуска
-              попадут на страницу кампании — там можно запланировать публикацию.
+              После запуска кампания станет активной, а{" "}
+              {generatedCreatives.length} креативов сохранятся в библиотеке. На
+              странице кампании можно запланировать публикации.
             </p>
           </div>
 
