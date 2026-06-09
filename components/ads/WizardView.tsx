@@ -192,9 +192,11 @@ async function generateCreativeContent(params: {
 export function WizardView({
   onClose,
   projectId: defaultProjectId,
+  onNameChange,
 }: {
   onClose?: () => void;
   projectId?: string;
+  onNameChange?: (name: string) => void;
 }) {
   const locale = useLocale();
   const router = useRouter();
@@ -210,6 +212,11 @@ export function WizardView({
   );
   const [step, setStep] = useState(0);
   const [name, setName] = useState(draft?.name ?? "");
+
+  const handleNameChange = (value: string) => {
+    setName(value);
+    onNameChange?.(value);
+  };
   const [goal, setGoal] = useState(draft?.goal ?? "Продажи / заявки");
   const [product, setProduct] = useState(draft?.product ?? "");
   const [audience, setAudience] = useState(draft?.audience ?? "");
@@ -839,7 +846,7 @@ export function WizardView({
                   <label className="block ui-label mb-1">Название *</label>
                   <input
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) => handleNameChange(e.target.value)}
                     placeholder="Например: Ramadan акция 2026"
                     className={inp}
                   />
