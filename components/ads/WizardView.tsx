@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { PlatformLogo } from "@/components/ui/PlatformLogo";
 import { PLATFORM_META } from "./data";
 import {
@@ -10,66 +10,108 @@ import {
 import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
-import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus } from "lucide-react";
 
 const STEPS = ["Цель", "Платформы", "Креативы", "Запуск"];
 
-const PLATFORM_SUBTYPES: Record<string, { value: string; label: string }[]> = {
+const PLATFORM_SUBTYPES: Record<
+  string,
+  { value: string; label: string; emoji: string }[]
+> = {
   telegram: [
-    { value: "post", label: "Пост" },
-    { value: "video", label: "Видео" },
-    { value: "ad", label: "Реклама" },
+    { value: "post", label: "Пост", emoji: "📝" },
+    { value: "video", label: "Видео", emoji: "🎬" },
+    { value: "ad", label: "Реклама", emoji: "📣" },
   ],
   instagram: [
-    { value: "post", label: "Пост" },
-    { value: "reels", label: "Reels" },
-    { value: "stories", label: "Stories" },
-    { value: "ad", label: "Реклама" },
+    { value: "post", label: "Пост", emoji: "🖼" },
+    { value: "reels", label: "Reels", emoji: "🎬" },
+    { value: "stories", label: "Stories", emoji: "⭕" },
+    { value: "ad", label: "Реклама", emoji: "📣" },
   ],
   tiktok: [
-    { value: "video", label: "Видео" },
-    { value: "ad", label: "Реклама" },
+    { value: "video", label: "Видео", emoji: "🎬" },
+    { value: "ad", label: "Реклама", emoji: "📣" },
   ],
   vk: [
-    { value: "post", label: "Пост" },
-    { value: "video", label: "Видео" },
-    { value: "ad", label: "Реклама" },
+    { value: "post", label: "Пост", emoji: "📝" },
+    { value: "video", label: "Видео", emoji: "🎬" },
+    { value: "ad", label: "Реклама", emoji: "📣" },
   ],
   yandex: [
-    { value: "search", label: "Поиск" },
-    { value: "rsya", label: "РСЯ" },
+    { value: "search", label: "Поиск", emoji: "🔍" },
+    { value: "rsya", label: "РСЯ", emoji: "📊" },
   ],
   google: [
-    { value: "search", label: "Поиск" },
-    { value: "display", label: "КМС" },
-    { value: "video", label: "YouTube" },
+    { value: "search", label: "Поиск", emoji: "🔍" },
+    { value: "display", label: "КМС", emoji: "🖼" },
+    { value: "video", label: "YouTube", emoji: "▶️" },
   ],
   meta: [
-    { value: "feed", label: "Лента" },
-    { value: "stories", label: "Stories" },
-    { value: "reels", label: "Reels" },
-    { value: "ad", label: "Реклама" },
+    { value: "feed", label: "Лента", emoji: "📱" },
+    { value: "stories", label: "Stories", emoji: "⭕" },
+    { value: "reels", label: "Reels", emoji: "🎬" },
+    { value: "ad", label: "Реклама", emoji: "📣" },
   ],
   mytarget: [
-    { value: "feed", label: "Лента" },
-    { value: "video", label: "Видео" },
-    { value: "banner", label: "Баннер" },
+    { value: "feed", label: "Лента", emoji: "📱" },
+    { value: "video", label: "Видео", emoji: "🎬" },
+    { value: "banner", label: "Баннер", emoji: "🖼" },
   ],
 };
 
-const CREATIVE_VARIANTS = [
-  {
-    emoji: "🌙",
-    title: "«Праздничный оффер»",
-    desc: "Акцент на скидке и дедлайне",
-  },
-  { emoji: "✨", title: "«Качество + цена»", desc: "Преимущества продукта" },
-  { emoji: "🎁", title: "«UGC-стиль»", desc: "Отзыв от лица покупателя" },
-  { emoji: "🏠", title: "«Польза / лайфхак»", desc: "Проблема → решение" },
-  { emoji: "⭐", title: "«Прямой CTA»", desc: "Короткий и конкретный призыв" },
-];
+// Creative variants - one per subtype
+const CREATIVE_BY_SUBTYPE: Record<
+  string,
+  { emoji: string; title: string; desc: string }[]
+> = {
+  post: [
+    { emoji: "📝", title: "Информационный пост", desc: "Польза для аудитории" },
+    { emoji: "💬", title: "Вовлекающий пост", desc: "Вопрос или опрос" },
+  ],
+  video: [
+    { emoji: "🎬", title: "Короткое видео", desc: "15-30 секунд" },
+    { emoji: "📹", title: "Обзор продукта", desc: "Демонстрация" },
+  ],
+  ad: [
+    { emoji: "📣", title: "Прямой оффер", desc: "Скидка и CTA" },
+    { emoji: "🎯", title: "Ретаргетинг", desc: "Возврат аудитории" },
+  ],
+  reels: [
+    { emoji: "✨", title: "Reels-хук", desc: "Первые 3 секунды" },
+    { emoji: "🌀", title: "Трендовый формат", desc: "Популярный стиль" },
+  ],
+  stories: [
+    { emoji: "⭕", title: "Stories с кнопкой", desc: "Свайп вверх" },
+    { emoji: "📲", title: "Интерактивный", desc: "Опрос или вопрос" },
+  ],
+  feed: [
+    { emoji: "🖼", title: "Карусель", desc: "Несколько слайдов" },
+    { emoji: "📸", title: "Одно фото", desc: "Яркий визуал" },
+  ],
+  search: [
+    {
+      emoji: "🔍",
+      title: "Текстовое объявление",
+      desc: "Заголовок + описание",
+    },
+    { emoji: "🎯", title: "Динамическое", desc: "Под запрос" },
+  ],
+  rsya: [
+    { emoji: "📊", title: "Баннер РСЯ", desc: "240×400 или 728×90" },
+    { emoji: "🖼", title: "Адаптивный", desc: "Все форматы" },
+  ],
+  display: [
+    { emoji: "🖼", title: "Медийный баннер", desc: "КМС Google" },
+    { emoji: "📱", title: "Адаптивный", desc: "Все устройства" },
+  ],
+  banner: [
+    { emoji: "🖼", title: "Статичный баннер", desc: "Яркий дизайн" },
+    { emoji: "🔄", title: "Анимированный", desc: "GIF формат" },
+  ],
+};
 
-const STORAGE_KEY = "wizard_draft_v2";
+const STORAGE_KEY = "wizard_draft_v3";
 function loadDraft() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
@@ -88,7 +130,6 @@ function clearDraft() {
   } catch {}
 }
 
-// ── Animated Dropdown ────────────────────────────────────────────────────────
 function Dropdown({
   label,
   icon,
@@ -103,14 +144,14 @@ function Dropdown({
   children: React.ReactNode;
 }) {
   return (
-    <div className="border border-line rounded-[9px] overflow-hidden transition-all">
+    <div className="border border-line rounded-[9px] overflow-hidden">
       <button
         onClick={onToggle}
         type="button"
-        className="w-full flex items-center gap-3 px-4 py-3 bg-panel hover:bg-hover transition-colors cursor-pointer text-left"
+        className="w-full flex items-center gap-3 px-4 py-3 bg-panel hover:bg-hover transition-colors cursor-pointer"
       >
-        {icon && <span>{icon}</span>}
-        <span className="flex-1 text-[12px] font-medium text-tx-1">
+        {icon && <span className="flex-shrink-0">{icon}</span>}
+        <span className="flex-1 text-[12px] font-medium text-tx-1 text-left">
           {label}
         </span>
         {open ? (
@@ -142,16 +183,14 @@ export function WizardView({
   const locale = useLocale();
   const router = useRouter();
   const supabase = createClient();
-  const qc = useQueryClient();
   const createCampaign = useCreateAdCampaign();
   const createCreative = useCreateAdCreative();
 
   const draft = loadDraft();
 
-  // Generation mode
-  const [genMode, setGenMode] = useState<"text" | "image" | "video">("text");
-
-  // Form state
+  const [genMode, setGenMode] = useState<"text" | "image" | "video">(
+    draft?.genMode ?? "text",
+  );
   const [step, setStep] = useState(0);
   const [name, setName] = useState(draft?.name ?? "");
   const [goal, setGoal] = useState(draft?.goal ?? "Продажи / заявки");
@@ -161,42 +200,45 @@ export function WizardView({
   const [projectId, setProjectId] = useState(
     draft?.projectId ?? defaultProjectId ?? "",
   );
+
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(
     new Set(draft?.platforms ?? []),
   );
-  const [platformSubtypes, setPlatformSubtypes] = useState<
-    Record<string, string>
-  >(draft?.subtypes ?? {});
+  const [selectedSubtypes, setSelectedSubtypes] = useState<
+    Record<string, Set<string>>
+  >(
+    Object.fromEntries(
+      Object.entries(draft?.subtypes ?? {}).map(([k, v]: [string, any]) => [
+        k,
+        new Set(v),
+      ]),
+    ),
+  );
   const [selectedCreatives, setSelectedCreatives] = useState<Set<string>>(
     new Set(draft?.creatives ?? []),
   );
   const [creativePlatformFilter, setCreativePlatformFilter] = useState("all");
+
   const [launching, setLaunching] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [error, setError] = useState("");
   const [autoSaved, setAutoSaved] = useState(false);
 
-  // Dropdowns
   const [projectOpen, setProjectOpen] = useState(false);
   const [cloneOpen, setCloneOpen] = useState(false);
+  const [showCreateProject, setShowCreateProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectNiche, setNewProjectNiche] = useState("");
+  const [creatingProject, setCreatingProject] = useState(false);
 
-  // Image/video uploads
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [productImage, setProductImage] = useState<File | null>(null);
   const [productImagePreview, setProductImagePreview] = useState<string | null>(
     null,
   );
-  const [generating, setGenerating] = useState(false);
-  const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const imgRef = useRef<HTMLInputElement>(null);
   const productImgRef = useRef<HTMLInputElement>(null);
-
-  // Create project inline
-  const [showCreateProject, setShowCreateProject] = useState(false);
-  const [newProjectName, setNewProjectName] = useState("");
-  const [newProjectNiche, setNewProjectNiche] = useState("");
-  const [creatingProject, setCreatingProject] = useState(false);
 
   const { data: projects = [], refetch: refetchProjects } = useQuery({
     queryKey: ["projects"],
@@ -207,7 +249,7 @@ export function WizardView({
       if (!user) return [];
       const { data } = await supabase
         .from("projects")
-        .select("id,name,niche,description,audience,tone")
+        .select("id,name,niche,description,audience")
         .eq("user_id", user.id)
         .eq("is_active", true);
       return data ?? [];
@@ -215,7 +257,7 @@ export function WizardView({
   });
 
   const { data: existingCampaigns = [] } = useQuery({
-    queryKey: ["ad_campaigns_for_clone"],
+    queryKey: ["ad_campaigns_clone"],
     queryFn: async () => {
       const {
         data: { user },
@@ -247,10 +289,12 @@ export function WizardView({
     },
   });
 
-  // Autosave
   useEffect(() => {
-    if (!name && !product) return;
+    const subtypesSerializable = Object.fromEntries(
+      Object.entries(selectedSubtypes).map(([k, v]) => [k, [...v]]),
+    );
     saveDraft({
+      genMode,
       name,
       goal,
       product,
@@ -258,13 +302,16 @@ export function WizardView({
       budget,
       projectId,
       platforms: [...selectedPlatforms],
-      subtypes: platformSubtypes,
+      subtypes: subtypesSerializable,
       creatives: [...selectedCreatives],
     });
-    setAutoSaved(true);
-    const t = setTimeout(() => setAutoSaved(false), 1500);
-    return () => clearTimeout(t);
+    if (name || product) {
+      setAutoSaved(true);
+      const t = setTimeout(() => setAutoSaved(false), 1500);
+      return () => clearTimeout(t);
+    }
   }, [
+    genMode,
     name,
     goal,
     product,
@@ -272,9 +319,11 @@ export function WizardView({
     budget,
     projectId,
     selectedPlatforms,
-    platformSubtypes,
+    selectedSubtypes,
     selectedCreatives,
   ]);
+
+  const activeProject = projects.find((p: any) => p.id === projectId) as any;
 
   const handleProjectSelect = (pid: string) => {
     setProjectId(pid);
@@ -285,7 +334,7 @@ export function WizardView({
     if (p.audience && !audience) setAudience(p.audience);
   };
 
-  const handleCloneCampaign = (c: any) => {
+  const handleClone = (c: any) => {
     setName(`${c.name} — копия`);
     setGoal(c.goal ?? "Продажи / заявки");
     setProduct(c.description ?? "");
@@ -329,31 +378,34 @@ export function WizardView({
     }
   };
 
-  const handleImageFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    setImageFiles((prev) => [...prev, ...files]);
-    files.forEach((f) => {
-      const r = new FileReader();
-      r.onload = (ev) =>
-        setImagePreviews((prev) => [...prev, ev.target?.result as string]);
-      r.readAsDataURL(f);
-    });
-  };
-
-  const handleProductImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setProductImage(f);
-    const r = new FileReader();
-    r.onload = (ev) => setProductImagePreview(ev.target?.result as string);
-    r.readAsDataURL(f);
-  };
-
   const togglePlatform = (key: string) => {
     setSelectedPlatforms((prev) => {
       const n = new Set(prev);
-      n.has(key) ? n.delete(key) : n.add(key);
+      if (n.has(key)) {
+        n.delete(key);
+        setSelectedSubtypes((s) => {
+          const ns = { ...s };
+          delete ns[key];
+          return ns;
+        });
+      } else {
+        n.add(key);
+        const subs = PLATFORM_SUBTYPES[key] ?? [];
+        setSelectedSubtypes((s) => ({
+          ...s,
+          [key]: new Set(subs.map((st) => st.value)),
+        }));
+      }
       return n;
+    });
+  };
+
+  const toggleSubtype = (platformKey: string, subtype: string) => {
+    setSelectedSubtypes((prev) => {
+      const current = new Set(prev[platformKey] ?? []);
+      current.has(subtype) ? current.delete(subtype) : current.add(subtype);
+      if (current.size === 0) return prev;
+      return { ...prev, [platformKey]: current };
     });
   };
 
@@ -363,6 +415,20 @@ export function WizardView({
       n.has(id) ? n.delete(id) : n.add(id);
       return n;
     });
+  };
+
+  const getAllCreativeIds = () => {
+    const ids: string[] = [];
+    for (const platformKey of selectedPlatforms) {
+      const subtypes = selectedSubtypes[platformKey] ?? new Set();
+      for (const subtype of subtypes) {
+        const variants = CREATIVE_BY_SUBTYPE[subtype] ?? [];
+        variants.forEach((_, i) =>
+          ids.push(`${platformKey}__${subtype}__${i}`),
+        );
+      }
+    }
+    return ids;
   };
 
   const saveToDraft = async () => {
@@ -429,15 +495,17 @@ export function WizardView({
         roas: 0,
         project_id: projectId || undefined,
       });
+
       for (const cId of selectedCreatives) {
-        const [platformKey, idx] = cId.split("-");
-        const variant = CREATIVE_VARIANTS[Number(idx)];
+        const [platformKey, subtype, idxStr] = cId.split("__");
+        const variants = CREATIVE_BY_SUBTYPE[subtype] ?? [];
+        const variant = variants[Number(idxStr)];
         if (variant) {
           await createCreative.mutateAsync({
             campaign_id: campaign.id,
             project_id: projectId || undefined,
             platform: platformKey,
-            format: platformSubtypes[platformKey] ?? "post",
+            format: subtype,
             title: variant.title,
             caption: variant.desc,
             status: "draft",
@@ -458,10 +526,13 @@ export function WizardView({
     }
   };
 
-  const activeProject = projects.find((p: any) => p.id === projectId) as any;
-
   const inp =
     "w-full px-3 py-2.5 rounded-[8px] border border-line text-[12px] outline-none focus:border-line-strong bg-panel text-tx-1 placeholder:text-tx-3 transition-colors";
+
+  const platformsForCreatives =
+    creativePlatformFilter === "all"
+      ? [...selectedPlatforms]
+      : [creativePlatformFilter];
 
   return (
     <div>
@@ -486,9 +557,7 @@ export function WizardView({
           </div>
         ))}
         {autoSaved && (
-          <span className="ml-auto text-[10px] text-pos">
-            ✓ Черновик сохранён
-          </span>
+          <span className="ml-auto text-[10px] text-pos">✓ Сохранено</span>
         )}
       </div>
 
@@ -501,9 +570,8 @@ export function WizardView({
       {/* ══ STEP 0: Goal ══ */}
       {step === 0 && (
         <div className="grid grid-cols-2 gap-6">
-          {/* LEFT */}
           <div className="space-y-4">
-            {/* Generation mode - FIRST */}
+            {/* Gen mode */}
             <div>
               <label className="block ui-label mb-2">Тип генерации</label>
               <div className="grid grid-cols-3 gap-2">
@@ -525,7 +593,7 @@ export function WizardView({
                       value: "video",
                       icon: "🎬",
                       label: "Видео",
-                      desc: "Сценарии, слайдшоу",
+                      desc: "Видео для платформ",
                     },
                   ] as const
                 ).map((m) => (
@@ -548,10 +616,8 @@ export function WizardView({
               </div>
             </div>
 
-            {/* Show form only for text mode */}
             {genMode === "text" && (
               <>
-                {/* Name */}
                 <div>
                   <label className="block ui-label mb-1">Название *</label>
                   <input
@@ -575,7 +641,7 @@ export function WizardView({
                           {activeProject.name.slice(0, 1).toUpperCase()}
                         </div>
                       ) : (
-                        "📁"
+                        <span className="text-[14px]">📁</span>
                       )
                     }
                     open={projectOpen}
@@ -584,7 +650,7 @@ export function WizardView({
                       setCloneOpen(false);
                     }}
                   >
-                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                    <div className="space-y-1 max-h-44 overflow-y-auto">
                       {projects.map((p: any) => (
                         <button
                           key={p.id}
@@ -613,8 +679,6 @@ export function WizardView({
                         </p>
                       )}
                     </div>
-
-                    {/* Create project inline */}
                     <div className="border-t border-line mt-2 pt-2">
                       {showCreateProject ? (
                         <div className="space-y-2">
@@ -623,6 +687,7 @@ export function WizardView({
                             onChange={(e) => setNewProjectName(e.target.value)}
                             placeholder="Название проекта"
                             className={inp}
+                            autoFocus
                           />
                           <input
                             value={newProjectNiche}
@@ -642,7 +707,7 @@ export function WizardView({
                               disabled={
                                 creatingProject || !newProjectName.trim()
                               }
-                              className="flex-1 py-1.5 bg-accent text-on-accent rounded-[7px] text-[11px] font-medium cursor-pointer disabled:opacity-50 hover:opacity-90"
+                              className="flex-1 py-1.5 bg-accent text-on-accent rounded-[7px] text-[11px] font-medium cursor-pointer disabled:opacity-50"
                             >
                               {creatingProject ? "..." : "Создать"}
                             </button>
@@ -651,7 +716,7 @@ export function WizardView({
                       ) : (
                         <button
                           onClick={() => setShowCreateProject(true)}
-                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-[7px] text-[11px] text-accent hover:bg-hover cursor-pointer transition-colors"
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-[7px] text-[11px] text-accent hover:bg-hover cursor-pointer"
                         >
                           <Plus size={13} /> Создать новый проект
                         </button>
@@ -660,25 +725,25 @@ export function WizardView({
                   </Dropdown>
                 </div>
 
-                {/* Clone campaign dropdown */}
+                {/* Clone dropdown */}
                 <div>
                   <label className="block ui-label mb-1">
                     Клонировать кампанию
                   </label>
                   <Dropdown
                     label="Выбрать существующую..."
-                    icon="📋"
+                    icon={<span className="text-[14px]">📋</span>}
                     open={cloneOpen}
                     onToggle={() => {
                       setCloneOpen(!cloneOpen);
                       setProjectOpen(false);
                     }}
                   >
-                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                    <div className="space-y-1 max-h-44 overflow-y-auto">
                       {existingCampaigns.map((c: any) => (
                         <button
                           key={c.id}
-                          onClick={() => handleCloneCampaign(c)}
+                          onClick={() => handleClone(c)}
                           className="w-full flex items-center gap-3 px-3 py-2 rounded-[7px] cursor-pointer hover:bg-hover transition-colors text-left"
                         >
                           <div className="flex gap-1 flex-shrink-0">
@@ -719,14 +784,13 @@ export function WizardView({
                       ))}
                       {existingCampaigns.length === 0 && (
                         <p className="text-[11px] text-tx-3 px-2 py-1">
-                          Нет созданных кампаний
+                          Нет кампаний
                         </p>
                       )}
                     </div>
                   </Dropdown>
                 </div>
 
-                {/* Goal */}
                 <div>
                   <label className="block ui-label mb-2">Цель</label>
                   <div className="flex gap-2 flex-wrap">
@@ -747,7 +811,6 @@ export function WizardView({
                   </div>
                 </div>
 
-                {/* Product */}
                 <div>
                   <label className="block ui-label mb-1">
                     О продукте — для AI
@@ -760,7 +823,6 @@ export function WizardView({
                   />
                 </div>
 
-                {/* Audience */}
                 <div>
                   <label className="block ui-label mb-1">
                     Целевая аудитория
@@ -773,7 +835,6 @@ export function WizardView({
                   />
                 </div>
 
-                {/* Budget */}
                 <div>
                   <label className="block ui-label mb-1">Бюджет (₽)</label>
                   <input
@@ -787,18 +848,18 @@ export function WizardView({
               </>
             )}
 
-            {/* Image mode */}
             {genMode === "image" && (
               <div className="space-y-4">
-                <div className="text-center py-4">
-                  <p className="text-[14px] font-semibold text-tx-1 mb-2">
+                <div className="p-4 bg-panel-2 border border-line rounded-[9px]">
+                  <p className="text-[13px] font-semibold text-tx-1 mb-2">
                     Генерация картинок
                   </p>
-                  <p className="text-[12px] text-tx-2 leading-relaxed">
-                    Вставьте фото продуктов и получите сгенерированные баннеры,
+                  <p className="text-[11px] text-tx-2 leading-relaxed">
+                    Загрузите фото продукта — AI создаст баннеры под все форматы
+                    платформ.
                     <br />
-                    или опишите продукт — AI создаст картинку на основе
-                    бренд-информации
+                    Бренд-информацию AI возьмёт из вашего профиля автоматически
+                    — если нужно уточнить, опишите ниже.
                   </p>
                 </div>
                 <input
@@ -806,7 +867,19 @@ export function WizardView({
                   type="file"
                   accept="image/*"
                   multiple
-                  onChange={handleImageFiles}
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files ?? []);
+                    setImageFiles((prev) => [...prev, ...files]);
+                    files.forEach((f) => {
+                      const r = new FileReader();
+                      r.onload = (ev) =>
+                        setImagePreviews((p) => [
+                          ...p,
+                          ev.target?.result as string,
+                        ]);
+                      r.readAsDataURL(f);
+                    });
+                  }}
                   style={{ display: "none" }}
                 />
                 <button
@@ -818,7 +891,7 @@ export function WizardView({
                     Загрузите фото продукта
                   </span>
                   <span className="text-[10px] text-tx-3">
-                    JPG, PNG до 10MB каждый
+                    JPG, PNG · несколько файлов
                   </span>
                 </button>
                 {imagePreviews.length > 0 && (
@@ -847,29 +920,29 @@ export function WizardView({
                 )}
                 <div>
                   <label className="block ui-label mb-1">
-                    Или опишите продукт
+                    Уточнение для AI (необязательно)
                   </label>
                   <textarea
                     value={product}
                     onChange={(e) => setProduct(e.target.value)}
-                    placeholder="Опишите продукт для генерации картинки..."
-                    className={`${inp} resize-none h-16`}
+                    placeholder="Дополнительные детали..."
+                    className={`${inp} resize-none h-14`}
                   />
                 </div>
               </div>
             )}
 
-            {/* Video mode */}
             {genMode === "video" && (
               <div className="space-y-4">
-                <div className="text-center py-4">
-                  <p className="text-[14px] font-semibold text-tx-1 mb-2">
+                <div className="p-4 bg-panel-2 border border-line rounded-[9px]">
+                  <p className="text-[13px] font-semibold text-tx-1 mb-2">
                     Генерация видео
                   </p>
-                  <p className="text-[12px] text-tx-2 leading-relaxed">
-                    Загрузите несколько фото — AI создаст слайдшоу-видео,
+                  <p className="text-[11px] text-tx-2 leading-relaxed">
+                    AI создаст видео для вашего продукта.
                     <br />
-                    или опишите идею — AI напишет сценарий для съёмки
+                    Бренд-информацию AI возьмёт из вашего профиля автоматически
+                    — если хотите добавить специфику, опишите ниже.
                   </p>
                 </div>
                 <input
@@ -877,19 +950,31 @@ export function WizardView({
                   type="file"
                   accept="image/*"
                   multiple
-                  onChange={handleImageFiles}
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files ?? []);
+                    setImageFiles((prev) => [...prev, ...files]);
+                    files.forEach((f) => {
+                      const r = new FileReader();
+                      r.onload = (ev) =>
+                        setImagePreviews((p) => [
+                          ...p,
+                          ev.target?.result as string,
+                        ]);
+                      r.readAsDataURL(f);
+                    });
+                  }}
                   style={{ display: "none" }}
                 />
                 <button
                   onClick={() => imgRef.current?.click()}
-                  className="w-full py-10 border border-dashed border-line hover:border-line-strong rounded-[9px] flex flex-col items-center gap-3 cursor-pointer hover:bg-hover transition-colors"
+                  className="w-full py-8 border border-dashed border-line hover:border-line-strong rounded-[9px] flex flex-col items-center gap-3 cursor-pointer hover:bg-hover transition-colors"
                 >
                   <span className="text-[36px]">🎬</span>
                   <span className="text-[12px] font-medium text-tx-1">
-                    Загрузите фото для слайдшоу
+                    Загрузите фото продукта (необязательно)
                   </span>
                   <span className="text-[10px] text-tx-3">
-                    Несколько фото → видео с переходами
+                    AI возьмёт за основу при создании видео
                   </span>
                 </button>
                 {imagePreviews.length > 0 && (
@@ -901,9 +986,6 @@ export function WizardView({
                           alt=""
                           className="w-full h-16 object-cover rounded-[6px]"
                         />
-                        <div className="absolute bottom-1 left-1 w-4 h-4 bg-black/60 text-white rounded flex items-center justify-center text-[8px]">
-                          {i + 1}
-                        </div>
                         <button
                           onClick={() => {
                             setImageFiles((f) => f.filter((_, j) => j !== i));
@@ -921,20 +1003,20 @@ export function WizardView({
                 )}
                 <div>
                   <label className="block ui-label mb-1">
-                    Или опишите идею видео
+                    Уточнение для AI (необязательно)
                   </label>
                   <textarea
                     value={product}
                     onChange={(e) => setProduct(e.target.value)}
-                    placeholder="Опишите о чём должно быть видео..."
-                    className={`${inp} resize-none h-16`}
+                    placeholder="Опишите идею или стиль видео..."
+                    className={`${inp} resize-none h-14`}
                   />
                 </div>
               </div>
             )}
           </div>
 
-          {/* RIGHT */}
+          {/* Right */}
           <div>
             {genMode === "text" && (
               <div>
@@ -945,7 +1027,15 @@ export function WizardView({
                   ref={productImgRef}
                   type="file"
                   accept="image/*"
-                  onChange={handleProductImage}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    setProductImage(f);
+                    const r = new FileReader();
+                    r.onload = (ev) =>
+                      setProductImagePreview(ev.target?.result as string);
+                    r.readAsDataURL(f);
+                  }}
                   style={{ display: "none" }}
                 />
                 {productImagePreview ? (
@@ -983,41 +1073,14 @@ export function WizardView({
                   <span className="text-[14px] flex-shrink-0">✦</span>
                   <p className="text-[11px] text-tx-2 leading-relaxed">
                     <strong>AI готов</strong> — получит контекст и сгенерирует
-                    3-5 вариантов на каждую платформу
+                    по 1-2 креатива для каждого типа поста на каждой платформе
                   </p>
                 </div>
               </div>
             )}
-
-            {/* Image/video: generated results */}
-            {(genMode === "image" || genMode === "video") &&
-              generatedImages.length > 0 && (
-                <div>
-                  <label className="block ui-label mb-3">Результат</label>
-                  <div className="grid grid-cols-2 gap-2 mb-4">
-                    {generatedImages.map((src, i) => (
-                      <img
-                        key={i}
-                        src={src}
-                        alt=""
-                        className="w-full h-32 object-cover rounded-[7px]"
-                      />
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <button className="flex-1 py-2 border border-line rounded-[7px] text-[11px] text-tx-2 hover:bg-hover cursor-pointer">
-                      ↓ Скачать ZIP
-                    </button>
-                    <button className="flex-1 py-2 border border-line rounded-[7px] text-[11px] text-tx-2 hover:bg-hover cursor-pointer">
-                      ↓ По одному
-                    </button>
-                  </div>
-                </div>
-              )}
           </div>
 
-          {/* Bottom buttons */}
-          <div className="col-span-2 flex justify-end gap-2 pt-2">
+          <div className="col-span-2 flex justify-end gap-2 pt-2 border-t border-line">
             {genMode === "text" && (
               <>
                 <button
@@ -1043,13 +1106,8 @@ export function WizardView({
               </>
             )}
             {(genMode === "image" || genMode === "video") && (
-              <button
-                disabled={generating}
-                className="px-6 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-50"
-              >
-                {generating
-                  ? "⟳ Генерирую..."
-                  : `✦ Сгенерировать ${genMode === "image" ? "картинки" : "видео"}`}
+              <button className="px-6 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer">
+                ✦ Сгенерировать {genMode === "image" ? "картинки" : "видео"}
               </button>
             )}
           </div>
@@ -1060,17 +1118,18 @@ export function WizardView({
       {step === 1 && (
         <div className="space-y-3">
           <p className="text-[12px] text-tx-2 mb-4">
-            Выберите платформы. Нажмите на подтип чтобы уточнить формат.
+            Выберите платформы и типы постов. AI создаст по 1-2 креатива для
+            каждого типа.
           </p>
           {Object.entries(PLATFORM_META).map(([key, meta]) => {
             const sel = selectedPlatforms.has(key);
             const isConn = connectedPlatforms.includes(key);
             const subtypes = PLATFORM_SUBTYPES[key] ?? [];
-            const selSub = platformSubtypes[key] ?? "";
+            const selSubs = selectedSubtypes[key] ?? new Set();
             return (
               <div
                 key={key}
-                className={`border rounded-[9px] transition-colors overflow-hidden ${sel ? "border-pos/40" : "border-line"}`}
+                className={`border rounded-[9px] overflow-hidden transition-colors ${sel ? "border-pos/40" : "border-line"}`}
               >
                 <div
                   className="flex items-center gap-3 p-3 cursor-pointer hover:bg-hover transition-colors"
@@ -1097,33 +1156,56 @@ export function WizardView({
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] text-tx-3">
-                      {subtypes.length} форматов
-                    </p>
+                    {sel && (
+                      <p className="text-[10px] text-tx-3">
+                        {selSubs.size} типов выбрано ·{" "}
+                        {[...selSubs].reduce(
+                          (s, st) => s + (CREATIVE_BY_SUBTYPE[st]?.length ?? 0),
+                          0,
+                        )}{" "}
+                        креативов
+                      </p>
+                    )}
                   </div>
                 </div>
+
                 {sel && subtypes.length > 0 && (
-                  <div className="px-3 pb-3 pt-1 flex gap-2 flex-wrap border-t border-line bg-panel-2">
-                    {subtypes.map((st) => (
-                      <button
-                        key={st.value}
-                        onClick={() =>
-                          setPlatformSubtypes((prev) => ({
-                            ...prev,
-                            [key]: st.value,
-                          }))
-                        }
-                        className={`px-2.5 py-1 rounded-full text-[10px] border cursor-pointer transition-colors ${selSub === st.value ? "bg-accent text-on-accent border-accent" : "border-line text-tx-3 hover:bg-hover"}`}
-                      >
-                        {st.label}
-                      </button>
-                    ))}
+                  <div className="px-4 pb-3 pt-2 border-t border-line bg-panel-2">
+                    <p className="text-[10px] text-tx-3 mb-2">
+                      Выберите типы контента:
+                    </p>
+                    <div className="flex gap-2 flex-wrap">
+                      {subtypes.map((st) => {
+                        const isSel = selSubs.has(st.value);
+                        const count =
+                          CREATIVE_BY_SUBTYPE[st.value]?.length ?? 0;
+                        return (
+                          <button
+                            key={st.value}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSubtype(key, st.value);
+                            }}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] border cursor-pointer transition-colors ${isSel ? "bg-accent text-on-accent border-accent" : "border-line text-tx-3 hover:bg-hover"}`}
+                          >
+                            <span>{st.emoji}</span>
+                            {st.label}
+                            <span
+                              className={`text-[8px] ${isSel ? "opacity-70" : "text-tx-3"}`}
+                            >
+                              ×{count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
             );
           })}
-          <div className="flex justify-between pt-2">
+
+          <div className="flex justify-between pt-3">
             <button
               onClick={() => setStep(0)}
               className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
@@ -1154,12 +1236,19 @@ export function WizardView({
             <span className="text-[16px]">✦</span>
             <div>
               <p className="text-[11px] font-medium text-tx-1">
-                AI генерирует варианты для {selectedPlatforms.size} платформ
+                AI создаёт по 1-2 варианта для каждого типа поста
               </p>
               <p className="text-[10px] text-tx-3">
-                По 5 концептов на каждую — выберите лучшие
+                Итого: {getAllCreativeIds().length} креативов для{" "}
+                {selectedPlatforms.size} платформ
               </p>
             </div>
+            <button
+              onClick={() => setSelectedCreatives(new Set(getAllCreativeIds()))}
+              className="ml-auto text-[10px] text-accent hover:opacity-80 cursor-pointer"
+            >
+              Выбрать все
+            </button>
           </div>
 
           {/* Platform filter */}
@@ -1212,15 +1301,12 @@ export function WizardView({
             })}
           </div>
 
-          {(creativePlatformFilter === "all"
-            ? [...selectedPlatforms]
-            : [creativePlatformFilter]
-          ).map((platformKey) => {
+          {platformsForCreatives.map((platformKey) => {
             const pm = PLATFORM_META[platformKey];
             if (!pm) return null;
-            const sub = platformSubtypes[platformKey];
+            const selSubs = selectedSubtypes[platformKey] ?? new Set();
             return (
-              <div key={platformKey} className="mb-5">
+              <div key={platformKey} className="mb-6">
                 <div className="flex items-center gap-2 mb-3">
                   <PlatformLogo
                     abbr={pm.abbr}
@@ -1230,47 +1316,59 @@ export function WizardView({
                   <p className="text-[12px] font-semibold text-tx-1">
                     {pm.name}
                   </p>
-                  {sub && (
-                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-chip text-tx-2">
-                      {
-                        PLATFORM_SUBTYPES[platformKey]?.find(
-                          (s) => s.value === sub,
-                        )?.label
-                      }
-                    </span>
-                  )}
                 </div>
-                <div className="grid grid-cols-5 gap-2">
-                  {CREATIVE_VARIANTS.map((v, i) => {
-                    const cId = `${platformKey}-${i}`;
-                    const sel = selectedCreatives.has(cId);
-                    return (
-                      <div
-                        key={cId}
-                        onClick={() => toggleCreative(cId)}
-                        className={`p-2 border rounded-[8px] cursor-pointer transition-colors ${sel ? "border-accent bg-accent-dim" : "border-line hover:border-line-strong"}`}
-                      >
-                        <div
-                          className="h-12 rounded-[5px] flex items-center justify-center text-[20px] mb-2 relative overflow-hidden"
-                          style={{
-                            background: `linear-gradient(135deg, ${pm.color}, #111)`,
-                          }}
-                        >
-                          {sel && (
-                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-accent text-[16px] font-bold">
-                              ✓
-                            </div>
-                          )}
-                          {v.emoji}
-                        </div>
-                        <p className="text-[9px] font-medium text-tx-1 leading-tight mb-0.5">
-                          {v.title}
+
+                {[...selSubs].map((subtype) => {
+                  const st = PLATFORM_SUBTYPES[platformKey]?.find(
+                    (s) => s.value === subtype,
+                  );
+                  const variants = CREATIVE_BY_SUBTYPE[subtype] ?? [];
+                  if (!st || variants.length === 0) return null;
+                  return (
+                    <div key={subtype} className="mb-4">
+                      <div className="flex items-center gap-2 mb-2 pl-1">
+                        <span className="text-[12px]">{st.emoji}</span>
+                        <p className="text-[11px] font-medium text-tx-2">
+                          {st.label}
                         </p>
-                        <p className="text-[8px] text-tx-3">{v.desc}</p>
+                        <span className="text-[9px] text-tx-3">
+                          {variants.length} варианта
+                        </span>
                       </div>
-                    );
-                  })}
-                </div>
+                      <div className="grid grid-cols-5 gap-2">
+                        {variants.map((v, i) => {
+                          const cId = `${platformKey}__${subtype}__${i}`;
+                          const sel = selectedCreatives.has(cId);
+                          return (
+                            <div
+                              key={cId}
+                              onClick={() => toggleCreative(cId)}
+                              className={`p-2 border rounded-[8px] cursor-pointer transition-colors ${sel ? "border-accent bg-accent-dim" : "border-line hover:border-line-strong"}`}
+                            >
+                              <div
+                                className="h-12 rounded-[5px] flex items-center justify-center text-[20px] mb-2 relative overflow-hidden"
+                                style={{
+                                  background: `linear-gradient(135deg, ${pm.color}, #111)`,
+                                }}
+                              >
+                                {sel && (
+                                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-accent text-[16px] font-bold">
+                                    ✓
+                                  </div>
+                                )}
+                                {v.emoji}
+                              </div>
+                              <p className="text-[9px] font-medium text-tx-1 leading-tight mb-0.5">
+                                {v.title}
+                              </p>
+                              <p className="text-[8px] text-tx-3">{v.desc}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             );
           })}
@@ -1317,7 +1415,7 @@ export function WizardView({
                 l: "Бюджет",
                 v: budget ? `₽${Number(budget).toLocaleString("ru")}` : "—",
               },
-              { l: "Креативов", v: `${selectedCreatives.size} вариантов` },
+              { l: "Креативов", v: `${selectedCreatives.size} выбрано` },
             ].map((row) => (
               <div
                 key={row.l}
