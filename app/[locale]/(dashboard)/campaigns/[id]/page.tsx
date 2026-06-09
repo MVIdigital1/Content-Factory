@@ -1,413 +1,556 @@
 "use client";
-
-import { useState, useEffect } from "react";
-import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useState } from "react";
+import { useRouter, useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "next-intl";
-import {
-  ArrowLeft,
-  TrendingUp,
-  Users,
-  Wallet,
-  Target,
-  Save,
-  FileText,
-} from "lucide-react";
+import { ChevronLeft, Copy, Clock } from "lucide-react";
 
-type Campaign = {
-  id: string;
-  project_id: string;
-  name: string;
-  goal: string | null;
-  status: "generating" | "ready" | "running" | "completed";
-  budget_total: number | null;
-  budget_spent: number | null;
-  leads: number | null;
-  customers: number | null;
-  revenue: number | null;
-  starts_at: string | null;
-  ends_at: string | null;
-  created_at: string;
-  project?: { name: string } | null;
+const PLATFORM_META: Record<
+  string,
+  { color: string; textColor?: string; abbr: string; name: string }
+> = {
+  yandex: {
+    color: "#FFDB4D",
+    textColor: "#664400",
+    abbr: "Я",
+    name: "Яндекс Директ",
+  },
+  vk: { color: "#0077FF", abbr: "VK", name: "VK Реклама" },
+  telegram: { color: "#0088CC", abbr: "TG", name: "Telegram Ads" },
+  mytarget: { color: "#FF6600", abbr: "MT", name: "myTarget" },
+  google: { color: "#34A853", abbr: "G", name: "Google Ads" },
+  meta: { color: "#1877F2", abbr: "M", name: "Meta Ads" },
+  tiktok: { color: "#000000", abbr: "TT", name: "TikTok Ads" },
 };
 
-type LinkedContent = {
-  id: string;
-  title: string;
-  status: string;
-  platform: string;
-  created_at: string;
-};
-
-const STATUS_META: Record<string, { label: string; cls: string }> = {
-  running: { label: "Активна", cls: "bg-accent-dim text-accent" },
-  ready: { label: "Запланирована", cls: "bg-chip text-tx-2" },
-  generating: { label: "Генерируется", cls: "bg-chip text-tx-2" },
-  completed: { label: "Завершена", cls: "bg-chip text-tx-3" },
-};
-
-function fmtMoney(n: number | null | undefined) {
-  if (n == null) return "—";
-  if (n >= 1_000_000) {
-    const v = n / 1_000_000;
-    return (Number.isInteger(v) ? v : v.toFixed(1)) + " млн";
-  }
-  if (n >= 1_000) return Math.round(n / 1_000) + " тыс";
-  return Math.round(n).toString();
+function fmt(n: number) {
+  if (!n || n <= 0) return "—";
+  return `₽${n >= 1000 ? Math.round(n / 1000) + "k" : Math.round(n)}`;
 }
 
-function fmtDate(d: string | null) {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("ru-RU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
+const STATUS_LABEL: Record<string, string> = {
+  active: "Активна",
+  paused: "Пауза",
+  ab_test: "A/B",
+  draft: "Черновик",
+  completed: "Завершена",
+};
+
+type TabKey = "info" | "creatives" | "schedule" | "history";
 
 export default function CampaignDetailPage() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
-  const locale = useLocale();
+  // Fix: use useParams() instead of params prop (Next.js 15)
   const params = useParams();
-  const id = params.id as string;
-
-  const inputClass =
-    "w-full px-3 py-2.5 rounded-[10px] border border-line text-[13px] outline-none focus:border-accent transition-colors bg-panel text-tx-1 ui-num placeholder:text-tx-3";
+  const id = params?.id as string;
+  const locale = useLocale();
+  const router = useRouter();
+  const qc = useQueryClient();
+  const supabase = createClient();
+  const [activeTab, setActiveTab] = useState<TabKey>("info");
+  const [scheduleModal, setScheduleModal] = useState<any>(null);
+  const [scheduleTime, setScheduleTime] = useState("");
+  const [scheduling, setScheduling] = useState(false);
+  const [cloning, setCloning] = useState(false);
 
   const { data: campaign, isLoading } = useQuery({
-    queryKey: ["campaign", id],
+    queryKey: ["ad_campaign", id],
+    enabled: !!id,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("campaigns")
-        .select("*, project:projects(name)")
+        .from("ad_campaigns")
+        .select("*")
         .eq("id", id)
         .single();
-      if (error) throw error;
-      return data as Campaign;
+      if (error) return null;
+      return data;
     },
   });
 
-  const { data: contents } = useQuery({
-    queryKey: ["campaign-contents", id],
+  const { data: creatives = [] } = useQuery({
+    queryKey: ["ad_creatives_campaign", id],
+    enabled: !!id,
     queryFn: async () => {
       const { data } = await supabase
-        .from("contents")
-        .select("id, title, status, platform, created_at")
+        .from("ad_creatives")
+        .select("*")
         .eq("campaign_id", id)
         .order("created_at", { ascending: false });
-      return (data || []) as LinkedContent[];
+      return data ?? [];
     },
   });
 
-  // редактируемые результаты
-  const [res, setRes] = useState({
-    budget_spent: "",
-    leads: "",
-    customers: "",
-    revenue: "",
-  });
-  const [savedFlash, setSavedFlash] = useState(false);
-
-  useEffect(() => {
-    if (campaign) {
-      setRes({
-        budget_spent: campaign.budget_spent
-          ? String(campaign.budget_spent)
-          : "",
-        leads: campaign.leads ? String(campaign.leads) : "",
-        customers: campaign.customers ? String(campaign.customers) : "",
-        revenue: campaign.revenue ? String(campaign.revenue) : "",
-      });
-    }
-  }, [campaign]);
-
-  const saveResults = useMutation({
-    mutationFn: async () => {
+  const updateCampaign = useMutation({
+    mutationFn: async (payload: any) => {
       const { error } = await supabase
-        .from("campaigns")
-        .update({
-          budget_spent: res.budget_spent ? Number(res.budget_spent) : 0,
-          leads: res.leads ? Number(res.leads) : 0,
-          customers: res.customers ? Number(res.customers) : 0,
-          revenue: res.revenue ? Number(res.revenue) : 0,
-        })
+        .from("ad_campaigns")
+        .update(payload)
         .eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["campaign", id] });
-      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
-      setSavedFlash(true);
-      setTimeout(() => setSavedFlash(false), 1800);
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ad_campaign", id] }),
   });
 
-  if (isLoading || !campaign) {
+  const cloneCampaign = async () => {
+    if (!campaign) return;
+    setCloning(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Не авторизован");
+      const { data } = await supabase
+        .from("ad_campaigns")
+        .insert({
+          user_id: user.id,
+          name: `${campaign.name} — копия`,
+          goal: campaign.goal,
+          description: campaign.description,
+          platforms: campaign.platforms,
+          status: "draft",
+          budget_total: campaign.budget_total,
+          budget_spent: 0,
+          impressions: 0,
+          clicks: 0,
+          leads: 0,
+          sales: 0,
+          revenue: 0,
+          ctr: 0,
+          cpl: 0,
+          roas: 0,
+          project_id: campaign.project_id,
+        })
+        .select()
+        .single();
+      if (data) router.push(`/${locale}/campaigns/${data.id}`);
+    } catch (e: any) {
+      alert("Ошибка: " + e.message);
+    } finally {
+      setCloning(false);
+    }
+  };
+
+  const handleSchedule = async () => {
+    if (!scheduleModal || !scheduleTime) return;
+    setScheduling(true);
+    try {
+      await supabase.from("scheduled_posts").insert({
+        content_id: scheduleModal.id,
+        platform: scheduleModal.platform,
+        scheduled_at: new Date(scheduleTime).toISOString(),
+        status: "pending",
+        retry_count: 0,
+      });
+      await supabase
+        .from("ad_creatives")
+        .update({ status: "active" })
+        .eq("id", scheduleModal.id);
+      qc.invalidateQueries({ queryKey: ["ad_creatives_campaign", id] });
+      setScheduleModal(null);
+      setScheduleTime("");
+    } catch (e: any) {
+      alert("Ошибка: " + e.message);
+    } finally {
+      setScheduling(false);
+    }
+  };
+
+  const inp =
+    "w-full px-3 py-2.5 rounded-[8px] border border-line text-[12px] outline-none focus:border-line-strong bg-panel text-tx-1 placeholder:text-tx-3";
+
+  if (isLoading)
     return (
-      <div className="p-7 md:p-8">
-        <div className="ui-surface py-16 text-center text-[13px] text-tx-3">
-          Загрузка…
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="text-[32px] mb-3 animate-spin">✦</div>
+          <p className="text-[12px] text-tx-3">Загрузка кампании...</p>
         </div>
       </div>
     );
-  }
 
-  const spent = Number(res.budget_spent) || 0;
-  const total = campaign.budget_total || 0;
-  const customers = Number(res.customers) || 0;
-  const revenue = Number(res.revenue) || 0;
+  if (!campaign)
+    return (
+      <div className="flex flex-col items-center justify-center h-screen gap-3">
+        <p className="text-[13px] text-tx-2">Кампания не найдена</p>
+        <button
+          onClick={() => router.back()}
+          className="text-[12px] text-accent hover:opacity-80 cursor-pointer"
+        >
+          ← Назад
+        </button>
+      </div>
+    );
+
+  const spent = campaign.budget_spent ?? 0;
+  const total = campaign.budget_total ?? 0;
   const pct = total > 0 ? Math.min(100, Math.round((spent / total) * 100)) : 0;
 
-  const roi = spent > 0 ? Math.round(((revenue - spent) / spent) * 100) : null;
-  const cac = customers > 0 ? Math.round(spent / customers) : null;
-  const ltv = customers > 0 ? Math.round(revenue / customers) : null;
-  const ratio = cac && cac > 0 && ltv != null ? (ltv / cac).toFixed(1) : null;
-
-  const st = STATUS_META[campaign.status] || STATUS_META.ready;
-
-  const metrics = [
-    {
-      label: "ROI кампании",
-      val: roi != null ? `${roi}%` : "—",
-      Icon: TrendingUp,
-      accent: true,
-    },
-    {
-      label: "CAC · стоимость клиента",
-      val: cac != null ? `${fmtMoney(cac)} сум` : "—",
-      Icon: Users,
-    },
-    {
-      label: "LTV · ценность клиента",
-      val: ltv != null ? `${fmtMoney(ltv)} сум` : "—",
-      Icon: Wallet,
-    },
-    {
-      label: "LTV : CAC",
-      val: ratio != null ? `${ratio}×` : "—",
-      Icon: Target,
-    },
-  ];
-
   return (
-    <div className="p-7 md:p-8">
-      {/* назад */}
-      <Link
-        href={`/${locale}/campaigns`}
-        className="inline-flex items-center gap-1.5 text-[12.5px] text-tx-2 hover:text-tx-1 transition-colors mb-5"
-      >
-        <ArrowLeft size={14} /> Все кампании
-      </Link>
-
-      {/* заголовок */}
-      <div className="flex items-start justify-between mb-7">
-        <div>
-          <div className="ui-label">{campaign.project?.name || "Кампания"}</div>
-          <h1 className="text-[28px] font-semibold tracking-tight text-tx-1 mt-2 flex items-center gap-3">
+    <div className="flex flex-col min-h-screen">
+      {/* Header */}
+      <div className="h-11 border-b border-line px-5 flex items-center justify-between flex-shrink-0 sticky top-0 z-10 bg-panel">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.push(`/${locale}/campaigns`)}
+            className="flex items-center gap-1.5 text-[11px] text-tx-3 hover:text-tx-1 cursor-pointer"
+          >
+            <ChevronLeft size={14} /> Кампании
+          </button>
+          <span className="text-tx-3 text-[11px]">/</span>
+          <span className="text-[11px] text-tx-2 font-medium truncate max-w-[280px]">
             {campaign.name}
-            <span
-              className={`px-2.5 py-1 rounded-full text-[11px] font-medium ${st.cls}`}
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={cloneCampaign}
+            disabled={cloning}
+            className="inline-flex items-center gap-1.5 border border-line rounded-[7px] px-3 py-1.5 text-[11px] text-tx-2 hover:bg-hover cursor-pointer disabled:opacity-50"
+          >
+            <Copy size={12} /> {cloning ? "Клонирую..." : "Клонировать"}
+          </button>
+          {campaign.status === "active" && (
+            <button
+              onClick={() => updateCampaign.mutate({ status: "paused" })}
+              className="inline-flex items-center gap-1.5 border border-line rounded-[7px] px-3 py-1.5 text-[11px] text-tx-2 hover:bg-hover cursor-pointer"
             >
-              {st.label}
-            </span>
-          </h1>
-          {campaign.goal && (
-            <p className="text-[13.5px] text-tx-2 mt-2 max-w-[480px] leading-relaxed">
-              {campaign.goal}
-            </p>
+              ⏸ Пауза
+            </button>
           )}
-          <div className="text-[12px] text-tx-3 mt-2">
-            {fmtDate(campaign.starts_at)}
-            {campaign.ends_at ? ` — ${fmtDate(campaign.ends_at)}` : ""}
-          </div>
+          {campaign.status === "paused" && (
+            <button
+              onClick={() => updateCampaign.mutate({ status: "active" })}
+              className="inline-flex items-center gap-1.5 bg-accent text-on-accent rounded-[7px] px-3 py-1.5 text-[11px] font-medium hover:opacity-90 cursor-pointer"
+            >
+              ▶ Возобновить
+            </button>
+          )}
         </div>
       </div>
 
-      {/* метрики */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-4">
-        {metrics.map((m) => (
-          <div key={m.label} className="ui-surface p-4">
-            <div className="flex items-center justify-between mb-3">
+      {/* Title + meta */}
+      <div className="px-5 pt-5 pb-3">
+        <div className="flex items-center gap-3 mb-1">
+          <h1 className="text-[20px] font-semibold text-tx-1">
+            {campaign.name}
+          </h1>
+          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-chip text-tx-2">
+            {STATUS_LABEL[campaign.status] ?? campaign.status}
+          </span>
+        </div>
+        {campaign.goal && (
+          <p className="text-[12px] text-tx-3 mb-2">{campaign.goal}</p>
+        )}
+        <div className="flex gap-1.5">
+          {(campaign.platforms ?? []).map((pid: string) => {
+            const pm = PLATFORM_META[pid];
+            return pm ? (
               <div
-                className={`w-8 h-8 rounded-[9px] flex items-center justify-center ${
-                  m.accent ? "bg-accent-dim" : "bg-panel-2"
-                }`}
+                key={pid}
+                style={{
+                  width: 26,
+                  height: 18,
+                  borderRadius: 4,
+                  background: pm.color,
+                  color: pm.textColor ?? "#fff",
+                  fontSize: 9,
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
               >
-                <m.Icon
-                  size={15}
-                  className={m.accent ? "text-accent" : "text-tx-2"}
-                  strokeWidth={1.6}
-                />
+                {pm.abbr}
               </div>
-            </div>
-            <div
-              className={`ui-num text-[22px] font-semibold leading-none ${
-                m.accent ? "text-accent" : "text-tx-1"
-              }`}
-            >
-              {m.val}
-            </div>
-            <div className="text-[11px] text-tx-3 mt-2">{m.label}</div>
+            ) : null;
+          })}
+        </div>
+      </div>
+
+      {/* KPIs */}
+      <div className="px-5 pb-4 grid grid-cols-5 gap-3">
+        {[
+          { l: "Расход", v: fmt(spent) },
+          {
+            l: "CTR",
+            v: campaign.ctr > 0 ? `${campaign.ctr.toFixed(1)}%` : "—",
+          },
+          { l: "CPL", v: fmt(campaign.cpl) },
+          {
+            l: "ROAS",
+            v: campaign.roas > 0 ? `${Math.round(campaign.roas)}%` : "—",
+          },
+          { l: "Заявок", v: campaign.leads > 0 ? String(campaign.leads) : "—" },
+        ].map((k) => (
+          <div key={k.l} className="ui-surface px-4 py-3">
+            <p className="ui-label mb-1">{k.l}</p>
+            <p className="text-[18px] font-semibold text-tx-1">{k.v}</p>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-4">
-        {/* бюджет + результаты (редактируемо) */}
-        <div className="ui-surface p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[14.5px] font-semibold text-tx-1">
-              Бюджет и результаты
-            </h2>
-            {savedFlash && (
-              <span className="text-[11.5px] text-pos">Сохранено</span>
-            )}
-          </div>
-
-          {/* бюджет-бар */}
-          <div className="mb-5">
-            <div className="flex items-center justify-between text-[12px] mb-2">
-              <span className="text-tx-3">Освоено бюджета</span>
-              <span className="ui-num text-tx-2">
-                {fmtMoney(spent)} / {fmtMoney(total)} сум
+      {/* Budget bar */}
+      {total > 0 && (
+        <div className="px-5 pb-3">
+          <div className="ui-surface px-4 py-3">
+            <div className="flex justify-between text-[11px] mb-2">
+              <span className="font-medium text-tx-1">Бюджет</span>
+              <span className="text-tx-3">
+                {fmt(spent)} из {fmt(total)} · {pct}%
               </span>
             </div>
-            <div className="h-[6px] rounded-full bg-track overflow-hidden">
+            <div className="h-1.5 bg-track rounded-full overflow-hidden">
               <div
-                className="h-full rounded-full bg-accent"
+                className="h-full rounded-full bg-accent transition-all"
                 style={{ width: `${pct}%` }}
               />
             </div>
           </div>
-
-          {/* инпуты результатов */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[12px] font-medium text-tx-2 mb-1.5">
-                Потрачено, сум
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={res.budget_spent}
-                onChange={(e) =>
-                  setRes((p) => ({ ...p, budget_spent: e.target.value }))
-                }
-                placeholder="0"
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className="block text-[12px] font-medium text-tx-2 mb-1.5">
-                Выручка, сум
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={res.revenue}
-                onChange={(e) =>
-                  setRes((p) => ({ ...p, revenue: e.target.value }))
-                }
-                placeholder="0"
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className="block text-[12px] font-medium text-tx-2 mb-1.5">
-                Лиды
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={res.leads}
-                onChange={(e) =>
-                  setRes((p) => ({ ...p, leads: e.target.value }))
-                }
-                placeholder="0"
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className="block text-[12px] font-medium text-tx-2 mb-1.5">
-                Клиенты
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={res.customers}
-                onChange={(e) =>
-                  setRes((p) => ({ ...p, customers: e.target.value }))
-                }
-                placeholder="0"
-                className={inputClass}
-              />
-            </div>
-          </div>
-
-          <button
-            onClick={() => saveResults.mutate()}
-            disabled={saveResults.isPending}
-            className="mt-4 w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-[10px] bg-accent text-on-accent text-[13px] font-medium hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
-          >
-            <Save size={14} />
-            {saveResults.isPending ? "Сохранение…" : "Сохранить результаты"}
-          </button>
-
-          <p className="text-[11px] text-tx-3 mt-3 leading-relaxed">
-            Пока эти цифры вводятся вручную. Позже их можно подтягивать
-            автоматически из рекламных кабинетов и CRM.
-          </p>
         </div>
+      )}
 
-        {/* привязанный контент */}
-        <div className="ui-surface p-5">
-          <h2 className="text-[14.5px] font-semibold text-tx-1 mb-4">
-            Контент кампании
-            {contents && contents.length > 0 && (
-              <span className="ui-num text-tx-3 font-normal ml-2">
-                {contents.length}
-              </span>
-            )}
-          </h2>
+      {/* Tabs */}
+      <div className="flex gap-1 px-5 border-b border-line">
+        {(
+          [
+            { k: "info", l: "Инфо" },
+            { k: "creatives", l: `Креативы · ${creatives.length}` },
+            { k: "schedule", l: "Запланировать" },
+            { k: "history", l: "История" },
+          ] as { k: TabKey; l: string }[]
+        ).map((t) => (
+          <button
+            key={t.k}
+            onClick={() => setActiveTab(t.k)}
+            className={`px-4 py-2.5 text-[12px] font-medium border-b-2 transition-colors cursor-pointer ${activeTab === t.k ? "border-accent text-accent" : "border-transparent text-tx-3 hover:text-tx-1"}`}
+          >
+            {t.l}
+          </button>
+        ))}
+      </div>
 
-          {!contents || contents.length === 0 ? (
-            <div className="flex flex-col items-center justify-center text-center py-10">
-              <div className="w-10 h-10 rounded-xl bg-panel-2 flex items-center justify-center mb-3">
-                <FileText size={18} className="text-tx-3" strokeWidth={1.6} />
-              </div>
-              <div className="text-[13px] text-tx-2">Пока нет контента</div>
-              <p className="text-[11.5px] text-tx-3 mt-1 max-w-[240px] leading-relaxed">
-                Привяжи посты к этой кампании при создании контента.
-              </p>
-            </div>
-          ) : (
-            <div className="divide-y divide-line -my-2">
-              {contents.map((c) => (
-                <div key={c.id} className="flex items-center gap-3 py-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-panel-2 flex items-center justify-center flex-shrink-0">
-                    <FileText
-                      size={13}
-                      className="text-tx-3"
-                      strokeWidth={1.6}
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[13px] text-tx-1 truncate">
-                      {c.title || "Без названия"}
-                    </div>
-                    <div className="text-[11px] text-tx-3 capitalize">
-                      {c.platform} · {c.status}
-                    </div>
-                  </div>
+      <div className="flex-1 p-5">
+        {/* Info */}
+        {activeTab === "info" && (
+          <div className="grid grid-cols-2 gap-4 max-w-[680px]">
+            <div className="ui-surface p-4">
+              <p className="ui-label mb-3">Основное</p>
+              {[
+                ["Название", campaign.name],
+                ["Цель", campaign.goal ?? "—"],
+                ["Описание", campaign.description ?? "—"],
+                ["Статус", STATUS_LABEL[campaign.status] ?? campaign.status],
+              ].map(([l, v]) => (
+                <div
+                  key={l}
+                  className="flex justify-between text-[11px] py-1.5 border-b border-line last:border-0"
+                >
+                  <span className="text-tx-3">{l}</span>
+                  <span className="font-medium text-tx-1 text-right max-w-[200px] truncate">
+                    {v}
+                  </span>
                 </div>
               ))}
             </div>
-          )}
-        </div>
+            <div className="ui-surface p-4">
+              <p className="ui-label mb-3">Показатели</p>
+              {[
+                ["Показов", (campaign.impressions ?? 0).toLocaleString("ru")],
+                ["Кликов", (campaign.clicks ?? 0).toLocaleString("ru")],
+                ["Заявок", String(campaign.leads ?? 0)],
+                ["Продаж", String(campaign.sales ?? 0)],
+                ["Доход", fmt(campaign.revenue ?? 0)],
+              ].map(([l, v]) => (
+                <div
+                  key={l}
+                  className="flex justify-between text-[11px] py-1.5 border-b border-line last:border-0"
+                >
+                  <span className="text-tx-3">{l}</span>
+                  <span className="font-medium text-tx-1">{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Creatives */}
+        {activeTab === "creatives" &&
+          (creatives.length === 0 ? (
+            <div className="ui-surface flex flex-col items-center py-14 text-center">
+              <p className="text-[32px] mb-3">⬡</p>
+              <p className="text-[13px] font-medium text-tx-1 mb-1">
+                Нет креативов
+              </p>
+              <p className="text-[11px] text-tx-3">
+                Выберите креативы при создании кампании
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-4 gap-3">
+              {creatives.map((c: any) => (
+                <div
+                  key={c.id}
+                  onClick={() => setScheduleModal(c)}
+                  className="ui-surface p-3 cursor-pointer hover:border-line-strong transition-colors"
+                >
+                  {c.image_url ? (
+                    <img
+                      src={c.image_url}
+                      alt=""
+                      className="w-full h-24 object-cover rounded-[6px] mb-2"
+                    />
+                  ) : (
+                    <div
+                      className="w-full h-24 rounded-[6px] mb-2 flex items-center justify-center text-[22px]"
+                      style={{
+                        background: `linear-gradient(135deg, ${PLATFORM_META[c.platform]?.color ?? "#333"}, #111)`,
+                      }}
+                    >
+                      {c.platform?.slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <p className="text-[11px] font-medium text-tx-1 truncate mb-0.5">
+                    {c.title ?? "Без названия"}
+                  </p>
+                  <p className="text-[9px] text-tx-3 mb-2">
+                    {c.platform} · {c.format}
+                  </p>
+                  <span
+                    className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-chip ${c.status === "active" ? "text-pos" : "text-tx-3"}`}
+                  >
+                    {(
+                      {
+                        active: "Активен",
+                        draft: "Черновик",
+                        paused: "Пауза",
+                        winner: "Победитель",
+                        failed: "Ошибка",
+                      } as Record<string, string>
+                    )[c.status] ?? c.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ))}
+
+        {/* Schedule */}
+        {activeTab === "schedule" && (
+          <div className="max-w-[480px]">
+            <p className="text-[12px] text-tx-2 mb-4">
+              Выберите черновик и запланируйте публикацию
+            </p>
+            {creatives.filter((c: any) => c.status === "draft").length === 0 ? (
+              <div className="ui-surface flex flex-col items-center py-10 text-center">
+                <p className="text-[11px] text-tx-3">
+                  Нет черновиков для планирования
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {creatives
+                  .filter((c: any) => c.status === "draft")
+                  .map((c: any) => (
+                    <div
+                      key={c.id}
+                      onClick={() => setScheduleModal(c)}
+                      className="ui-surface px-4 py-3 flex items-center gap-3 cursor-pointer hover:border-line-strong"
+                    >
+                      <div
+                        style={{
+                          width: 22,
+                          height: 16,
+                          borderRadius: 3,
+                          background:
+                            PLATFORM_META[c.platform]?.color ?? "#333",
+                          color: "#fff",
+                          fontSize: 8,
+                          fontWeight: 700,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {PLATFORM_META[c.platform]?.abbr ?? "?"}
+                      </div>
+                      <p className="text-[12px] font-medium text-tx-1 flex-1 truncate">
+                        {c.title ?? "Без названия"}
+                      </p>
+                      <span className="text-[11px] text-accent">
+                        📅 Запланировать →
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* History */}
+        {activeTab === "history" && (
+          <div className="max-w-[560px]">
+            <div className="ui-surface flex flex-col items-center py-14 text-center">
+              <Clock size={28} className="text-tx-3 mb-3" strokeWidth={1.2} />
+              <p className="text-[13px] font-medium text-tx-1 mb-1">
+                История изменений
+              </p>
+              <p className="text-[11px] text-tx-3">
+                Все действия с кампанией будут отображаться здесь
+              </p>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Schedule modal */}
+      {scheduleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/30 backdrop-blur-[3px]"
+            onClick={() => setScheduleModal(null)}
+          />
+          <div className="relative w-full max-w-[380px] bg-panel border border-line rounded-[14px] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[14px] font-semibold text-tx-1">
+                Запланировать
+              </h2>
+              <button
+                onClick={() => setScheduleModal(null)}
+                className="w-7 h-7 flex items-center justify-center rounded-[7px] border border-line hover:bg-hover cursor-pointer text-tx-3 text-[14px]"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-[11px] text-tx-3 mb-4">
+              {scheduleModal.title ?? "Без названия"} · {scheduleModal.platform}
+            </p>
+            <div className="mb-4">
+              <label className="block ui-label mb-1">Дата и время</label>
+              <input
+                type="datetime-local"
+                value={scheduleTime}
+                onChange={(e) => setScheduleTime(e.target.value)}
+                className={inp}
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setScheduleModal(null)}
+                className="flex-1 py-2.5 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleSchedule}
+                disabled={!scheduleTime || scheduling}
+                className="flex-1 py-2.5 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-50"
+              >
+                {scheduling ? "..." : "📅 Запланировать"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
