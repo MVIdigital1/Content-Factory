@@ -34,28 +34,34 @@ import {
 
 type NavItem = { key: string; href: string; Icon: LucideIcon };
 
+const MARKETING: NavItem[] = [
+  { key: "campaigns", href: "/campaigns", Icon: Megaphone },
+  { key: "projects", href: "/projects", Icon: FolderOpen },
+  { key: "create", href: "/create", Icon: SquarePen },
+  { key: "aiWorkers", href: "/ai-workers", Icon: Bot },
+];
+
 const BUSINESS: NavItem[] = [
   { key: "dashboard", href: "/dashboard", Icon: LayoutDashboard },
-  { key: "create", href: "/create", Icon: SquarePen },
   { key: "content", href: "/history", Icon: Columns3 },
-  { key: "campaigns", href: "/campaigns", Icon: Megaphone },
   { key: "calendar", href: "/calendar", Icon: Calendar },
   { key: "analytics", href: "/analytics", Icon: LineChart },
   { key: "summary", href: "/summary", Icon: Gauge },
 ];
+
 const TOOLS: NavItem[] = [
-  { key: "aiWorkers", href: "/ai-workers", Icon: Bot },
   { key: "tasks", href: "/tasks", Icon: ListChecks },
   { key: "abTests", href: "/ab-tests", Icon: FlaskConical },
-  { key: "projects", href: "/projects", Icon: FolderOpen },
   { key: "integrations", href: "/integrations", Icon: Plug },
 ];
+
 const AGENCY: NavItem[] = [
   { key: "crm", href: "/crm", Icon: Contact },
   { key: "team", href: "/team", Icon: Users },
   { key: "chat", href: "/chat", Icon: MessagesSquare },
   { key: "tickets", href: "/tickets", Icon: Ticket },
 ];
+
 const ACCOUNT: NavItem[] = [
   { key: "billing", href: "/billing", Icon: CreditCard },
   { key: "referral", href: "/referral", Icon: Gift },
@@ -71,6 +77,7 @@ function NavContent({ onClose }: { onClose?: () => void }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [agencyOpen, setAgencyOpen] = useState(false);
+  const [marketingOpen, setMarketingOpen] = useState(true);
   const t = useTranslations("nav");
   const locale = useLocale();
 
@@ -85,6 +92,11 @@ function NavContent({ onClose }: { onClose?: () => void }) {
         setIsAdmin(true);
     });
   }, []);
+
+  useEffect(() => {
+    const mPaths = ["/campaigns", "/projects", "/create", "/ai-workers"];
+    if (mPaths.some((p) => pathname.includes(p))) setMarketingOpen(true);
+  }, [pathname]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -123,9 +135,7 @@ function NavContent({ onClose }: { onClose?: () => void }) {
     return (
       <button
         onClick={() => go(item.href)}
-        className={`w-full flex items-center gap-2 px-2.5 py-[6px] rounded-[7px] text-[12px] text-left cursor-pointer mb-[1px] border border-transparent transition-all focus:outline-none ${
-          active ? "border-transparent font-medium" : "hover:border-transparent"
-        }`}
+        className={`w-full flex items-center gap-2 px-2.5 py-[6px] rounded-[7px] text-[12px] text-left cursor-pointer mb-[1px] border border-transparent transition-all focus:outline-none ${active ? "border-transparent font-medium" : "hover:border-transparent"}`}
         style={{
           background: active ? "var(--sb-active-bg)" : "transparent",
           color: active ? "var(--sb-active-tx)" : "var(--sb-tx-2)",
@@ -156,7 +166,7 @@ function NavContent({ onClose }: { onClose?: () => void }) {
     );
   };
 
-  const GroupLabel = ({ children }: { children: React.ReactNode }) => (
+  const GroupLabel = ({ label }: { label: string }) => (
     <div
       className="px-2.5 pb-1 pt-3"
       style={{
@@ -167,13 +177,63 @@ function NavContent({ onClose }: { onClose?: () => void }) {
         fontWeight: 600,
       }}
     >
-      {children}
+      {label}
+    </div>
+  );
+
+  const Collapsible = ({
+    label,
+    open,
+    onToggle,
+    children,
+  }: {
+    label: string;
+    open: boolean;
+    onToggle: () => void;
+    children: React.ReactNode;
+  }) => (
+    <div className="mb-1">
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-2.5 pb-1 pt-3 cursor-pointer"
+        style={{ background: "none", border: "none", outline: "none" }}
+      >
+        <span
+          style={{
+            fontSize: "9.5px",
+            letterSpacing: "0.1em",
+            textTransform: "uppercase" as const,
+            color: "var(--sb-tx-3)",
+            fontWeight: 600,
+          }}
+        >
+          {label}
+        </span>
+        <ChevronDown
+          size={11}
+          strokeWidth={2}
+          style={{
+            color: "var(--sb-tx-3)",
+            transform: open ? "rotate(0deg)" : "rotate(-90deg)",
+            transition: "transform 0.15s",
+          }}
+        />
+      </button>
+      <div
+        style={{
+          maxHeight: open ? 500 : 0,
+          overflow: "hidden",
+          transition: "max-height 0.2s ease",
+        }}
+      >
+        {children}
+      </div>
     </div>
   );
 
   return (
     <div className="flex flex-col h-full">
-      {/* Лого */}
+      {/* Logo */}
       <div
         className="px-3 pt-4 pb-3"
         style={{ borderBottom: "0.5px solid var(--sb-border)" }}
@@ -206,59 +266,55 @@ function NavContent({ onClose }: { onClose?: () => void }) {
         </button>
       </div>
 
-      {/* Навигация */}
       <nav className="flex-1 overflow-y-auto px-2 pb-2">
+        {/* Marketing - collapsible */}
+        <Collapsible
+          label="Маркетинг"
+          open={marketingOpen}
+          onToggle={() => setMarketingOpen((v) => !v)}
+        >
+          {MARKETING.map((item) => (
+            <NavButton key={item.href} item={item} />
+          ))}
+        </Collapsible>
+
+        {/* Business */}
         <div className="mb-1">
-          <GroupLabel>{t("groupBusiness")}</GroupLabel>
+          <GroupLabel label={t("groupBusiness")} />
           {BUSINESS.map((item) => (
             <NavButton key={item.href} item={item} />
           ))}
         </div>
+
+        {/* Tools */}
         <div className="mb-1">
-          <GroupLabel>{t("groupTools")}</GroupLabel>
+          <GroupLabel label={t("groupTools")} />
           {TOOLS.map((item) => (
             <NavButton key={item.href} item={item} />
           ))}
         </div>
-        <div className="mb-1">
-          <button
-            onClick={() => setAgencyOpen((v) => !v)}
-            className="w-full flex items-center justify-between px-2.5 pb-1 pt-3 cursor-pointer"
-            style={{ background: "none", border: "none", outline: "none" }}
-          >
-            <span
-              style={{
-                fontSize: "9.5px",
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-                color: "var(--sb-tx-3)",
-                fontWeight: 600,
-              }}
-            >
-              {t("groupAgency")}
-            </span>
-            <ChevronDown
-              size={11}
-              strokeWidth={2}
-              style={{
-                color: "var(--sb-tx-3)",
-                transform: agencyOpen ? "rotate(0deg)" : "rotate(-90deg)",
-                transition: "transform 0.15s",
-              }}
-            />
-          </button>
-          {agencyOpen &&
-            AGENCY.map((item) => <NavButton key={item.href} item={item} />)}
-        </div>
+
+        {/* Agency - collapsible */}
+        <Collapsible
+          label={t("groupAgency")}
+          open={agencyOpen}
+          onToggle={() => setAgencyOpen((v) => !v)}
+        >
+          {AGENCY.map((item) => (
+            <NavButton key={item.href} item={item} />
+          ))}
+        </Collapsible>
+
+        {/* Account */}
         <div>
-          <GroupLabel>{t("groupAccount")}</GroupLabel>
+          <GroupLabel label={t("groupAccount")} />
           {ACCOUNT.map((item) => (
             <NavButton key={item.href} item={item} />
           ))}
         </div>
       </nav>
 
-      {/* Футер */}
+      {/* Footer */}
       <div
         className="px-2 py-2.5"
         style={{ borderTop: "0.5px solid var(--sb-border)" }}
@@ -278,10 +334,7 @@ function NavContent({ onClose }: { onClose?: () => void }) {
           <LangSwitcher />
           <ThemeToggle />
         </div>
-        <div
-          className="flex items-center gap-2 px-2 py-1.5 rounded-[8px]"
-          style={{ cursor: "default" }}
-        >
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded-[8px]">
           <button
             onClick={() => go("/profile")}
             className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer"

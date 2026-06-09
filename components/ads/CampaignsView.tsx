@@ -383,6 +383,94 @@ export function CampaignsView({
             <Badge variant={STATUS_BADGE[c.status] ?? "muted"}>
               {STATUS_LABEL[c.status] ?? c.status}
             </Badge>
+            {/* Action buttons - show on hover */}
+            <div
+              className="campaign-actions"
+              style={{ display: "flex", gap: 4, flexShrink: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Continue / Edit */}
+              <button
+                onClick={() => {
+                  router.push(`/${locale}/campaigns?tab=wizard&clone=${c.id}`);
+                }}
+                style={{
+                  padding: "4px 8px",
+                  borderRadius: 6,
+                  border: "0.5px solid var(--line)",
+                  background: "var(--panel-2)",
+                  color: "var(--tx-3)",
+                  fontSize: 10,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  whiteSpace: "nowrap",
+                }}
+                title="Продолжить / редактировать"
+              >
+                ✎
+              </button>
+              {/* Pause / Resume */}
+              {c.status === "active" && (
+                <button
+                  onClick={() =>
+                    updateCampaign.mutate({ id: c.id, status: "paused" })
+                  }
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    border: "0.5px solid var(--line)",
+                    background: "var(--panel-2)",
+                    color: "var(--tx-3)",
+                    fontSize: 10,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                  title="Приостановить"
+                >
+                  ⏸
+                </button>
+              )}
+              {c.status === "paused" && (
+                <button
+                  onClick={() =>
+                    updateCampaign.mutate({ id: c.id, status: "active" })
+                  }
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    border: "0.5px solid var(--line)",
+                    background: "var(--panel-2)",
+                    color: "var(--pos)",
+                    fontSize: 10,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                  title="Возобновить"
+                >
+                  ▶
+                </button>
+              )}
+              {/* Delete */}
+              <button
+                onClick={() => {
+                  if (confirm(`Удалить «${c.name}»?`))
+                    deleteCampaign.mutate(c.id);
+                }}
+                style={{
+                  padding: "4px 8px",
+                  borderRadius: 6,
+                  border: "0.5px solid var(--line)",
+                  background: "var(--panel-2)",
+                  color: "var(--neg)",
+                  fontSize: 10,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+                title="Удалить"
+              >
+                🗑
+              </button>
+            </div>
           </div>
         ))}
       </div>
