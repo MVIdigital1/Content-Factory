@@ -27,10 +27,10 @@ const STATUS_BADGE: Record<string, BadgeVariant> = {
 };
 const STATUS_DOT: Record<string, string> = {
   active: "var(--success)",
-  paused: "var(--text-muted)",
+  paused: "var(--tx-3)",
   ab_test: "var(--warning)",
   warning: "var(--danger)",
-  draft: "var(--text-muted)",
+  draft: "var(--tx-3)",
   completed: "var(--info)",
 };
 const STATUS_LABEL: Record<string, string> = {
@@ -43,17 +43,13 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 function getCtrColor(v: number) {
-  return v >= 3
-    ? "var(--success)"
-    : v >= 2
-      ? "var(--text-primary)"
-      : "var(--danger)";
+  return v >= 3 ? "var(--success)" : v >= 2 ? "var(--tx-1)" : "var(--danger)";
 }
 function getRoasColor(v: number) {
   return v >= 300
     ? "var(--success)"
     : v >= 200
-      ? "var(--text-primary)"
+      ? "var(--tx-1)"
       : "var(--danger)";
 }
 function fmt(n: number, prefix = "₽") {
@@ -117,8 +113,8 @@ export function CampaignsView({
             key={kpi.label}
             onClick={() => setKpiModal(i)}
             style={{
-              background: "var(--bg-card)",
-              border: "0.5px solid var(--border)",
+              background: "var(--panel)",
+              border: "0.5px solid var(--line)",
               borderRadius: 9,
               padding: "10px 12px",
               cursor: "pointer",
@@ -128,19 +124,13 @@ export function CampaignsView({
               (e.currentTarget.style.borderColor = "var(--primary)")
             }
             onMouseLeave={(e) =>
-              (e.currentTarget.style.borderColor = "var(--border)")
+              (e.currentTarget.style.borderColor = "var(--line)")
             }
           >
             <div style={{ fontSize: 18, fontWeight: 600, lineHeight: 1.1 }}>
               {kpi.value}
             </div>
-            <div
-              style={{
-                fontSize: 10,
-                color: "var(--text-secondary)",
-                marginTop: 3,
-              }}
-            >
+            <div style={{ fontSize: 10, color: "var(--tx-2)", marginTop: 3 }}>
               {kpi.label}
             </div>
             {kpi.delta && (
@@ -181,11 +171,8 @@ export function CampaignsView({
                 fontFamily: "inherit",
                 fontSize: 10,
                 fontWeight: 500,
-                background: filter === f ? "var(--bg-tertiary)" : "transparent",
-                color:
-                  filter === f
-                    ? "var(--text-primary)"
-                    : "var(--text-secondary)",
+                background: filter === f ? "var(--chip)" : "transparent",
+                color: filter === f ? "var(--tx-1)" : "var(--tx-2)",
               }}
             >
               {
@@ -208,10 +195,10 @@ export function CampaignsView({
               padding: "4px 9px",
               fontSize: 10,
               fontFamily: "inherit",
-              border: "0.5px solid var(--border)",
+              border: "0.5px solid var(--line)",
               borderRadius: 6,
               background: "var(--bg)",
-              color: "var(--text-secondary)",
+              color: "var(--tx-2)",
               cursor: "pointer",
             }}
           >
@@ -232,7 +219,7 @@ export function CampaignsView({
           style={{
             textAlign: "center",
             padding: 24,
-            color: "var(--text-secondary)",
+            color: "var(--tx-2)",
             fontSize: 12,
           }}
         >
@@ -245,7 +232,7 @@ export function CampaignsView({
           style={{
             textAlign: "center",
             padding: "32px 20px",
-            color: "var(--text-secondary)",
+            color: "var(--tx-2)",
           }}
         >
           <div style={{ fontSize: 32, marginBottom: 10 }}>📡</div>
@@ -253,7 +240,7 @@ export function CampaignsView({
             style={{
               fontSize: 13,
               fontWeight: 500,
-              color: "var(--text-primary)",
+              color: "var(--tx-1)",
               marginBottom: 6,
             }}
           >
@@ -279,19 +266,19 @@ export function CampaignsView({
         {filtered.map((c) => (
           <div
             key={c.id}
-            onClick={() => router.push(`/${locale}/ads/campaigns/${c.id}`)}
+            onClick={() => router.push(`/${locale}/campaigns/${c.id}`)}
             style={{
               display: "flex",
               alignItems: "center",
               gap: 11,
               padding: "10px 12px",
-              border: `0.5px solid ${c.status === "ab_test" ? "var(--warning)" : "var(--border)"}`,
+              border: `0.5px solid ${c.status === "ab_test" ? "var(--warning)" : "var(--line)"}`,
               borderRadius: 9,
               cursor: "pointer",
               background:
                 c.status === "ab_test"
                   ? "rgba(245,158,11,0.04)"
-                  : "var(--bg-card)",
+                  : "var(--panel)",
               transition: "border-color 0.15s",
             }}
             onMouseEnter={(e) => {
@@ -300,7 +287,7 @@ export function CampaignsView({
             }}
             onMouseLeave={(e) => {
               if (c.status !== "ab_test")
-                e.currentTarget.style.borderColor = "var(--border)";
+                e.currentTarget.style.borderColor = "var(--line)";
             }}
           >
             <div
@@ -308,7 +295,7 @@ export function CampaignsView({
                 width: 7,
                 height: 7,
                 borderRadius: "50%",
-                background: STATUS_DOT[c.status] ?? "var(--text-muted)",
+                background: STATUS_DOT[c.status] ?? "var(--tx-3)",
                 flexShrink: 0,
               }}
             />
@@ -341,7 +328,7 @@ export function CampaignsView({
               <div
                 style={{
                   fontSize: 10,
-                  color: "var(--text-secondary)",
+                  color: "var(--tx-2)",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
@@ -355,7 +342,7 @@ export function CampaignsView({
                 {
                   v: fmt(c.budget_spent ?? 0),
                   l: "расход",
-                  color: "var(--text-primary)",
+                  color: "var(--tx-1)",
                 },
                 {
                   v: c.ctr > 0 ? `${c.ctr.toFixed(1)}%` : "—",
@@ -365,7 +352,7 @@ export function CampaignsView({
                 {
                   v: c.cpl > 0 ? fmt(c.cpl) : "—",
                   l: "CPL",
-                  color: "var(--text-primary)",
+                  color: "var(--tx-1)",
                 },
                 {
                   v: c.roas > 0 ? `${Math.round(c.roas)}%` : "—",
@@ -380,11 +367,7 @@ export function CampaignsView({
                     {m.v}
                   </div>
                   <div
-                    style={{
-                      fontSize: 9,
-                      color: "var(--text-secondary)",
-                      marginTop: 1,
-                    }}
+                    style={{ fontSize: 9, color: "var(--tx-2)", marginTop: 1 }}
                   >
                     {m.l}
                   </div>
@@ -407,8 +390,8 @@ export function CampaignsView({
           <div
             onClick={() => setFunnelModal(true)}
             style={{
-              background: "var(--bg-card)",
-              border: "0.5px solid var(--border)",
+              background: "var(--panel)",
+              border: "0.5px solid var(--line)",
               borderRadius: 9,
               padding: "11px 13px",
               cursor: "pointer",
@@ -418,7 +401,7 @@ export function CampaignsView({
               (e.currentTarget.style.borderColor = "var(--primary)")
             }
             onMouseLeave={(e) =>
-              (e.currentTarget.style.borderColor = "var(--border)")
+              (e.currentTarget.style.borderColor = "var(--line)")
             }
           >
             {[
@@ -472,7 +455,7 @@ export function CampaignsView({
                   style={{
                     width: 80,
                     fontSize: 10,
-                    color: "var(--text-secondary)",
+                    color: "var(--tx-2)",
                     flexShrink: 0,
                   }}
                 >
@@ -482,7 +465,7 @@ export function CampaignsView({
                   style={{
                     flex: 1,
                     height: 20,
-                    background: "var(--bg-secondary)",
+                    background: "var(--panel-2)",
                     borderRadius: 4,
                     overflow: "hidden",
                   }}
@@ -509,7 +492,7 @@ export function CampaignsView({
             ))}
             <div
               style={{
-                borderTop: "0.5px solid var(--border)",
+                borderTop: "0.5px solid var(--line)",
                 marginTop: 8,
                 paddingTop: 8,
                 display: "flex",
@@ -562,7 +545,7 @@ export function CampaignsView({
             >
               <div
                 style={{
-                  background: "var(--bg-secondary)",
+                  background: "var(--panel-2)",
                   borderRadius: 8,
                   padding: "11px 13px",
                 }}
@@ -571,18 +554,14 @@ export function CampaignsView({
                   {kpis[kpiModal]?.value}
                 </div>
                 <div
-                  style={{
-                    fontSize: 10,
-                    color: "var(--text-secondary)",
-                    marginTop: 3,
-                  }}
+                  style={{ fontSize: 10, color: "var(--tx-2)", marginTop: 3 }}
                 >
                   Текущее значение
                 </div>
               </div>
               <div
                 style={{
-                  background: "var(--bg-secondary)",
+                  background: "var(--panel-2)",
                   borderRadius: 8,
                   padding: "11px 13px",
                 }}
@@ -591,18 +570,14 @@ export function CampaignsView({
                   {campaigns.filter((c) => c.status === "active").length}
                 </div>
                 <div
-                  style={{
-                    fontSize: 10,
-                    color: "var(--text-secondary)",
-                    marginTop: 3,
-                  }}
+                  style={{ fontSize: 10, color: "var(--tx-2)", marginTop: 3 }}
                 >
                   Активных кампаний
                 </div>
               </div>
               <div
                 style={{
-                  background: "var(--bg-secondary)",
+                  background: "var(--panel-2)",
                   borderRadius: 8,
                   padding: "11px 13px",
                 }}
@@ -611,11 +586,7 @@ export function CampaignsView({
                   {campaigns.length}
                 </div>
                 <div
-                  style={{
-                    fontSize: 10,
-                    color: "var(--text-secondary)",
-                    marginTop: 3,
-                  }}
+                  style={{ fontSize: 10, color: "var(--tx-2)", marginTop: 3 }}
                 >
                   Всего кампаний
                 </div>
@@ -632,7 +603,7 @@ export function CampaignsView({
                   alignItems: "center",
                   gap: 10,
                   padding: "8px 12px",
-                  background: "var(--bg-secondary)",
+                  background: "var(--panel-2)",
                   borderRadius: 8,
                   marginBottom: 6,
                 }}
@@ -704,7 +675,7 @@ export function CampaignsView({
                 <div
                   key={s.label}
                   style={{
-                    background: "var(--bg-secondary)",
+                    background: "var(--panel-2)",
                     borderRadius: 8,
                     padding: "10px 12px",
                   }}
@@ -713,17 +684,13 @@ export function CampaignsView({
                     style={{
                       fontSize: 18,
                       fontWeight: 600,
-                      color: (s as any).color || "var(--text-primary)",
+                      color: (s as any).color || "var(--tx-1)",
                     }}
                   >
                     {s.value}
                   </div>
                   <div
-                    style={{
-                      fontSize: 10,
-                      color: "var(--text-secondary)",
-                      marginTop: 3,
-                    }}
+                    style={{ fontSize: 10, color: "var(--tx-2)", marginTop: 3 }}
                   >
                     {s.label}
                   </div>
@@ -732,11 +699,7 @@ export function CampaignsView({
             </div>
             {campaignModal.description && (
               <div
-                style={{
-                  fontSize: 11,
-                  color: "var(--text-secondary)",
-                  marginBottom: 12,
-                }}
+                style={{ fontSize: 11, color: "var(--tx-2)", marginBottom: 12 }}
               >
                 {campaignModal.description}
               </div>
@@ -751,7 +714,7 @@ export function CampaignsView({
             >
               <div
                 style={{
-                  background: "var(--bg-secondary)",
+                  background: "var(--panel-2)",
                   borderRadius: 8,
                   padding: 12,
                 }}
@@ -776,17 +739,17 @@ export function CampaignsView({
                       justifyContent: "space-between",
                       fontSize: 11,
                       padding: "4px 0",
-                      borderBottom: "0.5px solid var(--border)",
+                      borderBottom: "0.5px solid var(--line)",
                     }}
                   >
-                    <span style={{ color: "var(--text-secondary)" }}>{l}</span>
+                    <span style={{ color: "var(--tx-2)" }}>{l}</span>
                     <span style={{ fontWeight: 500 }}>{v}</span>
                   </div>
                 ))}
               </div>
               <div
                 style={{
-                  background: "var(--bg-secondary)",
+                  background: "var(--panel-2)",
                   borderRadius: 8,
                   padding: 12,
                 }}
@@ -812,10 +775,10 @@ export function CampaignsView({
                       justifyContent: "space-between",
                       fontSize: 11,
                       padding: "4px 0",
-                      borderBottom: "0.5px solid var(--border)",
+                      borderBottom: "0.5px solid var(--line)",
                     }}
                   >
-                    <span style={{ color: "var(--text-secondary)" }}>{l}</span>
+                    <span style={{ color: "var(--tx-2)" }}>{l}</span>
                     <span style={{ fontWeight: 500 }}>{v}</span>
                   </div>
                 ))}
@@ -825,7 +788,7 @@ export function CampaignsView({
                       <div
                         style={{
                           height: 4,
-                          background: "var(--bg-tertiary)",
+                          background: "var(--chip)",
                           borderRadius: 2,
                           overflow: "hidden",
                         }}
@@ -842,7 +805,7 @@ export function CampaignsView({
                       <div
                         style={{
                           fontSize: 9,
-                          color: "var(--text-muted)",
+                          color: "var(--tx-3)",
                           marginTop: 3,
                         }}
                       >
@@ -932,7 +895,7 @@ export function CampaignsView({
               <div
                 key={s.l}
                 style={{
-                  background: "var(--bg-secondary)",
+                  background: "var(--panel-2)",
                   borderRadius: 8,
                   padding: "10px 12px",
                 }}
@@ -941,11 +904,7 @@ export function CampaignsView({
                   {s.v > 0 ? s.v.toLocaleString("ru") : "—"}
                 </div>
                 <div
-                  style={{
-                    fontSize: 10,
-                    color: "var(--text-secondary)",
-                    marginTop: 3,
-                  }}
+                  style={{ fontSize: 10, color: "var(--tx-2)", marginTop: 3 }}
                 >
                   {s.l}
                 </div>
@@ -963,7 +922,7 @@ export function CampaignsView({
                 alignItems: "center",
                 gap: 11,
                 padding: "9px 12px",
-                background: "var(--bg-secondary)",
+                background: "var(--panel-2)",
                 borderRadius: 8,
                 marginBottom: 6,
               }}
@@ -996,11 +955,7 @@ export function CampaignsView({
                     {(m as any).suffix ?? ""}
                   </div>
                   <div
-                    style={{
-                      fontSize: 9,
-                      color: "var(--text-secondary)",
-                      marginTop: 1,
-                    }}
+                    style={{ fontSize: 9, color: "var(--tx-2)", marginTop: 1 }}
                   >
                     {m.l}
                   </div>

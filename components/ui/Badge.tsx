@@ -14,13 +14,13 @@ interface BadgeProps {
 }
 
 const STYLES: Record<BadgeVariant, React.CSSProperties> = {
-  success: { background: "var(--success-bg)", color: "var(--success-text)" },
-  warning: { background: "var(--warning-bg)", color: "var(--warning-text)" },
-  danger: { background: "var(--danger-bg)", color: "var(--danger-text)" },
-  info: { background: "var(--info-bg)", color: "var(--info-text)" },
-  accent: { background: "var(--primary)", color: "var(--on-primary)" },
-  muted: { background: "var(--bg-tertiary)", color: "var(--text-secondary)" },
-  purple: { background: "var(--purple-bg)", color: "var(--purple-text)" },
+  success: { background: "var(--pos-dim)", color: "var(--pos)" },
+  warning: { background: "rgba(181,80,10,0.08)", color: "var(--c-3)" },
+  danger: { background: "rgba(193,18,31,0.08)", color: "var(--neg)" },
+  info: { background: "rgba(37,99,235,0.08)", color: "#2563eb" },
+  accent: { background: "var(--primary)", color: "var(--on-accent)" },
+  muted: { background: "var(--chip)", color: "var(--tx-2)" },
+  purple: { background: "rgba(124,58,237,0.08)", color: "#7c3aed" },
 };
 
 export function Badge({ variant, children, style }: BadgeProps) {

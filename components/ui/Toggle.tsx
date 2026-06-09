@@ -24,7 +24,7 @@ export function Toggle({ defaultOn = false, onChange, disabled }: ToggleProps) {
         width: 30,
         height: 17,
         borderRadius: 10,
-        background: on ? "var(--primary)" : "var(--bg-tertiary)",
+        background: on ? "var(--primary)" : "var(--chip)",
         border: "none",
         cursor: disabled ? "default" : "pointer",
         flexShrink: 0,

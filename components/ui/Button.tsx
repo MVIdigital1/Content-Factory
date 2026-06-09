@@ -29,13 +29,13 @@ export function Button({
   const variants: Record<string, React.CSSProperties> = {
     primary: {
       background: "var(--primary)",
-      color: "var(--on-primary)",
+      color: "var(--on-accent)",
       border: "none",
     },
     ghost: {
       background: "transparent",
-      color: "var(--text-secondary)",
-      border: "0.5px solid var(--border)",
+      color: "var(--tx-2)",
+      border: "0.5px solid var(--line)",
     },
     danger: { background: "var(--danger)", color: "#fff", border: "none" },
   };

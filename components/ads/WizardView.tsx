@@ -1,43 +1,106 @@
 "use client";
-import { useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { PlatformLogo } from "@/components/ui/PlatformLogo";
 import { PLATFORM_META } from "./data";
 import {
   useCreateAdCampaign,
   useCreateAdCreative,
 } from "@/lib/hooks/useAdsData";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
+import { createClient } from "@/lib/supabase/client";
 
-// 4 steps: Goal → Platforms → Creatives → Launch
 const STEPS = ["Цель", "Платформы", "Креативы", "Запуск"];
 
-const PLATFORMS_LIST = [
+// Fix 8: Content subtypes per platform
+const PLATFORM_SUBTYPES: Record<string, { value: string; label: string }[]> = {
+  telegram: [
+    { value: "post", label: "Пост" },
+    { value: "video", label: "Видео" },
+    { value: "ad", label: "Реклама" },
+  ],
+  instagram: [
+    { value: "post", label: "Пост" },
+    { value: "reels", label: "Reels" },
+    { value: "stories", label: "Stories" },
+    { value: "ad", label: "Реклама" },
+  ],
+  tiktok: [
+    { value: "video", label: "Видео" },
+    { value: "ad", label: "Реклама" },
+  ],
+  vk: [
+    { value: "post", label: "Пост" },
+    { value: "video", label: "Видео" },
+    { value: "ad", label: "Реклама" },
+  ],
+  yandex: [
+    { value: "search", label: "Поиск" },
+    { value: "rsya", label: "РСЯ" },
+  ],
+  google: [
+    { value: "search", label: "Поиск" },
+    { value: "display", label: "КМС" },
+    { value: "video", label: "YouTube" },
+  ],
+  meta: [
+    { value: "feed", label: "Лента" },
+    { value: "stories", label: "Stories" },
+    { value: "reels", label: "Reels" },
+    { value: "ad", label: "Реклама" },
+  ],
+  mytarget: [
+    { value: "feed", label: "Лента" },
+    { value: "video", label: "Видео" },
+    { value: "banner", label: "Баннер" },
+  ],
+};
+
+// Fix 9: Three content modes
+const CONTENT_MODES = [
+  { value: "text", label: "📝 Текст", desc: "Посты, объявления, копирайт" },
+  { value: "image", label: "🖼 Картинка", desc: "Баннеры, изображения" },
+  { value: "video", label: "🎬 Видео", desc: "Сценарии, слайдшоу" },
+];
+
+// Fix 16: Campaign templates
+const CAMPAIGN_TEMPLATES = [
   {
-    key: "telegram",
-    channels: [
-      "@pyaty_element · 12 400 подп.",
-      "@pyaty_element_uz · 4 200 (узб.)",
-    ],
-    defaultSelected: [0],
+    id: "launch",
+    label: "🚀 Запуск продукта",
+    goal: "Продажи / заявки",
+    desc: "Анонс нового продукта или услуги",
   },
   {
-    key: "instagram",
-    channels: ["@pyaty_element.uz · 8 240 подп."],
-    defaultSelected: [0],
+    id: "seasonal",
+    label: "🎁 Сезонная акция",
+    goal: "Продажи / заявки",
+    desc: "Акция к празднику или сезону",
   },
   {
-    key: "yandex",
-    channels: ["MVI Digital — Основной", "Пятый элемент UZ"],
-    defaultSelected: [0],
+    id: "subs",
+    label: "👥 Рост подписчиков",
+    goal: "Подписчики",
+    desc: "Привлечение новой аудитории",
   },
-  { key: "vk", channels: ["MVI Digital · 3 кабинета"], defaultSelected: [] },
-  { key: "google", channels: ["MVI Digital · 1 кабинет"], defaultSelected: [] },
   {
-    key: "meta",
-    channels: ["MVI Digital · Meta Business"],
-    defaultSelected: [],
+    id: "traffic",
+    label: "🌐 Трафик на сайт",
+    goal: "Трафик на сайт",
+    desc: "Переходы на сайт или лендинг",
+  },
+  {
+    id: "retarget",
+    label: "🎯 Ретаргетинг",
+    goal: "Продажи / заявки",
+    desc: "Возврат посетителей сайта",
+  },
+  {
+    id: "brand",
+    label: "⭐ Брендинг",
+    goal: "Охват",
+    desc: "Узнаваемость бренда",
   },
 ];
 
@@ -53,46 +116,154 @@ const CREATIVE_VARIANTS = [
   { emoji: "⭐", title: "«Прямой CTA»", desc: "Короткий и конкретный призыв" },
 ];
 
+const STORAGE_KEY = "wizard_draft_v1";
+
+function loadDraft() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
+  } catch {
+    return null;
+  }
+}
+function saveDraft(data: any) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch {}
+}
+function clearDraft() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {}
+}
+
 export function WizardView({
   onClose,
-  projectId,
+  projectId: defaultProjectId,
 }: {
   onClose?: () => void;
   projectId?: string;
 }) {
   const locale = useLocale();
   const router = useRouter();
-  const pathname = usePathname();
+  const supabase = createClient();
   const createCampaign = useCreateAdCampaign();
   const createCreative = useCreateAdCreative();
 
+  // Fix 7: Load from localStorage
+  const draft = loadDraft();
+
   const [step, setStep] = useState(0);
-  const [name, setName] = useState("");
-  const [goal, setGoal] = useState("Продажи / заявки");
-  const [product, setProduct] = useState("");
-  const [audience, setAudience] = useState("");
-  const [budget, setBudget] = useState("");
-  const [selectedPlatforms, setSelectedPlatforms] = useState(new Set<string>());
-  const [expandedPlatforms, setExpandedPlatforms] = useState(new Set<string>());
-  const [selectedCreatives, setSelectedCreatives] = useState(new Set<string>());
+  const [contentMode, setContentMode] = useState<"text" | "image" | "video">(
+    "text",
+  );
+  const [name, setName] = useState(draft?.name ?? "");
+  const [goal, setGoal] = useState(draft?.goal ?? "Продажи / заявки");
+  const [product, setProduct] = useState(draft?.product ?? "");
+  const [audience, setAudience] = useState(draft?.audience ?? "");
+  const [budget, setBudget] = useState(draft?.budget ?? "");
+  const [projectId, setProjectId] = useState(
+    draft?.projectId ?? defaultProjectId ?? "",
+  );
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(
+    new Set(draft?.platforms ?? []),
+  );
+  const [platformSubtypes, setPlatformSubtypes] = useState<
+    Record<string, string>
+  >(draft?.subtypes ?? {});
+  const [selectedCreatives, setSelectedCreatives] = useState<Set<string>>(
+    new Set(draft?.creatives ?? []),
+  );
+  const [creativePlatformFilter, setCreativePlatformFilter] = useState("all");
   const [launching, setLaunching] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [error, setError] = useState("");
+  const [autoSaved, setAutoSaved] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [videoFiles, setVideoFiles] = useState<File[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLInputElement>(null);
+
+  // Fix 5: Projects query
+  const { data: projects = [] } = useQuery({
+    queryKey: ["projects"],
+    queryFn: async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return [];
+      const { data } = await supabase
+        .from("projects")
+        .select("id,name,niche,description,audience,tone")
+        .eq("user_id", user.id)
+        .eq("is_active", true);
+      return data ?? [];
+    },
+  });
+
+  const { data: connectedPlatforms = [] } = useQuery({
+    queryKey: ["ad_platforms_wizard"],
+    queryFn: async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return [];
+      const { data } = await supabase
+        .from("ad_platforms")
+        .select("platform_key")
+        .eq("user_id", user.id)
+        .eq("is_active", true);
+      return (data ?? []).map((p: any) => p.platform_key);
+    },
+  });
+
+  // Fix 4,7: Auto-save to localStorage whenever form changes
+  useEffect(() => {
+    if (!name && !product) return; // don't save empty
+    const data = {
+      name,
+      goal,
+      product,
+      audience,
+      budget,
+      projectId,
+      platforms: [...selectedPlatforms],
+      subtypes: platformSubtypes,
+      creatives: [...selectedCreatives],
+    };
+    saveDraft(data);
+    setAutoSaved(true);
+    const t = setTimeout(() => setAutoSaved(false), 1500);
+    return () => clearTimeout(t);
+  }, [
+    name,
+    goal,
+    product,
+    audience,
+    budget,
+    projectId,
+    selectedPlatforms,
+    platformSubtypes,
+    selectedCreatives,
+  ]);
+
+  // Fix 6: Auto-fill from project
+  const handleProjectSelect = (pid: string) => {
+    setProjectId(pid);
+    const project = projects.find((p: any) => p.id === pid);
+    if (!project) return;
+    if (project.description && !product) setProduct(project.description);
+    if (project.audience && !audience) setAudience(project.audience);
+  };
+
+  // Fix 16: Apply template
+  const applyTemplate = (tpl: (typeof CAMPAIGN_TEMPLATES)[0]) => {
+    setGoal(tpl.goal);
+    if (!name) setName(tpl.label.replace(/^[^\s]+ /, ""));
+  };
 
   const togglePlatform = (key: string) => {
     setSelectedPlatforms((prev) => {
-      const n = new Set(prev);
-      if (n.has(key)) {
-        n.delete(key);
-      } else {
-        n.add(key);
-        setExpandedPlatforms((ep) => new Set([...ep, key]));
-      }
-      return n;
-    });
-  };
-
-  const toggleExpand = (key: string) => {
-    setExpandedPlatforms((prev) => {
       const n = new Set(prev);
       n.has(key) ? n.delete(key) : n.add(key);
       return n;
@@ -107,19 +278,53 @@ export function WizardView({
     });
   };
 
+  // Fix 5: Save draft to Supabase
+  const saveToDraft = async () => {
+    if (!name.trim()) {
+      setError("Введите название");
+      return;
+    }
+    setSavingDraft(true);
+    try {
+      await createCampaign.mutateAsync({
+        name,
+        goal,
+        description: product,
+        platforms: [...selectedPlatforms],
+        status: "draft",
+        budget_total: budget ? Number(budget) : undefined,
+        budget_spent: 0,
+        impressions: 0,
+        clicks: 0,
+        leads: 0,
+        sales: 0,
+        revenue: 0,
+        ctr: 0,
+        cpl: 0,
+        roas: 0,
+        project_id: projectId || undefined,
+      });
+      clearDraft();
+      router.push(`/${locale}/campaigns?tab=campaigns`);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
   const handleLaunch = async () => {
     if (!name.trim()) {
-      setError("Введите название кампании");
+      setError("Введите название");
       return;
     }
     if (selectedPlatforms.size === 0) {
-      setError("Выберите хотя бы одну платформу");
+      setError("Выберите платформу");
       return;
     }
     setLaunching(true);
     setError("");
     try {
-      // Save campaign
       const campaign = await createCampaign.mutateAsync({
         name,
         goal,
@@ -136,19 +341,17 @@ export function WizardView({
         ctr: 0,
         cpl: 0,
         roas: 0,
-        project_id: projectId,
+        project_id: projectId || undefined,
       });
-
-      // Save selected creatives
       for (const cId of selectedCreatives) {
         const [platformKey, idx] = cId.split("-");
         const variant = CREATIVE_VARIANTS[Number(idx)];
         if (variant) {
           await createCreative.mutateAsync({
             campaign_id: campaign.id,
-            project_id: projectId,
+            project_id: projectId || undefined,
             platform: platformKey,
-            format: "post",
+            format: platformSubtypes[platformKey] ?? "post",
             title: variant.title,
             caption: variant.desc,
             status: "draft",
@@ -160,308 +363,317 @@ export function WizardView({
           });
         }
       }
-
-      // Navigate to campaign page
-      router.push(`/${locale}/ads/campaigns/${campaign.id}`);
+      clearDraft();
+      router.push(`/${locale}/campaigns/${campaign.id}`);
     } catch (e: any) {
-      setError(e.message ?? "Ошибка при создании кампании");
+      setError(e.message);
     } finally {
       setLaunching(false);
     }
   };
 
-  const fi: React.CSSProperties = {
-    width: "100%",
-    padding: "8px 11px",
-    fontSize: 12,
-    fontFamily: "inherit",
-    border: "0.5px solid var(--border)",
-    borderRadius: 7,
-    background: "var(--bg)",
-    color: "var(--text-primary)",
-    outline: "none",
-  };
+  const inp =
+    "w-full px-3 py-2.5 rounded-[8px] border border-line text-[12px] outline-none focus:border-line-strong bg-panel text-tx-1 placeholder:text-tx-3 transition-colors";
+
+  // Fix 8: filter creatives by platform
+  const filteredPlatformsForCreatives =
+    creativePlatformFilter === "all"
+      ? [...selectedPlatforms]
+      : [creativePlatformFilter];
 
   return (
     <div>
       {/* Step bar */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          background: "var(--bg-tertiary)",
-          borderRadius: 9,
-          padding: "10px 13px",
-          marginBottom: 14,
-          gap: 3,
-        }}
-      >
+      <div className="flex items-center gap-1 bg-panel-2 border border-line rounded-[9px] p-2.5 mb-4">
         {STEPS.map((label, i) => (
-          <div
-            key={label}
-            style={{ display: "flex", alignItems: "center", gap: 3 }}
-          >
+          <div key={label} className="flex items-center gap-1">
             <button
               onClick={() => i < step && setStep(i)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-                padding: "5px 10px",
-                borderRadius: 20,
-                border: "none",
-                cursor: i < step ? "pointer" : "default",
-                fontFamily: "inherit",
-                fontSize: 11,
-                fontWeight: 500,
-                flexShrink: 0,
-                whiteSpace: "nowrap",
-                background:
-                  step === i
-                    ? "var(--primary)"
-                    : step > i
-                      ? "var(--success-bg)"
-                      : "transparent",
-                color:
-                  step === i
-                    ? "var(--on-primary)"
-                    : step > i
-                      ? "var(--success-text)"
-                      : "var(--text-secondary)",
-              }}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer ${step === i ? "bg-accent text-on-accent" : step > i ? "bg-chip text-pos" : "bg-panel text-tx-3"}`}
             >
               <div
-                style={{
-                  width: 17,
-                  height: 17,
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 9,
-                  fontWeight: 700,
-                  flexShrink: 0,
-                  background:
-                    step === i
-                      ? "rgba(255,255,255,.2)"
-                      : step > i
-                        ? "var(--success)"
-                        : "var(--bg-card)",
-                  color:
-                    step === i
-                      ? "var(--on-primary)"
-                      : step > i
-                        ? "#fff"
-                        : "var(--text-secondary)",
-                  border:
-                    step <= i && step !== i
-                      ? "0.5px solid var(--border)"
-                      : "none",
-                }}
+                className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold flex-shrink-0 ${step === i ? "bg-white/20 text-on-accent" : step > i ? "bg-pos text-white" : "border border-line text-tx-3"}`}
               >
                 {step > i ? "✓" : i + 1}
               </div>
               {label}
             </button>
             {i < STEPS.length - 1 && (
-              <span
-                style={{
-                  color: "var(--text-muted)",
-                  fontSize: 10,
-                  flexShrink: 0,
-                }}
-              >
-                ›
-              </span>
+              <span className="text-tx-3 text-[10px]">›</span>
             )}
           </div>
         ))}
+        {autoSaved && (
+          <span className="ml-auto text-[10px] text-pos">
+            ✓ Черновик сохранён
+          </span>
+        )}
       </div>
 
       {error && (
-        <div
-          style={{
-            background: "var(--danger-bg)",
-            border: "0.5px solid var(--danger)",
-            borderRadius: 8,
-            padding: "9px 13px",
-            marginBottom: 12,
-            fontSize: 11,
-            color: "var(--danger-text)",
-          }}
-        >
-          ⚠ {error}
-        </div>
+        <p className="text-[11px] text-neg bg-panel-2 border border-line rounded-[8px] px-3 py-2 mb-4">
+          {error}
+        </p>
       )}
 
-      {/* Step 0: Goal */}
+      {/* ── STEP 0: Goal ── */}
       {step === 0 && (
-        <div
-          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}
-        >
-          <div>
-            <div style={{ marginBottom: 11 }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 11,
-                  color: "var(--text-secondary)",
-                  marginBottom: 4,
-                  fontWeight: 500,
-                }}
-              >
-                Название кампании *
-              </label>
+        <div className="grid grid-cols-2 gap-5">
+          <div className="space-y-4">
+            {/* Fix 5: Project selector */}
+            <div>
+              <label className="block ui-label mb-2">Проект</label>
+              <div className="space-y-1.5">
+                {projects.map((p: any) => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleProjectSelect(p.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-[8px] border cursor-pointer text-left transition-colors ${projectId === p.id ? "border-accent bg-accent-dim" : "border-line hover:border-line-strong"}`}
+                  >
+                    <div className="w-6 h-6 rounded-full bg-chip flex items-center justify-center text-[11px] font-semibold text-tx-2 flex-shrink-0">
+                      {p.name.slice(0, 1).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12px] font-medium text-tx-1">
+                        {p.name}
+                      </p>
+                      {p.niche && (
+                        <p className="text-[10px] text-tx-3">{p.niche}</p>
+                      )}
+                    </div>
+                    {projectId === p.id && (
+                      <span className="text-accent text-[12px]">✓</span>
+                    )}
+                  </button>
+                ))}
+                {projects.length === 0 && (
+                  <p className="text-[11px] text-tx-3">Нет проектов</p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block ui-label mb-1">Название *</label>
               <input
-                style={fi}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Например: Ramadan акция 2026"
+                className={inp}
               />
             </div>
-            <div style={{ marginBottom: 11 }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 11,
-                  color: "var(--text-secondary)",
-                  marginBottom: 4,
-                  fontWeight: 500,
-                }}
-              >
-                Цель кампании *
-              </label>
-              <select
-                style={fi}
-                value={goal}
-                onChange={(e) => setGoal(e.target.value)}
-              >
-                <option>Продажи / заявки</option>
-                <option>Трафик на сайт</option>
-                <option>Охват</option>
-                <option>Подписчики</option>
-              </select>
+
+            <div>
+              <label className="block ui-label mb-2">Цель</label>
+              <div className="flex gap-2 flex-wrap">
+                {[
+                  "Продажи / заявки",
+                  "Трафик на сайт",
+                  "Охват",
+                  "Подписчики",
+                ].map((g) => (
+                  <button
+                    key={g}
+                    onClick={() => setGoal(g)}
+                    className={`px-3 py-1.5 rounded-[7px] text-[11px] border cursor-pointer transition-colors ${goal === g ? "bg-accent text-on-accent border-accent" : "border-line text-tx-2 hover:bg-hover"}`}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div style={{ marginBottom: 11 }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 11,
-                  color: "var(--text-secondary)",
-                  marginBottom: 4,
-                  fontWeight: 500,
-                }}
-              >
-                О продукте — для AI *
-              </label>
+
+            <div>
+              <label className="block ui-label mb-1">О продукте — для AI</label>
               <textarea
-                style={{ ...fi, height: 70, resize: "none" }}
                 value={product}
                 onChange={(e) => setProduct(e.target.value)}
                 placeholder="Опишите продукт, преимущества, акции..."
+                className={`${inp} resize-none h-16`}
               />
             </div>
-            <div style={{ marginBottom: 11 }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 11,
-                  color: "var(--text-secondary)",
-                  marginBottom: 4,
-                  fontWeight: 500,
-                }}
-              >
-                Целевая аудитория
-              </label>
+
+            <div>
+              <label className="block ui-label mb-1">Целевая аудитория</label>
               <textarea
-                style={{ ...fi, height: 56, resize: "none" }}
                 value={audience}
                 onChange={(e) => setAudience(e.target.value)}
                 placeholder="Возраст, интересы, гео..."
+                className={`${inp} resize-none h-14`}
               />
             </div>
+
             <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 11,
-                  color: "var(--text-secondary)",
-                  marginBottom: 4,
-                  fontWeight: 500,
-                }}
-              >
-                Бюджет (₽)
-              </label>
+              <label className="block ui-label mb-1">Бюджет (₽)</label>
               <input
-                style={fi}
                 type="number"
                 value={budget}
                 onChange={(e) => setBudget(e.target.value)}
-                placeholder="Например: 150000"
+                placeholder="150000"
+                className={inp}
               />
             </div>
           </div>
-          <div>
-            <div
-              style={{
-                border: "1.5px dashed var(--border-strong)",
-                borderRadius: 9,
-                padding: 20,
-                textAlign: "center",
-                cursor: "pointer",
-                background: "var(--bg-card)",
-                marginBottom: 12,
-              }}
-            >
-              <div style={{ fontSize: 28, marginBottom: 7 }}>📸</div>
-              <div style={{ fontSize: 11, fontWeight: 500, marginBottom: 3 }}>
-                Загрузите фото продукта
-              </div>
-              <div style={{ fontSize: 10, color: "var(--text-secondary)" }}>
-                AI создаст все форматы креативов
+
+          <div className="space-y-4">
+            {/* Fix 9: Content mode */}
+            <div>
+              <label className="block ui-label mb-2">Тип генерации</label>
+              <div className="space-y-2">
+                {CONTENT_MODES.map((m) => (
+                  <button
+                    key={m.value}
+                    onClick={() => setContentMode(m.value as any)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[8px] border cursor-pointer text-left transition-colors ${contentMode === m.value ? "border-accent bg-accent-dim" : "border-line hover:border-line-strong"}`}
+                  >
+                    <span className="text-[16px]">{m.label.split(" ")[0]}</span>
+                    <div>
+                      <p className="text-[12px] font-medium text-tx-1">
+                        {m.label.split(" ").slice(1).join(" ")}
+                      </p>
+                      <p className="text-[10px] text-tx-3">{m.desc}</p>
+                    </div>
+                    {contentMode === m.value && (
+                      <span className="ml-auto text-accent text-[12px]">✓</span>
+                    )}
+                  </button>
+                ))}
               </div>
             </div>
-            <div
-              style={{
-                background: "var(--purple-bg)",
-                borderRadius: 9,
-                padding: "11px 13px",
-                display: "flex",
-                gap: 9,
-              }}
-            >
-              <span
-                style={{
-                  fontSize: 15,
-                  color: "var(--purple-text)",
-                  flexShrink: 0,
-                }}
-              >
-                ✦
-              </span>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: "var(--purple-text)",
-                  lineHeight: 1.5,
-                }}
-              >
-                <strong>AI готов</strong> — на следующих шагах получит контекст
-                и сгенерирует 3-5 вариантов на каждую платформу.
+
+            {/* Image mode */}
+            {contentMode === "image" && (
+              <div>
+                <label className="block ui-label mb-2">Фото продукта</label>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    setImageFile(f);
+                    const r = new FileReader();
+                    r.onload = (ev) =>
+                      setImagePreview(ev.target?.result as string);
+                    r.readAsDataURL(f);
+                  }}
+                  style={{ display: "none" }}
+                />
+                {imagePreview ? (
+                  <div className="relative">
+                    <img
+                      src={imagePreview}
+                      alt=""
+                      className="w-full h-32 object-cover rounded-[8px]"
+                    />
+                    <button
+                      onClick={() => {
+                        setImageFile(null);
+                        setImagePreview(null);
+                      }}
+                      className="absolute top-2 right-2 w-6 h-6 bg-black/60 text-white rounded-full flex items-center justify-center text-[11px] cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    className="w-full py-8 border border-dashed border-line hover:border-line-strong rounded-[8px] flex flex-col items-center gap-2 cursor-pointer hover:bg-hover transition-colors"
+                  >
+                    <span className="text-[24px]">📸</span>
+                    <span className="text-[11px] text-tx-3">
+                      Загрузить фото продукта
+                    </span>
+                    <span className="text-[10px] text-tx-3">
+                      или AI опишет по тексту выше
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Video mode */}
+            {contentMode === "video" && (
+              <div>
+                <label className="block ui-label mb-2">
+                  Фото для видео (слайдшоу)
+                </label>
+                <input
+                  ref={videoRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) =>
+                    setVideoFiles(Array.from(e.target.files ?? []))
+                  }
+                  style={{ display: "none" }}
+                />
+                {videoFiles.length > 0 ? (
+                  <div>
+                    <div className="flex gap-2 flex-wrap mb-2">
+                      {videoFiles.map((f, i) => (
+                        <div
+                          key={i}
+                          className="text-[10px] text-tx-2 bg-chip px-2 py-1 rounded"
+                        >
+                          📷 {f.name.slice(0, 12)}
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setVideoFiles([])}
+                      className="text-[10px] text-neg cursor-pointer"
+                    >
+                      Очистить
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => videoRef.current?.click()}
+                    className="w-full py-8 border border-dashed border-line hover:border-line-strong rounded-[8px] flex flex-col items-center gap-2 cursor-pointer hover:bg-hover transition-colors"
+                  >
+                    <span className="text-[24px]">🎬</span>
+                    <span className="text-[11px] text-tx-3">
+                      Загрузите фото для слайдшоу
+                    </span>
+                    <span className="text-[10px] text-tx-3">
+                      или AI создаст сценарий по описанию
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Fix 16: Templates */}
+            <div>
+              <label className="block ui-label mb-2">Шаблоны</label>
+              <div className="grid grid-cols-2 gap-2">
+                {CAMPAIGN_TEMPLATES.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => applyTemplate(t)}
+                    className="text-left px-3 py-2 border border-line rounded-[8px] hover:border-line-strong cursor-pointer hover:bg-hover transition-colors"
+                  >
+                    <p className="text-[11px] font-medium text-tx-1">
+                      {t.label}
+                    </p>
+                    <p className="text-[9px] text-tx-3 mt-0.5">{t.desc}</p>
+                  </button>
+                ))}
               </div>
             </div>
           </div>
-          <div
-            style={{
-              gridColumn: "1/-1",
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: 7,
-            }}
-          >
-            <Button variant="ghost">Сохранить черновик</Button>
-            <Button
-              variant="primary"
+
+          <div className="col-span-2 flex justify-end gap-2">
+            <button
+              onClick={saveToDraft}
+              disabled={savingDraft}
+              className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer disabled:opacity-50"
+            >
+              {savingDraft ? "Сохранение..." : "💾 Черновик"}
+            </button>
+            <button
               onClick={() => {
                 if (!name.trim()) {
                   setError("Введите название");
@@ -470,261 +682,197 @@ export function WizardView({
                 setError("");
                 setStep(1);
               }}
+              className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
             >
               Далее: Платформы →
-            </Button>
+            </button>
           </div>
         </div>
       )}
 
-      {/* Step 1: Platforms */}
+      {/* ── STEP 1: Platforms ── */}
       {step === 1 && (
-        <div>
-          <div
-            style={{
-              fontSize: 11,
-              color: "var(--text-secondary)",
-              marginBottom: 11,
-            }}
-          >
-            Выберите платформы. При активации откроется список каналов.
-          </div>
-          {PLATFORMS_LIST.map((pl) => {
-            const p = PLATFORM_META[pl.key];
-            if (!p) return null;
-            const selected = selectedPlatforms.has(pl.key);
-            const expanded = expandedPlatforms.has(pl.key);
+        <div className="space-y-3">
+          <p className="text-[12px] text-tx-2">
+            Выберите платформы. Нажмите на подтип чтобы уточнить формат.
+          </p>
+          {Object.entries(PLATFORM_META).map(([key, meta]) => {
+            const sel = selectedPlatforms.has(key);
+            const isConnected = connectedPlatforms.includes(key);
+            const subtypes = PLATFORM_SUBTYPES[key] ?? [];
+            const selectedSubtype = platformSubtypes[key] ?? "";
             return (
               <div
-                key={pl.key}
-                style={{
-                  background: "var(--bg-card)",
-                  border: `0.5px solid ${selected ? "var(--success)" : "var(--border)"}`,
-                  borderRadius: 9,
-                  marginBottom: 7,
-                }}
+                key={key}
+                className={`border rounded-[9px] transition-colors ${sel ? "border-pos/50 bg-chip/30" : "border-line"}`}
               >
                 <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "10px 12px",
-                    cursor: "pointer",
-                  }}
-                  onClick={() => togglePlatform(pl.key)}
+                  className="flex items-center gap-3 p-3 cursor-pointer"
+                  onClick={() => togglePlatform(key)}
                 >
                   <div
-                    style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: 5,
-                      border: `1.5px solid ${selected ? "var(--primary)" : "var(--border-strong)"}`,
-                      background: selected ? "var(--primary)" : "transparent",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "var(--on-primary)",
-                      fontSize: 11,
-                      flexShrink: 0,
-                    }}
+                    className={`w-4 h-4 rounded-[4px] border flex items-center justify-center text-[9px] flex-shrink-0 transition-colors ${sel ? "bg-accent border-accent text-on-accent" : "border-line-strong"}`}
                   >
-                    {selected && "✓"}
+                    {sel && "✓"}
                   </div>
                   <PlatformLogo
-                    abbr={p.abbr}
-                    color={p.color}
-                    textColor={p.textColor}
+                    abbr={meta.abbr}
+                    color={meta.color}
+                    textColor={meta.textColor}
                   />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 500 }}>
-                      {p.name}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-[12px] font-medium text-tx-1">
+                        {meta.name}
+                      </p>
+                      {isConnected && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-chip text-pos">
+                          Подключён
+                        </span>
+                      )}
                     </div>
-                    <div
-                      style={{ fontSize: 10, color: "var(--text-secondary)" }}
-                    >
-                      {pl.channels.length} канала/кабинета
-                    </div>
+                    <p className="text-[10px] text-tx-3 mt-0.5">
+                      {subtypes.length} форматов
+                    </p>
                   </div>
-                  {selected && (
-                    <span
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleExpand(pl.key);
-                      }}
-                      style={{
-                        color: "var(--text-secondary)",
-                        fontSize: 11,
-                        cursor: "pointer",
-                        padding: "2px 6px",
-                      }}
-                    >
-                      {expanded ? "▲" : "▼"}
-                    </span>
-                  )}
                 </div>
-                {selected && expanded && (
-                  <div
-                    style={{
-                      padding: "0 12px 10px",
-                      borderTop: "0.5px solid var(--border)",
-                      paddingTop: 10,
-                    }}
-                  >
-                    {pl.channels.map((ch, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 9,
-                          padding: "6px 9px",
-                          border: `0.5px solid ${pl.defaultSelected.includes(i) ? "var(--success)" : "var(--border)"}`,
-                          borderRadius: 6,
-                          background: pl.defaultSelected.includes(i)
-                            ? "var(--success-bg)"
-                            : "var(--bg)",
-                          cursor: "pointer",
-                          fontSize: 11,
-                          marginBottom: 5,
-                        }}
+                {/* Fix 8: Subtypes */}
+                {sel && subtypes.length > 0 && (
+                  <div className="px-3 pb-3 flex gap-2 flex-wrap">
+                    {subtypes.map((st) => (
+                      <button
+                        key={st.value}
+                        onClick={() =>
+                          setPlatformSubtypes((prev) => ({
+                            ...prev,
+                            [key]: st.value,
+                          }))
+                        }
+                        className={`px-2.5 py-1 rounded-full text-[10px] border cursor-pointer transition-colors ${selectedSubtype === st.value ? "bg-accent text-on-accent border-accent" : "border-line text-tx-3 hover:bg-hover"}`}
                       >
-                        <div
-                          style={{
-                            width: 14,
-                            height: 14,
-                            borderRadius: 3,
-                            border: `1.5px solid ${pl.defaultSelected.includes(i) ? "var(--primary)" : "var(--border-strong)"}`,
-                            background: pl.defaultSelected.includes(i)
-                              ? "var(--primary)"
-                              : "transparent",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: "var(--on-primary)",
-                            fontSize: 9,
-                            flexShrink: 0,
-                          }}
-                        >
-                          {pl.defaultSelected.includes(i) && "✓"}
-                        </div>
-                        {ch}
-                      </div>
+                        {st.label}
+                      </button>
                     ))}
                   </div>
                 )}
               </div>
             );
           })}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginTop: 14,
-            }}
-          >
-            <Button variant="ghost" onClick={() => setStep(0)}>
+          <div className="flex justify-between pt-2">
+            <button
+              onClick={() => setStep(0)}
+              className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
+            >
               ← Назад
-            </Button>
-            <Button
-              variant="primary"
+            </button>
+            <button
               onClick={() => {
                 if (selectedPlatforms.size === 0) {
-                  setError("Выберите хотя бы одну платформу");
+                  setError("Выберите платформу");
                   return;
                 }
                 setError("");
                 setStep(2);
               }}
+              className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
             >
               Далее: Креативы →
-            </Button>
+            </button>
           </div>
         </div>
       )}
 
-      {/* Step 2: Creatives */}
+      {/* ── STEP 2: Creatives ── */}
       {step === 2 && (
         <div>
-          <div
-            style={{
-              background: "var(--purple-bg)",
-              borderRadius: 9,
-              padding: 11,
-              marginBottom: 13,
-              display: "flex",
-              alignItems: "center",
-              gap: 11,
-            }}
-          >
-            <span
-              style={{
-                fontSize: 18,
-                color: "var(--purple-text)",
-                flexShrink: 0,
-              }}
-            >
-              ✦
-            </span>
-            <div style={{ flex: 1 }}>
-              <div
-                style={{
-                  fontSize: 11,
-                  fontWeight: 500,
-                  color: "var(--purple-text)",
-                  marginBottom: 2,
-                }}
-              >
+          <div className="flex items-center gap-3 p-3 bg-chip/30 rounded-[9px] mb-4">
+            <span className="text-[16px]">✦</span>
+            <div>
+              <p className="text-[11px] font-medium text-tx-1">
                 AI генерирует варианты для {selectedPlatforms.size} платформ
-              </div>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "var(--purple-text)",
-                  opacity: 0.8,
-                }}
-              >
-                По 5 вариантов на каждую — выберите лучшие
-              </div>
+              </p>
+              <p className="text-[10px] text-tx-3">
+                По 5 концептов — выберите лучшие
+              </p>
             </div>
           </div>
 
-          {[...selectedPlatforms].map((platformKey) => {
-            const p = PLATFORM_META[platformKey];
-            if (!p) return null;
-            return (
-              <div key={platformKey} style={{ marginBottom: 16 }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    marginBottom: 9,
-                  }}
+          {/* Fix 6: Platform filter */}
+          <div className="flex gap-2 mb-4 flex-wrap">
+            <button
+              onClick={() => setCreativePlatformFilter("all")}
+              className={`px-3 py-1.5 rounded-full text-[11px] border cursor-pointer transition-colors ${creativePlatformFilter === "all" ? "bg-accent text-on-accent border-accent" : "border-line text-tx-3 hover:bg-hover"}`}
+            >
+              Все
+            </button>
+            {[...selectedPlatforms].map((key) => {
+              const pm = PLATFORM_META[key];
+              return pm ? (
+                <button
+                  key={key}
+                  onClick={() => setCreativePlatformFilter(key)}
+                  style={
+                    creativePlatformFilter === key
+                      ? {
+                          background: pm.color,
+                          color: pm.textColor ?? "#fff",
+                          borderColor: pm.color,
+                        }
+                      : {}
+                  }
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] border cursor-pointer transition-colors ${creativePlatformFilter !== key ? "border-line text-tx-3 hover:bg-hover" : ""}`}
                 >
-                  <PlatformLogo
-                    abbr={p.abbr}
-                    color={p.color}
-                    textColor={p.textColor}
-                  />
-                  <div style={{ fontSize: 12, fontWeight: 500 }}>{p.name}</div>
-                  <span
+                  <div
                     style={{
-                      fontSize: 10,
-                      color: "var(--text-secondary)",
-                      marginLeft: 4,
+                      width: 14,
+                      height: 10,
+                      borderRadius: 2,
+                      background:
+                        creativePlatformFilter === key
+                          ? "rgba(255,255,255,0.3)"
+                          : pm.color,
+                      color: "#fff",
+                      fontSize: 7,
+                      fontWeight: 700,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
                   >
-                    · выберите варианты
-                  </span>
+                    {pm.abbr}
+                  </div>
+                  {pm.name.split(" ")[0]}
+                </button>
+              ) : null;
+            })}
+          </div>
+
+          {filteredPlatformsForCreatives.map((platformKey) => {
+            const pm = PLATFORM_META[platformKey];
+            if (!pm) return null;
+            const subtype = platformSubtypes[platformKey];
+            return (
+              <div key={platformKey} className="mb-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <PlatformLogo
+                    abbr={pm.abbr}
+                    color={pm.color}
+                    textColor={pm.textColor}
+                  />
+                  <p className="text-[12px] font-semibold text-tx-1">
+                    {pm.name}
+                  </p>
+                  {subtype && (
+                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-chip text-tx-2">
+                      {
+                        PLATFORM_SUBTYPES[platformKey]?.find(
+                          (s) => s.value === subtype,
+                        )?.label
+                      }
+                    </span>
+                  )}
                 </div>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(5,1fr)",
-                    gap: 8,
-                  }}
-                >
+                <div className="grid grid-cols-5 gap-2">
                   {CREATIVE_VARIANTS.map((v, i) => {
                     const cId = `${platformKey}-${i}`;
                     const sel = selectedCreatives.has(cId);
@@ -732,68 +880,25 @@ export function WizardView({
                       <div
                         key={cId}
                         onClick={() => toggleCreative(cId)}
-                        style={{
-                          background: sel
-                            ? "var(--bg-tertiary)"
-                            : "var(--bg-card)",
-                          border: `0.5px solid ${sel ? "var(--primary)" : "var(--border)"}`,
-                          borderRadius: 8,
-                          padding: 8,
-                          cursor: "pointer",
-                        }}
+                        className={`p-2 border rounded-[8px] cursor-pointer transition-colors ${sel ? "border-accent bg-accent-dim" : "border-line hover:border-line-strong"}`}
                       >
                         <div
+                          className="h-12 rounded-[5px] flex items-center justify-center text-[20px] mb-2 relative overflow-hidden"
                           style={{
-                            height: 60,
-                            borderRadius: 5,
-                            background: `linear-gradient(135deg, ${p.color}, #111)`,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 22,
-                            marginBottom: 6,
-                            position: "relative",
-                            overflow: "hidden",
+                            background: `linear-gradient(135deg, ${pm.color}, #111)`,
                           }}
                         >
                           {sel && (
-                            <div
-                              style={{
-                                position: "absolute",
-                                inset: 0,
-                                background: "rgba(0,0,0,.4)",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontSize: 18,
-                                color: "var(--primary)",
-                              }}
-                            >
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-accent text-[16px] font-bold">
                               ✓
                             </div>
                           )}
                           {v.emoji}
                         </div>
-                        <div
-                          style={{
-                            fontSize: 9,
-                            fontWeight: 500,
-                            color: "var(--text-primary)",
-                            marginBottom: 2,
-                            lineHeight: 1.3,
-                          }}
-                        >
+                        <p className="text-[9px] font-medium text-tx-1 leading-tight mb-0.5">
                           {v.title}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 9,
-                            color: "var(--text-muted)",
-                            lineHeight: 1.3,
-                          }}
-                        >
-                          {v.desc}
-                        </div>
+                        </p>
+                        <p className="text-[8px] text-tx-3">{v.desc}</p>
                       </div>
                     );
                   })}
@@ -802,52 +907,50 @@ export function WizardView({
             );
           })}
 
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginTop: 14,
-            }}
-          >
-            <Button variant="ghost" onClick={() => setStep(1)}>
+          <div className="flex justify-between pt-2">
+            <button
+              onClick={() => setStep(1)}
+              className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
+            >
               ← Назад
-            </Button>
-            <Button variant="primary" onClick={() => setStep(3)}>
+            </button>
+            <button
+              onClick={() => setStep(3)}
+              className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
+            >
               Далее: Запуск →
-            </Button>
+            </button>
           </div>
         </div>
       )}
 
-      {/* Step 3: Launch */}
+      {/* ── STEP 3: Launch ── */}
       {step === 3 && (
         <div>
-          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 5 }}>
-            Проверьте и запустите
-          </div>
-          <div
-            style={{
-              background: "var(--bg-tertiary)",
-              border: "0.5px solid var(--border)",
-              borderRadius: 10,
-              padding: 13,
-              marginBottom: 12,
-            }}
-          >
+          <div className="ui-surface p-4 mb-4 space-y-2">
             {[
               { l: "Название", v: name },
+              {
+                l: "Проект",
+                v: projects.find((p: any) => p.id === projectId)?.name ?? "—",
+              },
               { l: "Цель", v: goal },
               {
+                l: "Тип генерации",
+                v: { text: "Текст", image: "Картинка", video: "Видео" }[
+                  contentMode
+                ],
+              },
+              {
                 l: "Платформы",
-                v: [...selectedPlatforms]
-                  .map((k) => PLATFORM_META[k]?.name ?? k)
-                  .join(", "),
+                v:
+                  [...selectedPlatforms]
+                    .map((k) => PLATFORM_META[k]?.name ?? k)
+                    .join(", ") || "—",
               },
               {
                 l: "Бюджет",
-                v: budget
-                  ? `₽${Number(budget).toLocaleString("ru")}`
-                  : "Не указан",
+                v: budget ? `₽${Number(budget).toLocaleString("ru")}` : "—",
               },
               {
                 l: "Выбрано креативов",
@@ -856,72 +959,42 @@ export function WizardView({
             ].map((row) => (
               <div
                 key={row.l}
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 9,
-                  padding: "7px 0",
-                  borderBottom: "0.5px solid var(--border)",
-                }}
+                className="flex gap-3 text-[11px] py-1.5 border-b border-line last:border-0"
               >
-                <span
-                  style={{
-                    width: 120,
-                    fontSize: 11,
-                    color: "var(--text-secondary)",
-                    flexShrink: 0,
-                  }}
-                >
-                  {row.l}
-                </span>
-                <span style={{ fontSize: 11, fontWeight: 500 }}>{row.v}</span>
+                <span className="w-28 text-tx-3 flex-shrink-0">{row.l}</span>
+                <span className="font-medium text-tx-1">{row.v}</span>
               </div>
             ))}
           </div>
-          <div
-            style={{
-              background: "var(--purple-bg)",
-              borderRadius: 9,
-              padding: "11px 13px",
-              marginBottom: 14,
-              display: "flex",
-              gap: 9,
-            }}
-          >
-            <span
-              style={{
-                fontSize: 15,
-                color: "var(--purple-text)",
-                flexShrink: 0,
-              }}
-            >
-              ✦
-            </span>
-            <div
-              style={{
-                fontSize: 11,
-                color: "var(--purple-text)",
-                lineHeight: 1.5,
-              }}
-            >
-              После запуска кампания появится в списке. Зайдите в неё чтобы
-              запланировать публикации выбранных креативов.
-            </div>
+          <div className="flex items-center gap-2 p-3 bg-chip/30 rounded-[9px] mb-4">
+            <span>✦</span>
+            <p className="text-[11px] text-tx-2">
+              После запуска откроется страница кампании — там запланируйте
+              публикации
+            </p>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <Button variant="ghost" onClick={() => setStep(2)}>
+          <div className="flex justify-between">
+            <button
+              onClick={() => setStep(2)}
+              className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
+            >
               ← Назад
-            </Button>
-            <div style={{ display: "flex", gap: 8 }}>
-              <Button variant="ghost">Черновик</Button>
-              <Button
-                variant="primary"
-                size="lg"
-                onClick={handleLaunch}
-                style={{ opacity: launching ? 0.7 : 1 }}
+            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={saveToDraft}
+                disabled={savingDraft}
+                className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer disabled:opacity-50"
               >
-                {launching ? "⟳ Создаю..." : "🚀 Запустить кампанию"}
-              </Button>
+                {savingDraft ? "Сохранение..." : "💾 Черновик"}
+              </button>
+              <button
+                onClick={handleLaunch}
+                disabled={launching}
+                className="px-6 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-50"
+              >
+                {launching ? "⟳ Создаю..." : "🚀 Запустить"}
+              </button>
             </div>
           </div>
         </div>

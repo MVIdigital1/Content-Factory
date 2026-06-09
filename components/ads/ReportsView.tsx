@@ -57,10 +57,10 @@ export function ReportsView({ projectId }: { projectId?: string }) {
     padding: "7px 10px",
     fontSize: 11,
     fontFamily: "inherit",
-    border: "0.5px solid var(--border)",
+    border: "0.5px solid var(--line)",
     borderRadius: 7,
     background: "var(--bg)",
-    color: "var(--text-primary)",
+    color: "var(--tx-1)",
     outline: "none",
   };
 
@@ -93,13 +93,7 @@ export function ReportsView({ projectId }: { projectId?: string }) {
       >
         <div>
           <div style={{ fontSize: 12, fontWeight: 500 }}>Центр отчётности</div>
-          <div
-            style={{
-              fontSize: 10,
-              color: "var(--text-secondary)",
-              marginTop: 2,
-            }}
-          >
+          <div style={{ fontSize: 10, color: "var(--tx-2)", marginTop: 2 }}>
             White-label · авто-отправка · AI текст
           </div>
         </div>
@@ -117,7 +111,7 @@ export function ReportsView({ projectId }: { projectId?: string }) {
           style={{
             textAlign: "center",
             padding: 20,
-            color: "var(--text-secondary)",
+            color: "var(--tx-2)",
             fontSize: 12,
           }}
         >
@@ -130,7 +124,7 @@ export function ReportsView({ projectId }: { projectId?: string }) {
           style={{
             textAlign: "center",
             padding: "28px 20px",
-            color: "var(--text-secondary)",
+            color: "var(--tx-2)",
             marginBottom: 14,
           }}
         >
@@ -139,7 +133,7 @@ export function ReportsView({ projectId }: { projectId?: string }) {
             style={{
               fontSize: 13,
               fontWeight: 500,
-              color: "var(--text-primary)",
+              color: "var(--tx-1)",
               marginBottom: 5,
             }}
           >
@@ -157,8 +151,8 @@ export function ReportsView({ projectId }: { projectId?: string }) {
       {reports.length > 0 && (
         <div
           style={{
-            background: "var(--bg-card)",
-            border: "0.5px solid var(--border)",
+            background: "var(--panel)",
+            border: "0.5px solid var(--line)",
             borderRadius: 9,
             overflow: "hidden",
             marginBottom: 14,
@@ -174,12 +168,12 @@ export function ReportsView({ projectId }: { projectId?: string }) {
                 gap: 10,
                 padding: "10px 13px",
                 borderBottom:
-                  i < reports.length - 1 ? "0.5px solid var(--border)" : "none",
+                  i < reports.length - 1 ? "0.5px solid var(--line)" : "none",
                 cursor: "pointer",
                 transition: "background 0.12s",
               }}
               onMouseEnter={(e) =>
-                (e.currentTarget.style.background = "var(--bg-secondary)")
+                (e.currentTarget.style.background = "var(--panel-2)")
               }
               onMouseLeave={(e) =>
                 (e.currentTarget.style.background = "transparent")
@@ -191,11 +185,7 @@ export function ReportsView({ projectId }: { projectId?: string }) {
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 11, fontWeight: 500 }}>{r.title}</div>
                 <div
-                  style={{
-                    fontSize: 10,
-                    color: "var(--text-secondary)",
-                    marginTop: 2,
-                  }}
+                  style={{ fontSize: 10, color: "var(--tx-2)", marginTop: 2 }}
                 >
                   {r.period_start} — {r.period_end}
                   {r.total_roas > 0 && ` · ROAS ${Math.round(r.total_roas)}%`}
@@ -211,12 +201,12 @@ export function ReportsView({ projectId }: { projectId?: string }) {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  border: "0.5px solid var(--border)",
+                  border: "0.5px solid var(--line)",
                   borderRadius: 5,
                   background: "transparent",
                   cursor: "pointer",
                   fontSize: 10,
-                  color: "var(--text-secondary)",
+                  color: "var(--tx-2)",
                   fontFamily: "inherit",
                 }}
                 onClick={(e) => e.stopPropagation()}
@@ -232,8 +222,8 @@ export function ReportsView({ projectId }: { projectId?: string }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <div
           style={{
-            background: "var(--bg-card)",
-            border: "0.5px solid var(--border)",
+            background: "var(--panel)",
+            border: "0.5px solid var(--line)",
             borderRadius: 9,
             padding: 12,
           }}
@@ -250,7 +240,7 @@ export function ReportsView({ projectId }: { projectId?: string }) {
                 justifyContent: "space-between",
                 padding: "5px 0",
                 borderBottom:
-                  i < arr.length - 1 ? "0.5px solid var(--border)" : "none",
+                  i < arr.length - 1 ? "0.5px solid var(--line)" : "none",
                 fontSize: 11,
               }}
             >
@@ -261,8 +251,8 @@ export function ReportsView({ projectId }: { projectId?: string }) {
         </div>
         <div
           style={{
-            background: "var(--bg-card)",
-            border: "0.5px solid var(--border)",
+            background: "var(--panel)",
+            border: "0.5px solid var(--line)",
             borderRadius: 9,
             padding: 12,
           }}
@@ -280,7 +270,7 @@ export function ReportsView({ projectId }: { projectId?: string }) {
                 style={{
                   display: "block",
                   fontSize: 10,
-                  color: "var(--text-secondary)",
+                  color: "var(--tx-2)",
                   marginBottom: 3,
                   fontWeight: 500,
                 }}
@@ -295,13 +285,7 @@ export function ReportsView({ projectId }: { projectId?: string }) {
               />
             </div>
           ))}
-          <p
-            style={{
-              fontSize: 10,
-              color: "var(--text-secondary)",
-              lineHeight: 1.5,
-            }}
-          >
+          <p style={{ fontSize: 10, color: "var(--tx-2)", lineHeight: 1.5 }}>
             Клиент получает PDF без упоминания PostCentro
           </p>
         </div>
@@ -345,25 +329,21 @@ export function ReportsView({ projectId }: { projectId?: string }) {
                 <div
                   key={s.l}
                   style={{
-                    background: "var(--bg-secondary)",
+                    background: "var(--panel-2)",
                     borderRadius: 8,
                     padding: "10px 12px",
                   }}
                 >
                   <div style={{ fontSize: 20, fontWeight: 600 }}>{s.v}</div>
                   <div
-                    style={{
-                      fontSize: 10,
-                      color: "var(--text-secondary)",
-                      marginTop: 3,
-                    }}
+                    style={{ fontSize: 10, color: "var(--tx-2)", marginTop: 3 }}
                   >
                     {s.l}
                   </div>
                 </div>
               ))}
             </div>
-            <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+            <div style={{ fontSize: 11, color: "var(--tx-2)" }}>
               Период: {selected.period_start} — {selected.period_end}
             </div>
           </div>
@@ -383,7 +363,7 @@ export function ReportsView({ projectId }: { projectId?: string }) {
               style={{
                 display: "block",
                 fontSize: 11,
-                color: "var(--text-secondary)",
+                color: "var(--tx-2)",
                 marginBottom: 4,
               }}
             >
@@ -403,7 +383,7 @@ export function ReportsView({ projectId }: { projectId?: string }) {
               style={{
                 display: "block",
                 fontSize: 11,
-                color: "var(--text-secondary)",
+                color: "var(--tx-2)",
                 marginBottom: 4,
               }}
             >
@@ -429,7 +409,7 @@ export function ReportsView({ projectId }: { projectId?: string }) {
                 style={{
                   display: "block",
                   fontSize: 11,
-                  color: "var(--text-secondary)",
+                  color: "var(--tx-2)",
                   marginBottom: 4,
                 }}
               >
@@ -449,7 +429,7 @@ export function ReportsView({ projectId }: { projectId?: string }) {
                 style={{
                   display: "block",
                   fontSize: 11,
-                  color: "var(--text-secondary)",
+                  color: "var(--tx-2)",
                   marginBottom: 4,
                 }}
               >

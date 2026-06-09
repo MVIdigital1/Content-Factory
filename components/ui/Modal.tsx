@@ -53,8 +53,8 @@ export function Modal({
           maxWidth: WIDTHS[size],
           maxHeight: "90vh",
           overflowY: "auto",
-          background: "var(--bg-card)",
-          border: "0.5px solid var(--border)",
+          background: "var(--panel)",
+          border: "0.5px solid var(--line)",
           borderRadius: 12,
           boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
         }}
@@ -66,19 +66,15 @@ export function Modal({
               alignItems: "center",
               justifyContent: "space-between",
               padding: "14px 16px",
-              borderBottom: "0.5px solid var(--border)",
+              borderBottom: "0.5px solid var(--line)",
               position: "sticky",
               top: 0,
-              background: "var(--bg-card)",
+              background: "var(--panel)",
               zIndex: 1,
             }}
           >
             <div
-              style={{
-                fontSize: 14,
-                fontWeight: 600,
-                color: "var(--text-primary)",
-              }}
+              style={{ fontSize: 14, fontWeight: 600, color: "var(--tx-1)" }}
             >
               {title}
             </div>
@@ -88,7 +84,7 @@ export function Modal({
                 background: "none",
                 border: "none",
                 cursor: "pointer",
-                color: "var(--text-secondary)",
+                color: "var(--tx-2)",
                 fontSize: 18,
                 lineHeight: 1,
                 padding: "2px 6px",

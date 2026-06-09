@@ -137,10 +137,10 @@ export function ConnectView({ projectId }: { projectId?: string }) {
     padding: "8px 11px",
     fontSize: 12,
     fontFamily: "inherit",
-    border: "0.5px solid var(--border)",
+    border: "0.5px solid var(--line)",
     borderRadius: 7,
     background: "var(--bg)",
-    color: "var(--text-primary)",
+    color: "var(--tx-1)",
     outline: "none",
   };
   const s9: React.CSSProperties = {
@@ -148,7 +148,7 @@ export function ConnectView({ projectId }: { projectId?: string }) {
     fontWeight: 600,
     textTransform: "uppercase" as const,
     letterSpacing: "0.05em",
-    color: "var(--text-muted)",
+    color: "var(--tx-3)",
     marginBottom: 9,
   };
 
@@ -159,7 +159,7 @@ export function ConnectView({ projectId }: { projectId?: string }) {
         style={{
           display: "flex",
           gap: 2,
-          background: "var(--bg-tertiary)",
+          background: "var(--chip)",
           borderRadius: 9,
           padding: 3,
           marginBottom: 16,
@@ -183,11 +183,8 @@ export function ConnectView({ projectId }: { projectId?: string }) {
               fontSize: 11,
               fontWeight: 500,
               background:
-                activeSection === s.k ? "var(--bg-card)" : "transparent",
-              color:
-                activeSection === s.k
-                  ? "var(--text-primary)"
-                  : "var(--text-secondary)",
+                activeSection === s.k ? "var(--panel)" : "transparent",
+              color: activeSection === s.k ? "var(--tx-1)" : "var(--tx-2)",
             }}
           >
             {s.l}
@@ -202,7 +199,7 @@ export function ConnectView({ projectId }: { projectId?: string }) {
             <div
               style={{
                 fontSize: 11,
-                color: "var(--text-secondary)",
+                color: "var(--tx-2)",
                 padding: "8px 0",
                 marginBottom: 14,
               }}
@@ -240,7 +237,7 @@ export function ConnectView({ projectId }: { projectId?: string }) {
                       <div
                         key={p.id}
                         style={{
-                          background: "var(--bg-card)",
+                          background: "var(--panel)",
                           border: `0.5px solid ${warn ? "var(--warning)" : "var(--success)"}`,
                           borderRadius: 9,
                           padding: 11,
@@ -272,7 +269,7 @@ export function ConnectView({ projectId }: { projectId?: string }) {
                           <div
                             style={{
                               fontSize: 10,
-                              color: "var(--text-secondary)",
+                              color: "var(--tx-2)",
                               marginBottom: 6,
                             }}
                           >
@@ -283,7 +280,7 @@ export function ConnectView({ projectId }: { projectId?: string }) {
                           <div
                             style={{
                               fontSize: 9,
-                              color: "var(--warning-text)",
+                              color: "var(--c-3)",
                               marginBottom: 6,
                             }}
                           >
@@ -325,8 +322,8 @@ export function ConnectView({ projectId }: { projectId?: string }) {
                   <div
                     key={p.key}
                     style={{
-                      background: "var(--bg-card)",
-                      border: "0.5px solid var(--border)",
+                      background: "var(--panel)",
+                      border: "0.5px solid var(--line)",
                       borderRadius: 9,
                       padding: 11,
                     }}
@@ -364,8 +361,8 @@ export function ConnectView({ projectId }: { projectId?: string }) {
               <div
                 key={p.key}
                 style={{
-                  background: "var(--bg-card)",
-                  border: "0.5px solid var(--border)",
+                  background: "var(--panel)",
+                  border: "0.5px solid var(--line)",
                   borderRadius: 9,
                   padding: 11,
                 }}
@@ -409,8 +406,8 @@ export function ConnectView({ projectId }: { projectId?: string }) {
           {/* Telegram */}
           <div
             style={{
-              background: "var(--bg-card)",
-              border: "0.5px solid var(--border)",
+              background: "var(--panel)",
+              border: "0.5px solid var(--line)",
               borderRadius: 12,
               overflow: "hidden",
               marginBottom: 12,
@@ -419,7 +416,7 @@ export function ConnectView({ projectId }: { projectId?: string }) {
             <div
               style={{
                 padding: "13px 16px",
-                borderBottom: "0.5px solid var(--border)",
+                borderBottom: "0.5px solid var(--line)",
                 display: "flex",
                 alignItems: "center",
                 gap: 11,
@@ -444,11 +441,7 @@ export function ConnectView({ projectId }: { projectId?: string }) {
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>Telegram</div>
                 <div
-                  style={{
-                    fontSize: 11,
-                    color: "var(--text-secondary)",
-                    marginTop: 2,
-                  }}
+                  style={{ fontSize: 11, color: "var(--tx-2)", marginTop: 2 }}
                 >
                   Каналы и группы · {tgChannels.length} подключено
                 </div>
@@ -463,7 +456,7 @@ export function ConnectView({ projectId }: { projectId?: string }) {
                     alignItems: "center",
                     gap: 10,
                     padding: "8px 11px",
-                    background: "var(--bg-secondary)",
+                    background: "var(--panel-2)",
                     borderRadius: 8,
                     marginBottom: 7,
                   }}
@@ -486,7 +479,7 @@ export function ConnectView({ projectId }: { projectId?: string }) {
               <div
                 style={{
                   fontSize: 11,
-                  color: "var(--text-secondary)",
+                  color: "var(--tx-2)",
                   marginBottom: 10,
                   lineHeight: 1.6,
                 }}
@@ -510,8 +503,8 @@ export function ConnectView({ projectId }: { projectId?: string }) {
           {/* Instagram */}
           <div
             style={{
-              background: "var(--bg-card)",
-              border: "0.5px solid var(--border)",
+              background: "var(--panel)",
+              border: "0.5px solid var(--line)",
               borderRadius: 12,
               overflow: "hidden",
               marginBottom: 12,
@@ -520,7 +513,7 @@ export function ConnectView({ projectId }: { projectId?: string }) {
             <div
               style={{
                 padding: "13px 16px",
-                borderBottom: "0.5px solid var(--border)",
+                borderBottom: "0.5px solid var(--line)",
                 display: "flex",
                 alignItems: "center",
                 gap: 11,
@@ -545,11 +538,7 @@ export function ConnectView({ projectId }: { projectId?: string }) {
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>Instagram</div>
                 <div
-                  style={{
-                    fontSize: 11,
-                    color: "var(--text-secondary)",
-                    marginTop: 2,
-                  }}
+                  style={{ fontSize: 11, color: "var(--tx-2)", marginTop: 2 }}
                 >
                   Business или Creator · {igChannels.length} подключено
                 </div>
@@ -564,7 +553,7 @@ export function ConnectView({ projectId }: { projectId?: string }) {
                     alignItems: "center",
                     gap: 10,
                     padding: "8px 11px",
-                    background: "var(--bg-secondary)",
+                    background: "var(--panel-2)",
                     borderRadius: 8,
                     marginBottom: 7,
                   }}
@@ -606,8 +595,8 @@ export function ConnectView({ projectId }: { projectId?: string }) {
               <div
                 key={p.name}
                 style={{
-                  background: "var(--bg-card)",
-                  border: "0.5px solid var(--border)",
+                  background: "var(--panel)",
+                  border: "0.5px solid var(--line)",
                   borderRadius: 12,
                   padding: 13,
                 }}
@@ -655,11 +644,11 @@ export function ConnectView({ projectId }: { projectId?: string }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div
             style={{
-              background: "var(--bg-secondary)",
+              background: "var(--panel-2)",
               borderRadius: 8,
               padding: 11,
               fontSize: 11,
-              color: "var(--text-secondary)",
+              color: "var(--tx-2)",
               lineHeight: 1.7,
             }}
           >
@@ -677,7 +666,7 @@ export function ConnectView({ projectId }: { projectId?: string }) {
               style={{
                 display: "block",
                 fontSize: 11,
-                color: "var(--text-secondary)",
+                color: "var(--tx-2)",
                 marginBottom: 4,
                 fontWeight: 500,
               }}
@@ -718,11 +707,11 @@ export function ConnectView({ projectId }: { projectId?: string }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div
               style={{
-                background: "var(--bg-secondary)",
+                background: "var(--panel-2)",
                 borderRadius: 8,
                 padding: 11,
                 fontSize: 11,
-                color: "var(--text-secondary)",
+                color: "var(--tx-2)",
                 lineHeight: 1.6,
               }}
             >
@@ -734,7 +723,7 @@ export function ConnectView({ projectId }: { projectId?: string }) {
                 style={{
                   display: "block",
                   fontSize: 11,
-                  color: "var(--text-secondary)",
+                  color: "var(--tx-2)",
                   marginBottom: 4,
                   fontWeight: 500,
                 }}
@@ -754,7 +743,7 @@ export function ConnectView({ projectId }: { projectId?: string }) {
                 style={{
                   display: "block",
                   fontSize: 11,
-                  color: "var(--text-secondary)",
+                  color: "var(--tx-2)",
                   marginBottom: 4,
                   fontWeight: 500,
                 }}

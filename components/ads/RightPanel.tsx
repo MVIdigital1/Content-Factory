@@ -1,9 +1,5 @@
 "use client";
 import { useState } from "react";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { Toggle } from "@/components/ui/Toggle";
-import { Modal } from "@/components/ui/Modal";
 import {
   useAdRecommendations,
   useUpdateRecommendation,
@@ -12,31 +8,52 @@ import {
   useToggleAutoRule,
   useDeleteAutoRule,
 } from "@/lib/hooks/useAdsData";
-import type { AdRecommendationType } from "@/lib/supabase/types";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { Toggle } from "@/components/ui/Toggle";
 
-const REC_META: Record<
+const AI_AGENTS: Record<
   string,
-  { icon: string; badge: string; variant: any; iconColor: string }
+  { name: string; role: string; avatar: string; color: string }
 > = {
   urgent: {
-    icon: "⚠",
-    badge: "Срочно",
-    variant: "danger",
-    iconColor: "var(--danger)",
+    name: "AI Ad Manager",
+    role: "Оптимизация",
+    avatar: "✦",
+    color: "#c1121f",
   },
   opportunity: {
-    icon: "↑",
-    badge: "Возможность",
-    variant: "success",
-    iconColor: "var(--success)",
+    name: "AI Analyst",
+    role: "Аналитика",
+    avatar: "↑",
+    color: "#3a7d6b",
   },
-  idea: { icon: "◎", badge: "Идея", variant: "info", iconColor: "var(--info)" },
+  idea: {
+    name: "AI SMM Manager",
+    role: "Стратегия",
+    avatar: "◎",
+    color: "#2563eb",
+  },
   antifraud: {
-    icon: "🛡",
-    badge: "Anti-fraud",
-    variant: "warning",
-    iconColor: "var(--warning)",
+    name: "AI Security",
+    role: "Защита",
+    avatar: "🛡",
+    color: "#b5500a",
   },
+};
+
+const TYPE_LABEL: Record<string, string> = {
+  urgent: "Срочно",
+  opportunity: "Возможность",
+  idea: "Идея",
+  antifraud: "Anti-fraud",
+};
+
+const TYPE_COLOR: Record<string, string> = {
+  urgent: "#c1121f",
+  opportunity: "#3a7d6b",
+  idea: "#2563eb",
+  antifraud: "#b5500a",
 };
 
 export function RightPanel({ projectId }: { projectId?: string }) {
@@ -75,191 +92,124 @@ export function RightPanel({ projectId }: { projectId?: string }) {
     setRuleModal(false);
   };
 
+  const inp =
+    "w-full px-3 py-2 rounded-[7px] border border-line text-[11px] outline-none focus:border-line-strong bg-panel text-tx-1 placeholder:text-tx-3";
+
   return (
     <div
       style={{
         width: 255,
         flexShrink: 0,
-        borderLeft: "0.5px solid var(--border)",
-        background: "var(--bg-secondary)",
+        borderLeft: "1px solid var(--line)",
+        background: "var(--panel)",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
       }}
     >
-      <div style={{ flex: 1, overflowY: "auto", padding: 11 }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
         {/* AI Header */}
-        <div
-          style={{
-            background: "var(--bg-tertiary)",
-            borderRadius: 10,
-            padding: 11,
-            marginBottom: 9,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              marginBottom: 5,
-            }}
-          >
-            <span style={{ fontSize: 14 }}>✦</span>
-            <span style={{ fontSize: 11, fontWeight: 600 }}>AI Ad Manager</span>
-            <div style={{ marginLeft: "auto" }}>
-              <Badge variant="accent">Активен</Badge>
-            </div>
+        <div className="ui-surface p-3 mb-3">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[14px]">✦</span>
+            <span className="text-[11px] font-semibold text-tx-1">
+              AI Ad Manager
+            </span>
+            <span className="ml-auto text-[9px] font-medium px-2 py-0.5 rounded-full bg-chip text-pos">
+              Активен
+            </span>
           </div>
-          <div
-            style={{
-              fontSize: 10,
-              color: "var(--text-secondary)",
-              lineHeight: 1.5,
-            }}
-          >
+          <p className="text-[10px] text-tx-3 leading-relaxed">
             Работает 24/7 над оптимизацией.
-          </div>
+          </p>
         </div>
 
         {/* Recommendations */}
-        <div
-          style={{
-            fontSize: 9,
-            fontWeight: 600,
-            textTransform: "uppercase" as const,
-            letterSpacing: "0.06em",
-            color: "var(--text-muted)",
-            marginBottom: 8,
-            padding: "0 3px",
-          }}
-        >
-          Рекомендации · {recs.length}
-        </div>
+        <div className="ui-label mb-2">Рекомендации · {recs.length}</div>
 
         {recsLoading && (
-          <div
-            style={{
-              fontSize: 11,
-              color: "var(--text-secondary)",
-              padding: "8px 4px",
-            }}
-          >
-            Загрузка...
-          </div>
+          <p className="text-[11px] text-tx-3 px-1 mb-3">Загрузка...</p>
         )}
 
         {!recsLoading && recs.length === 0 && (
-          <div
-            style={{
-              padding: "14px 8px",
-              textAlign: "center",
-              fontSize: 11,
-              color: "var(--text-secondary)",
-            }}
-          >
-            ✓ Новых рекомендаций нет
+          <div className="text-center py-4 mb-3">
+            <p className="text-[11px] text-tx-3">✓ Новых рекомендаций нет</p>
           </div>
         )}
 
         {recs.map((rec) => {
-          const m = REC_META[rec.type] ?? REC_META.idea;
+          const agent = AI_AGENTS[rec.type] ?? AI_AGENTS.idea;
+          const typeColor = TYPE_COLOR[rec.type] ?? "#2563eb";
+          const typeLabel = TYPE_LABEL[rec.type] ?? "Совет";
           return (
-            <div
-              key={rec.id}
-              style={{
-                background: "var(--bg-card)",
-                border: "0.5px solid var(--border)",
-                borderRadius: 8,
-                padding: 10,
-                marginBottom: 7,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                  marginBottom: 6,
-                }}
-              >
-                <span style={{ color: m.iconColor, fontSize: 11 }}>
-                  {m.icon}
+            <div key={rec.id} className="ui-surface p-3 mb-2">
+              {/* Agent header */}
+              <div className="flex items-center gap-2 mb-2 pb-2 border-b border-line">
+                <div
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: "50%",
+                    background: `${typeColor}15`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 11,
+                    color: typeColor,
+                    flexShrink: 0,
+                  }}
+                >
+                  {agent.avatar}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-semibold text-tx-1 leading-none">
+                    {agent.name}
+                  </p>
+                  <p className="text-[9px] text-tx-3 mt-0.5">{agent.role}</p>
+                </div>
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 600,
+                    padding: "2px 6px",
+                    borderRadius: 10,
+                    background: `${typeColor}15`,
+                    color: typeColor,
+                  }}
+                >
+                  {typeLabel}
                 </span>
-                <Badge variant={m.variant}>{m.badge}</Badge>
                 <button
                   onClick={() =>
                     updateRec.mutate({ id: rec.id, status: "dismissed" })
                   }
-                  style={{
-                    marginLeft: "auto",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    color: "var(--text-muted)",
-                    fontSize: 12,
-                    lineHeight: 1,
-                    padding: 2,
-                  }}
-                  title="Отклонить"
+                  className="w-5 h-5 flex items-center justify-center rounded text-tx-3 hover:bg-hover cursor-pointer text-[11px]"
                 >
                   ✕
                 </button>
               </div>
-              <div
-                style={{
-                  fontSize: 11,
-                  fontWeight: 500,
-                  color: "var(--text-primary)",
-                  marginBottom: 4,
-                  lineHeight: 1.4,
-                }}
-              >
+
+              {/* Message from agent */}
+              <p className="text-[11px] font-medium text-tx-1 mb-1 leading-snug">
                 {rec.title}
-              </div>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "var(--text-secondary)",
-                  lineHeight: 1.5,
-                  marginBottom: 7,
-                }}
-              >
+              </p>
+              <p className="text-[10px] text-tx-2 leading-relaxed mb-2">
                 {rec.description}
-              </div>
+              </p>
+
               {rec.action_type && (
-                <div style={{ display: "flex", gap: 5 }}>
+                <div className="flex gap-1.5">
                   <button
                     onClick={() =>
                       updateRec.mutate({ id: rec.id, status: "applied" })
                     }
-                    style={{
-                      padding: "3px 9px",
-                      background: "var(--primary)",
-                      color: "var(--on-primary)",
-                      border: "none",
-                      borderRadius: 5,
-                      fontSize: 10,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                    }}
+                    className="flex-1 py-1.5 text-[10px] font-semibold rounded-[6px] cursor-pointer hover:opacity-90 transition-opacity"
+                    style={{ background: typeColor, color: "#fff" }}
                   >
                     Применить
                   </button>
-                  <button
-                    style={{
-                      padding: "3px 8px",
-                      background: "transparent",
-                      color: "var(--text-secondary)",
-                      border: "0.5px solid var(--border)",
-                      borderRadius: 5,
-                      fontSize: 10,
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                    }}
-                  >
-                    Подробнее
+                  <button className="px-2.5 py-1.5 text-[10px] text-tx-3 border border-line rounded-[6px] cursor-pointer hover:bg-hover">
+                    Детали
                   </button>
                 </div>
               )}
@@ -268,177 +218,79 @@ export function RightPanel({ projectId }: { projectId?: string }) {
         })}
 
         {/* Auto Rules */}
-        <div
-          style={{
-            borderTop: "0.5px solid var(--border)",
-            margin: "10px 0 9px",
-          }}
-        />
-        <div
-          style={{
-            fontSize: 9,
-            fontWeight: 600,
-            textTransform: "uppercase" as const,
-            letterSpacing: "0.06em",
-            color: "var(--text-muted)",
-            marginBottom: 8,
-            padding: "0 3px",
-          }}
-        >
-          Автоправила · {rules.length}
+        <div className="border-t border-line mt-2 pt-3">
+          <div className="ui-label mb-2">Автоправила · {rules.length}</div>
+
+          {rulesLoading && (
+            <p className="text-[11px] text-tx-3 px-1">Загрузка...</p>
+          )}
+
+          {!rulesLoading && (
+            <div className="ui-surface overflow-hidden mb-2">
+              {rules.length === 0 && (
+                <p className="text-[10px] text-tx-3 px-3 py-2">Нет правил</p>
+              )}
+              {rules.map((rule, i) => (
+                <div
+                  key={rule.id}
+                  className={`flex items-center gap-2 px-3 py-2 ${i < rules.length - 1 ? "border-b border-line" : ""}`}
+                >
+                  <Toggle
+                    defaultOn={rule.is_active}
+                    onChange={(on) =>
+                      toggleRule.mutate({ id: rule.id, is_active: on })
+                    }
+                  />
+                  <span
+                    className={`flex-1 text-[10px] truncate ${rule.is_active ? "text-tx-1" : "text-tx-3"}`}
+                  >
+                    {rule.name}
+                  </span>
+                  <button
+                    onClick={() => deleteRule.mutate(rule.id)}
+                    className="text-tx-3 hover:text-neg cursor-pointer text-[11px]"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button
+            onClick={() => setRuleModal(true)}
+            className="w-full py-1.5 text-[11px] text-tx-2 border border-line rounded-[7px] hover:bg-hover cursor-pointer"
+          >
+            + Добавить правило
+          </button>
         </div>
-
-        {rulesLoading && (
-          <div
-            style={{
-              fontSize: 11,
-              color: "var(--text-secondary)",
-              padding: "8px 4px",
-            }}
-          >
-            Загрузка...
-          </div>
-        )}
-
-        {!rulesLoading && (
-          <div
-            style={{
-              background: "var(--bg-card)",
-              border: "0.5px solid var(--border)",
-              borderRadius: 9,
-              padding: "6px 10px",
-              marginBottom: 7,
-            }}
-          >
-            {rules.length === 0 && (
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "var(--text-muted)",
-                  padding: "4px 0",
-                }}
-              >
-                Нет правил
-              </div>
-            )}
-            {rules.map((rule, i) => (
-              <div
-                key={rule.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 7,
-                  padding: "5px 0",
-                  borderBottom:
-                    i < rules.length - 1 ? "0.5px solid var(--border)" : "none",
-                }}
-              >
-                <Toggle
-                  defaultOn={rule.is_active}
-                  onChange={(on) =>
-                    toggleRule.mutate({ id: rule.id, is_active: on })
-                  }
-                />
-                <span
-                  style={{
-                    flex: 1,
-                    fontSize: 10,
-                    color: rule.is_active
-                      ? "var(--text-primary)"
-                      : "var(--text-muted)",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {rule.name}
-                </span>
-                <button
-                  onClick={() => deleteRule.mutate(rule.id)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    color: "var(--text-muted)",
-                    fontSize: 12,
-                    lineHeight: 1,
-                    padding: 2,
-                    flexShrink: 0,
-                  }}
-                  title="Удалить"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <Button
-          variant="ghost"
-          size="sm"
-          style={{ width: "100%", justifyContent: "center", fontSize: 10 }}
-          onClick={() => setRuleModal(true)}
-        >
-          + Добавить правило
-        </Button>
       </div>
 
+      {/* Rule modal */}
       <Modal
         open={ruleModal}
         onClose={() => setRuleModal(false)}
         title="Новое автоправило"
         size="sm"
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div className="space-y-3">
           <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: 11,
-                color: "var(--text-secondary)",
-                marginBottom: 4,
-                fontWeight: 500,
-              }}
-            >
+            <label className="block text-[10px] font-semibold uppercase tracking-wide text-tx-3 mb-1">
               Название
             </label>
             <input
               type="text"
-              placeholder="Например: Пауза при низком CTR"
               value={newRule.name}
               onChange={(e) =>
                 setNewRule((p) => ({ ...p, name: e.target.value }))
               }
-              style={{
-                width: "100%",
-                padding: "8px 11px",
-                fontSize: 12,
-                fontFamily: "inherit",
-                border: "0.5px solid var(--border)",
-                borderRadius: 7,
-                background: "var(--bg)",
-                color: "var(--text-primary)",
-                outline: "none",
-              }}
+              placeholder="Пауза при CTR < 1%"
+              className={inp}
             />
           </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr",
-              gap: 8,
-            }}
-          >
+          <div className="grid grid-cols-3 gap-2">
             <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 11,
-                  color: "var(--text-secondary)",
-                  marginBottom: 4,
-                }}
-              >
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-tx-3 mb-1">
                 Метрика
               </label>
               <select
@@ -446,16 +298,7 @@ export function RightPanel({ projectId }: { projectId?: string }) {
                 onChange={(e) =>
                   setNewRule((p) => ({ ...p, condition_field: e.target.value }))
                 }
-                style={{
-                  width: "100%",
-                  padding: "7px 9px",
-                  fontSize: 11,
-                  fontFamily: "inherit",
-                  border: "0.5px solid var(--border)",
-                  borderRadius: 7,
-                  background: "var(--bg)",
-                  color: "var(--text-primary)",
-                }}
+                className={inp}
               >
                 <option value="ctr">CTR</option>
                 <option value="cpl">CPL</option>
@@ -464,14 +307,7 @@ export function RightPanel({ projectId }: { projectId?: string }) {
               </select>
             </div>
             <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 11,
-                  color: "var(--text-secondary)",
-                  marginBottom: 4,
-                }}
-              >
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-tx-3 mb-1">
                 Условие
               </label>
               <select
@@ -479,16 +315,7 @@ export function RightPanel({ projectId }: { projectId?: string }) {
                 onChange={(e) =>
                   setNewRule((p) => ({ ...p, condition_op: e.target.value }))
                 }
-                style={{
-                  width: "100%",
-                  padding: "7px 9px",
-                  fontSize: 11,
-                  fontFamily: "inherit",
-                  border: "0.5px solid var(--border)",
-                  borderRadius: 7,
-                  background: "var(--bg)",
-                  color: "var(--text-primary)",
-                }}
+                className={inp}
               >
                 <option value="lt">&lt;</option>
                 <option value="gt">&gt;</option>
@@ -497,14 +324,7 @@ export function RightPanel({ projectId }: { projectId?: string }) {
               </select>
             </div>
             <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 11,
-                  color: "var(--text-secondary)",
-                  marginBottom: 4,
-                }}
-              >
+              <label className="block text-[10px] font-semibold uppercase tracking-wide text-tx-3 mb-1">
                 Значение
               </label>
               <input
@@ -513,29 +333,12 @@ export function RightPanel({ projectId }: { projectId?: string }) {
                 onChange={(e) =>
                   setNewRule((p) => ({ ...p, condition_value: e.target.value }))
                 }
-                style={{
-                  width: "100%",
-                  padding: "7px 9px",
-                  fontSize: 11,
-                  fontFamily: "inherit",
-                  border: "0.5px solid var(--border)",
-                  borderRadius: 7,
-                  background: "var(--bg)",
-                  color: "var(--text-primary)",
-                  outline: "none",
-                }}
+                className={inp}
               />
             </div>
           </div>
           <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: 11,
-                color: "var(--text-secondary)",
-                marginBottom: 4,
-              }}
-            >
+            <label className="block text-[10px] font-semibold uppercase tracking-wide text-tx-3 mb-1">
               Действие
             </label>
             <select
@@ -543,16 +346,7 @@ export function RightPanel({ projectId }: { projectId?: string }) {
               onChange={(e) =>
                 setNewRule((p) => ({ ...p, action_type: e.target.value }))
               }
-              style={{
-                width: "100%",
-                padding: "7px 9px",
-                fontSize: 11,
-                fontFamily: "inherit",
-                border: "0.5px solid var(--border)",
-                borderRadius: 7,
-                background: "var(--bg)",
-                color: "var(--text-primary)",
-              }}
+              className={inp}
             >
               <option value="pause">Поставить на паузу</option>
               <option value="stop">Остановить</option>
@@ -561,17 +355,20 @@ export function RightPanel({ projectId }: { projectId?: string }) {
               <option value="notify">Уведомить</option>
             </select>
           </div>
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <Button variant="ghost" onClick={() => setRuleModal(false)}>
-              Отмена
-            </Button>
-            <Button
-              variant="primary"
-              onClick={addRule}
-              style={{ opacity: createRule.isPending ? 0.7 : 1 }}
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={() => setRuleModal(false)}
+              className="flex-1 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
             >
-              {createRule.isPending ? "Сохранение..." : "Создать правило"}
-            </Button>
+              Отмена
+            </button>
+            <button
+              onClick={addRule}
+              disabled={createRule.isPending}
+              className="flex-1 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-50"
+            >
+              {createRule.isPending ? "Сохранение..." : "Создать"}
+            </button>
           </div>
         </div>
       </Modal>

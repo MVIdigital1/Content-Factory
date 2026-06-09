@@ -24,42 +24,16 @@ export function TabBar() {
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 2,
-        padding: "8px 14px",
-        borderBottom: "0.5px solid var(--border)",
-        flexShrink: 0,
-        overflowX: "auto",
-        background: "var(--bg-secondary)",
-      }}
-    >
+    <div className="flex gap-1 px-4 pt-3 pb-0 border-b border-line bg-panel flex-shrink-0 overflow-x-auto">
       {TABS.map((tab) => {
         const active = activeTab === tab.key;
         return (
           <button
             key={tab.key}
             onClick={() => setTab(tab.key)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 5,
-              padding: "6px 12px",
-              borderRadius: 6,
-              fontSize: 11,
-              fontWeight: 500,
-              cursor: "pointer",
-              border: "none",
-              fontFamily: "inherit",
-              flexShrink: 0,
-              background: active ? "var(--primary)" : "transparent",
-              color: active ? "var(--on-primary)" : "var(--text-secondary)",
-              transition: "all 0.12s",
-            }}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-[12px] font-medium rounded-t-[8px] border-b-2 transition-colors cursor-pointer whitespace-nowrap flex-shrink-0 ${active ? "border-accent text-accent bg-accent-dim" : "border-transparent text-tx-3 hover:text-tx-1 hover:bg-hover"}`}
           >
-            <span style={{ fontSize: 12 }}>{tab.icon}</span>
+            <span>{tab.icon}</span>
             {tab.label}
           </button>
         );
