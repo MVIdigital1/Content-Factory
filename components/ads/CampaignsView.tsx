@@ -15,7 +15,7 @@ import {
 import { PLATFORM_META } from "./data";
 import type { AdCampaign } from "@/lib/supabase/types";
 
-type FilterKey = "all" | "active" | "paused" | "ab_test";
+type FilterKey = "all" | "active" | "paused" | "ab_test" | "draft";
 
 const STATUS_BADGE: Record<string, BadgeVariant> = {
   active: "success",
@@ -159,33 +159,39 @@ export function CampaignsView({
         }}
       >
         <div style={{ display: "flex", gap: 4 }}>
-          {(["all", "active", "paused", "ab_test"] as FilterKey[]).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              style={{
-                padding: "4px 10px",
-                borderRadius: 6,
-                border: "none",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                fontSize: 10,
-                fontWeight: 500,
-                background: filter === f ? "var(--chip)" : "transparent",
-                color: filter === f ? "var(--tx-1)" : "var(--tx-2)",
-              }}
-            >
-              {
+          {(["all", "active", "paused", "ab_test", "draft"] as FilterKey[]).map(
+            (f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  border: "none",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  fontSize: 10,
+                  fontWeight: 500,
+                  background: filter === f ? "var(--chip)" : "transparent",
+                  color: filter === f ? "var(--tx-1)" : "var(--tx-2)",
+                }}
+              >
                 {
-                  all: "Все",
-                  active: "Активные",
-                  paused: "Пауза",
-                  ab_test: "A/B",
-                }[f]
-              }
-              {f === "all" && ` · ${campaigns.length}`}
-            </button>
-          ))}
+                  {
+                    all: "Все",
+                    active: "Активные",
+                    paused: "Пауза",
+                    ab_test: "A/B",
+                    draft: "Черновики",
+                  }[f]
+                }
+                {f === "all" && ` · ${campaigns.length}`}
+                {f === "draft" &&
+                  campaigns.filter((c) => c.status === "draft").length > 0 &&
+                  ` · ${campaigns.filter((c) => c.status === "draft").length}`}
+              </button>
+            ),
+          )}
         </div>
         <div style={{ display: "flex", gap: 6 }}>
           <select

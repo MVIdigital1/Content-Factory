@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlatformLogo } from "@/components/ui/PlatformLogo";
 import { PLATFORM_META } from "./data";
 import {
@@ -10,9 +10,9 @@ import {
 import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
-import { ChevronDown, ChevronUp, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
 
-const STEPS = ["Цель", "Платформы", "Креативы", "Запуск"];
+const STEPS = ["Цель", "Платформы", "Запуск"];
 
 const PLATFORM_SUBTYPES: Record<
   string,
@@ -60,57 +60,7 @@ const PLATFORM_SUBTYPES: Record<
   ],
 };
 
-const CREATIVE_BY_SUBTYPE: Record<
-  string,
-  { emoji: string; title: string; desc: string }[]
-> = {
-  post: [
-    { emoji: "📝", title: "Информационный", desc: "Польза для аудитории" },
-    { emoji: "💬", title: "Вовлекающий", desc: "Вопрос или опрос" },
-  ],
-  video: [
-    { emoji: "🎬", title: "Короткое видео", desc: "15-30 секунд" },
-    { emoji: "📹", title: "Обзор продукта", desc: "Демонстрация" },
-  ],
-  ad: [
-    { emoji: "📣", title: "Прямой оффер", desc: "Скидка и CTA" },
-    { emoji: "🎯", title: "Ретаргетинг", desc: "Возврат аудитории" },
-  ],
-  reels: [
-    { emoji: "✨", title: "Reels-хук", desc: "Первые 3 секунды" },
-    { emoji: "🌀", title: "Трендовый", desc: "Популярный стиль" },
-  ],
-  stories: [
-    { emoji: "⭕", title: "Stories с кнопкой", desc: "Свайп вверх" },
-    { emoji: "📲", title: "Интерактивный", desc: "Опрос" },
-  ],
-  feed: [
-    { emoji: "🖼", title: "Карусель", desc: "Несколько слайдов" },
-    { emoji: "📸", title: "Одно фото", desc: "Яркий визуал" },
-  ],
-  search: [
-    {
-      emoji: "🔍",
-      title: "Текстовое объявление",
-      desc: "Заголовок + описание",
-    },
-    { emoji: "🎯", title: "Динамическое", desc: "Под запрос" },
-  ],
-  rsya: [
-    { emoji: "📊", title: "Баннер РСЯ", desc: "Все форматы" },
-    { emoji: "🖼", title: "Адаптивный", desc: "240×400" },
-  ],
-  display: [
-    { emoji: "🖼", title: "Медийный баннер", desc: "КМС Google" },
-    { emoji: "📱", title: "Адаптивный", desc: "Все устройства" },
-  ],
-  banner: [
-    { emoji: "🖼", title: "Статичный баннер", desc: "Яркий дизайн" },
-    { emoji: "🔄", title: "Анимированный", desc: "GIF" },
-  ],
-};
-
-const STORAGE_KEY = "wizard_draft_v4";
+const STORAGE_KEY = "wizard_draft_v5";
 function loadDraft() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
@@ -172,6 +122,73 @@ function Dropdown({
   );
 }
 
+// Generate real creative content via Claude API
+async function generateCreativeContent(params: {
+  platform: string;
+  subtype: string;
+  product: string;
+  goal: string;
+  audience: string;
+  projectName: string;
+}): Promise<{ title: string; caption: string; hook?: string }> {
+  const platformNames: Record<string, string> = {
+    telegram: "Telegram",
+    instagram: "Instagram",
+    tiktok: "TikTok",
+    vk: "ВКонтакте",
+    yandex: "Яндекс Директ",
+    google: "Google Ads",
+    meta: "Meta Ads",
+    mytarget: "myTarget",
+  };
+  const subtypeNames: Record<string, string> = {
+    post: "пост",
+    video: "видео-сценарий",
+    ad: "рекламное объявление",
+    reels: "Reels сценарий",
+    stories: "Stories",
+    feed: "пост в ленту",
+    search: "текстовое объявление",
+    rsya: "баннерный текст",
+    display: "медийный баннер",
+    banner: "баннер",
+  };
+
+  const prompt = `Создай ${subtypeNames[params.subtype] ?? params.subtype} для платформы ${platformNames[params.platform] ?? params.platform}.
+
+Продукт/бизнес: ${params.product || params.projectName}
+Цель кампании: ${params.goal}
+Целевая аудитория: ${params.audience || "широкая аудитория"}
+
+Требования:
+- Заголовок (title): короткий, цепляющий, до 10 слов
+- Хук (hook): первое предложение которое останавливает прокрутку
+- Текст (caption): полный текст поста/объявления с CTA
+
+Отвечай ТОЛЬКО в JSON формате без markdown:
+{"title":"...","hook":"...","caption":"..."}`;
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1000,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+
+  if (!response.ok) throw new Error("API error");
+  const data = await response.json();
+  const text = data.content?.[0]?.text ?? "{}";
+  try {
+    const clean = text.replace(/```json|```/g, "").trim();
+    return JSON.parse(clean);
+  } catch {
+    return { title: "Креатив", caption: text };
+  }
+}
+
 export function WizardView({
   onClose,
   projectId: defaultProjectId,
@@ -182,6 +199,7 @@ export function WizardView({
   const locale = useLocale();
   const router = useRouter();
   const supabase = createClient();
+  const qc = useQueryClient();
   const createCampaign = useCreateAdCampaign();
   const createCreative = useCreateAdCreative();
 
@@ -212,24 +230,34 @@ export function WizardView({
       ]),
     ),
   );
-  const [selectedCreatives, setSelectedCreatives] = useState<Set<string>>(
-    new Set(draft?.creatives ?? []),
-  );
-  const [creativePlatformFilter, setCreativePlatformFilter] = useState("all");
-  const [launching, setLaunching] = useState(false);
-  const [savingDraft, setSavingDraft] = useState(false);
-  const [error, setError] = useState("");
   const [autoSaved, setAutoSaved] = useState(false);
+  const [draftId, setDraftId] = useState<string | null>(draft?.draftId ?? null);
 
-  // Schedule state for creatives
+  // Launch state
+  const [launching, setLaunching] = useState(false);
+  const [launchProgress, setLaunchProgress] = useState<string>("");
+  const [error, setError] = useState("");
+
+  // Schedule
   const [scheduleModal, setScheduleModal] = useState<{
-    cId: string;
+    creativeId: string;
     platform: string;
     title: string;
   } | null>(null);
   const [scheduleTime, setScheduleTime] = useState("");
   const [scheduling, setScheduling] = useState(false);
   const [publishingNow, setPublishingNow] = useState<string | null>(null);
+
+  // Generated creatives (real content from AI)
+  const [generatedCreatives, setGeneratedCreatives] = useState<any[]>([]);
+  const [generating, setGenerating] = useState(false);
+  const [creativePlatformFilter, setCreativePlatformFilter] = useState("all");
+
+  // Connect platform inline
+  const [connectModal, setConnectModal] = useState<string | null>(null);
+  const [tokenInput, setTokenInput] = useState("");
+  const [accountIdInput, setAccountIdInput] = useState("");
+  const [connectingPlatform, setConnectingPlatform] = useState(false);
 
   const [projectOpen, setProjectOpen] = useState(false);
   const [cloneOpen, setCloneOpen] = useState(false);
@@ -245,8 +273,7 @@ export function WizardView({
   const imgRef = useRef<HTMLInputElement>(null);
   const productImgRef = useRef<HTMLInputElement>(null);
 
-  // ── Real data queries ────────────────────────────────────────────────────────
-
+  // ── Queries ──────────────────────────────────────────────────────────────────
   const { data: projects = [], refetch: refetchProjects } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
@@ -280,40 +307,41 @@ export function WizardView({
     },
   });
 
-  // Only REAL connected platforms from ad_platforms + integrations
-  const { data: connectedAdPlatforms = [] } = useQuery({
-    queryKey: ["ad_platforms_real"],
-    queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("ad_platforms")
-        .select("platform_key, name, account_name, account_id, color, abbr")
-        .eq("user_id", user.id)
-        .eq("is_active", true);
-      return data ?? [];
-    },
-  });
+  const { data: connectedAdPlatforms = [], refetch: refetchPlatforms } =
+    useQuery({
+      queryKey: ["ad_platforms_real"],
+      queryFn: async () => {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return [];
+        const { data } = await supabase
+          .from("ad_platforms")
+          .select("platform_key,name,account_name,account_id,color,abbr")
+          .eq("user_id", user.id)
+          .eq("is_active", true);
+        return data ?? [];
+      },
+    });
 
-  const { data: connectedIntegrations = [] } = useQuery({
-    queryKey: ["integrations_real"],
-    queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("integrations")
-        .select("platform, channel_name, channel_id")
-        .eq("user_id", user.id)
-        .eq("is_active", true);
-      return data ?? [];
-    },
-  });
+  const { data: connectedIntegrations = [], refetch: refetchIntegrations } =
+    useQuery({
+      queryKey: ["integrations_real"],
+      queryFn: async () => {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return [];
+        const { data } = await supabase
+          .from("integrations")
+          .select("platform,channel_name,channel_id")
+          .eq("user_id", user.id)
+          .eq("is_active", true);
+        return data ?? [];
+      },
+    });
 
-  // Build REAL platforms list — only connected ones
+  // Build real platforms
   type RealPlatform = {
     key: string;
     name: string;
@@ -327,8 +355,6 @@ export function WizardView({
   const realPlatforms: RealPlatform[] = (() => {
     const result: RealPlatform[] = [];
     const seen = new Set<string>();
-
-    // From ad_platforms
     for (const p of connectedAdPlatforms) {
       if (seen.has(p.platform_key)) continue;
       seen.add(p.platform_key);
@@ -347,8 +373,6 @@ export function WizardView({
         channels: [],
       });
     }
-
-    // From integrations (Telegram, Instagram)
     const integByPlatform: Record<string, string[]> = {};
     for (const i of connectedIntegrations) {
       if (!integByPlatform[i.platform]) integByPlatform[i.platform] = [];
@@ -361,7 +385,7 @@ export function WizardView({
       } else {
         seen.add(platform);
         const meta = PLATFORM_META[platform];
-        if (meta) {
+        if (meta)
           result.push({
             key: platform,
             name: meta.name,
@@ -371,14 +395,14 @@ export function WizardView({
             accountInfo: channels.join(", "),
             channels,
           });
-        }
       }
     }
-
     return result;
   })();
 
-  // Autosave
+  const connectedKeys = new Set(realPlatforms.map((p) => p.key));
+
+  // Autosave draft to localStorage + create draft in DB
   useEffect(() => {
     const subtypesSer = Object.fromEntries(
       Object.entries(selectedSubtypes).map(([k, v]) => [k, [...v]]),
@@ -393,9 +417,9 @@ export function WizardView({
       projectId,
       platforms: [...selectedPlatforms],
       subtypes: subtypesSer,
-      creatives: [...selectedCreatives],
+      draftId,
     });
-    if (name || product) {
+    if (name) {
       setAutoSaved(true);
       const t = setTimeout(() => setAutoSaved(false), 1500);
       return () => clearTimeout(t);
@@ -410,8 +434,64 @@ export function WizardView({
     projectId,
     selectedPlatforms,
     selectedSubtypes,
-    selectedCreatives,
   ]);
+
+  // Auto-create draft in DB when name is entered
+  useEffect(() => {
+    if (!name.trim() || draftId) return;
+    const timer = setTimeout(async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data } = await supabase
+          .from("ad_campaigns")
+          .insert({
+            user_id: user.id,
+            name: name.trim(),
+            goal,
+            status: "draft",
+            budget_spent: 0,
+            impressions: 0,
+            clicks: 0,
+            leads: 0,
+            sales: 0,
+            revenue: 0,
+            ctr: 0,
+            cpl: 0,
+            roas: 0,
+          })
+          .select("id")
+          .single();
+        if (data) {
+          setDraftId(data.id);
+          qc.invalidateQueries({ queryKey: ["ad_campaigns"] });
+        }
+      } catch {}
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [name]);
+
+  // Update draft in DB when fields change
+  useEffect(() => {
+    if (!draftId) return;
+    const timer = setTimeout(async () => {
+      await supabase
+        .from("ad_campaigns")
+        .update({
+          name: name || "Черновик",
+          goal,
+          description: product,
+          platforms: [...selectedPlatforms],
+          budget_total: budget ? Number(budget) : null,
+          project_id: projectId || null,
+        })
+        .eq("id", draftId);
+      qc.invalidateQueries({ queryKey: ["ad_campaigns"] });
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [name, goal, product, budget, projectId, selectedPlatforms, draftId]);
 
   const activeProject = projects.find((p: any) => p.id === projectId) as any;
 
@@ -429,8 +509,6 @@ export function WizardView({
     setGoal(c.goal ?? "Продажи / заявки");
     setProduct(c.description ?? "");
     setBudget(c.budget_total ? String(c.budget_total) : "");
-    // Only select platforms that are actually connected
-    const connectedKeys = new Set(realPlatforms.map((p) => p.key));
     const clonePlatforms = (c.platforms ?? []).filter((p: string) =>
       connectedKeys.has(p),
     );
@@ -473,6 +551,38 @@ export function WizardView({
     }
   };
 
+  const handleConnectPlatform = async () => {
+    if (!connectModal) return;
+    setConnectingPlatform(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Не авторизован");
+      const meta = PLATFORM_META[connectModal];
+      await supabase.from("ad_platforms").upsert({
+        user_id: user.id,
+        platform_key: connectModal,
+        name: meta?.name ?? connectModal,
+        color: meta?.color ?? "#888",
+        abbr: meta?.abbr ?? "?",
+        access_token: tokenInput || null,
+        account_id: accountIdInput || null,
+        is_active: true,
+        status: "active",
+        updated_at: new Date().toISOString(),
+      });
+      await refetchPlatforms();
+      setConnectModal(null);
+      setTokenInput("");
+      setAccountIdInput("");
+    } catch (e: any) {
+      alert("Ошибка: " + e.message);
+    } finally {
+      setConnectingPlatform(false);
+    }
+  };
+
   const togglePlatform = (key: string) => {
     setSelectedPlatforms((prev) => {
       const n = new Set(prev);
@@ -504,63 +614,7 @@ export function WizardView({
     });
   };
 
-  const toggleCreative = (id: string) => {
-    setSelectedCreatives((prev) => {
-      const n = new Set(prev);
-      n.has(id) ? n.delete(id) : n.add(id);
-      return n;
-    });
-  };
-
-  const getAllCreativeIds = () => {
-    const ids: string[] = [];
-    for (const platformKey of selectedPlatforms) {
-      const subtypes = selectedSubtypes[platformKey] ?? new Set();
-      for (const subtype of subtypes) {
-        const variants = CREATIVE_BY_SUBTYPE[subtype] ?? [];
-        variants.forEach((_, i) =>
-          ids.push(`${platformKey}__${subtype}__${i}`),
-        );
-      }
-    }
-    return ids;
-  };
-
-  const saveToDraft = async () => {
-    if (!name.trim()) {
-      setError("Введите название");
-      return;
-    }
-    setSavingDraft(true);
-    try {
-      await createCampaign.mutateAsync({
-        name,
-        goal,
-        description: product,
-        platforms: [...selectedPlatforms],
-        status: "draft",
-        budget_total: budget ? Number(budget) : undefined,
-        budget_spent: 0,
-        impressions: 0,
-        clicks: 0,
-        leads: 0,
-        sales: 0,
-        revenue: 0,
-        ctr: 0,
-        cpl: 0,
-        roas: 0,
-        project_id: projectId || undefined,
-      });
-      clearDraft();
-      router.push(`/${locale}/campaigns?tab=campaigns`);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setSavingDraft(false);
-    }
-  };
-
-  // Launch: creates campaign + all selected creatives in Supabase
+  // Generate ALL creatives via Claude API then save to DB
   const handleLaunch = async () => {
     if (!name.trim()) {
       setError("Введите название");
@@ -572,99 +626,130 @@ export function WizardView({
     }
     setLaunching(true);
     setError("");
-    try {
-      const campaign = await createCampaign.mutateAsync({
-        name,
-        goal,
-        description: product,
-        platforms: [...selectedPlatforms],
-        status: "active",
-        budget_total: budget ? Number(budget) : undefined,
-        budget_spent: 0,
-        impressions: 0,
-        clicks: 0,
-        leads: 0,
-        sales: 0,
-        revenue: 0,
-        ctr: 0,
-        cpl: 0,
-        roas: 0,
-        project_id: projectId || undefined,
-      });
-      for (const cId of selectedCreatives) {
-        const [platformKey, subtype, idxStr] = cId.split("__");
-        const variants = CREATIVE_BY_SUBTYPE[subtype] ?? [];
-        const variant = variants[Number(idxStr)];
-        if (variant) {
-          await createCreative.mutateAsync({
-            campaign_id: campaign.id,
-            project_id: projectId || undefined,
-            platform: platformKey,
-            format: subtype,
-            title: variant.title,
-            caption: variant.desc,
-            status: "draft",
-            ai_generated: true,
-            ctr: 0,
-            impressions: 0,
-            clicks: 0,
-            is_winner: false,
-          });
-        }
-      }
-      clearDraft();
-      router.push(`/${locale}/campaigns/${campaign.id}`);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLaunching(false);
-    }
-  };
 
-  // Schedule creative directly from wizard
-  const handleScheduleCreative = async () => {
-    if (!scheduleModal || !scheduleTime) return;
-    setScheduling(true);
     try {
-      // Create creative first then schedule
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Не авторизован");
-      const [platformKey, subtype, idxStr] = scheduleModal.cId.split("__");
-      const variants = CREATIVE_BY_SUBTYPE[subtype] ?? [];
-      const variant = variants[Number(idxStr)];
-      if (!variant) return;
-      const { data: creative } = await supabase
-        .from("ad_creatives")
-        .insert({
-          user_id: user.id,
-          platform: platformKey,
-          format: subtype,
-          title: variant.title,
-          caption: variant.desc,
+
+      // Update or create campaign
+      let campaignId = draftId;
+      if (campaignId) {
+        await supabase
+          .from("ad_campaigns")
+          .update({
+            name,
+            goal,
+            description: product,
+            platforms: [...selectedPlatforms],
+            status: "active",
+            budget_total: budget ? Number(budget) : null,
+            project_id: projectId || null,
+          })
+          .eq("id", campaignId);
+      } else {
+        const campaign = await createCampaign.mutateAsync({
+          name,
+          goal,
+          description: product,
+          platforms: [...selectedPlatforms],
           status: "active",
-          ai_generated: true,
-          ctr: 0,
+          budget_total: budget ? Number(budget) : undefined,
+          budget_spent: 0,
           impressions: 0,
           clicks: 0,
-          is_winner: false,
-          scheduled_at: new Date(scheduleTime).toISOString(),
-        })
-        .select()
-        .single();
-      if (creative) {
-        await supabase.from("scheduled_posts").insert({
-          content_id: creative.id,
-          platform: platformKey,
-          scheduled_at: new Date(scheduleTime).toISOString(),
-          status: "pending",
-          retry_count: 0,
+          leads: 0,
+          sales: 0,
+          revenue: 0,
+          ctr: 0,
+          cpl: 0,
+          roas: 0,
+          project_id: projectId || undefined,
         });
+        campaignId = campaign.id;
       }
+
+      qc.invalidateQueries({ queryKey: ["ad_campaigns"] });
+
+      // Generate real creatives via Claude API for each platform+subtype
+      const allCreatives: any[] = [];
+      for (const platformKey of selectedPlatforms) {
+        const rp = realPlatforms.find((p) => p.key === platformKey);
+        const subs = selectedSubtypes[platformKey] ?? new Set();
+        for (const subtype of subs) {
+          setLaunchProgress(
+            `Генерирую ${rp?.name ?? platformKey} — ${subtype}...`,
+          );
+          try {
+            const content = await generateCreativeContent({
+              platform: platformKey,
+              subtype,
+              product: product || activeProject?.description || "",
+              goal,
+              audience,
+              projectName: activeProject?.name ?? name,
+            });
+            const { data: creative } = await supabase
+              .from("ad_creatives")
+              .insert({
+                user_id: user.id,
+                campaign_id: campaignId,
+                project_id: projectId || null,
+                platform: platformKey,
+                format: subtype,
+                title: content.title,
+                caption: content.caption,
+                status: "draft",
+                ai_generated: true,
+                ctr: 0,
+                impressions: 0,
+                clicks: 0,
+                is_winner: false,
+              })
+              .select()
+              .single();
+            if (creative) allCreatives.push(creative);
+          } catch (e) {
+            console.error("Creative gen error:", e);
+          }
+        }
+      }
+
+      qc.invalidateQueries({ queryKey: ["ad_creatives"] });
+      setGeneratedCreatives(allCreatives);
+      clearDraft();
+      setDraftId(null);
+      setLaunchProgress("");
+
+      // Go to campaign page
+      router.push(`/${locale}/campaigns/${campaignId}`);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLaunching(false);
+      setLaunchProgress("");
+    }
+  };
+
+  const handleScheduleCreative = async () => {
+    if (!scheduleModal || !scheduleTime) return;
+    setScheduling(true);
+    try {
+      await supabase.from("scheduled_posts").insert({
+        content_id: scheduleModal.creativeId,
+        platform: scheduleModal.platform,
+        scheduled_at: new Date(scheduleTime).toISOString(),
+        status: "pending",
+        retry_count: 0,
+      });
+      await supabase
+        .from("ad_creatives")
+        .update({ status: "active" })
+        .eq("id", scheduleModal.creativeId);
       setScheduleModal(null);
       setScheduleTime("");
-      alert("Запланировано! Можно увидеть в Календаре.");
+      alert("Запланировано!");
     } catch (e: any) {
       alert("Ошибка: " + e.message);
     } finally {
@@ -672,63 +757,12 @@ export function WizardView({
     }
   };
 
-  // Publish creative now directly from wizard
-  const handlePublishNow = async (cId: string, platformKey: string) => {
-    setPublishingNow(cId);
-    try {
-      const [, subtype, idxStr] = cId.split("__");
-      const variants = CREATIVE_BY_SUBTYPE[subtype] ?? [];
-      const variant = variants[Number(idxStr)];
-      if (!variant) return;
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Не авторизован");
-      const { data: creative } = await supabase
-        .from("ad_creatives")
-        .insert({
-          user_id: user.id,
-          platform: platformKey,
-          format: subtype,
-          title: variant.title,
-          caption: variant.desc,
-          status: "active",
-          ai_generated: true,
-          ctr: 0,
-          impressions: 0,
-          clicks: 0,
-          is_winner: false,
-        })
-        .select()
-        .single();
-      if (creative) {
-        await fetch("/api/content/publish-now", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contentId: creative.id,
-            platform: platformKey,
-          }),
-        });
-      }
-      alert("Опубликовано!");
-    } catch (e: any) {
-      alert("Ошибка: " + e.message);
-    } finally {
-      setPublishingNow(null);
-    }
-  };
-
   const inp =
     "w-full px-3 py-2.5 rounded-[8px] border border-line text-[12px] outline-none focus:border-line-strong bg-panel text-tx-1 placeholder:text-tx-3 transition-colors";
-  const platformsForCreatives =
-    creativePlatformFilter === "all"
-      ? [...selectedPlatforms]
-      : [creativePlatformFilter];
 
   return (
     <div>
-      {/* Step bar */}
+      {/* Step bar - now 3 steps */}
       <div className="flex items-center gap-1 bg-panel-2 border border-line rounded-[9px] p-2.5 mb-5">
         {STEPS.map((label, i) => (
           <div key={label} className="flex items-center gap-1">
@@ -749,7 +783,12 @@ export function WizardView({
           </div>
         ))}
         {autoSaved && (
-          <span className="ml-auto text-[10px] text-pos">✓ Сохранено</span>
+          <span className="ml-auto text-[10px] text-pos">
+            ✓ Черновик сохранён
+          </span>
+        )}
+        {draftId && !autoSaved && (
+          <span className="ml-auto text-[10px] text-tx-3">Черновик</span>
         )}
       </div>
 
@@ -860,7 +899,7 @@ export function WizardView({
                             )}
                           </div>
                           {projectId === p.id && (
-                            <span className="text-accent text-[12px]">✓</span>
+                            <span className="text-accent">✓</span>
                           )}
                         </button>
                       ))}
@@ -1102,7 +1141,7 @@ export function WizardView({
                 )}
                 <div>
                   <label className="block ui-label mb-1">
-                    Уточнение для AI (необязательно)
+                    Уточнение для AI
                   </label>
                   <textarea
                     value={product}
@@ -1123,8 +1162,8 @@ export function WizardView({
                   <p className="text-[11px] text-tx-2 leading-relaxed">
                     AI создаст видео для вашего продукта.
                     <br />
-                    Бренд-информацию AI возьмёт из вашего профиля автоматически
-                    — если хотите добавить специфику, опишите ниже.
+                    Бренд-информацию AI возьмёт из вашего профиля — если хотите
+                    добавить специфику, опишите ниже.
                   </p>
                 </div>
                 <input
@@ -1153,9 +1192,6 @@ export function WizardView({
                   <span className="text-[36px]">🎬</span>
                   <span className="text-[12px] font-medium text-tx-1">
                     Загрузите фото (необязательно)
-                  </span>
-                  <span className="text-[10px] text-tx-3">
-                    AI возьмёт за основу при создании видео
                   </span>
                 </button>
                 {imagePreviews.length > 0 && (
@@ -1186,7 +1222,7 @@ export function WizardView({
                   <textarea
                     value={product}
                     onChange={(e) => setProduct(e.target.value)}
-                    placeholder="Опишите стиль или идею видео..."
+                    placeholder="Опишите стиль или идею..."
                     className={`${inp} resize-none h-14`}
                   />
                 </div>
@@ -1246,8 +1282,8 @@ export function WizardView({
                 <div className="mt-3 p-3 bg-chip/40 rounded-[8px] flex items-start gap-2">
                   <span className="text-[14px]">✦</span>
                   <p className="text-[11px] text-tx-2 leading-relaxed">
-                    <strong>AI готов</strong> — создаст по 1-2 креатива для
-                    каждого типа поста на каждой платформе
+                    <strong>AI готов</strong> — при запуске сгенерирует реальный
+                    текст для каждого типа поста на каждой платформе
                   </p>
                 </div>
               </div>
@@ -1256,28 +1292,19 @@ export function WizardView({
 
           <div className="col-span-2 flex justify-end gap-2 pt-2 border-t border-line">
             {genMode === "text" && (
-              <>
-                <button
-                  onClick={saveToDraft}
-                  disabled={savingDraft}
-                  className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer disabled:opacity-50"
-                >
-                  {savingDraft ? "Сохранение..." : "💾 Черновик"}
-                </button>
-                <button
-                  onClick={() => {
-                    if (!name.trim()) {
-                      setError("Введите название");
-                      return;
-                    }
-                    setError("");
-                    setStep(1);
-                  }}
-                  className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
-                >
-                  Далее: Платформы →
-                </button>
-              </>
+              <button
+                onClick={() => {
+                  if (!name.trim()) {
+                    setError("Введите название");
+                    return;
+                  }
+                  setError("");
+                  setStep(1);
+                }}
+                className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
+              >
+                Далее: Платформы →
+              </button>
             )}
             {(genMode === "image" || genMode === "video") && (
               <button className="px-6 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer">
@@ -1288,31 +1315,18 @@ export function WizardView({
         </div>
       )}
 
-      {/* ══ STEP 1: Platforms — only real connected ══ */}
+      {/* ══ STEP 1: Platforms ══ */}
       {step === 1 && (
         <div className="space-y-3">
-          {realPlatforms.length === 0 ? (
-            <div className="ui-surface flex flex-col items-center py-14 text-center">
-              <p className="text-[32px] mb-3">🔌</p>
-              <p className="text-[13px] font-semibold text-tx-1 mb-2">
-                Нет подключённых платформ
-              </p>
-              <p className="text-[11px] text-tx-3 max-w-[300px] leading-relaxed mb-4">
-                Сначала добавьте рекламные кабинеты или каналы в разделе{" "}
-                <strong>Подключения</strong>
-              </p>
-              <button
-                onClick={() => router.push(`/${locale}/campaigns?tab=connect`)}
-                className="px-4 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
-              >
-                → Перейти в Подключения
-              </button>
-            </div>
-          ) : (
+          <p className="text-[12px] text-tx-2 mb-3">
+            Выберите платформы. AI создаст по 1-2 реальных креатива для каждого
+            типа.
+          </p>
+
+          {/* Connected platforms */}
+          {realPlatforms.length > 0 && (
             <>
-              <p className="text-[12px] text-tx-2 mb-3">
-                Ваши подключённые платформы · выберите для кампании
-              </p>
+              <p className="ui-label">Подключённые платформы</p>
               {realPlatforms.map((rp) => {
                 const sel = selectedPlatforms.has(rp.key);
                 const subtypes = PLATFORM_SUBTYPES[rp.key] ?? [];
@@ -1323,11 +1337,11 @@ export function WizardView({
                     className={`border rounded-[9px] overflow-hidden transition-colors ${sel ? "border-pos/40" : "border-line"}`}
                   >
                     <div
-                      className="flex items-center gap-3 p-3 cursor-pointer hover:bg-hover transition-colors"
+                      className="flex items-center gap-3 p-3 cursor-pointer hover:bg-hover"
                       onClick={() => togglePlatform(rp.key)}
                     >
                       <div
-                        className={`w-4 h-4 rounded-[4px] border flex items-center justify-center text-[9px] flex-shrink-0 transition-colors ${sel ? "bg-accent border-accent text-on-accent" : "border-line-strong"}`}
+                        className={`w-4 h-4 rounded-[4px] border flex items-center justify-center text-[9px] flex-shrink-0 ${sel ? "bg-accent border-accent text-on-accent" : "border-line-strong"}`}
                       >
                         {sel && "✓"}
                       </div>
@@ -1347,18 +1361,32 @@ export function WizardView({
                         </div>
                         <p className="text-[10px] text-tx-3">
                           {rp.accountInfo}
+                          {rp.channels.length > 0
+                            ? ` · ${rp.channels.join(", ")}`
+                            : ""}
                         </p>
-                        {rp.channels.length > 0 && (
-                          <p className="text-[10px] text-tx-3">
-                            {rp.channels.join(" · ")}
-                          </p>
-                        )}
                         {sel && (
                           <p className="text-[10px] text-pos mt-0.5">
                             {selSubs.size} типов ·{" "}
                             {[...selSubs].reduce(
                               (s, st) =>
-                                s + (CREATIVE_BY_SUBTYPE[st]?.length ?? 0),
+                                s +
+                                (PLATFORM_SUBTYPES[rp.key]?.find(
+                                  (p) => p.value === st,
+                                )
+                                  ? st === "post" ||
+                                    st === "video" ||
+                                    st === "ad" ||
+                                    st === "reels" ||
+                                    st === "stories" ||
+                                    st === "feed" ||
+                                    st === "search" ||
+                                    st === "rsya" ||
+                                    st === "display" ||
+                                    st === "banner"
+                                    ? 2
+                                    : 1
+                                  : 0),
                               0,
                             )}{" "}
                             креативов
@@ -1369,13 +1397,11 @@ export function WizardView({
                     {sel && subtypes.length > 0 && (
                       <div className="px-4 pb-3 pt-2 border-t border-line bg-panel-2">
                         <p className="text-[10px] text-tx-3 mb-2">
-                          Типы контента для этой платформы:
+                          Типы контента:
                         </p>
                         <div className="flex gap-2 flex-wrap">
                           {subtypes.map((st) => {
                             const isSel = selSubs.has(st.value);
-                            const count =
-                              CREATIVE_BY_SUBTYPE[st.value]?.length ?? 0;
                             return (
                               <button
                                 key={st.value}
@@ -1387,10 +1413,8 @@ export function WizardView({
                               >
                                 <span>{st.emoji}</span>
                                 {st.label}
-                                <span
-                                  className={`text-[8px] ${isSel ? "opacity-70" : "text-tx-3"}`}
-                                >
-                                  ×{count}
+                                <span className="text-[8px] opacity-70">
+                                  ×2
                                 </span>
                               </button>
                             );
@@ -1404,6 +1428,34 @@ export function WizardView({
             </>
           )}
 
+          {/* Other platforms - add button */}
+          <div>
+            <p className="ui-label mt-4 mb-2">Добавить платформу</p>
+            <div className="grid grid-cols-3 gap-2">
+              {Object.entries(PLATFORM_META)
+                .filter(([key]) => !connectedKeys.has(key))
+                .map(([key, meta]) => (
+                  <button
+                    key={key}
+                    onClick={() => setConnectModal(key)}
+                    className="flex items-center gap-2 p-3 border border-line rounded-[9px] hover:border-line-strong cursor-pointer transition-colors hover:bg-hover text-left"
+                  >
+                    <PlatformLogo
+                      abbr={meta.abbr}
+                      color={meta.color}
+                      textColor={(meta as any).textColor}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-medium text-tx-1 truncate">
+                        {meta.name}
+                      </p>
+                      <p className="text-[9px] text-accent">+ Подключить</p>
+                    </div>
+                  </button>
+                ))}
+            </div>
+          </div>
+
           <div className="flex justify-between pt-3">
             <button
               onClick={() => setStep(0)}
@@ -1411,211 +1463,15 @@ export function WizardView({
             >
               ← Назад
             </button>
-            {realPlatforms.length > 0 && (
-              <button
-                onClick={() => {
-                  if (selectedPlatforms.size === 0) {
-                    setError("Выберите платформу");
-                    return;
-                  }
-                  setError("");
-                  setStep(2);
-                }}
-                className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
-              >
-                Далее: Креативы →
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ══ STEP 2: Creatives with schedule/publish ══ */}
-      {step === 2 && (
-        <div>
-          <div className="flex items-center gap-3 p-3 bg-chip/30 rounded-[9px] mb-4">
-            <span className="text-[16px]">✦</span>
-            <div>
-              <p className="text-[11px] font-medium text-tx-1">
-                По 1-2 варианта для каждого типа поста
-              </p>
-              <p className="text-[10px] text-tx-3">
-                Итого: {getAllCreativeIds().length} креативов · выберите нужные
-              </p>
-            </div>
             <button
-              onClick={() => setSelectedCreatives(new Set(getAllCreativeIds()))}
-              className="ml-auto text-[10px] text-accent hover:opacity-80 cursor-pointer"
-            >
-              Выбрать все
-            </button>
-          </div>
-
-          {/* Platform filter */}
-          <div className="flex gap-2 mb-4 flex-wrap">
-            <button
-              onClick={() => setCreativePlatformFilter("all")}
-              className={`px-3 py-1.5 rounded-full text-[11px] border cursor-pointer transition-colors ${creativePlatformFilter === "all" ? "bg-accent text-on-accent border-accent" : "border-line text-tx-3 hover:bg-hover"}`}
-            >
-              Все
-            </button>
-            {[...selectedPlatforms].map((key) => {
-              const rp = realPlatforms.find((p) => p.key === key);
-              return rp ? (
-                <button
-                  key={key}
-                  onClick={() => setCreativePlatformFilter(key)}
-                  style={
-                    creativePlatformFilter === key
-                      ? {
-                          background: rp.color,
-                          color: rp.textColor ?? "#fff",
-                          borderColor: rp.color,
-                        }
-                      : {}
-                  }
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] border cursor-pointer transition-colors ${creativePlatformFilter !== key ? "border-line text-tx-3 hover:bg-hover" : ""}`}
-                >
-                  <div
-                    style={{
-                      width: 14,
-                      height: 10,
-                      borderRadius: 2,
-                      background:
-                        creativePlatformFilter === key
-                          ? "rgba(255,255,255,0.3)"
-                          : rp.color,
-                      color: "#fff",
-                      fontSize: 7,
-                      fontWeight: 700,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {rp.abbr}
-                  </div>
-                  {rp.name.split(" ")[0]}
-                </button>
-              ) : null;
-            })}
-          </div>
-
-          {platformsForCreatives.map((platformKey) => {
-            const rp = realPlatforms.find((p) => p.key === platformKey);
-            if (!rp) return null;
-            const selSubs = selectedSubtypes[platformKey] ?? new Set();
-            return (
-              <div key={platformKey} className="mb-6">
-                <div className="flex items-center gap-2 mb-3">
-                  <PlatformLogo
-                    abbr={rp.abbr}
-                    color={rp.color}
-                    textColor={rp.textColor}
-                  />
-                  <p className="text-[12px] font-semibold text-tx-1">
-                    {rp.name}
-                  </p>
-                  {rp.accountInfo && (
-                    <span className="text-[10px] text-tx-3">
-                      {rp.accountInfo}
-                    </span>
-                  )}
-                </div>
-
-                {[...selSubs].map((subtype) => {
-                  const st = PLATFORM_SUBTYPES[platformKey]?.find(
-                    (s) => s.value === subtype,
-                  );
-                  const variants = CREATIVE_BY_SUBTYPE[subtype] ?? [];
-                  if (!st || variants.length === 0) return null;
-                  return (
-                    <div key={subtype} className="mb-4">
-                      <div className="flex items-center gap-2 mb-2 pl-1">
-                        <span className="text-[12px]">{st.emoji}</span>
-                        <p className="text-[11px] font-medium text-tx-2">
-                          {st.label}
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-4 gap-3">
-                        {variants.map((v, i) => {
-                          const cId = `${platformKey}__${subtype}__${i}`;
-                          const sel = selectedCreatives.has(cId);
-                          const isPublishing = publishingNow === cId;
-                          return (
-                            <div
-                              key={cId}
-                              className={`border rounded-[9px] overflow-hidden transition-colors ${sel ? "border-accent" : "border-line"}`}
-                            >
-                              {/* Card top - click to select */}
-                              <div
-                                onClick={() => toggleCreative(cId)}
-                                className="p-3 cursor-pointer hover:bg-hover transition-colors"
-                              >
-                                <div
-                                  className="h-14 rounded-[6px] flex items-center justify-center text-[22px] mb-2 relative overflow-hidden"
-                                  style={{
-                                    background: `linear-gradient(135deg, ${rp.color}, #111)`,
-                                  }}
-                                >
-                                  {sel && (
-                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-accent text-[18px] font-bold">
-                                      ✓
-                                    </div>
-                                  )}
-                                  {v.emoji}
-                                </div>
-                                <p className="text-[10px] font-medium text-tx-1 mb-0.5">
-                                  {v.title}
-                                </p>
-                                <p className="text-[9px] text-tx-3">{v.desc}</p>
-                              </div>
-                              {/* Action buttons */}
-                              <div className="border-t border-line flex">
-                                <button
-                                  onClick={() =>
-                                    setScheduleModal({
-                                      cId,
-                                      platform: platformKey,
-                                      title: v.title,
-                                    })
-                                  }
-                                  className="flex-1 py-1.5 text-[9px] text-tx-2 hover:bg-hover cursor-pointer border-r border-line transition-colors text-center"
-                                  title="Запланировать"
-                                >
-                                  📅 Запланировать
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    handlePublishNow(cId, platformKey)
-                                  }
-                                  disabled={isPublishing}
-                                  className="flex-1 py-1.5 text-[9px] text-tx-2 hover:bg-hover cursor-pointer transition-colors text-center disabled:opacity-50"
-                                  title="Опубликовать сейчас"
-                                >
-                                  {isPublishing ? "..." : "🚀 Сейчас"}
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
-
-          <div className="flex justify-between pt-2">
-            <button
-              onClick={() => setStep(1)}
-              className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
-            >
-              ← Назад
-            </button>
-            <button
-              onClick={() => setStep(3)}
+              onClick={() => {
+                if (selectedPlatforms.size === 0) {
+                  setError("Выберите платформу");
+                  return;
+                }
+                setError("");
+                setStep(2);
+              }}
               className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
             >
               Далее: Запуск →
@@ -1624,8 +1480,8 @@ export function WizardView({
         </div>
       )}
 
-      {/* ══ STEP 3: Launch ══ */}
-      {step === 3 && (
+      {/* ══ STEP 2: Launch ══ */}
+      {step === 2 && (
         <div>
           <div className="ui-surface p-4 mb-4 space-y-2">
             {[
@@ -1643,7 +1499,10 @@ export function WizardView({
                 v:
                   [...selectedPlatforms]
                     .map(
-                      (k) => realPlatforms.find((p) => p.key === k)?.name ?? k,
+                      (k) =>
+                        realPlatforms.find((p) => p.key === k)?.name ??
+                        PLATFORM_META[k]?.name ??
+                        k,
                     )
                     .join(", ") || "—",
               },
@@ -1651,7 +1510,6 @@ export function WizardView({
                 l: "Бюджет",
                 v: budget ? `₽${Number(budget).toLocaleString("ru")}` : "—",
               },
-              { l: "Креативов", v: `${selectedCreatives.size} выбрано` },
             ].map((row) => (
               <div
                 key={row.l}
@@ -1662,35 +1520,145 @@ export function WizardView({
               </div>
             ))}
           </div>
-          <div className="flex items-center gap-2 p-3 bg-chip/30 rounded-[9px] mb-5">
+
+          {/* What will be generated */}
+          <div className="ui-surface p-4 mb-4">
+            <p className="ui-label mb-3">AI сгенерирует</p>
+            <div className="space-y-2">
+              {[...selectedPlatforms].map((platformKey) => {
+                const rp = realPlatforms.find((p) => p.key === platformKey);
+                const meta = PLATFORM_META[platformKey];
+                const subs = selectedSubtypes[platformKey] ?? new Set();
+                const totalCreatives = [...subs].length * 2;
+                return (
+                  <div
+                    key={platformKey}
+                    className="flex items-center gap-3 p-2 bg-panel-2 rounded-[7px]"
+                  >
+                    <PlatformLogo
+                      abbr={rp?.abbr ?? meta?.abbr ?? "?"}
+                      color={rp?.color ?? meta?.color ?? "#888"}
+                      textColor={rp?.textColor ?? (meta as any)?.textColor}
+                    />
+                    <p className="text-[11px] text-tx-1 flex-1">
+                      {rp?.name ?? meta?.name ?? platformKey}
+                    </p>
+                    <div className="flex gap-1 flex-wrap justify-end">
+                      {[...subs].map((s) => {
+                        const st = PLATFORM_SUBTYPES[platformKey]?.find(
+                          (p) => p.value === s,
+                        );
+                        return st ? (
+                          <span
+                            key={s}
+                            className="text-[9px] px-1.5 py-0.5 rounded-full bg-chip text-tx-2"
+                          >
+                            {st.emoji} {st.label} ×2
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
+                    <span className="text-[10px] font-medium text-pos ml-2">
+                      {totalCreatives} кр.
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="p-3 bg-chip/30 rounded-[9px] mb-5 flex items-start gap-2">
             <span>✦</span>
             <p className="text-[11px] text-tx-2">
-              После запуска откроется страница кампании — там можно доплановать
-              публикации
+              AI создаст реальные тексты для каждого типа поста. После запуска
+              попадут на страницу кампании — там можно запланировать публикацию.
             </p>
           </div>
+
+          {launchProgress && (
+            <div className="flex items-center gap-3 p-3 bg-accent-dim border border-accent/20 rounded-[9px] mb-4">
+              <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin flex-shrink-0" />
+              <p className="text-[11px] text-accent">{launchProgress}</p>
+            </div>
+          )}
+
           <div className="flex justify-between">
             <button
-              onClick={() => setStep(2)}
+              onClick={() => setStep(1)}
               className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
             >
               ← Назад
             </button>
-            <div className="flex gap-2">
+            <button
+              onClick={handleLaunch}
+              disabled={launching}
+              className="px-6 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-60"
+            >
+              {launching ? "⟳ Генерирую..." : "🚀 Запустить и сгенерировать"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Connect platform modal */}
+      {connectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/30 backdrop-blur-[3px]"
+            onClick={() => setConnectModal(null)}
+          />
+          <div className="relative w-full max-w-[400px] bg-panel border border-line rounded-[14px] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[14px] font-semibold text-tx-1">
+                Подключить {PLATFORM_META[connectModal]?.name}
+              </h2>
               <button
-                onClick={saveToDraft}
-                disabled={savingDraft}
-                className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer disabled:opacity-50"
+                onClick={() => setConnectModal(null)}
+                className="w-7 h-7 flex items-center justify-center rounded-[7px] border border-line hover:bg-hover cursor-pointer text-tx-3"
               >
-                {savingDraft ? "..." : "💾 Черновик"}
+                ✕
               </button>
-              <button
-                onClick={handleLaunch}
-                disabled={launching}
-                className="px-6 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-50"
-              >
-                {launching ? "⟳ Создаю..." : "🚀 Запустить"}
-              </button>
+            </div>
+            <div className="space-y-3">
+              <p className="text-[11px] text-tx-3 bg-panel-2 border border-line rounded-[8px] p-3 leading-relaxed">
+                Введите токен доступа от рекламного кабинета. Токен можно
+                получить в настройках API платформы.
+              </p>
+              <div>
+                <label className="block ui-label mb-1">Access Token</label>
+                <input
+                  value={tokenInput}
+                  onChange={(e) => setTokenInput(e.target.value)}
+                  placeholder="Вставьте токен..."
+                  className={inp}
+                />
+              </div>
+              <div>
+                <label className="block ui-label mb-1">
+                  ID кабинета (необязательно)
+                </label>
+                <input
+                  value={accountIdInput}
+                  onChange={(e) => setAccountIdInput(e.target.value)}
+                  placeholder="account_12345"
+                  className={inp}
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConnectModal(null)}
+                  className="flex-1 py-2.5 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={handleConnectPlatform}
+                  disabled={connectingPlatform}
+                  className="flex-1 py-2.5 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-50"
+                >
+                  {connectingPlatform ? "Подключение..." : "Подключить"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
