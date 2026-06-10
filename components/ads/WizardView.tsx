@@ -820,6 +820,47 @@ export function WizardView({
 
   const activeProject = projects.find((p: any) => p.id === projectId) as any;
 
+  // AI project recommendations
+  const [projectRecs, setProjectRecs] = useState<string[]>([]);
+  const [loadingRecs, setLoadingRecs] = useState(false);
+
+  const generateProjectRecs = async (project: any) => {
+    if (!project) return;
+    setLoadingRecs(true);
+    setProjectRecs([]);
+    try {
+      const prompt = `Проанализируй проект и дай 3 конкретные краткие рекомендации для рекламной кампании.
+
+Проект: ${project.name}
+Ниша: ${project.niche ?? "не указана"}
+Описание: ${project.description ?? "не указано"}
+Аудитория: ${project.audience ?? "не указана"}
+
+Ответь ТОЛЬКО в JSON формате без markdown:
+{"recs":["рекомендация 1","рекомендация 2","рекомендация 3"]}
+
+Каждая рекомендация — одно конкретное действие для кампании, до 15 слов.`;
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 300,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      const data = await res.json();
+      const text = data.content?.[0]?.text ?? "{}";
+      const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+      setProjectRecs(parsed.recs ?? []);
+    } catch {
+      setProjectRecs([]);
+    } finally {
+      setLoadingRecs(false);
+    }
+  };
+
   const handleProjectSelect = (pid: string) => {
     setProjectId(pid);
     setProjectOpen(false);
@@ -827,7 +868,15 @@ export function WizardView({
     if (!p) return;
     if (p.description && !product) setProduct(p.description);
     if (p.audience && !audience) setAudience(p.audience);
+    // Reset old recs and generate new
+    setProjectRecs([]);
+    generateProjectRecs(p);
   };
+
+  // Reset recs when projectId cleared
+  useEffect(() => {
+    if (!projectId) setProjectRecs([]);
+  }, [projectId]);
 
   const handleClone = (c: any) => {
     setName(`${c.name} — копия`);
@@ -1248,6 +1297,57 @@ export function WizardView({
           <div>
             <ProjectImagesPanel projectId={projectId} />
           </div>
+
+          {/* AI project recommendations */}
+          {(projectRecs.length > 0 || loadingRecs) && (
+            <div className="col-span-2 border border-line rounded-[10px] overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-panel-2 border-b border-line">
+                <span className="text-[13px]">✦</span>
+                <span className="text-[11px] font-semibold text-tx-1">
+                  AI рекомендации для {activeProject?.name}
+                </span>
+                {loadingRecs && (
+                  <div className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin ml-auto" />
+                )}
+              </div>
+              {!loadingRecs && (
+                <div className="grid grid-cols-3 gap-0 divide-x divide-line">
+                  {projectRecs.map((rec, i) => (
+                    <div key={i} className="px-4 py-3">
+                      <div className="flex items-start gap-2">
+                        <div
+                          className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                          style={{
+                            background: ["var(--accent)", "#8B5CF6", "#F59E0B"][
+                              i
+                            ],
+                            color: "#fff",
+                            fontSize: 10,
+                            fontWeight: 700,
+                          }}
+                        >
+                          {i + 1}
+                        </div>
+                        <p className="text-[11px] text-tx-2 leading-relaxed">
+                          {rec}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {loadingRecs && (
+                <div className="grid grid-cols-3 gap-0 divide-x divide-line">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="px-4 py-3">
+                      <div className="h-3 bg-panel-2 rounded animate-pulse mb-1.5 w-full" />
+                      <div className="h-3 bg-panel-2 rounded animate-pulse w-3/4" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="col-span-2 flex justify-end gap-2 pt-2 border-t border-line">
             <button
