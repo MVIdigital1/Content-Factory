@@ -189,6 +189,324 @@ async function generateCreativeContent(params: {
   }
 }
 
+// ── Project images panel ──────────────────────────────────────────────────
+function ProjectImagesPanel({ projectId }: { projectId?: string }) {
+  const supabase = createClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [localPreviews, setLocalPreviews] = useState<string[]>([]);
+
+  const { data: projectFiles = [] } = useQuery({
+    queryKey: ["project-files-wizard", projectId],
+    enabled: !!projectId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("project_files")
+        .select("id, name, file_url, file_type")
+        .eq("project_id", projectId!)
+        .order("created_at", { ascending: false })
+        .limit(12);
+      return (data ?? []).filter(
+        (f: any) =>
+          f.file_type === "image" ||
+          f.file_url?.match(/\.(jpg|jpeg|png|webp|gif)/i),
+      );
+    },
+  });
+
+  const handleLocalFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    files.forEach((f) => {
+      const r = new FileReader();
+      r.onload = (ev) =>
+        setLocalPreviews((p) => [...p, ev.target?.result as string]);
+      r.readAsDataURL(f);
+    });
+  };
+
+  const inp =
+    "w-full px-3 py-2.5 rounded-[8px] border border-line text-[12px] outline-none bg-panel text-tx-1";
+
+  return (
+    <div>
+      <label className="block ui-label mb-2">Фото продукта для AI</label>
+
+      {!projectId ? (
+        <div className="p-4 bg-panel-2 border border-line rounded-[9px] text-center">
+          <p className="text-[11px] text-tx-3">
+            Выберите проект чтобы увидеть картинки
+          </p>
+        </div>
+      ) : (
+        <>
+          {projectFiles.length > 0 && (
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {projectFiles.map((f: any) => (
+                <div key={f.id} className="relative group">
+                  <img
+                    src={f.file_url}
+                    alt={f.name}
+                    className="w-full h-20 object-cover rounded-[7px] cursor-pointer"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-[7px] transition-colors" />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {localPreviews.length > 0 && (
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {localPreviews.map((src, i) => (
+                <div key={i} className="relative">
+                  <img
+                    src={src}
+                    alt=""
+                    className="w-full h-20 object-cover rounded-[7px]"
+                  />
+                  <button
+                    onClick={() =>
+                      setLocalPreviews((p) => p.filter((_, j) => j !== i))
+                    }
+                    className="absolute top-1 right-1 w-5 h-5 bg-black/60 text-white rounded-full flex items-center justify-center text-[9px] cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="p-3 bg-panel-2 border border-dashed border-line rounded-[8px]">
+            <p className="text-[10px] text-tx-3 mb-2 text-center">
+              {projectFiles.length === 0
+                ? "Нет картинок в проекте — добавьте чтобы проверить как работает"
+                : "Хотите добавить другую картинку?"}
+            </p>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleLocalFile}
+              style={{ display: "none" }}
+            />
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="w-full py-2 border border-line rounded-[7px] text-[11px] text-tx-2 hover:bg-hover cursor-pointer transition-colors text-center"
+            >
+              📎 Прикрепить файл
+            </button>
+          </div>
+        </>
+      )}
+
+      <div className="mt-3 p-3 bg-chip/40 rounded-[8px] flex items-start gap-2">
+        <span className="text-[14px] flex-shrink-0">✦</span>
+        <p className="text-[11px] text-tx-2 leading-relaxed">
+          <strong>AI готов</strong> — сгенерирует реальный текст для каждого
+          типа поста на каждой платформе
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Bulk schedule modal ───────────────────────────────────────────────────
+export function BulkScheduleModal({
+  creatives,
+  onClose,
+  onScheduled,
+}: {
+  creatives: any[];
+  onClose: () => void;
+  onScheduled: () => void;
+}) {
+  const supabase = createClient();
+  const [mode, setMode] = useState<"2days" | "week" | "month" | "custom">(
+    "week",
+  );
+  const [startDate, setStartDate] = useState(() =>
+    new Date().toISOString().slice(0, 16),
+  );
+  const [endDate, setEndDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().slice(0, 16);
+  });
+  const [scheduling, setScheduling] = useState(false);
+
+  const getModeLabel = () =>
+    ({
+      "2days": "На 2 дня",
+      week: "На неделю",
+      month: "На месяц",
+      custom: "Свой период",
+    })[mode];
+
+  const getEndDate = () => {
+    const start = new Date(startDate);
+    if (mode === "2days") {
+      start.setDate(start.getDate() + 2);
+      return start;
+    }
+    if (mode === "week") {
+      start.setDate(start.getDate() + 7);
+      return start;
+    }
+    if (mode === "month") {
+      start.setMonth(start.getMonth() + 1);
+      return start;
+    }
+    return new Date(endDate);
+  };
+
+  const handleBulkSchedule = async () => {
+    if (creatives.length === 0) return;
+    setScheduling(true);
+    try {
+      const start = new Date(startDate);
+      const end = getEndDate();
+      const totalMs = end.getTime() - start.getTime();
+      const interval = totalMs / Math.max(creatives.length, 1);
+
+      for (let i = 0; i < creatives.length; i++) {
+        const c = creatives[i];
+        const scheduledAt = new Date(start.getTime() + interval * i);
+        if (c.id) {
+          await supabase.from("scheduled_posts").insert({
+            content_id: c.id,
+            platform: c.platform,
+            scheduled_at: scheduledAt.toISOString(),
+            status: "pending",
+            retry_count: 0,
+          });
+          await supabase
+            .from("ad_creatives")
+            .update({ status: "active" })
+            .eq("id", c.id);
+        }
+      }
+      onScheduled();
+      onClose();
+    } catch (e: any) {
+      alert("Ошибка: " + e.message);
+    } finally {
+      setScheduling(false);
+    }
+  };
+
+  const inp =
+    "w-full px-3 py-2.5 rounded-[8px] border border-line text-[12px] outline-none focus:border-line-strong bg-panel text-tx-1";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/30 backdrop-blur-[3px]"
+        onClick={onClose}
+      />
+      <div className="relative w-full max-w-[440px] bg-panel border border-line rounded-[14px] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[14px] font-semibold text-tx-1">
+            Запланировать все · {creatives.length} постов
+          </h2>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-[7px] border border-line hover:bg-hover cursor-pointer text-tx-3"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {/* Mode select */}
+          <div>
+            <label className="block ui-label mb-2">Период</label>
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  { v: "2days", l: "📅 На 2 дня", d: "Быстрый тест" },
+                  { v: "week", l: "📅 На неделю", d: "Равномерно 7 дней" },
+                  { v: "month", l: "📅 На месяц", d: "Равномерно 30 дней" },
+                  { v: "custom", l: "✎ Свой период", d: "Выбрать даты" },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.v}
+                  onClick={() => setMode(opt.v)}
+                  className={`p-3 border rounded-[9px] cursor-pointer text-left transition-colors ${mode === opt.v ? "border-accent bg-accent-dim" : "border-line hover:border-line-strong"}`}
+                >
+                  <div
+                    className={`text-[11px] font-medium ${mode === opt.v ? "text-accent" : "text-tx-1"}`}
+                  >
+                    {opt.l}
+                  </div>
+                  <div className="text-[9px] text-tx-3 mt-0.5">{opt.d}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Start date */}
+          <div>
+            <label className="block ui-label mb-1">Начало</label>
+            <input
+              type="datetime-local"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className={inp}
+            />
+          </div>
+
+          {/* Custom end date */}
+          {mode === "custom" && (
+            <div>
+              <label className="block ui-label mb-1">Конец</label>
+              <input
+                type="datetime-local"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className={inp}
+              />
+            </div>
+          )}
+
+          {/* Preview */}
+          <div className="p-3 bg-panel-2 border border-line rounded-[8px]">
+            <p className="text-[11px] text-tx-2">
+              {creatives.length} постов · {getModeLabel()} · начиная с{" "}
+              {new Date(startDate).toLocaleDateString("ru", {
+                day: "numeric",
+                month: "short",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </p>
+            <p className="text-[10px] text-tx-3 mt-1">
+              Публикации распределятся равномерно по выбранному периоду
+            </p>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="flex-1 py-2.5 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
+            >
+              Отмена
+            </button>
+            <button
+              onClick={handleBulkSchedule}
+              disabled={scheduling}
+              className="flex-1 py-2.5 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-50"
+            >
+              {scheduling ? "⟳ Планирую..." : "📅 Запланировать всё"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function WizardView({
   onClose,
   projectId: defaultProjectId,
@@ -207,9 +525,9 @@ export function WizardView({
 
   const draft = loadDraft();
 
-  const [genMode, setGenMode] = useState<"text" | "image" | "video">(
-    draft?.genMode ?? "text",
-  );
+  const [showBulkSchedule, setShowBulkSchedule] = useState(false);
+  // genMode kept for backward compat but not shown in UI
+  const [genMode] = useState<"text" | "image" | "video">("text");
   const [step, setStep] = useState(0);
   const [name, setName] = useState(draft?.name ?? "");
 
@@ -795,515 +1113,156 @@ export function WizardView({
       {step === 0 && (
         <div className="grid grid-cols-2 gap-6">
           <div className="space-y-4">
-            {/* Gen mode */}
+            {/* Name */}
             <div>
-              <label className="block ui-label mb-2">Тип генерации</label>
-              <div className="grid grid-cols-3 gap-2">
-                {(
-                  [
-                    {
-                      value: "text",
-                      icon: "📝",
-                      label: "Текст",
-                      desc: "Посты, объявления",
-                    },
-                    {
-                      value: "image",
-                      icon: "🖼",
-                      label: "Картинка",
-                      desc: "Баннеры, изображения",
-                    },
-                    {
-                      value: "video",
-                      icon: "🎬",
-                      label: "Видео",
-                      desc: "Видео для платформ",
-                    },
-                  ] as const
-                ).map((m) => (
-                  <button
-                    key={m.value}
-                    onClick={() => setGenMode(m.value)}
-                    className={`flex flex-col items-center gap-1 p-3 border rounded-[9px] cursor-pointer transition-colors ${genMode === m.value ? "border-accent bg-accent-dim" : "border-line hover:border-line-strong"}`}
-                  >
-                    <span className="text-[20px]">{m.icon}</span>
-                    <span
-                      className={`text-[11px] font-medium ${genMode === m.value ? "text-accent" : "text-tx-1"}`}
+              <label className="block ui-label mb-1">Название *</label>
+              <input
+                value={name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                placeholder="Например: Ramadan акция 2026"
+                className={inp}
+              />
+            </div>
+
+            {/* Clone campaign */}
+            <div>
+              <label className="block ui-label mb-1">
+                Клонировать кампанию
+              </label>
+              <Dropdown
+                label="Выбрать существующую..."
+                icon={<span>📋</span>}
+                open={cloneOpen}
+                onToggle={() => {
+                  setCloneOpen(!cloneOpen);
+                  setProjectOpen(false);
+                }}
+              >
+                <div className="space-y-1 max-h-44 overflow-y-auto">
+                  {existingCampaigns.map((c: any) => (
+                    <button
+                      key={c.id}
+                      onClick={() => handleClone(c)}
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-[7px] cursor-pointer hover:bg-hover text-left"
                     >
-                      {m.label}
-                    </span>
-                    <span className="text-[9px] text-tx-3 text-center leading-tight">
-                      {m.desc}
-                    </span>
+                      <div className="flex gap-1 flex-shrink-0">
+                        {(c.platforms ?? []).slice(0, 2).map((pid: string) => {
+                          const pm = PLATFORM_META[pid];
+                          return pm ? (
+                            <div
+                              key={pid}
+                              style={{
+                                width: 18,
+                                height: 13,
+                                borderRadius: 2,
+                                background: pm.color,
+                                color: (pm as any).textColor ?? "#fff",
+                                fontSize: 7,
+                                fontWeight: 700,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              {pm.abbr}
+                            </div>
+                          ) : null;
+                        })}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12px] font-medium text-tx-1 truncate">
+                          {c.name}
+                        </p>
+                        {c.goal && (
+                          <p className="text-[10px] text-tx-3">{c.goal}</p>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                  {existingCampaigns.length === 0 && (
+                    <p className="text-[11px] text-tx-3 px-2 py-1">
+                      Нет кампаний
+                    </p>
+                  )}
+                </div>
+              </Dropdown>
+            </div>
+
+            {/* Goal */}
+            <div>
+              <label className="block ui-label mb-2">Цель</label>
+              <div className="flex gap-2 flex-wrap">
+                {[
+                  "Продажи / заявки",
+                  "Трафик на сайт",
+                  "Охват",
+                  "Подписчики",
+                ].map((g) => (
+                  <button
+                    key={g}
+                    onClick={() => setGoal(g)}
+                    className={`px-3 py-1.5 rounded-[7px] text-[11px] border cursor-pointer transition-colors ${goal === g ? "bg-accent text-on-accent border-accent" : "border-line text-tx-2 hover:bg-hover"}`}
+                  >
+                    {g}
                   </button>
                 ))}
               </div>
             </div>
 
-            {genMode === "text" && (
-              <>
-                <div>
-                  <label className="block ui-label mb-1">Название *</label>
-                  <input
-                    value={name}
-                    onChange={(e) => handleNameChange(e.target.value)}
-                    placeholder="Например: Ramadan акция 2026"
-                    className={inp}
-                  />
-                </div>
+            {/* Product */}
+            <div>
+              <label className="block ui-label mb-1">О продукте — для AI</label>
+              <textarea
+                value={product}
+                onChange={(e) => setProduct(e.target.value)}
+                placeholder="Опишите продукт, преимущества, акции..."
+                className={`${inp} resize-none h-16`}
+              />
+            </div>
 
-                <div>
-                  <label className="block ui-label mb-1">Проект</label>
-                  <Dropdown
-                    label={
-                      activeProject ? activeProject.name : "Выберите проект"
-                    }
-                    icon={
-                      activeProject ? (
-                        <div className="w-5 h-5 rounded-full bg-chip flex items-center justify-center text-[10px] font-semibold text-tx-2">
-                          {activeProject.name.slice(0, 1).toUpperCase()}
-                        </div>
-                      ) : (
-                        <span>📁</span>
-                      )
-                    }
-                    open={projectOpen}
-                    onToggle={() => {
-                      setProjectOpen(!projectOpen);
-                      setCloneOpen(false);
-                    }}
-                  >
-                    <div className="space-y-1 max-h-44 overflow-y-auto">
-                      {projects.map((p: any) => (
-                        <button
-                          key={p.id}
-                          onClick={() => handleProjectSelect(p.id)}
-                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-[7px] cursor-pointer transition-colors text-left ${projectId === p.id ? "bg-accent-dim" : "hover:bg-hover"}`}
-                        >
-                          <div className="w-6 h-6 rounded-full bg-chip flex items-center justify-center text-[10px] font-semibold text-tx-2 flex-shrink-0">
-                            {p.name.slice(0, 1).toUpperCase()}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[12px] font-medium text-tx-1">
-                              {p.name}
-                            </p>
-                            {p.niche && (
-                              <p className="text-[10px] text-tx-3">{p.niche}</p>
-                            )}
-                          </div>
-                          {projectId === p.id && (
-                            <span className="text-accent">✓</span>
-                          )}
-                        </button>
-                      ))}
-                      {projects.length === 0 && (
-                        <p className="text-[11px] text-tx-3 px-2 py-1">
-                          Нет проектов
-                        </p>
-                      )}
-                    </div>
-                    <div className="border-t border-line mt-2 pt-2">
-                      {showCreateProject ? (
-                        <div className="space-y-2">
-                          <input
-                            value={newProjectName}
-                            onChange={(e) => setNewProjectName(e.target.value)}
-                            placeholder="Название проекта"
-                            className={inp}
-                            autoFocus
-                          />
-                          <input
-                            value={newProjectNiche}
-                            onChange={(e) => setNewProjectNiche(e.target.value)}
-                            placeholder="Ниша (необязательно)"
-                            className={inp}
-                          />
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => setShowCreateProject(false)}
-                              className="flex-1 py-1.5 border border-line rounded-[7px] text-[11px] text-tx-3 hover:bg-hover cursor-pointer"
-                            >
-                              Отмена
-                            </button>
-                            <button
-                              onClick={handleCreateProject}
-                              disabled={
-                                creatingProject || !newProjectName.trim()
-                              }
-                              className="flex-1 py-1.5 bg-accent text-on-accent rounded-[7px] text-[11px] font-medium cursor-pointer disabled:opacity-50"
-                            >
-                              {creatingProject ? "..." : "Создать"}
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setShowCreateProject(true)}
-                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-[7px] text-[11px] text-accent hover:bg-hover cursor-pointer"
-                        >
-                          <Plus size={13} /> Создать новый проект
-                        </button>
-                      )}
-                    </div>
-                  </Dropdown>
-                </div>
+            {/* Audience */}
+            <div>
+              <label className="block ui-label mb-1">Целевая аудитория</label>
+              <textarea
+                value={audience}
+                onChange={(e) => setAudience(e.target.value)}
+                placeholder="Возраст, интересы, гео..."
+                className={`${inp} resize-none h-12`}
+              />
+            </div>
 
-                <div>
-                  <label className="block ui-label mb-1">
-                    Клонировать кампанию
-                  </label>
-                  <Dropdown
-                    label="Выбрать существующую..."
-                    icon={<span>📋</span>}
-                    open={cloneOpen}
-                    onToggle={() => {
-                      setCloneOpen(!cloneOpen);
-                      setProjectOpen(false);
-                    }}
-                  >
-                    <div className="space-y-1 max-h-44 overflow-y-auto">
-                      {existingCampaigns.map((c: any) => (
-                        <button
-                          key={c.id}
-                          onClick={() => handleClone(c)}
-                          className="w-full flex items-center gap-3 px-3 py-2 rounded-[7px] cursor-pointer hover:bg-hover text-left"
-                        >
-                          <div className="flex gap-1 flex-shrink-0">
-                            {(c.platforms ?? [])
-                              .slice(0, 2)
-                              .map((pid: string) => {
-                                const pm = PLATFORM_META[pid];
-                                return pm ? (
-                                  <div
-                                    key={pid}
-                                    style={{
-                                      width: 18,
-                                      height: 13,
-                                      borderRadius: 2,
-                                      background: pm.color,
-                                      color: (pm as any).textColor ?? "#fff",
-                                      fontSize: 7,
-                                      fontWeight: 700,
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                    }}
-                                  >
-                                    {pm.abbr}
-                                  </div>
-                                ) : null;
-                              })}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[12px] font-medium text-tx-1 truncate">
-                              {c.name}
-                            </p>
-                            {c.goal && (
-                              <p className="text-[10px] text-tx-3">{c.goal}</p>
-                            )}
-                          </div>
-                        </button>
-                      ))}
-                      {existingCampaigns.length === 0 && (
-                        <p className="text-[11px] text-tx-3 px-2 py-1">
-                          Нет кампаний
-                        </p>
-                      )}
-                    </div>
-                  </Dropdown>
-                </div>
-
-                <div>
-                  <label className="block ui-label mb-2">Цель</label>
-                  <div className="flex gap-2 flex-wrap">
-                    {[
-                      "Продажи / заявки",
-                      "Трафик на сайт",
-                      "Охват",
-                      "Подписчики",
-                    ].map((g) => (
-                      <button
-                        key={g}
-                        onClick={() => setGoal(g)}
-                        className={`px-3 py-1.5 rounded-[7px] text-[11px] border cursor-pointer transition-colors ${goal === g ? "bg-accent text-on-accent border-accent" : "border-line text-tx-2 hover:bg-hover"}`}
-                      >
-                        {g}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block ui-label mb-1">
-                    О продукте — для AI
-                  </label>
-                  <textarea
-                    value={product}
-                    onChange={(e) => setProduct(e.target.value)}
-                    placeholder="Опишите продукт, преимущества, акции..."
-                    className={`${inp} resize-none h-16`}
-                  />
-                </div>
-
-                <div>
-                  <label className="block ui-label mb-1">
-                    Целевая аудитория
-                  </label>
-                  <textarea
-                    value={audience}
-                    onChange={(e) => setAudience(e.target.value)}
-                    placeholder="Возраст, интересы, гео..."
-                    className={`${inp} resize-none h-12`}
-                  />
-                </div>
-
-                <div>
-                  <label className="block ui-label mb-1">Бюджет (₽)</label>
-                  <input
-                    type="number"
-                    value={budget}
-                    onChange={(e) => setBudget(e.target.value)}
-                    placeholder="150000"
-                    className={inp}
-                  />
-                </div>
-              </>
-            )}
-
-            {genMode === "image" && (
-              <div className="space-y-4">
-                <div className="p-4 bg-panel-2 border border-line rounded-[9px]">
-                  <p className="text-[13px] font-semibold text-tx-1 mb-2">
-                    Генерация картинок
-                  </p>
-                  <p className="text-[11px] text-tx-2 leading-relaxed">
-                    Загрузите фото продукта — AI создаст баннеры под все форматы
-                    платформ.
-                    <br />
-                    Бренд-информацию AI возьмёт из вашего профиля автоматически.
-                  </p>
-                </div>
-                <input
-                  ref={imgRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => {
-                    const files = Array.from(e.target.files ?? []);
-                    files.forEach((f) => {
-                      const r = new FileReader();
-                      r.onload = (ev) =>
-                        setImagePreviews((p) => [
-                          ...p,
-                          ev.target?.result as string,
-                        ]);
-                      r.readAsDataURL(f);
-                    });
-                  }}
-                  style={{ display: "none" }}
-                />
-                <button
-                  onClick={() => imgRef.current?.click()}
-                  className="w-full py-10 border border-dashed border-line hover:border-line-strong rounded-[9px] flex flex-col items-center gap-3 cursor-pointer hover:bg-hover transition-colors"
-                >
-                  <span className="text-[36px]">📸</span>
-                  <span className="text-[12px] font-medium text-tx-1">
-                    Загрузите фото продукта
-                  </span>
-                </button>
-                {imagePreviews.length > 0 && (
-                  <div className="grid grid-cols-3 gap-2">
-                    {imagePreviews.map((src, i) => (
-                      <div key={i} className="relative">
-                        <img
-                          src={src}
-                          alt=""
-                          className="w-full h-20 object-cover rounded-[7px]"
-                        />
-                        <button
-                          onClick={() =>
-                            setImagePreviews((p) => p.filter((_, j) => j !== i))
-                          }
-                          className="absolute top-1 right-1 w-5 h-5 bg-black/60 text-white rounded-full flex items-center justify-center text-[9px] cursor-pointer"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div>
-                  <label className="block ui-label mb-1">
-                    Уточнение для AI
-                  </label>
-                  <textarea
-                    value={product}
-                    onChange={(e) => setProduct(e.target.value)}
-                    placeholder="Дополнительные детали..."
-                    className={`${inp} resize-none h-14`}
-                  />
-                </div>
-              </div>
-            )}
-
-            {genMode === "video" && (
-              <div className="space-y-4">
-                <div className="p-4 bg-panel-2 border border-line rounded-[9px]">
-                  <p className="text-[13px] font-semibold text-tx-1 mb-2">
-                    Генерация видео
-                  </p>
-                  <p className="text-[11px] text-tx-2 leading-relaxed">
-                    AI создаст видео для вашего продукта.
-                    <br />
-                    Бренд-информацию AI возьмёт из вашего профиля — если хотите
-                    добавить специфику, опишите ниже.
-                  </p>
-                </div>
-                <input
-                  ref={imgRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => {
-                    const files = Array.from(e.target.files ?? []);
-                    files.forEach((f) => {
-                      const r = new FileReader();
-                      r.onload = (ev) =>
-                        setImagePreviews((p) => [
-                          ...p,
-                          ev.target?.result as string,
-                        ]);
-                      r.readAsDataURL(f);
-                    });
-                  }}
-                  style={{ display: "none" }}
-                />
-                <button
-                  onClick={() => imgRef.current?.click()}
-                  className="w-full py-8 border border-dashed border-line hover:border-line-strong rounded-[9px] flex flex-col items-center gap-3 cursor-pointer hover:bg-hover"
-                >
-                  <span className="text-[36px]">🎬</span>
-                  <span className="text-[12px] font-medium text-tx-1">
-                    Загрузите фото (необязательно)
-                  </span>
-                </button>
-                {imagePreviews.length > 0 && (
-                  <div className="grid grid-cols-4 gap-2">
-                    {imagePreviews.map((src, i) => (
-                      <div key={i} className="relative">
-                        <img
-                          src={src}
-                          alt=""
-                          className="w-full h-16 object-cover rounded-[6px]"
-                        />
-                        <button
-                          onClick={() =>
-                            setImagePreviews((p) => p.filter((_, j) => j !== i))
-                          }
-                          className="absolute top-1 right-1 w-4 h-4 bg-black/60 text-white rounded-full flex items-center justify-center text-[8px] cursor-pointer"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div>
-                  <label className="block ui-label mb-1">
-                    Уточнение для AI
-                  </label>
-                  <textarea
-                    value={product}
-                    onChange={(e) => setProduct(e.target.value)}
-                    placeholder="Опишите стиль или идею..."
-                    className={`${inp} resize-none h-14`}
-                  />
-                </div>
-              </div>
-            )}
+            {/* Budget */}
+            <div>
+              <label className="block ui-label mb-1">Бюджет (₽)</label>
+              <input
+                type="number"
+                value={budget}
+                onChange={(e) => setBudget(e.target.value)}
+                placeholder="150000"
+                className={inp}
+              />
+            </div>
           </div>
 
-          {/* Right */}
+          {/* Right: project images */}
           <div>
-            {genMode === "text" && (
-              <div>
-                <label className="block ui-label mb-2">
-                  Фото продукта (для AI)
-                </label>
-                <input
-                  ref={productImgRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (!f) return;
-                    const r = new FileReader();
-                    r.onload = (ev) =>
-                      setProductImagePreview(ev.target?.result as string);
-                    r.readAsDataURL(f);
-                  }}
-                  style={{ display: "none" }}
-                />
-                {productImagePreview ? (
-                  <div className="relative">
-                    <img
-                      src={productImagePreview}
-                      alt=""
-                      className="w-full h-48 object-cover rounded-[9px]"
-                    />
-                    <button
-                      onClick={() => setProductImagePreview(null)}
-                      className="absolute top-2 right-2 w-7 h-7 bg-black/60 text-white rounded-full flex items-center justify-center text-[12px] cursor-pointer"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => productImgRef.current?.click()}
-                    className="w-full h-48 border border-dashed border-line hover:border-line-strong rounded-[9px] flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-hover transition-colors"
-                  >
-                    <span className="text-[36px]">📸</span>
-                    <span className="text-[12px] font-medium text-tx-1">
-                      Загрузите фото продукта
-                    </span>
-                    <span className="text-[10px] text-tx-3">
-                      AI создаст все форматы креативов
-                    </span>
-                  </button>
-                )}
-                <div className="mt-3 p-3 bg-chip/40 rounded-[8px] flex items-start gap-2">
-                  <span className="text-[14px]">✦</span>
-                  <p className="text-[11px] text-tx-2 leading-relaxed">
-                    <strong>AI готов</strong> — при запуске сгенерирует реальный
-                    текст для каждого типа поста на каждой платформе
-                  </p>
-                </div>
-              </div>
-            )}
+            <ProjectImagesPanel projectId={projectId} />
           </div>
 
           <div className="col-span-2 flex justify-end gap-2 pt-2 border-t border-line">
-            {genMode === "text" && (
-              <button
-                onClick={() => {
-                  if (!name.trim()) {
-                    setError("Введите название");
-                    return;
-                  }
-                  setError("");
-                  setStep(1);
-                }}
-                className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
-              >
-                Далее: Платформы →
-              </button>
-            )}
-            {(genMode === "image" || genMode === "video") && (
-              <button className="px-6 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer">
-                ✦ Сгенерировать {genMode === "image" ? "картинки" : "видео"}
-              </button>
-            )}
+            <button
+              onClick={() => {
+                if (!name.trim()) {
+                  setError("Введите название");
+                  return;
+                }
+                setError("");
+                setStep(1);
+              }}
+              className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
+            >
+              Далее: Платформы →
+            </button>
           </div>
         </div>
       )}
@@ -1733,27 +1692,45 @@ export function WizardView({
             </div>
           )}
 
-          <div className="flex justify-between pt-2">
+          <div className="flex justify-between items-center pt-2">
             <button
               onClick={() => setStep(1)}
               className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
             >
               ← Назад
             </button>
-            <button
-              onClick={() => {
-                if (generatedCreatives.length === 0) {
-                  setError("Сначала сгенерируйте креативы");
-                  return;
-                }
-                setError("");
-                setStep(3);
-              }}
-              className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
-            >
-              Далее: Запуск →
-            </button>
+            <div className="flex gap-2">
+              {generatedCreatives.length > 0 && (
+                <button
+                  onClick={() => setShowBulkSchedule(true)}
+                  className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer flex items-center gap-1.5"
+                >
+                  📅 Запланировать всё
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (generatedCreatives.length === 0) {
+                    setError("Сначала сгенерируйте креативы");
+                    return;
+                  }
+                  setError("");
+                  setStep(3);
+                }}
+                className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
+              >
+                Далее: Запуск →
+              </button>
+            </div>
           </div>
+
+          {showBulkSchedule && (
+            <BulkScheduleModal
+              creatives={generatedCreatives}
+              onClose={() => setShowBulkSchedule(false)}
+              onScheduled={() => setShowBulkSchedule(false)}
+            />
+          )}
         </div>
       )}
 
