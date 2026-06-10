@@ -575,12 +575,7 @@ function CampaignsPageInner() {
     "w-full px-3 py-2.5 rounded-[8px] border border-line text-[12px] outline-none focus:border-line-strong bg-panel text-tx-1 placeholder:text-tx-3";
 
   // Static tabs bar (no TabBar component — we inline it here without "Создать" duplicate)
-  const TABS_DEFS = [
-    { key: "campaigns", label: "Кампании", icon: "≡" },
-    { key: "creatives", label: "Креативы", icon: "⬡" },
-    { key: "reports", label: "Отчёты", icon: "◫" },
-    { key: "connect", label: "Подключения", icon: "⊕" },
-  ];
+  const TABS_DEFS = [{ key: "campaigns", label: "Кампании", icon: "≡" }];
 
   return (
     <div
