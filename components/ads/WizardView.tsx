@@ -60,22 +60,27 @@ const PLATFORM_SUBTYPES: Record<
   ],
 };
 
-const STORAGE_KEY = "wizard_draft_v5";
-function loadDraft() {
+const BASE_STORAGE_KEY = "wizard_draft_v5";
+function loadDraft(tabId?: string) {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
+    return JSON.parse(
+      localStorage.getItem(`${BASE_STORAGE_KEY}_${tabId ?? "0"}`) ?? "null",
+    );
   } catch {
     return null;
   }
 }
-function saveDraft(d: any) {
+function saveDraft(d: any, tabId?: string) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(d));
+    localStorage.setItem(
+      `${BASE_STORAGE_KEY}_${tabId ?? "0"}`,
+      JSON.stringify(d),
+    );
   } catch {}
 }
-function clearDraft() {
+function clearDraft(tabId?: string) {
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(`${BASE_STORAGE_KEY}_${tabId ?? "0"}`);
   } catch {}
 }
 
@@ -511,10 +516,12 @@ export function WizardView({
   onClose,
   projectId: defaultProjectId,
   onNameChange,
+  tabId,
 }: {
   onClose?: () => void;
   projectId?: string;
   onNameChange?: (name: string) => void;
+  tabId?: string;
 }) {
   const locale = useLocale();
   const router = useRouter();
@@ -523,7 +530,7 @@ export function WizardView({
   const createCampaign = useCreateAdCampaign();
   const createCreative = useCreateAdCreative();
 
-  const draft = loadDraft();
+  const draft = loadDraft(tabId);
 
   const [showBulkSchedule, setShowBulkSchedule] = useState(false);
   // genMode kept for backward compat but not shown in UI
@@ -732,18 +739,21 @@ export function WizardView({
     const subtypesSer = Object.fromEntries(
       Object.entries(selectedSubtypes).map(([k, v]) => [k, [...v]]),
     );
-    saveDraft({
-      genMode,
-      name,
-      goal,
-      product,
-      audience,
-      budget,
-      projectId,
-      platforms: [...selectedPlatforms],
-      subtypes: subtypesSer,
-      draftId,
-    });
+    saveDraft(
+      {
+        genMode,
+        name,
+        goal,
+        product,
+        audience,
+        budget,
+        projectId,
+        platforms: [...selectedPlatforms],
+        subtypes: subtypesSer,
+        draftId,
+      },
+      tabId,
+    );
     if (name) {
       setAutoSaved(true);
       const t = setTimeout(() => setAutoSaved(false), 1500);
@@ -1078,7 +1088,7 @@ export function WizardView({
 
       qc.invalidateQueries({ queryKey: ["ad_creatives"] });
       setGeneratedCreatives(allCreatives);
-      clearDraft();
+      clearDraft(tabId);
       setDraftId(null);
       setLaunchProgress("");
 

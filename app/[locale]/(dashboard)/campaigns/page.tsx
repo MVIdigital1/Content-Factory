@@ -785,6 +785,8 @@ function CampaignsPageInner() {
                   }}
                 >
                   <WizardView
+                    key={wt.id}
+                    tabId={wt.id}
                     onClose={() => closeWizardTab(wt.id)}
                     projectId={wt.projectId}
                     onNameChange={(name: string) =>
