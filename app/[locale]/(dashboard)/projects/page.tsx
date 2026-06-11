@@ -1,12 +1,38 @@
 "use client";
-
-import { useState } from "react";
-import Link from "next/link";
+import { Suspense, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
-import type { Project } from "@/lib/supabase/types";
-import { useTranslations } from "next-intl";
-import { ChevronDown, Pencil, Trash2, FolderOpen } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
+import Link from "next/link";
+
+type ProjectTab = { id: string; title: string };
+const TABS_KEY = "project_tabs_v1";
+const ACTIVE_KEY = "project_active_v1";
+function loadTabs(): ProjectTab[] {
+  try {
+    const d = localStorage.getItem(TABS_KEY);
+    if (d) return JSON.parse(d);
+  } catch {}
+  return [];
+}
+function saveTabs(t: ProjectTab[]) {
+  try {
+    localStorage.setItem(TABS_KEY, JSON.stringify(t));
+  } catch {}
+}
+function loadActiveId() {
+  try {
+    return localStorage.getItem(ACTIVE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+function saveActiveId(id: string) {
+  try {
+    localStorage.setItem(ACTIVE_KEY, id);
+  } catch {}
+}
 
 const NICHES = [
   "Товары для дома",
@@ -16,7 +42,20 @@ const NICHES = [
   "IT / Технологии",
   "Красота и уход",
   "Спорт",
+  "Образование",
+  "Услуги",
   "Другое",
+];
+const TONES = [
+  { value: "friendly", label: "Дружелюбный" },
+  { value: "professional", label: "Профессиональный" },
+  { value: "humorous", label: "Юмористический" },
+  { value: "formal", label: "Официальный" },
+];
+const LANGS = [
+  { value: "ru", label: "Русский" },
+  { value: "uz", label: "Узбекский" },
+  { value: "en", label: "English" },
 ];
 
 const EMPTY_FORM = {
@@ -26,598 +65,719 @@ const EMPTY_FORM = {
   audience: "",
   tone: "friendly",
   language: "ru",
-  stop_words: "",
   logo_url: "",
 };
 
-function CustomSelect({
-  value,
-  onChange,
-  options,
-  placeholder,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-  placeholder?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const selected = options.find((o) => o.value === value);
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full px-3 py-2.5 rounded-lg border border-line-strong text-sm text-left flex items-center justify-between bg-panel hover:border-accent outline-none transition-colors cursor-pointer"
-      >
-        <span className={selected ? "text-tx-1" : "text-tx-3"}>
-          {selected?.label || placeholder || "Выберите..."}
-        </span>
-        <ChevronDown
-          size={15}
-          className={`text-tx-3 transition-transform ${open ? "rotate-180" : ""}`}
-        />
-      </button>
-      {open && (
-        <div className="absolute z-50 w-full mt-1 bg-panel border border-line-strong rounded-lg shadow-lg overflow-hidden">
-          {placeholder && (
-            <button
-              type="button"
-              onClick={() => {
-                onChange("");
-                setOpen(false);
-              }}
-              className="w-full px-3 py-2 text-sm text-left text-tx-3 hover:bg-hover cursor-pointer"
-            >
-              {placeholder}
-            </button>
-          )}
-          {options.map((o) => (
-            <button
-              key={o.value}
-              type="button"
-              onClick={() => {
-                onChange(o.value);
-                setOpen(false);
-              }}
-              className={`w-full px-3 py-2 text-sm text-left hover:bg-accent-dim hover:text-accent cursor-pointer transition-colors ${value === o.value ? "bg-accent-dim text-accent font-medium" : "text-tx-1"}`}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function ProjectForm({
-  values,
-  setValues,
-  onSubmit,
-  onCancel,
-  isPending,
-  labels,
-  toneOptions,
-  langOptions,
-  nicheOptions,
+  tabId,
+  onSaved,
+  onNameChange,
 }: {
-  values: typeof EMPTY_FORM;
-  setValues: (fn: (p: typeof EMPTY_FORM) => typeof EMPTY_FORM) => void;
-  onSubmit: (e: React.FormEvent) => void;
-  onCancel: () => void;
-  isPending: boolean;
-  labels: Record<string, string>;
-  toneOptions: { value: string; label: string }[];
-  langOptions: { value: string; label: string }[];
-  nicheOptions: { value: string; label: string }[];
+  tabId: string;
+  onSaved?: () => void;
+  onNameChange?: (n: string) => void;
 }) {
-  const inputClass =
-    "w-full px-3 py-2.5 rounded-lg border border-line-strong text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors bg-panel";
-  return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-medium text-tx-2 mb-1.5">
-            {labels.name}
-          </label>
-          <input
-            value={values.name}
-            onChange={(e) => setValues((p) => ({ ...p, name: e.target.value }))}
-            placeholder={labels.namePlaceholder}
-            required
-            className={inputClass}
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-tx-2 mb-1.5">
-            {labels.niche}
-          </label>
-          <CustomSelect
-            value={values.niche}
-            onChange={(v) => setValues((p) => ({ ...p, niche: v }))}
-            options={nicheOptions}
-            placeholder={labels.nicheDefault}
-          />
-        </div>
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-tx-2 mb-1.5">
-          {labels.description}
-        </label>
-        <textarea
-          value={values.description}
-          onChange={(e) =>
-            setValues((p) => ({ ...p, description: e.target.value }))
-          }
-          placeholder={labels.descriptionPlaceholder}
-          rows={2}
-          className={`${inputClass} resize-none`}
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-tx-2 mb-1.5">
-          {labels.audience}
-        </label>
-        <input
-          value={values.audience}
-          onChange={(e) =>
-            setValues((p) => ({ ...p, audience: e.target.value }))
-          }
-          placeholder={labels.audiencePlaceholder}
-          className={inputClass}
-        />
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-medium text-tx-2 mb-1.5">
-            {labels.tone}
-          </label>
-          <CustomSelect
-            value={values.tone}
-            onChange={(v) => setValues((p) => ({ ...p, tone: v }))}
-            options={toneOptions}
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-tx-2 mb-1.5">
-            {labels.language}
-          </label>
-          <CustomSelect
-            value={values.language}
-            onChange={(v) => setValues((p) => ({ ...p, language: v }))}
-            options={langOptions}
-          />
-        </div>
-      </div>
-      {/* ← Новое поле: стоп-слова */}
-      <div>
-        <label className="block text-xs font-medium text-tx-2 mb-1.5">
-          Стоп-слова{" "}
-          <span className="text-tx-3 font-normal">
-            (Claude никогда не использует)
-          </span>
-        </label>
-        <input
-          value={values.stop_words}
-          onChange={(e) =>
-            setValues((p) => ({ ...p, stop_words: e.target.value }))
-          }
-          placeholder="скидка, акция, дешево — через запятую"
-          className={inputClass}
-        />
-      </div>
-      {/* Логотип */}
-      <div>
-        <label className="block text-xs font-medium text-tx-2 mb-1.5">
-          Логотип <span className="text-tx-3 font-normal">(URL картинки)</span>
-        </label>
-        <div className="flex gap-2 items-center">
-          {values.logo_url && (
-            <img
-              src={values.logo_url}
-              alt="logo"
-              className="w-9 h-9 rounded-lg object-cover border border-line-strong flex-shrink-0"
-              onError={(e) => (e.currentTarget.style.display = "none")}
-            />
-          )}
-          <input
-            value={values.logo_url}
-            onChange={(e) =>
-              setValues((p) => ({ ...p, logo_url: e.target.value }))
-            }
-            placeholder="https://example.com/logo.png"
-            className={inputClass}
-          />
-        </div>
-      </div>
-      <div className="flex gap-3 pt-1">
-        <button
-          type="submit"
-          disabled={isPending}
-          className="px-4 py-2 bg-accent hover:opacity-90 text-on-accent text-sm font-semibold rounded-lg transition-colors disabled:opacity-60 cursor-pointer"
-        >
-          {isPending ? labels.saving : labels.save}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 border border-line-strong text-tx-2 text-sm rounded-lg hover:bg-hover transition-colors cursor-pointer"
-        >
-          {labels.cancel}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-export default function ProjectsPage() {
   const supabase = createClient();
-  const queryClient = useQueryClient();
-  const t = useTranslations("projects");
-  const tones = useTranslations("tones");
-  const langs = useTranslations("langs");
+  const qc = useQueryClient();
+  const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const logoRef = { current: null as HTMLInputElement | null };
 
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [editForm, setEditForm] = useState(EMPTY_FORM);
-  const [errorDetail, setErrorDetail] = useState("");
+  useEffect(() => {
+    onNameChange?.(form.name);
+  }, [form.name]);
 
-  const TONES = [
-    { value: "friendly", label: tones("friendly") },
-    { value: "expert", label: tones("expert") },
-    { value: "viral", label: tones("viral") },
-    { value: "premium", label: tones("premium") },
-  ];
-  const LANGS = [
-    { value: "ru", label: langs("ru") },
-    { value: "uz", label: langs("uz") },
-    { value: "en", label: langs("en") },
-  ];
-  const NICHE_OPTIONS = NICHES.map((n) => ({ value: n, label: n }));
-
-  const FORM_LABELS = {
-    name: t("form.name"),
-    namePlaceholder: t("form.namePlaceholder"),
-    niche: t("form.niche"),
-    nicheDefault: t("form.nicheDefault"),
-    description: t("form.description"),
-    descriptionPlaceholder: t("form.descriptionPlaceholder"),
-    audience: t("form.audience"),
-    audiencePlaceholder: t("form.audiencePlaceholder"),
-    tone: t("form.tone"),
-    language: t("form.language"),
-    saving: t("form.saving"),
-    save: t("form.save"),
-    cancel: t("form.cancel"),
+  const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setLogoFile(f);
+    const r = new FileReader();
+    r.onload = (ev) => setLogoPreview(ev.target?.result as string);
+    r.readAsDataURL(f);
   };
 
-  const { data: projects, isLoading } = useQuery({
-    queryKey: ["projects"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .eq("is_active", true)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data as Project[];
-    },
-  });
-
-  // Мини-статистика + health score
-  const { data: contentStats } = useQuery({
-    queryKey: ["project-stats"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("contents")
-        .select("project_id, created_at")
-        .order("created_at", { ascending: false });
-      if (!data) return {};
-      const sevenDaysAgo = new Date(
-        Date.now() - 7 * 24 * 60 * 60 * 1000,
-      ).toISOString();
-      const stats: Record<
-        string,
-        { count: number; lastDate: string; thisWeek: number }
-      > = {};
-      data.forEach((c) => {
-        if (!stats[c.project_id])
-          stats[c.project_id] = {
-            count: 0,
-            lastDate: c.created_at,
-            thisWeek: 0,
-          };
-        stats[c.project_id].count++;
-        if (c.created_at >= sevenDaysAgo) stats[c.project_id].thisWeek++;
-      });
-      return stats;
-    },
-  });
-
-  const getHealthScore = (thisWeek: number) => {
-    if (thisWeek >= 5) return { label: "Активный", color: "text-accent" };
-    if (thisWeek >= 2) return { label: "Умеренный", color: "text-c-3" };
-    if (thisWeek >= 1) return { label: "Низкий", color: "text-c-3" };
-    return { label: "Неактивен", color: "text-neg" };
-  };
-
-  const createMutation = useMutation({
-    mutationFn: async (values: typeof EMPTY_FORM) => {
+  const handleSave = async () => {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Не авторизован");
-      const { error } = await supabase
+
+      let logo_url = form.logo_url;
+      if (logoFile) {
+        const ext = logoFile.name.split(".").pop();
+        const path = `logos/${user.id}/${Date.now()}.${ext}`;
+        const { data: ud, error: ue } = await supabase.storage
+          .from("content-images")
+          .upload(path, logoFile, { contentType: logoFile.type });
+        if (!ue && ud) {
+          const { data: urlD } = supabase.storage
+            .from("content-images")
+            .getPublicUrl(path);
+          logo_url = urlD.publicUrl;
+        }
+      }
+
+      await supabase.from("projects").insert({
+        user_id: user.id,
+        name: form.name.trim(),
+        niche: form.niche || null,
+        description: form.description || null,
+        audience: form.audience || null,
+        tone: form.tone,
+        language: form.language,
+        logo_url: logo_url || null,
+        is_active: true,
+        products: [],
+      });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["projects_selector"] });
+      setSaved(true);
+      setTimeout(() => {
+        setSaved(false);
+        onSaved?.();
+      }, 1500);
+    } catch (e: any) {
+      alert("Ошибка: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inp =
+    "w-full px-3 py-2.5 rounded-[8px] border border-line text-[12px] outline-none focus:border-line-strong bg-panel text-tx-1 placeholder:text-tx-3";
+  const f = (key: keyof typeof form, val: string) =>
+    setForm((p) => ({ ...p, [key]: val }));
+
+  return (
+    <div className="grid grid-cols-2 gap-6">
+      <div className="space-y-4">
+        {/* Logo */}
+        <div>
+          <label className="block ui-label mb-2">Логотип проекта</label>
+          <input
+            ref={(el) => {
+              logoRef.current = el;
+            }}
+            type="file"
+            accept="image/*"
+            onChange={handleLogoFile}
+            style={{ display: "none" }}
+          />
+          {logoPreview ? (
+            <div className="flex items-center gap-4">
+              <img
+                src={logoPreview}
+                alt=""
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: 12,
+                  objectFit: "cover",
+                }}
+              />
+              <div>
+                <button
+                  onClick={() => {
+                    setLogoFile(null);
+                    setLogoPreview(null);
+                  }}
+                  className="text-[11px] text-neg cursor-pointer"
+                  style={{ background: "none", border: "none" }}
+                >
+                  Удалить
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => logoRef.current?.click()}
+              className="w-full py-6 border border-dashed border-line hover:border-line-strong rounded-[9px] flex flex-col items-center gap-2 cursor-pointer hover:bg-hover transition-colors"
+            >
+              <span style={{ fontSize: 28 }}>📷</span>
+              <span className="text-[11px] text-tx-3">Загрузить логотип</span>
+            </button>
+          )}
+        </div>
+
+        {/* Name */}
+        <div>
+          <label className="block ui-label mb-1">Название *</label>
+          <input
+            value={form.name}
+            onChange={(e) => f("name", e.target.value)}
+            placeholder="Например: Пятый Элемент"
+            className={inp}
+          />
+        </div>
+
+        {/* Niche */}
+        <div>
+          <label className="block ui-label mb-2">Ниша</label>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {NICHES.map((n) => (
+              <button
+                key={n}
+                onClick={() => f("niche", n)}
+                className={`px-3 py-1.5 rounded-[7px] text-[11px] border cursor-pointer transition-colors ${form.niche === n ? "bg-accent text-on-accent border-accent" : "border-line text-tx-2 hover:bg-hover"}`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Tone */}
+        <div>
+          <label className="block ui-label mb-2">Тон коммуникации</label>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {TONES.map((t) => (
+              <button
+                key={t.value}
+                onClick={() => f("tone", t.value)}
+                className={`px-3 py-1.5 rounded-[7px] text-[11px] border cursor-pointer transition-colors ${form.tone === t.value ? "bg-accent text-on-accent border-accent" : "border-line text-tx-2 hover:bg-hover"}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Language */}
+        <div>
+          <label className="block ui-label mb-2">Язык</label>
+          <div style={{ display: "flex", gap: 6 }}>
+            {LANGS.map((l) => (
+              <button
+                key={l.value}
+                onClick={() => f("language", l.value)}
+                className={`px-4 py-1.5 rounded-[7px] text-[11px] border cursor-pointer transition-colors ${form.language === l.value ? "bg-accent text-on-accent border-accent" : "border-line text-tx-2 hover:bg-hover"}`}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {/* Description */}
+        <div>
+          <label className="block ui-label mb-1">
+            Описание бренда / продукта
+          </label>
+          <textarea
+            value={form.description}
+            onChange={(e) => f("description", e.target.value)}
+            placeholder="Чем занимается компания, что продаёт, какие ценности..."
+            className={`${inp} resize-none h-24`}
+          />
+        </div>
+
+        {/* Audience */}
+        <div>
+          <label className="block ui-label mb-1">Целевая аудитория</label>
+          <textarea
+            value={form.audience}
+            onChange={(e) => f("audience", e.target.value)}
+            placeholder="Возраст, интересы, география, боли и желания..."
+            className={`${inp} resize-none h-20`}
+          />
+        </div>
+
+        {/* AI tip */}
+        <div className="p-4 bg-chip/30 rounded-[10px] border border-line">
+          <div className="flex items-start gap-2">
+            <span style={{ fontSize: 16, flexShrink: 0 }}>✦</span>
+            <div>
+              <p className="text-[11px] font-semibold text-tx-1 mb-1">
+                Чем больше заполнишь — тем лучше AI
+              </p>
+              <p className="text-[10px] text-tx-3 leading-relaxed">
+                Описание и аудитория используются при генерации контента,
+                рекламных кампаний и рекомендаций агентов
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Save */}
+        <button
+          onClick={handleSave}
+          disabled={!form.name.trim() || saving}
+          className="w-full py-3 bg-accent text-on-accent text-[13px] font-semibold rounded-[9px] cursor-pointer hover:opacity-90 disabled:opacity-50 transition-opacity"
+        >
+          {saving
+            ? "⟳ Сохранение..."
+            : saved
+              ? "✓ Проект создан!"
+              : "📁 Создать проект"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ProjectsPageInner() {
+  const supabase = createClient();
+  const qc = useQueryClient();
+  const locale = useLocale();
+  const [tabs, setTabs] = useState<ProjectTab[]>(() =>
+    typeof window !== "undefined" ? loadTabs() : [],
+  );
+  const [activeId, setActiveId] = useState(() =>
+    typeof window !== "undefined" ? loadActiveId() : "",
+  );
+  const [view, setView] = useState<"list" | "create">("list");
+
+  useEffect(() => {
+    saveTabs(tabs);
+  }, [tabs]);
+  useEffect(() => {
+    saveActiveId(activeId);
+  }, [activeId]);
+
+  const { data: projects = [], isLoading } = useQuery({
+    queryKey: ["projects"],
+    queryFn: async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return [];
+      const { data } = await supabase
         .from("projects")
-        .insert({ ...values, user_id: user.id, products: [] });
-      if (error) throw new Error(`${error.code}: ${error.message}`);
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      return data ?? [];
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      setShowForm(false);
-      setForm(EMPTY_FORM);
-      setErrorDetail("");
-    },
-    onError: (error: any) => setErrorDetail(error.message),
   });
 
-  const updateMutation = useMutation({
-    mutationFn: async ({
-      id,
-      values,
-    }: {
-      id: string;
-      values: typeof EMPTY_FORM;
-    }) => {
-      const { error } = await supabase
-        .from("projects")
-        .update(values)
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      setEditingId(null);
-    },
-  });
-
-  const deleteMutation = useMutation({
+  const deleteProject = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("projects")
-        .update({ is_active: false })
-        .eq("id", id);
-      if (error) throw error;
+      await supabase.from("projects").update({ is_active: false }).eq("id", id);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["projects"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects"] }),
   });
 
-  const startEdit = (p: Project) => {
-    setEditingId(p.id);
-    setEditForm({
-      name: p.name,
-      niche: p.niche || "",
-      description: p.description || "",
-      audience: p.audience || "",
-      tone: p.tone || "friendly",
-      language: p.language || "ru",
-      stop_words: (p as any).stop_words || "",
-      logo_url: (p as any).logo_url || "",
+  const addTab = () => {
+    const id = String(Date.now());
+    setTabs((prev) => [...prev, { id, title: "Новый проект" }]);
+    setActiveId(id);
+    setView("create");
+  };
+
+  const closeTab = (id: string) => {
+    setTabs((prev) => {
+      const next = prev.filter((t) => t.id !== id);
+      if (activeId === id) {
+        setActiveId(next[next.length - 1]?.id ?? "");
+        if (next.length === 0) setView("list");
+      }
+      return next;
     });
   };
 
-  const getDaysAgo = (dateStr: string) => {
-    const diff = Date.now() - new Date(dateStr).getTime();
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    if (days === 0) return "сегодня";
-    if (days === 1) return "вчера";
-    return `${days} дн. назад`;
-  };
+  const updateTitle = (id: string, title: string) =>
+    setTabs((prev) =>
+      prev.map((t) =>
+        t.id === id ? { ...t, title: title || "Новый проект" } : t,
+      ),
+    );
+
+  const colors = [
+    "#4ABA74",
+    "#3B82F6",
+    "#8B5CF6",
+    "#F59E0B",
+    "#EF4444",
+    "#0088CC",
+    "#E1306C",
+  ];
+  const colorFor = (id: string) => colors[id.charCodeAt(0) % colors.length];
 
   return (
-    <div className="p-4 md:p-6 max-w-4xl w-full">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <div className="ui-label">Проекты</div>
-          <h1 className="text-[26px] font-semibold tracking-tight text-tx-1 mt-1.5">
-            {t("title")}
-          </h1>
-          <p className="text-[13px] text-tx-2 mt-1">{t("subtitle")}</p>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        overflow: "hidden",
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 14px",
+          height: 44,
+          borderBottom: "0.5px solid var(--line)",
+          background: "var(--panel)",
+          flexShrink: 0,
+        }}
+      >
+        <p style={{ fontSize: 11, color: "var(--tx-3)" }}>
+          Маркетинг /{" "}
+          <span style={{ color: "var(--tx-2)", fontWeight: 500 }}>Проекты</span>
+        </p>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button
+            onClick={() => setView("list")}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 8,
+              border: "0.5px solid var(--line)",
+              background: view === "list" ? "var(--chip)" : "transparent",
+              color: "var(--tx-2)",
+              fontSize: 12,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            Все проекты · {projects.length}
+          </button>
+          <button
+            onClick={addTab}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 8,
+              border: "none",
+              background: "var(--accent)",
+              color: "var(--on-accent)",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            + Новый проект
+          </button>
         </div>
-        <button
-          onClick={() => {
-            setShowForm(true);
-            setEditingId(null);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-accent hover:opacity-90 text-on-accent text-sm font-semibold rounded-lg transition-colors cursor-pointer"
-        >
-          {t("newProject")}
-        </button>
       </div>
 
-      {showForm && (
-        <div className="bg-panel rounded-xl border border-line-strong p-5 mb-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-tx-1">
-              {t("form.title")}
-            </h3>
-            <button
-              onClick={() => setShowForm(false)}
-              className="text-tx-3 hover:text-tx-2 text-lg cursor-pointer"
-            >
-              ×
-            </button>
-          </div>
-          {errorDetail && (
-            <div className="bg-chip border border-line rounded-lg px-3 py-2 text-sm text-neg mb-4">
-              <p className="font-medium">{t("form.error")}</p>
-              <p className="text-xs mt-1 font-mono">{errorDetail}</p>
-            </div>
-          )}
-          <ProjectForm
-            values={form}
-            setValues={setForm}
-            onSubmit={(e) => {
-              e.preventDefault();
-              setErrorDetail("");
-              createMutation.mutate(form);
+      {/* Browser tabs (create mode) */}
+      {view === "create" && tabs.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+            padding: "6px 14px 0",
+            borderBottom: "0.5px solid var(--line)",
+            background: "var(--panel)",
+            overflowX: "auto",
+            flexShrink: 0,
+          }}
+        >
+          {tabs.map((tab) => {
+            const active = tab.id === activeId;
+            return (
+              <div
+                key={tab.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 12px 7px",
+                  borderRadius: "8px 8px 0 0",
+                  background: active ? "var(--bg)" : "var(--panel-2)",
+                  border: `0.5px solid ${active ? "var(--line)" : "transparent"}`,
+                  borderBottom: active ? "1px solid var(--bg)" : "none",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                  marginBottom: active ? -1 : 0,
+                }}
+                onClick={() => {
+                  setActiveId(tab.id);
+                  saveActiveId(tab.id);
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: active ? 500 : 400,
+                    color: active ? "var(--tx-1)" : "var(--tx-3)",
+                    whiteSpace: "nowrap",
+                    maxWidth: 160,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {tab.title}
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeTab(tab.id);
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "var(--tx-3)",
+                    fontSize: 13,
+                    padding: "0 2px",
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            );
+          })}
+          <button
+            onClick={addTab}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 26,
+              height: 26,
+              borderRadius: 7,
+              border: "0.5px solid var(--line)",
+              background: "transparent",
+              cursor: "pointer",
+              color: "var(--tx-3)",
+              fontSize: 16,
+              flexShrink: 0,
+              marginLeft: 2,
             }}
-            onCancel={() => setShowForm(false)}
-            isPending={createMutation.isPending}
-            labels={FORM_LABELS}
-            toneOptions={TONES}
-            langOptions={LANGS}
-            nicheOptions={NICHE_OPTIONS}
-          />
+          >
+            +
+          </button>
         </div>
       )}
 
-      {isLoading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="bg-panel rounded-xl border border-line p-4 animate-pulse"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-chip rounded-lg" />
-                <div className="flex-1">
-                  <div className="h-4 bg-chip rounded w-1/3 mb-2" />
-                  <div className="h-3 bg-chip rounded w-1/2" />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : projects && projects.length > 0 ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {projects.map((p) => {
-            const stats = contentStats?.[p.id];
-            const health = getHealthScore(stats?.thisWeek || 0);
-            if (editingId === p.id)
-              return (
-                <div
-                  key={p.id}
-                  className="col-span-2 md:col-span-3 lg:col-span-4 bg-panel rounded-xl border border-line-strong p-5 shadow-sm"
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-tx-1">
-                      Редактировать проект
-                    </h3>
-                    <button
-                      onClick={() => setEditingId(null)}
-                      className="text-tx-3 hover:text-tx-2 cursor-pointer text-lg"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <ProjectForm
-                    values={editForm}
-                    setValues={setEditForm}
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      updateMutation.mutate({ id: p.id, values: editForm });
-                    }}
-                    onCancel={() => setEditingId(null)}
-                    isPending={updateMutation.isPending}
-                    labels={FORM_LABELS}
-                    toneOptions={TONES}
-                    langOptions={LANGS}
-                    nicheOptions={NICHE_OPTIONS}
-                  />
-                </div>
-              );
-            return (
+      {/* Content */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
+        {/* List view */}
+        {view === "list" && (
+          <div>
+            {isLoading && (
               <div
-                key={p.id}
-                className="bg-panel rounded-2xl border border-line overflow-hidden hover:border-accent hover:shadow-md transition-all group"
+                style={{
+                  textAlign: "center",
+                  padding: 40,
+                  color: "var(--tx-3)",
+                  fontSize: 12,
+                }}
               >
-                {/* Кликабельная карточка */}
-                <Link href={`/projects/${p.id}`} className="block p-4">
-                  {/* Лого / аватар проекта */}
-                  <div className="w-14 h-14 rounded-2xl bg-accent-dim flex items-center justify-center text-2xl mb-3 overflow-hidden border border-line">
-                    {(p as any).logo_url ? (
+                Загрузка...
+              </div>
+            )}
+            {!isLoading && projects.length === 0 && (
+              <div className="ui-surface flex flex-col items-center py-16 text-center">
+                <div style={{ fontSize: 48, marginBottom: 14 }}>📁</div>
+                <p className="text-[16px] font-semibold text-tx-1 mb-2">
+                  Нет проектов
+                </p>
+                <p className="text-[12px] text-tx-3 mb-5 max-w-[280px] leading-relaxed">
+                  Создайте первый проект — он станет основой для кампаний и
+                  контента
+                </p>
+                <button
+                  onClick={addTab}
+                  style={{
+                    padding: "10px 24px",
+                    borderRadius: 9,
+                    background: "var(--accent)",
+                    color: "var(--on-accent)",
+                    border: "none",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  + Создать проект
+                </button>
+              </div>
+            )}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3,1fr)",
+                gap: 14,
+              }}
+            >
+              {projects.map((p: any) => (
+                <div key={p.id} className="ui-surface p-4">
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      marginBottom: 12,
+                    }}
+                  >
+                    {p.logo_url ? (
                       <img
-                        src={(p as any).logo_url}
-                        alt={p.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
+                        src={p.logo_url}
+                        alt=""
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: 10,
+                          objectFit: "cover",
+                          flexShrink: 0,
                         }}
                       />
                     ) : (
-                      <span>
-                        {p.name[0]?.toUpperCase() || (
-                          <FolderOpen size={16} className="opacity-70" />
-                        )}
-                      </span>
+                      <div
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: 10,
+                          background: colorFor(p.id),
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#fff",
+                          fontSize: 18,
+                          fontWeight: 700,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {p.name.slice(0, 1).toUpperCase()}
+                      </div>
                     )}
-                  </div>
-                  <p className="text-sm font-semibold text-tx-1 truncate mb-0.5">
-                    {p.name}
-                  </p>
-                  <p className="text-[10px] text-tx-3 truncate mb-3">
-                    {p.niche || "Без ниши"}
-                  </p>
-                  {/* Мини статистика */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-lg font-bold text-tx-1">
-                        {stats?.count || 0}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p className="text-[14px] font-semibold text-tx-1 truncate">
+                        {p.name}
                       </p>
-                      <p className="text-[10px] text-tx-3">постов</p>
-                    </div>
-                    <div className="text-right">
-                      <p className={`text-[10px] font-medium ${health.color}`}>
-                        {health.label}
-                      </p>
-                      {stats && (
-                        <p className="text-[9px] text-tx-3">
-                          {getDaysAgo(stats.lastDate)}
+                      {p.niche && (
+                        <p className="text-[11px] text-tx-3 mt-0.5">
+                          {p.niche}
                         </p>
                       )}
                     </div>
                   </div>
-                </Link>
-                {/* Кнопки действий */}
-                <div className="px-4 pb-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => startEdit(p)}
-                    className="flex-1 py-1.5 text-[10px] font-medium border border-line-strong rounded-lg text-tx-2 hover:bg-hover cursor-pointer inline-flex items-center justify-center gap-1"
-                  >
-                    <Pencil size={11} /> Изменить
-                  </button>
-                  <button
-                    onClick={() => deleteMutation.mutate(p.id)}
-                    disabled={deleteMutation.isPending}
-                    className="px-2.5 py-1.5 text-[10px] border border-line rounded-lg text-neg hover:bg-hover cursor-pointer inline-flex items-center"
-                  >
-                    <Trash2 size={12} />
-                  </button>
+                  {p.description && (
+                    <p className="text-[11px] text-tx-2 leading-relaxed mb-3 line-clamp-2">
+                      {p.description}
+                    </p>
+                  )}
+                  {p.audience && (
+                    <div
+                      style={{
+                        padding: "6px 10px",
+                        background: "var(--panel-2)",
+                        borderRadius: 7,
+                        marginBottom: 10,
+                      }}
+                    >
+                      <p className="ui-label mb-1">Аудитория</p>
+                      <p className="text-[11px] text-tx-2 line-clamp-1">
+                        {p.audience}
+                      </p>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <Link
+                      href={`/${locale}/projects/${p.id}`}
+                      style={{
+                        flex: 1,
+                        padding: "7px",
+                        borderRadius: 7,
+                        border: "0.5px solid var(--line)",
+                        background: "transparent",
+                        color: "var(--tx-2)",
+                        fontSize: 11,
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        textAlign: "center",
+                        textDecoration: "none",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      Открыть
+                    </Link>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Удалить «${p.name}»?`))
+                          deleteProject.mutate(p.id);
+                      }}
+                      style={{
+                        padding: "7px 10px",
+                        borderRadius: 7,
+                        border: "0.5px solid var(--line)",
+                        background: "transparent",
+                        color: "var(--neg)",
+                        fontSize: 11,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      🗑
+                    </button>
+                  </div>
                 </div>
+              ))}
+              <div
+                onClick={addTab}
+                className="border border-dashed border-line hover:border-line-strong rounded-[10px] flex flex-col items-center justify-center cursor-pointer transition-colors min-h-[180px]"
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.borderColor = "var(--accent)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.borderColor = "var(--line)")
+                }
+              >
+                <span
+                  style={{
+                    fontSize: 28,
+                    color: "var(--tx-3)",
+                    marginBottom: 8,
+                  }}
+                >
+                  +
+                </span>
+                <p className="text-[11px] text-tx-3">Новый проект</p>
               </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="text-center py-16 bg-panel rounded-xl border border-line">
-          <div className="w-12 h-12 rounded-2xl bg-accent-dim flex items-center justify-center mb-3 mx-auto">
-            <FolderOpen size={22} className="text-accent" strokeWidth={1.6} />
+            </div>
           </div>
-          <p className="text-sm font-medium text-tx-1 mb-1">
-            {t("empty.title")}
-          </p>
-          <p className="text-sm text-tx-3 mb-4">{t("empty.subtitle")}</p>
-          <button
-            onClick={() => setShowForm(true)}
-            className="px-4 py-2 bg-accent text-on-accent text-sm font-semibold rounded-lg hover:opacity-90 transition-colors cursor-pointer"
-          >
-            {t("empty.btn")}
-          </button>
-        </div>
-      )}
+        )}
+
+        {/* Create view */}
+        {view === "create" && (
+          <div>
+            {tabs.map((tab) => (
+              <div
+                key={tab.id}
+                style={{ display: tab.id === activeId ? "block" : "none" }}
+              >
+                <ProjectForm
+                  key={tab.id}
+                  tabId={tab.id}
+                  onNameChange={(n) => updateTitle(tab.id, n)}
+                  onSaved={() => {
+                    setView("list");
+                    closeTab(tab.id);
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
+  );
+}
+
+export default function ProjectsPage() {
+  return (
+    <Suspense>
+      <ProjectsPageInner />
+    </Suspense>
   );
 }
