@@ -520,10 +520,14 @@ function CampaignsPageInner() {
 
   const addWizardTab = () => {
     const id = String(Date.now());
+    // Clear any stale draft for this new tab id
+    try {
+      localStorage.removeItem(`wizard_draft_v5_${id}`);
+    } catch {}
     const newTab: WizardTab = { id, title: "Новая кампания" };
     setWizardTabs((prev) => [...prev, newTab]);
     setActiveWizardId(id);
-    // Show project selector for new tab
+    saveActiveId(id);
     pendingTabId.current = id;
     setShowProjectSelector(true);
   };

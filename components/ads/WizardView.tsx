@@ -535,7 +535,7 @@ export function WizardView({
   const [showBulkSchedule, setShowBulkSchedule] = useState(false);
   // genMode kept for backward compat but not shown in UI
   const [genMode] = useState<"text" | "image" | "video">("text");
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(draft?.step ?? 0);
   const [name, setName] = useState(draft?.name ?? "");
 
   const handleNameChange = (value: string) => {
@@ -751,6 +751,7 @@ export function WizardView({
         platforms: [...selectedPlatforms],
         subtypes: subtypesSer,
         draftId,
+        step,
       },
       tabId,
     );
@@ -769,6 +770,7 @@ export function WizardView({
     projectId,
     selectedPlatforms,
     selectedSubtypes,
+    step,
   ]);
 
   // Auto-create draft in DB when name is entered
@@ -876,9 +878,8 @@ export function WizardView({
     setProjectOpen(false);
     const p = projects.find((p: any) => p.id === pid) as any;
     if (!p) return;
-    if (p.description && !product) setProduct(p.description);
-    if (p.audience && !audience) setAudience(p.audience);
-    // Reset old recs and generate new
+    // Don't autofill fields — just generate AI recommendations
+    // Reset old recs and generate new ones for this project
     setProjectRecs([]);
     generateProjectRecs(p);
   };
@@ -1933,47 +1934,137 @@ export function WizardView({
                 ✕
               </button>
             </div>
-            <div className="space-y-3">
-              <p className="text-[11px] text-tx-3 bg-panel-2 border border-line rounded-[8px] p-3 leading-relaxed">
-                Введите токен доступа от рекламного кабинета. Токен можно
-                получить в настройках API платформы.
-              </p>
-              <div>
-                <label className="block ui-label mb-1">Access Token</label>
-                <input
-                  value={tokenInput}
-                  onChange={(e) => setTokenInput(e.target.value)}
-                  placeholder="Вставьте токен..."
-                  className={inp}
-                />
+            {connectModal === "instagram" ? (
+              <div className="space-y-3">
+                <p className="text-[11px] text-tx-3 bg-panel-2 border border-line rounded-[8px] p-3 leading-relaxed">
+                  Instagram подключается через официальный OAuth. Нужен Business
+                  или Creator аккаунт.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setConnectModal(null)}
+                    className="flex-1 py-2.5 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    onClick={() => {
+                      const appId =
+                        process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID ?? "";
+                      const redirectUri =
+                        process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI ?? "";
+                      const params = new URLSearchParams({
+                        client_id: appId,
+                        redirect_uri: redirectUri,
+                        scope:
+                          "instagram_business_basic,instagram_business_content_publish",
+                        response_type: "code",
+                      });
+                      window.location.href = `https://www.instagram.com/oauth/authorize?${params}`;
+                    }}
+                    style={{ background: "#E1306C" }}
+                    className="flex-1 py-2.5 text-white text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer border-none"
+                  >
+                    Подключить через Instagram
+                  </button>
+                </div>
               </div>
-              <div>
-                <label className="block ui-label mb-1">
-                  ID кабинета (необязательно)
-                </label>
-                <input
-                  value={accountIdInput}
-                  onChange={(e) => setAccountIdInput(e.target.value)}
-                  placeholder="account_12345"
-                  className={inp}
-                />
+            ) : connectModal === "telegram" ? (
+              <div className="space-y-3">
+                <p className="text-[11px] text-tx-3 bg-panel-2 border border-line rounded-[8px] p-3 leading-relaxed">
+                  Добавь бота{" "}
+                  <strong className="text-tx-1">
+                    @{process.env.NEXT_PUBLIC_BOT_USERNAME || "postcentro_bot"}
+                  </strong>{" "}
+                  как администратора канала, затем введи username
+                </p>
+                <div>
+                  <label className="block ui-label mb-1">Username канала</label>
+                  <input
+                    value={tokenInput}
+                    onChange={(e) => setTokenInput(e.target.value)}
+                    placeholder="@mychannel"
+                    className={inp}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setConnectModal(null)}
+                    className="flex-1 py-2.5 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!tokenInput.trim()) return;
+                      setConnectingPlatform(true);
+                      try {
+                        const res = await fetch("/api/telegram/add-channel", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            channelUsername: tokenInput.replace("@", ""),
+                          }),
+                        });
+                        if (res.ok) {
+                          await refetchPlatforms();
+                          setConnectModal(null);
+                          setTokenInput("");
+                        }
+                      } finally {
+                        setConnectingPlatform(false);
+                      }
+                    }}
+                    disabled={connectingPlatform}
+                    className="flex-1 py-2.5 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] cursor-pointer disabled:opacity-50"
+                  >
+                    {connectingPlatform ? "..." : "Добавить"}
+                  </button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setConnectModal(null)}
-                  className="flex-1 py-2.5 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
-                >
-                  Отмена
-                </button>
-                <button
-                  onClick={handleConnectPlatform}
-                  disabled={connectingPlatform}
-                  className="flex-1 py-2.5 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-50"
-                >
-                  {connectingPlatform ? "Подключение..." : "Подключить"}
-                </button>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-[11px] text-tx-3 bg-panel-2 border border-line rounded-[8px] p-3 leading-relaxed">
+                  Введите токен доступа от рекламного кабинета. Токен можно
+                  получить в настройках API платформы.
+                </p>
+                <div>
+                  <label className="block ui-label mb-1">Access Token</label>
+                  <input
+                    value={tokenInput}
+                    onChange={(e) => setTokenInput(e.target.value)}
+                    placeholder="Вставьте токен..."
+                    className={inp}
+                  />
+                </div>
+                <div>
+                  <label className="block ui-label mb-1">
+                    ID кабинета (необязательно)
+                  </label>
+                  <input
+                    value={accountIdInput}
+                    onChange={(e) => setAccountIdInput(e.target.value)}
+                    placeholder="account_12345"
+                    className={inp}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setConnectModal(null)}
+                    className="flex-1 py-2.5 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    onClick={handleConnectPlatform}
+                    disabled={connectingPlatform}
+                    className="flex-1 py-2.5 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-50"
+                  >
+                    {connectingPlatform ? "Подключение..." : "Подключить"}
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}

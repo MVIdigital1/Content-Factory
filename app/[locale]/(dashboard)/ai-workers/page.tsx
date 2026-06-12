@@ -6,14 +6,14 @@ import { useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 
 type AgentTab = { id: string; title: string; projectId?: string };
-const TABS_KEY = "agent_tabs_v1";
-const ACTIVE_KEY = "agent_active_v1";
+const TABS_KEY = "agent_tabs_v2";
+const ACTIVE_KEY = "agent_active_v2";
 function loadTabs(): AgentTab[] {
   try {
     const d = localStorage.getItem(TABS_KEY);
     if (d) return JSON.parse(d);
   } catch {}
-  return [{ id: "1", title: "Новый агент" }];
+  return [{ id: "all", title: "Все агенты" }];
 }
 function saveTabs(t: AgentTab[]) {
   try {
@@ -22,9 +22,9 @@ function saveTabs(t: AgentTab[]) {
 }
 function loadActiveId() {
   try {
-    return localStorage.getItem(ACTIVE_KEY) ?? "1";
+    return localStorage.getItem(ACTIVE_KEY) ?? "all";
   } catch {
-    return "1";
+    return "all";
   }
 }
 function saveActiveId(id: string) {
@@ -38,40 +38,42 @@ const AGENT_TYPES = [
     value: "smm",
     label: "SMM менеджер",
     icon: "📱",
-    desc: "Создаёт и публикует контент в соцсетях",
+    desc: "Создаёт и публикует контент",
   },
   {
     value: "copywriter",
     label: "Копирайтер",
     icon: "✍️",
-    desc: "Пишет тексты, заголовки, описания",
+    desc: "Пишет тексты, заголовки",
   },
   {
     value: "analyst",
     label: "Аналитик",
     icon: "📊",
-    desc: "Анализирует данные и даёт рекомендации",
+    desc: "Анализирует данные",
   },
   {
     value: "support",
-    label: "Поддержка клиентов",
+    label: "Поддержка",
     icon: "💬",
-    desc: "Отвечает на вопросы и обращения",
+    desc: "Отвечает на вопросы",
   },
   {
     value: "ads",
     label: "Рекламщик",
     icon: "📣",
-    desc: "Оптимизирует рекламные кампании",
+    desc: "Оптимизирует кампании",
   },
-  {
-    value: "custom",
-    label: "Свой тип",
-    icon: "⚙️",
-    desc: "Настрой под любую задачу",
-  },
+  { value: "custom", label: "Свой тип", icon: "⚙️", desc: "Любая задача" },
 ];
-
+const AGENT_TYPE_LABELS: Record<string, string> = {
+  smm: "SMM менеджер",
+  copywriter: "Копирайтер",
+  analyst: "Аналитик",
+  support: "Поддержка",
+  ads: "Рекламщик",
+  custom: "Свой тип",
+};
 const COMMANDS_PRESETS: Record<string, string[]> = {
   smm: [
     "Публикуй 3 поста в неделю",
@@ -86,7 +88,7 @@ const COMMANDS_PRESETS: Record<string, string[]> = {
   analyst: [
     "Собирай метрики каждый понедельник",
     "Сравнивай с прошлым периодом",
-    "Выявляй аномалии в данных",
+    "Выявляй аномалии",
   ],
   support: [
     "Отвечай на вопросы в течение 1 часа",
@@ -336,12 +338,10 @@ function AgentForm({
   tabId,
   projectId,
   onNameChange,
-  onClose,
 }: {
   tabId: string;
   projectId?: string;
   onNameChange?: (n: string) => void;
-  onClose?: () => void;
 }) {
   const supabase = createClient();
   const qc = useQueryClient();
@@ -353,15 +353,37 @@ function AgentForm({
   const [autoMode, setAutoMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [nameError, setNameError] = useState("");
 
-  // Load presets when type changes
+  // Duplicate check
+  const { data: existingNames = [] } = useQuery({
+    queryKey: ["agent_names"],
+    queryFn: async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return [];
+      const { data } = await supabase
+        .from("ai_agents")
+        .select("name")
+        .eq("user_id", user.id);
+      return (data ?? []).map((a: any) => a.name.toLowerCase().trim());
+    },
+  });
+
   useEffect(() => {
     setCommands(COMMANDS_PRESETS[agentType] ?? []);
   }, [agentType]);
-
   useEffect(() => {
     onNameChange?.(agentName);
   }, [agentName]);
+
+  const handleNameChange = (val: string) => {
+    setAgentName(val);
+    if (existingNames.includes(val.toLowerCase().trim()))
+      setNameError("Агент с таким именем уже существует");
+    else setNameError("");
+  };
 
   const addCommand = () => {
     if (!newCommand.trim()) return;
@@ -370,14 +392,14 @@ function AgentForm({
   };
 
   const handleSave = async () => {
-    if (!agentName.trim()) return;
+    if (!agentName.trim() || nameError) return;
     setSaving(true);
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Не авторизован");
-      await supabase.from("ai_agents").upsert({
+      await supabase.from("ai_agents").insert({
         user_id: user.id,
         name: agentName,
         type: agentType,
@@ -388,6 +410,7 @@ function AgentForm({
         created_at: new Date().toISOString(),
       });
       qc.invalidateQueries({ queryKey: ["ai_agents"] });
+      qc.invalidateQueries({ queryKey: ["agent_names"] });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e: any) {
@@ -403,7 +426,6 @@ function AgentForm({
   return (
     <div className="grid grid-cols-2 gap-6">
       <div className="space-y-4">
-        {/* Agent type */}
         <div>
           <label className="block ui-label mb-2">Тип агента</label>
           <div className="grid grid-cols-2 gap-2">
@@ -428,19 +450,18 @@ function AgentForm({
             ))}
           </div>
         </div>
-
-        {/* Name */}
         <div>
           <label className="block ui-label mb-1">Имя агента *</label>
           <input
             value={agentName}
-            onChange={(e) => setAgentName(e.target.value)}
+            onChange={(e) => handleNameChange(e.target.value)}
             placeholder="Например: SMM Помощник Влад"
-            className={inp}
+            className={`${inp} ${nameError ? "border-neg" : ""}`}
           />
+          {nameError && (
+            <p className="text-[10px] text-neg mt-1">{nameError}</p>
+          )}
         </div>
-
-        {/* Description */}
         <div>
           <label className="block ui-label mb-1">Описание / роль</label>
           <textarea
@@ -450,15 +471,13 @@ function AgentForm({
             className={`${inp} resize-none h-20`}
           />
         </div>
-
-        {/* Auto mode */}
         <div className="flex items-center justify-between p-3 bg-panel-2 border border-line rounded-[9px]">
           <div>
             <p className="text-[12px] font-medium text-tx-1">
               Автоматический режим
             </p>
             <p className="text-[10px] text-tx-3 mt-0.5">
-              Агент работает без подтверждения каждого действия
+              Работает без подтверждения каждого действия
             </p>
           </div>
           <button
@@ -491,14 +510,12 @@ function AgentForm({
           </button>
         </div>
       </div>
-
       <div className="space-y-4">
-        {/* Commands */}
         <div>
           <label className="block ui-label mb-2">
             Команды — что должен делать агент
           </label>
-          <div className="space-y-2 mb-3 max-h-64 overflow-y-auto">
+          <div className="space-y-2 mb-3 max-h-56 overflow-y-auto">
             {commands.map((cmd, i) => (
               <div
                 key={i}
@@ -512,7 +529,7 @@ function AgentForm({
                   onClick={() =>
                     setCommands((prev) => prev.filter((_, j) => j !== i))
                   }
-                  className="text-tx-3 hover:text-neg cursor-pointer text-[12px] flex-shrink-0"
+                  className="text-tx-3 hover:text-neg cursor-pointer text-[12px]"
                   style={{ background: "none", border: "none" }}
                 >
                   ✕
@@ -520,7 +537,7 @@ function AgentForm({
               </div>
             ))}
             {commands.length === 0 && (
-              <div className="text-center py-6 text-tx-3 text-[11px] border border-dashed border-line rounded-[8px]">
+              <div className="text-center py-5 text-tx-3 text-[11px] border border-dashed border-line rounded-[8px]">
                 Нет команд — добавьте ниже
               </div>
             )}
@@ -552,8 +569,6 @@ function AgentForm({
             </button>
           </div>
         </div>
-
-        {/* AI capabilities */}
         <div className="p-4 bg-chip/30 border border-line rounded-[10px]">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-[16px]">✦</span>
@@ -561,52 +576,30 @@ function AgentForm({
               Возможности агента
             </p>
           </div>
-          <div className="space-y-2">
-            {[
-              {
-                icon: "📝",
-                label: "Генерация контента",
-                desc: "Пишет посты, тексты, сценарии",
-              },
-              {
-                icon: "📊",
-                label: "Аналитика",
-                desc: "Читает метрики и делает выводы",
-              },
-              {
-                icon: "📅",
-                label: "Планирование",
-                desc: "Создаёт расписание публикаций",
-              },
-              {
-                icon: "🔔",
-                label: "Уведомления",
-                desc: "Оповещает о важных событиях",
-              },
-            ].map((cap) => (
-              <div key={cap.label} className="flex items-center gap-3">
-                <span className="text-[14px]">{cap.icon}</span>
-                <div>
-                  <p className="text-[11px] font-medium text-tx-1">
-                    {cap.label}
-                  </p>
-                  <p className="text-[9px] text-tx-3">{cap.desc}</p>
-                </div>
+          {[
+            { icon: "📝", l: "Генерация контента", d: "Пишет посты, тексты" },
+            { icon: "📊", l: "Аналитика", d: "Читает метрики" },
+            { icon: "📅", l: "Планирование", d: "Создаёт расписание" },
+            { icon: "🔔", l: "Уведомления", d: "Оповещает о событиях" },
+          ].map((c) => (
+            <div key={c.l} className="flex items-center gap-3 mb-2">
+              <span className="text-[14px]">{c.icon}</span>
+              <div>
+                <p className="text-[11px] font-medium text-tx-1">{c.l}</p>
+                <p className="text-[9px] text-tx-3">{c.d}</p>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
-
-        {/* Save */}
         <button
           onClick={handleSave}
-          disabled={!agentName.trim() || saving}
+          disabled={!agentName.trim() || !!nameError || saving}
           className="w-full py-3 bg-accent text-on-accent text-[13px] font-semibold rounded-[9px] cursor-pointer hover:opacity-90 disabled:opacity-50 transition-opacity"
         >
           {saving
             ? "⟳ Сохранение..."
             : saved
-              ? "✓ Сохранено!"
+              ? "✓ Агент создан!"
               : "🤖 Создать агента"}
         </button>
       </div>
@@ -616,17 +609,20 @@ function AgentForm({
 
 function AIWorkersPageInner() {
   const supabase = createClient();
+  const qc = useQueryClient();
   const pendingTabId = { current: null as string | null };
-  const [tabs, setTabs] = useState<AgentTab[]>(() =>
-    typeof window !== "undefined"
-      ? loadTabs()
-      : [{ id: "1", title: "Новый агент" }],
-  );
+  const [tabs, setTabs] = useState<AgentTab[]>(() => {
+    if (typeof window === "undefined")
+      return [{ id: "all", title: "Все агенты" }];
+    const loaded = loadTabs();
+    if (!loaded.find((t) => t.id === "all"))
+      return [{ id: "all", title: "Все агенты" }, ...loaded];
+    return loaded;
+  });
   const [activeId, setActiveId] = useState(() =>
-    typeof window !== "undefined" ? loadActiveId() : "1",
+    typeof window !== "undefined" ? loadActiveId() : "all",
   );
   const [showProjectSelector, setShowProjectSelector] = useState(false);
-  const [view, setView] = useState<"list" | "create">("list");
 
   useEffect(() => {
     saveTabs(tabs);
@@ -651,20 +647,32 @@ function AIWorkersPageInner() {
     },
   });
 
+  const deleteAgent = useMutation({
+    mutationFn: async (id: string) => {
+      await supabase
+        .from("ai_agents")
+        .update({ is_active: false })
+        .eq("id", id);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ai_agents"] }),
+  });
+
   const addTab = () => {
     const id = String(Date.now());
     setTabs((prev) => [...prev, { id, title: "Новый агент" }]);
     setActiveId(id);
-    setView("create");
     pendingTabId.current = id;
     setShowProjectSelector(true);
   };
 
   const closeTab = (id: string) => {
+    if (id === "all") return;
     setTabs((prev) => {
       const next = prev.filter((t) => t.id !== id);
-      if (next.length === 0) return [{ id: "1", title: "Новый агент" }];
-      if (activeId === id) setActiveId(next[next.length - 1].id);
+      if (activeId === id) {
+        setActiveId("all");
+        saveActiveId("all");
+      }
       return next;
     });
   };
@@ -685,23 +693,6 @@ function AIWorkersPageInner() {
         t.id === id ? { ...t, title: title || "Новый агент" } : t,
       ),
     );
-
-  const AGENT_TYPE_ICONS: Record<string, string> = {
-    smm: "📱",
-    copywriter: "✍️",
-    analyst: "📊",
-    support: "💬",
-    ads: "📣",
-    custom: "⚙️",
-  };
-  const AGENT_TYPE_LABELS: Record<string, string> = {
-    smm: "SMM менеджер",
-    copywriter: "Копирайтер",
-    analyst: "Аналитик",
-    support: "Поддержка",
-    ads: "Рекламщик",
-    custom: "Свой тип",
-  };
 
   return (
     <div
@@ -731,150 +722,140 @@ function AIWorkersPageInner() {
             AI-агенты
           </span>
         </p>
-        <div style={{ display: "flex", gap: 6 }}>
-          <button
-            onClick={() => setView("list")}
-            style={{
-              padding: "6px 14px",
-              borderRadius: 8,
-              border: "0.5px solid var(--line)",
-              background: view === "list" ? "var(--chip)" : "transparent",
-              color: "var(--tx-2)",
-              fontSize: 12,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            Мои агенты · {agents.length}
-          </button>
-          <button
-            onClick={addTab}
-            style={{
-              padding: "6px 14px",
-              borderRadius: 8,
-              border: "none",
-              background: "var(--accent)",
-              color: "var(--on-accent)",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            + Создать агента
-          </button>
-        </div>
+        <button
+          onClick={addTab}
+          style={{
+            padding: "6px 14px",
+            borderRadius: 8,
+            border: "none",
+            background: "var(--accent)",
+            color: "var(--on-accent)",
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
+          + Создать агента
+        </button>
       </div>
 
-      {/* Browser tabs (only when creating) */}
-      {view === "create" && (
-        <div
+      {/* Browser tabs - always visible */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 2,
+          padding: "6px 14px 0",
+          borderBottom: "0.5px solid var(--line)",
+          background: "var(--panel)",
+          overflowX: "auto",
+          flexShrink: 0,
+        }}
+      >
+        {tabs.map((tab) => {
+          const active = tab.id === activeId;
+          return (
+            <div
+              key={tab.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 12px 7px",
+                borderRadius: "8px 8px 0 0",
+                background: active ? "var(--bg)" : "var(--panel-2)",
+                border: `0.5px solid ${active ? "var(--line)" : "transparent"}`,
+                borderBottom: active ? "1px solid var(--bg)" : "none",
+                cursor: "pointer",
+                flexShrink: 0,
+                marginBottom: active ? -1 : 0,
+              }}
+              onClick={() => {
+                setActiveId(tab.id);
+                saveActiveId(tab.id);
+              }}
+            >
+              {tab.id === "all" && <span style={{ fontSize: 10 }}>🤖</span>}
+              {tab.projectId && tab.id !== "all" && (
+                <div
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: "var(--accent)",
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: active ? 500 : 400,
+                  color: active ? "var(--tx-1)" : "var(--tx-3)",
+                  whiteSpace: "nowrap",
+                  maxWidth: 160,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {tab.title}
+              </span>
+              {tab.id !== "all" && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeTab(tab.id);
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "var(--tx-3)",
+                    fontSize: 13,
+                    padding: "0 2px",
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          );
+        })}
+        <button
+          onClick={addTab}
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 2,
-            padding: "6px 14px 0",
-            borderBottom: "0.5px solid var(--line)",
-            background: "var(--panel)",
-            overflowX: "auto",
+            justifyContent: "center",
+            width: 26,
+            height: 26,
+            borderRadius: 7,
+            border: "0.5px solid var(--line)",
+            background: "transparent",
+            cursor: "pointer",
+            color: "var(--tx-3)",
+            fontSize: 16,
             flexShrink: 0,
+            marginLeft: 2,
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background = "var(--hover)";
+            (e.currentTarget as HTMLElement).style.color = "var(--tx-1)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = "transparent";
+            (e.currentTarget as HTMLElement).style.color = "var(--tx-3)";
           }}
         >
-          {tabs.map((tab) => {
-            const active = tab.id === activeId;
-            return (
-              <div
-                key={tab.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "6px 12px 7px",
-                  borderRadius: "8px 8px 0 0",
-                  background: active ? "var(--bg)" : "var(--panel-2)",
-                  border: `0.5px solid ${active ? "var(--line)" : "transparent"}`,
-                  borderBottom: active ? "1px solid var(--bg)" : "none",
-                  cursor: "pointer",
-                  flexShrink: 0,
-                  marginBottom: active ? -1 : 0,
-                }}
-                onClick={() => {
-                  setActiveId(tab.id);
-                  saveActiveId(tab.id);
-                }}
-              >
-                {tab.projectId && (
-                  <div
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: "var(--accent)",
-                      flexShrink: 0,
-                    }}
-                  />
-                )}
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: active ? 500 : 400,
-                    color: active ? "var(--tx-1)" : "var(--tx-3)",
-                    whiteSpace: "nowrap",
-                    maxWidth: 160,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {tab.title}
-                </span>
-                {tabs.length > 1 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      closeTab(tab.id);
-                    }}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      color: "var(--tx-3)",
-                      fontSize: 13,
-                      padding: "0 2px",
-                    }}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            );
-          })}
-          <button
-            onClick={addTab}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 26,
-              height: 26,
-              borderRadius: 7,
-              border: "0.5px solid var(--line)",
-              background: "transparent",
-              cursor: "pointer",
-              color: "var(--tx-3)",
-              fontSize: 16,
-              flexShrink: 0,
-              marginLeft: 2,
-            }}
-          >
-            +
-          </button>
-        </div>
-      )}
+          +
+        </button>
+      </div>
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
-        {/* List view */}
-        {view === "list" && (
+        {/* All agents */}
+        {activeId === "all" && (
           <div>
             {agents.length === 0 ? (
               <div className="ui-surface flex flex-col items-center py-16 text-center">
@@ -884,7 +865,6 @@ function AIWorkersPageInner() {
                 </p>
                 <p className="text-[12px] text-tx-3 mb-5 max-w-[280px] leading-relaxed">
                   Создайте агента который будет автоматически выполнять задачи
-                  для вашего проекта
                 </p>
                 <button
                   onClick={addTab}
@@ -934,7 +914,8 @@ function AIWorkersPageInner() {
                           flexShrink: 0,
                         }}
                       >
-                        {AGENT_TYPE_ICONS[a.type] ?? "🤖"}
+                        {AGENT_TYPES.find((t) => t.value === a.type)?.icon ??
+                          "🤖"}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p className="text-[13px] font-semibold text-tx-1 truncate">
@@ -952,7 +933,6 @@ function AIWorkersPageInner() {
                           background: a.is_active
                             ? "var(--pos)"
                             : "var(--line)",
-                          flexShrink: 0,
                         }}
                       />
                     </div>
@@ -994,7 +974,9 @@ function AIWorkersPageInner() {
                         )}
                       </div>
                     )}
-                    <div style={{ display: "flex", gap: 6 }}>
+                    <div
+                      style={{ display: "flex", gap: 6, alignItems: "center" }}
+                    >
                       <span
                         style={{
                           fontSize: 9,
@@ -1009,6 +991,25 @@ function AIWorkersPageInner() {
                       >
                         {a.is_active ? "● Активен" : "○ Не активен"}
                       </span>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Удалить агента «${a.name}»?`))
+                            deleteAgent.mutate(a.id);
+                        }}
+                        style={{
+                          marginLeft: "auto",
+                          padding: "4px 8px",
+                          borderRadius: 6,
+                          border: "0.5px solid var(--line)",
+                          background: "transparent",
+                          color: "var(--neg)",
+                          fontSize: 10,
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        🗑
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -1038,23 +1039,24 @@ function AIWorkersPageInner() {
           </div>
         )}
 
-        {/* Create view */}
-        {view === "create" && (
+        {/* Create agent tabs */}
+        {activeId !== "all" && (
           <div>
-            {tabs.map((tab) => (
-              <div
-                key={tab.id}
-                style={{ display: tab.id === activeId ? "block" : "none" }}
-              >
-                <AgentForm
+            {tabs
+              .filter((t) => t.id !== "all")
+              .map((tab) => (
+                <div
                   key={tab.id}
-                  tabId={tab.id}
-                  projectId={tab.projectId}
-                  onNameChange={(n) => updateTitle(tab.id, n)}
-                  onClose={() => closeTab(tab.id)}
-                />
-              </div>
-            ))}
+                  style={{ display: tab.id === activeId ? "block" : "none" }}
+                >
+                  <AgentForm
+                    key={tab.id}
+                    tabId={tab.id}
+                    projectId={tab.projectId}
+                    onNameChange={(n) => updateTitle(tab.id, n)}
+                  />
+                </div>
+              ))}
           </div>
         )}
       </div>

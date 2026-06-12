@@ -468,8 +468,13 @@ function CreatePageInner() {
 
   const addTab = () => {
     const id = String(Date.now());
+    // Clear any old draft for this tab id to start fresh
+    try {
+      localStorage.removeItem(`wizard_draft_v5_content_${id}`);
+    } catch {}
     setTabs((prev) => [...prev, { id, title: "Новый контент" }]);
     setActiveId(id);
+    saveActiveId(id);
     pendingTabId.current = id;
     setShowProjectSelector(true);
   };
