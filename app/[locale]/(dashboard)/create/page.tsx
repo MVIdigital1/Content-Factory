@@ -1215,58 +1215,58 @@ function CreateContentPageInner() {
     setError("");
     const allPosts: Post[] = [];
 
-    // Telegram posts via our API
-    for (const ch of tgChannels) {
+    // Telegram — our new route that reads from publish_logs + real stats
+    if (tgChannels.length > 0) {
       try {
-        const res = await fetch(
-          `/api/telegram/posts?channelId=${ch.channel_id}&limit=20`,
-        );
+        const res = await fetch(`/api/telegram/posts?limit=30`);
         if (res.ok) {
           const data = await res.json();
           const mapped: Post[] = (data.messages ?? []).map((m: any) => ({
             id: `tg_${m.id}`,
             platform: "telegram" as const,
-            text: m.text ?? m.caption ?? "",
-            image_url: m.photo_url,
-            date: new Date(m.date * 1000).toISOString(),
+            text: m.text ?? "",
+            image_url: m.image_url ?? null,
+            date: m.date,
             views: m.views ?? 0,
-            shares: m.forwards ?? 0,
+            shares: m.shares ?? 0,
             reactions: m.reactions ?? {},
-            url: `https://t.me/${ch.channel_name}/${m.id}`,
+            url: m.url ?? null,
+            type: "post" as const,
           }));
           allPosts.push(...mapped);
         }
-      } catch {}
+      } catch (e) {
+        console.error("Telegram posts error:", e);
+      }
     }
 
-    // Instagram posts via our API
-    for (const ig of igChannels) {
+    // Instagram — our new route that reads from Instagram Graph API
+    if (igChannels.length > 0) {
       try {
-        const res = await fetch(
-          `/api/instagram/posts?accountId=${ig.channel_id}&limit=20`,
-        );
+        const res = await fetch(`/api/instagram/posts?limit=30`);
         if (res.ok) {
           const data = await res.json();
           const mapped: Post[] = (data.data ?? []).map((m: any) => ({
             id: `ig_${m.id}`,
             platform: "instagram" as const,
-            text: m.caption ?? "",
-            image_url: m.media_url ?? m.thumbnail_url,
-            date: m.timestamp,
-            likes: m.like_count ?? 0,
-            comments: m.comments_count ?? 0,
-            views: m.video_view_count ?? undefined,
-            saves: m.saved_count ?? undefined,
-            reach: m.reach ?? undefined,
-            type: m.media_type?.toLowerCase(),
-            url: m.permalink,
+            text: m.text ?? "",
+            image_url: m.image_url ?? null,
+            date: m.date,
+            likes: m.likes ?? 0,
+            comments: m.comments ?? 0,
+            saves: m.saves ?? 0,
+            reach: m.reach ?? 0,
+            type: (m.type ?? "post") as any,
+            url: m.url ?? null,
           }));
           allPosts.push(...mapped);
         }
-      } catch {}
+      } catch (e) {
+        console.error("Instagram posts error:", e);
+      }
     }
 
-    // Sort by date
+    // Sort by date newest first
     allPosts.sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
@@ -1275,8 +1275,11 @@ function CreateContentPageInner() {
       allPosts.length === 0 &&
       (tgChannels.length > 0 || igChannels.length > 0)
     ) {
-      setError("Не удалось загрузить посты. Проверьте подключение платформ.");
+      setError(
+        "Постов не найдено. Опубликуйте хотя бы один пост через PostCentro чтобы он появился здесь.",
+      );
     }
+
     setPosts(allPosts);
     setLoadingPosts(false);
   };
