@@ -458,6 +458,10 @@ function CreatePageInner() {
     typeof window !== "undefined" ? loadActiveId() : "1",
   );
   const [showProjectSelector, setShowProjectSelector] = useState(false);
+  const [closeConfirm, setCloseConfirm] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
 
   useEffect(() => {
     saveTabs(tabs);
@@ -468,7 +472,6 @@ function CreatePageInner() {
 
   const addTab = () => {
     const id = String(Date.now());
-    // Clear any old draft for this tab id to start fresh
     try {
       localStorage.removeItem(`wizard_draft_v5_content_${id}`);
     } catch {}
@@ -479,13 +482,39 @@ function CreatePageInner() {
     setShowProjectSelector(true);
   };
 
-  const closeTab = (id: string) => {
+  const tabHasData = (id: string) => {
+    try {
+      const d = JSON.parse(
+        localStorage.getItem(`wizard_draft_v5_content_${id}`) ?? "null",
+      );
+      return (
+        d &&
+        (d.name?.trim() || d.product?.trim() || (d.platforms?.length ?? 0) > 0)
+      );
+    } catch {
+      return false;
+    }
+  };
+
+  const forceCloseTab = (id: string) => {
     setTabs((prev) => {
       const next = prev.filter((t) => t.id !== id);
       if (next.length === 0) return [{ id: "1", title: "Новый контент" }];
-      if (activeId === id) setActiveId(next[next.length - 1].id);
+      if (activeId === id) {
+        setActiveId(next[next.length - 1].id);
+        saveActiveId(next[next.length - 1].id);
+      }
       return next;
     });
+  };
+
+  const tryCloseTab = (id: string) => {
+    const tab = tabs.find((t) => t.id === id);
+    if (tabHasData(id)) {
+      setCloseConfirm({ id, title: tab?.title ?? "Новый контент" });
+    } else {
+      forceCloseTab(id);
+    }
   };
 
   const handleProjectSelected = (pid: string, pname: string) => {
@@ -566,7 +595,7 @@ function CreatePageInner() {
           }
         }}
         onAdd={addTab}
-        onClose={closeTab}
+        onClose={tryCloseTab}
       />
 
       <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
@@ -579,7 +608,7 @@ function CreatePageInner() {
               key={tab.id}
               tabId={`content_${tab.id}`}
               projectId={tab.projectId}
-              onClose={() => closeTab(tab.id)}
+              onClose={() => tryCloseTab(tab.id)}
               onNameChange={(n: string) => updateTitle(tab.id, n)}
             />
           </div>
@@ -594,6 +623,126 @@ function CreatePageInner() {
             pendingTabId.current = null;
           }}
         />
+      )}
+
+      {closeConfirm && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 200,
+            background: "rgba(0,0,0,0.4)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              background: "var(--panel)",
+              border: "0.5px solid var(--line)",
+              borderRadius: 16,
+              width: "100%",
+              maxWidth: 380,
+              padding: 24,
+              boxShadow: "0 24px 60px rgba(0,0,0,0.25)",
+            }}
+          >
+            <div
+              style={{ fontSize: 36, textAlign: "center", marginBottom: 12 }}
+            >
+              💾
+            </div>
+            <p
+              style={{
+                fontSize: 15,
+                fontWeight: 700,
+                color: "var(--tx-1)",
+                textAlign: "center",
+                marginBottom: 6,
+              }}
+            >
+              Сохранить контент?
+            </p>
+            <p
+              style={{
+                fontSize: 12,
+                color: "var(--tx-3)",
+                textAlign: "center",
+                marginBottom: 24,
+                lineHeight: 1.5,
+              }}
+            >
+              «{closeConfirm.title}» содержит данные. Сохранить в черновик или
+              удалить?
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button
+                onClick={() => {
+                  setCloseConfirm(null);
+                  forceCloseTab(closeConfirm.id);
+                }}
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "var(--accent)",
+                  color: "var(--on-accent)",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                💾 Сохранить в черновик
+              </button>
+              <button
+                onClick={() => {
+                  try {
+                    localStorage.removeItem(
+                      `wizard_draft_v5_content_${closeConfirm.id}`,
+                    );
+                  } catch {}
+                  setCloseConfirm(null);
+                  forceCloseTab(closeConfirm.id);
+                }}
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  borderRadius: 10,
+                  border: "0.5px solid var(--line)",
+                  background: "transparent",
+                  color: "var(--neg)",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                🗑 Удалить
+              </button>
+              <button
+                onClick={() => setCloseConfirm(null)}
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "transparent",
+                  color: "var(--tx-3)",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

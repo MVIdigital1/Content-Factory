@@ -362,6 +362,10 @@ function ProjectsPageInner() {
   );
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [search, setSearch] = useState("");
+  const [closeConfirm, setCloseConfirm] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
 
   useEffect(() => {
     saveTabs(tabs);
@@ -446,8 +450,8 @@ function ProjectsPageInner() {
     setActiveId(id);
   };
 
-  const closeTab = (id: string) => {
-    if (id === "all") return; // can't close "all" tab
+  const forceCloseTab = (id: string) => {
+    if (id === "all") return;
     setTabs((prev) => {
       const next = prev.filter((t) => t.id !== id);
       if (activeId === id) {
@@ -457,6 +461,19 @@ function ProjectsPageInner() {
       return next;
     });
   };
+
+  const tryCloseTab = (id: string) => {
+    if (id === "all") return;
+    const tab = tabs.find((t) => t.id === id);
+    // Has data if title was changed from default
+    if (tab && tab.title !== "Новый проект") {
+      setCloseConfirm({ id, title: tab.title });
+    } else {
+      forceCloseTab(id);
+    }
+  };
+
+  const closeTab = tryCloseTab;
 
   const updateTitle = (id: string, title: string) =>
     setTabs((prev) =>
@@ -1179,7 +1196,7 @@ function ProjectsPageInner() {
                     onSaved={() => {
                       setActiveId("all");
                       saveActiveId("all");
-                      closeTab(tab.id);
+                      forceCloseTab(tab.id);
                     }}
                   />
                 </div>
@@ -1187,6 +1204,102 @@ function ProjectsPageInner() {
           </div>
         )}
       </div>
+
+      {closeConfirm && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 200,
+            background: "rgba(0,0,0,0.4)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              background: "var(--panel)",
+              border: "0.5px solid var(--line)",
+              borderRadius: 16,
+              width: "100%",
+              maxWidth: 380,
+              padding: 24,
+              boxShadow: "0 24px 60px rgba(0,0,0,0.25)",
+            }}
+          >
+            <div
+              style={{ fontSize: 36, textAlign: "center", marginBottom: 12 }}
+            >
+              💾
+            </div>
+            <p
+              style={{
+                fontSize: 15,
+                fontWeight: 700,
+                color: "var(--tx-1)",
+                textAlign: "center",
+                marginBottom: 6,
+              }}
+            >
+              Сохранить проект?
+            </p>
+            <p
+              style={{
+                fontSize: 12,
+                color: "var(--tx-3)",
+                textAlign: "center",
+                marginBottom: 24,
+                lineHeight: 1.5,
+              }}
+            >
+              «{closeConfirm.title}» не был сохранён. Продолжить создание или
+              закрыть?
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button
+                onClick={() => setCloseConfirm(null)}
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "var(--accent)",
+                  color: "var(--on-accent)",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                ← Вернуться к созданию
+              </button>
+              <button
+                onClick={() => {
+                  setCloseConfirm(null);
+                  forceCloseTab(closeConfirm.id);
+                }}
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  borderRadius: 10,
+                  border: "0.5px solid var(--line)",
+                  background: "transparent",
+                  color: "var(--neg)",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                🗑 Закрыть без сохранения
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

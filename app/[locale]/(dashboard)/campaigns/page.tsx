@@ -493,6 +493,12 @@ function CampaignsPageInner() {
   // Which tab is waiting for project selection
   const pendingTabId = useRef<string | null>(null);
 
+  // Close confirm modal
+  const [closeConfirm, setCloseConfirm] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+
   // Save tabs to localStorage whenever they change
   useEffect(() => {
     saveTabs(wizardTabs);
@@ -532,7 +538,48 @@ function CampaignsPageInner() {
     setShowProjectSelector(true);
   };
 
-  const closeWizardTab = (id: string) => {
+  // Check if tab has any data worth saving
+  const tabHasData = (id: string) => {
+    try {
+      const d = JSON.parse(
+        localStorage.getItem(`wizard_draft_v5_${id}`) ?? "null",
+      );
+      return (
+        d &&
+        (d.name?.trim() || d.product?.trim() || (d.platforms?.length ?? 0) > 0)
+      );
+    } catch {
+      return false;
+    }
+  };
+
+  // Try to close tab — show confirm if has data
+  const tryCloseWizardTab = (id: string) => {
+    const tab = wizardTabs.find((t) => t.id === id);
+    if (tabHasData(id)) {
+      setCloseConfirm({ id, title: tab?.title ?? "Новая кампания" });
+    } else {
+      forceCloseWizardTab(id);
+    }
+  };
+
+  // Save draft and close
+  const saveDraftAndClose = (id: string) => {
+    // Draft is already auto-saved to Supabase via WizardView — just close
+    setCloseConfirm(null);
+    forceCloseWizardTab(id);
+  };
+
+  // Delete and close (clear localStorage)
+  const deleteAndClose = (id: string) => {
+    try {
+      localStorage.removeItem(`wizard_draft_v5_${id}`);
+    } catch {}
+    setCloseConfirm(null);
+    forceCloseWizardTab(id);
+  };
+
+  const forceCloseWizardTab = (id: string) => {
     setWizardTabs((prev) => {
       const next = prev.filter((t) => t.id !== id);
       if (next.length === 0) {
@@ -764,7 +811,7 @@ function CampaignsPageInner() {
             }
           }}
           onAdd={addWizardTab}
-          onClose={closeWizardTab}
+          onClose={tryCloseWizardTab}
         />
       )}
 
@@ -791,7 +838,7 @@ function CampaignsPageInner() {
                   <WizardView
                     key={wt.id}
                     tabId={wt.id}
-                    onClose={() => closeWizardTab(wt.id)}
+                    onClose={() => tryCloseWizardTab(wt.id)}
                     projectId={wt.projectId}
                     onNameChange={(name: string) =>
                       updateWizardTabTitle(wt.id, name)
@@ -817,6 +864,116 @@ function CampaignsPageInner() {
             pendingTabId.current = null;
           }}
         />
+      )}
+
+      {/* Close confirm modal */}
+      {closeConfirm && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 200,
+            background: "rgba(0,0,0,0.4)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              background: "var(--panel)",
+              border: "0.5px solid var(--line)",
+              borderRadius: 16,
+              width: "100%",
+              maxWidth: 380,
+              padding: 24,
+              boxShadow: "0 24px 60px rgba(0,0,0,0.25)",
+            }}
+          >
+            <div
+              style={{ fontSize: 36, textAlign: "center", marginBottom: 12 }}
+            >
+              💾
+            </div>
+            <p
+              style={{
+                fontSize: 15,
+                fontWeight: 700,
+                color: "var(--tx-1)",
+                textAlign: "center",
+                marginBottom: 6,
+              }}
+            >
+              Сохранить кампанию?
+            </p>
+            <p
+              style={{
+                fontSize: 12,
+                color: "var(--tx-3)",
+                textAlign: "center",
+                marginBottom: 24,
+                lineHeight: 1.5,
+              }}
+            >
+              «{closeConfirm.title}» содержит данные. Сохранить в черновик или
+              удалить?
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button
+                onClick={() => saveDraftAndClose(closeConfirm.id)}
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "var(--accent)",
+                  color: "var(--on-accent)",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                💾 Сохранить в черновик
+              </button>
+              <button
+                onClick={() => deleteAndClose(closeConfirm.id)}
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  borderRadius: 10,
+                  border: "0.5px solid var(--line)",
+                  background: "transparent",
+                  color: "var(--neg)",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                🗑 Удалить
+              </button>
+              <button
+                onClick={() => setCloseConfirm(null)}
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "transparent",
+                  color: "var(--tx-3)",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
