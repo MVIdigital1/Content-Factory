@@ -135,6 +135,8 @@ async function generateCreativeContent(params: {
   goal: string;
   audience: string;
   projectName: string;
+  projectNiche?: string;
+  existingPosts?: string[];
 }): Promise<{ title: string; caption: string; hook?: string }> {
   const platformNames: Record<string, string> = {
     telegram: "Telegram",
@@ -159,33 +161,48 @@ async function generateCreativeContent(params: {
     banner: "баннер",
   };
 
-  const prompt = `Создай ${subtypeNames[params.subtype] ?? params.subtype} для платформы ${platformNames[params.platform] ?? params.platform}.
+  const nicheContext = params.projectNiche
+    ? `\nНиша: ${params.projectNiche}`
+    : "";
+  const postsContext = params.existingPosts?.length
+    ? `\n\nПримеры успешных постов этого бренда для вдохновения:\n${params.existingPosts
+        .slice(0, 3)
+        .map((p, i) => `${i + 1}. ${p.slice(0, 200)}`)
+        .join("\n")}`
+    : "";
 
-Продукт/бизнес: ${params.product || params.projectName}
+  const prompt = `Ты эксперт SMM. Создай ${subtypeNames[params.subtype] ?? params.subtype} для платформы ${platformNames[params.platform] ?? params.platform}.
+
+Продукт/бизнес: ${params.product || params.projectName}${nicheContext}
 Цель кампании: ${params.goal}
-Целевая аудитория: ${params.audience || "широкая аудитория"}
+Целевая аудитория: ${params.audience || "широкая аудитория"}${postsContext}
 
-Требования:
+Проанализируй стиль бренда из примеров выше (если есть) и создай пост в том же стиле.
+
+Требования для ${platformNames[params.platform]}:
+${params.platform === "instagram" ? "- Используй эмодзи умеренно\n- Хештеги в конце\n- Длина 100-200 слов" : ""}
+${params.platform === "telegram" ? "- Форматирование с эмодзи в начале строк\n- Длина 150-300 слов\n- CTA в конце" : ""}
 - Заголовок (title): короткий, цепляющий, до 10 слов
-- Хук (hook): первое предложение которое останавливает прокрутку
-- Текст (caption): полный текст поста/объявления с CTA
+- Хук (hook): первое предложение которое ОСТАНАВЛИВАЕТ прокрутку
+- Текст (caption): полный текст поста с призывом к действию
 
 Отвечай ТОЛЬКО в JSON формате без markdown:
-{"title":"...","hook":"...","caption":"..."}`;
+{"title":"...","hook":"...","caption":"..."}\``;
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
+      max_tokens: 1200,
+      tools: [{ type: "web_search_20250305", name: "web_search" }],
       messages: [{ role: "user", content: prompt }],
     }),
   });
 
   if (!response.ok) throw new Error("API error");
   const data = await response.json();
-  const text = data.content?.[0]?.text ?? "{}";
+  const text = data.content?.find((c: any) => c.type === "text")?.text ?? "{}";
   try {
     const clean = text.replace(/```json|```/g, "").trim();
     return JSON.parse(clean);
@@ -538,20 +555,9 @@ export function WizardView({
   const [step, setStep] = useState(draft?.step ?? 0);
   const [name, setName] = useState(draft?.name ?? "");
 
-  const [nameError, setNameError] = useState("");
-
   const handleNameChange = (value: string) => {
     setName(value);
     onNameChange?.(value);
-    // Duplicate check against existing campaigns
-    const isDuplicate = existingCampaigns.some(
-      (c: any) =>
-        c.name.toLowerCase().trim() === value.toLowerCase().trim() &&
-        c.id !== draftId,
-    );
-    setNameError(
-      isDuplicate ? "Кампания с таким названием уже существует" : "",
-    );
   };
   const [goal, setGoal] = useState(draft?.goal ?? "Продажи / заявки");
   const [product, setProduct] = useState(draft?.product ?? "");
@@ -1069,6 +1075,18 @@ export function WizardView({
       qc.invalidateQueries({ queryKey: ["ad_campaigns"] });
 
       // Save already generated creatives to DB (don't regenerate)
+      // Fetch existing posts for AI style context
+      let existingPosts: string[] = [];
+      try {
+        const postsRes = await fetch("/api/telegram/posts?limit=10");
+        if (postsRes.ok) {
+          const postsData = await postsRes.json();
+          existingPosts = (postsData.messages ?? [])
+            .map((m: any) => m.text)
+            .filter(Boolean);
+        }
+      } catch {}
+
       const allCreatives: any[] = [];
       setLaunchProgress(`Сохраняю ${generatedCreatives.length} креативов...`);
       for (const c of generatedCreatives) {
@@ -1191,11 +1209,8 @@ export function WizardView({
                 value={name}
                 onChange={(e) => handleNameChange(e.target.value)}
                 placeholder="Например: Ramadan акция 2026"
-                className={`${inp} ${nameError ? "border-neg" : ""}`}
+                className={inp}
               />
-              {nameError && (
-                <p className="text-[10px] text-neg mt-1">{nameError}</p>
-              )}
             </div>
 
             {/* Clone campaign */}
@@ -1381,10 +1396,6 @@ export function WizardView({
                   setError("Введите название");
                   return;
                 }
-                if (nameError) {
-                  setError(nameError);
-                  return;
-                }
                 setError("");
                 setStep(1);
               }}
@@ -1509,33 +1520,53 @@ export function WizardView({
             </>
           )}
 
-          {/* Other platforms - add button */}
-          <div>
-            <p className="ui-label mt-4 mb-2">Добавить платформу</p>
-            <div className="grid grid-cols-3 gap-2">
-              {Object.entries(PLATFORM_META)
-                .filter(([key]) => !connectedKeys.has(key))
-                .map(([key, meta]) => (
-                  <button
-                    key={key}
-                    onClick={() => setConnectModal(key)}
-                    className="flex items-center gap-2 p-3 border border-line rounded-[9px] hover:border-line-strong cursor-pointer transition-colors hover:bg-hover text-left"
-                  >
-                    <PlatformLogo
-                      abbr={meta.abbr}
-                      color={meta.color}
-                      textColor={(meta as any).textColor}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-tx-1 truncate">
-                        {meta.name}
-                      </p>
-                      <p className="text-[9px] text-accent">+ Подключить</p>
-                    </div>
-                  </button>
-                ))}
+          {/* Other platforms - add button or "coming soon" */}
+          {Object.keys(PLATFORM_META).some(
+            (key) => !connectedKeys.has(key),
+          ) && (
+            <div>
+              <p className="ui-label mt-4 mb-2">Добавить платформу</p>
+              <div className="grid grid-cols-3 gap-2">
+                {Object.entries(PLATFORM_META)
+                  .filter(([key]) => !connectedKeys.has(key))
+                  .map(([key, meta]) => {
+                    const comingSoon = [
+                      "tiktok",
+                      "youtube",
+                      "vk_ads",
+                      "mytarget",
+                      "tiktok_ads",
+                    ].includes(key);
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => !comingSoon && setConnectModal(key)}
+                        disabled={comingSoon}
+                        className={`flex items-center gap-2 p-3 border rounded-[9px] text-left transition-colors ${comingSoon ? "border-line opacity-50 cursor-not-allowed" : "border-line hover:border-line-strong cursor-pointer hover:bg-hover"}`}
+                      >
+                        <PlatformLogo
+                          abbr={meta.abbr}
+                          color={meta.color}
+                          textColor={(meta as any).textColor}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-medium text-tx-1 truncate">
+                            {meta.name}
+                          </p>
+                          {comingSoon ? (
+                            <p className="text-[9px] text-tx-3">Скоро</p>
+                          ) : (
+                            <p className="text-[9px] text-accent">
+                              + Подключить
+                            </p>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="flex justify-between pt-3">
             <button
@@ -1579,6 +1610,18 @@ export function WizardView({
             <button
               onClick={async () => {
                 setGenerating(true);
+                // Fetch existing posts for style analysis
+                let postsForContext: string[] = [];
+                try {
+                  const pr = await fetch("/api/telegram/posts?limit=10");
+                  if (pr.ok) {
+                    const pd = await pr.json();
+                    postsForContext = (pd.messages ?? [])
+                      .map((m: any) => m.text)
+                      .filter(Boolean);
+                  }
+                } catch {}
+
                 const creatives: any[] = [];
                 for (const platformKey of selectedPlatforms) {
                   const rp = realPlatforms.find((p) => p.key === platformKey);
@@ -1596,6 +1639,8 @@ export function WizardView({
                           goal,
                           audience,
                           projectName: (activeProject as any)?.name ?? name,
+                          projectNiche: (activeProject as any)?.niche ?? "",
+                          existingPosts: postsForContext,
                         });
                         creatives.push({
                           id: `${platformKey}__${subtype}__${Date.now()}__${i}`,
