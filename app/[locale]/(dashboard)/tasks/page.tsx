@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
-import { Plus, X, Check, Flame, Minus, ChevronDown } from "lucide-react";
+import { Plus, X, Check, Trash2 } from "lucide-react";
 
 type Task = {
   id: string;
@@ -25,6 +25,15 @@ const PRIORITY_META: Record<
   high: { label: "Высокий", color: "#A32D2D", bg: "rgba(226,75,74,0.1)" },
   urgent: { label: "Срочно", color: "#7C3AED", bg: "rgba(124,58,237,0.1)" },
 };
+
+function formatDateTime(iso: string) {
+  return new Date(iso).toLocaleString("ru", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export default function TasksPage() {
   const supabase = createClient();
@@ -78,9 +87,7 @@ export default function TasksPage() {
       qc.invalidateQueries({ queryKey: ["tasks"] });
       resetModal();
     },
-    onError: (e: Error) => {
-      setCreateError(e.message || "Ошибка создания");
-    },
+    onError: (e: Error) => setCreateError(e.message || "Ошибка создания"),
   });
 
   const doneMutation = useMutation({
@@ -128,16 +135,21 @@ export default function TasksPage() {
     });
   };
 
-  const openModal = () => {
-    resetModal();
-    setShowModal(true);
-  };
-
   const todo = tasks.filter((t) => t.status === "todo");
   const inProg = tasks.filter(
     (t) => t.status === "in_progress" || t.status === "review",
   );
   const done = tasks.filter((t) => t.status === "done");
+
+  // #1 = самая первая созданная задача (самая старая)
+  const sortedAscIds = [...tasks]
+    .sort(
+      (a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    )
+    .map((t) => t.id);
+
+  const getIndex = (id: string) => sortedAscIds.indexOf(id) + 1;
 
   const visibleTasks =
     filter === "todo" ? [...todo, ...inProg] : filter === "done" ? done : tasks;
@@ -145,12 +157,26 @@ export default function TasksPage() {
   const inp =
     "w-full px-3 py-2.5 rounded-[9px] border border-line text-[13px] outline-none focus:border-accent bg-panel text-tx-1 placeholder:text-tx-3 transition-colors";
 
-  /* ── Task row ── */
-  const TaskRow = ({ task }: { task: Task }) => {
+  /* ── Task Card ── */
+  const TaskCard = ({ task }: { task: Task }) => {
     const isDone = task.status === "done";
     const pm = PRIORITY_META[task.priority];
+    const idx = getIndex(task.id);
+
     return (
-      <div className="flex items-start gap-3 px-4 py-3 border-b border-line last:border-0 hover:bg-hover transition-colors group">
+      <div
+        style={{
+          background: "var(--panel)",
+          border: "0.5px solid var(--line)",
+          borderRadius: 12,
+          padding: "16px 18px",
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 14,
+          opacity: isDone ? 0.6 : 1,
+          transition: "opacity 0.2s",
+        }}
+      >
         {/* Checkbox */}
         <button
           onClick={() =>
@@ -159,11 +185,20 @@ export default function TasksPage() {
               status: isDone ? "todo" : "done",
             })
           }
-          className={`mt-0.5 w-5 h-5 rounded-[5px] border flex items-center justify-center flex-shrink-0 cursor-pointer transition-all ${
-            isDone
-              ? "bg-accent border-accent"
-              : "border-line-strong hover:border-accent"
-          }`}
+          style={{
+            marginTop: 2,
+            width: 20,
+            height: 20,
+            borderRadius: "50%",
+            border: isDone ? "none" : "1.5px solid var(--line-strong)",
+            background: isDone ? "var(--accent)" : "transparent",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            transition: "all 0.15s",
+          }}
         >
           {isDone && (
             <Check
@@ -174,41 +209,98 @@ export default function TasksPage() {
           )}
         </button>
 
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <span
-            className={`text-[13px] leading-snug block ${
-              isDone ? "line-through text-tx-3" : "text-tx-1"
-            }`}
+        {/* Body */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Title + порядковый номер */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 5,
+            }}
           >
-            {task.title}
-          </span>
-          {task.description && (
-            <p className="text-[12px] text-tx-3 mt-0.5 leading-snug line-clamp-2">
-              {task.description}
-            </p>
-          )}
-          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            {/* Priority badge */}
             <span
               style={{
                 fontSize: 10,
                 fontWeight: 600,
-                padding: "2px 7px",
+                color: "var(--tx-3)",
+                background: "var(--panel-2)",
+                border: "0.5px solid var(--line)",
+                borderRadius: 5,
+                padding: "1px 6px",
+                flexShrink: 0,
+              }}
+            >
+              #{idx}
+            </span>
+            <span
+              style={{
+                fontSize: 14,
+                fontWeight: 500,
+                color: isDone ? "var(--tx-3)" : "var(--tx-1)",
+                textDecoration: isDone ? "line-through" : "none",
+                lineHeight: 1.3,
+              }}
+            >
+              {task.title}
+            </span>
+          </div>
+
+          {/* Description */}
+          {task.description && (
+            <p
+              style={{
+                fontSize: 12,
+                color: "var(--tx-3)",
+                lineHeight: 1.55,
+                marginBottom: 10,
+              }}
+            >
+              {task.description}
+            </p>
+          )}
+
+          {/* Badges + дата и время */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              flexWrap: "wrap",
+              marginTop: task.description ? 0 : 8,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                padding: "2px 8px",
                 borderRadius: 999,
                 color: pm.color,
                 background: pm.bg,
-                letterSpacing: "0.02em",
               }}
             >
               {pm.label}
             </span>
-            {/* Date */}
-            <span className="text-[11px] text-tx-3">
-              {new Date(task.created_at).toLocaleDateString("ru", {
-                day: "numeric",
-                month: "short",
-              })}
+
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                padding: "2px 8px",
+                borderRadius: 999,
+                color: isDone ? "#3B6D11" : "#185FA5",
+                background: isDone
+                  ? "rgba(99,153,34,0.1)"
+                  : "rgba(55,138,221,0.1)",
+              }}
+            >
+              {isDone ? "Выполнено" : "В работе"}
+            </span>
+
+            <span style={{ fontSize: 11, color: "var(--tx-3)" }}>
+              {formatDateTime(task.created_at)}
             </span>
           </div>
         </div>
@@ -216,51 +308,38 @@ export default function TasksPage() {
         {/* Delete */}
         <button
           onClick={() => deleteMutation.mutate(task.id)}
-          className="opacity-0 group-hover:opacity-100 mt-0.5 w-6 h-6 flex items-center justify-center rounded-[5px] hover:bg-panel-2 cursor-pointer transition-all flex-shrink-0"
           style={{
+            marginTop: 2,
+            width: 28,
+            height: 28,
+            borderRadius: 7,
             border: "none",
             background: "transparent",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             color: "var(--tx-3)",
+            flexShrink: 0,
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background =
+              "rgba(226,75,74,0.1)";
+            (e.currentTarget as HTMLButtonElement).style.color = "#A32D2D";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background =
+              "transparent";
+            (e.currentTarget as HTMLButtonElement).style.color = "var(--tx-3)";
           }}
         >
-          <X size={13} />
+          <Trash2 size={14} />
         </button>
       </div>
     );
   };
 
-  /* ── Section ── */
-  const Section = ({
-    label,
-    tasks: sectionTasks,
-    emptyText,
-  }: {
-    label: string;
-    tasks: Task[];
-    emptyText: string;
-  }) => (
-    <div className="mb-2">
-      <div className="flex items-center gap-2 px-4 py-2">
-        <span className="text-[10px] font-semibold text-tx-3 uppercase tracking-widest">
-          {label}
-        </span>
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-chip text-tx-3">
-          {sectionTasks.length}
-        </span>
-      </div>
-      <div className="ui-surface overflow-hidden">
-        {sectionTasks.length === 0 ? (
-          <div className="px-4 py-5 text-[12px] text-tx-3 text-center">
-            {emptyText}
-          </div>
-        ) : (
-          sectionTasks.map((t) => <TaskRow key={t.id} task={t} />)
-        )}
-      </div>
-    </div>
-  );
-
-  /* ── Render ── */
+  /* ── Page ── */
   return (
     <div
       style={{
@@ -288,7 +367,10 @@ export default function TasksPage() {
           <span style={{ color: "var(--tx-2)", fontWeight: 500 }}>Задачи</span>
         </p>
         <button
-          onClick={openModal}
+          onClick={() => {
+            resetModal();
+            setShowModal(true);
+          }}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-on-accent text-[12px] font-semibold rounded-[8px] hover:opacity-90 cursor-pointer"
           style={{ border: "none" }}
         >
@@ -352,56 +434,59 @@ export default function TasksPage() {
                 transition: "all 0.15s",
               }}
             >
-              {f === "all" ? "Все" : f === "todo" ? "В работе" : "Выполнено"}
+              {f === "all"
+                ? `Все (${tasks.length})`
+                : f === "todo"
+                  ? `В работе (${todo.length + inProg.length})`
+                  : `Выполнено (${done.length})`}
             </button>
           ))}
         </div>
 
-        {/* Task lists */}
+        {/* Cards */}
         {isLoading ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
                 style={{
-                  height: 52,
+                  height: 90,
                   background: "var(--panel-2)",
-                  borderRadius: 10,
+                  borderRadius: 12,
                   animation: "pulse 1.5s infinite",
                 }}
               />
             ))}
           </div>
-        ) : filter !== "all" ? (
-          <div className="ui-surface overflow-hidden">
-            {visibleTasks.length === 0 ? (
-              <div className="px-4 py-8 text-[12px] text-tx-3 text-center">
-                {filter === "done"
-                  ? "Выполненных задач нет"
-                  : "Все задачи выполнены! 🎉"}
-              </div>
-            ) : (
-              visibleTasks.map((t) => <TaskRow key={t.id} task={t} />)
-            )}
+        ) : visibleTasks.length === 0 ? (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              padding: "60px 20px",
+              color: "var(--tx-3)",
+              fontSize: 13,
+              gap: 8,
+            }}
+          >
+            <span style={{ fontSize: 32 }}>📋</span>
+            {filter === "done"
+              ? "Выполненных задач нет"
+              : filter === "todo"
+                ? "Все задачи выполнены! 🎉"
+                : "Задач пока нет — создай первую!"}
           </div>
         ) : (
-          <>
-            <Section label="Создано" tasks={todo} emptyText="Нет новых задач" />
-            <Section
-              label="Запланировано"
-              tasks={inProg}
-              emptyText="Нет запланированных задач"
-            />
-            <Section
-              label="Выполнено"
-              tasks={done}
-              emptyText="Нет выполненных задач"
-            />
-          </>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {visibleTasks.map((t) => (
+              <TaskCard key={t.id} task={t} />
+            ))}
+          </div>
         )}
       </div>
 
-      {/* Create modal */}
+      {/* Modal */}
       {showModal && (
         <div
           style={{
@@ -469,7 +554,7 @@ export default function TasksPage() {
                 padding: 20,
                 display: "flex",
                 flexDirection: "column",
-                gap: 12,
+                gap: 14,
               }}
             >
               {/* Title */}
@@ -535,7 +620,7 @@ export default function TasksPage() {
                   style={{
                     fontSize: 11,
                     color: "var(--tx-3)",
-                    marginBottom: 6,
+                    marginBottom: 8,
                     fontWeight: 500,
                   }}
                 >
@@ -580,7 +665,7 @@ export default function TasksPage() {
               </div>
 
               {/* Actions */}
-              <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
                 <button
                   onClick={handleCreate}
                   disabled={createMutation.isPending || !newTitle.trim()}
