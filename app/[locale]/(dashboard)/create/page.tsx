@@ -1,1306 +1,255 @@
 "use client";
-import { Suspense, useState, useEffect, useRef } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
-import { useLocale } from "next-intl";
 
-// ── Types ──────────────────────────────────────────────────────────────────
-type Platform = "telegram" | "instagram" | "all";
-type Post = {
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { createClient } from "@/lib/supabase/client";
+
+type Integration = {
   id: string;
-  platform: "telegram" | "instagram";
-  text: string;
-  image_url?: string;
-  date: string;
-  views?: number;
-  likes?: number;
-  comments?: number;
-  shares?: number;
-  saves?: number;
-  reach?: number;
-  reactions?: Record<string, number>;
-  url?: string;
-  type?: "post" | "reel" | "story" | "video";
+  platform: "telegram" | "instagram" | "tiktok" | "vk";
+  channel_id: string;
+  channel_name: string;
+  is_active: boolean;
 };
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-function timeAgo(dateStr: string): string {
-  const d = new Date(dateStr);
-  const now = new Date();
-  const diff = Math.floor((now.getTime() - d.getTime()) / 1000);
-  if (diff < 60) return "только что";
-  if (diff < 3600) return `${Math.floor(diff / 60)} мин назад`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} ч назад`;
-  if (diff < 604800) return `${Math.floor(diff / 86400)} дн назад`;
-  return d.toLocaleDateString("ru", { day: "numeric", month: "short" });
+const BOT_USERNAME = process.env.NEXT_PUBLIC_BOT_USERNAME || "postcentro_bot";
+
+function connectInstagram() {
+  const appId = process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID ?? "";
+  const redirectUri =
+    process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI ??
+    "https://content-factory-khaki.vercel.app/api/auth/instagram/callback";
+  const params = new URLSearchParams({
+    client_id: appId,
+    redirect_uri: redirectUri,
+    scope: "instagram_business_basic,instagram_business_content_publish",
+    response_type: "code",
+  });
+  window.location.href = `https://www.instagram.com/oauth/authorize?${params}`;
 }
 
-function fmtNum(n?: number): string {
-  if (!n) return "0";
-  if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
-  if (n >= 1000) return (n / 1000).toFixed(1) + "K";
-  return String(n);
-}
+const inp =
+  "w-full px-3 py-2.5 rounded-[8px] border border-line text-[12px] outline-none focus:border-line-strong bg-panel text-tx-1 placeholder:text-tx-3 transition-colors";
 
-// ── Post card ──────────────────────────────────────────────────────────────
-function PostCard({ post, onClick }: { post: Post; onClick: () => void }) {
-  const isTg = post.platform === "telegram";
-  const platformColor = isTg ? "#0088CC" : "#E1306C";
-  const platformAbbr = isTg ? "TG" : "IG";
-
-  return (
-    <div
-      onClick={onClick}
-      className="ui-surface overflow-hidden cursor-pointer group"
-      style={{ transition: "transform 0.12s, box-shadow 0.12s" }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "none";
-      }}
-    >
-      {/* Image */}
-      {post.image_url && (
-        <div
-          style={{
-            position: "relative",
-            paddingBottom: "56.25%",
-            overflow: "hidden",
-          }}
-        >
-          <img
-            src={post.image_url}
-            alt=""
-            style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              top: 8,
-              left: 8,
-              width: 24,
-              height: 16,
-              borderRadius: 4,
-              background: platformColor,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#fff",
-              fontSize: 8,
-              fontWeight: 700,
-            }}
-          >
-            {platformAbbr}
-          </div>
-        </div>
-      )}
-
-      <div style={{ padding: "10px 12px" }}>
-        {/* Platform badge if no image */}
-        {!post.image_url && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              marginBottom: 8,
-            }}
-          >
-            <div
-              style={{
-                width: 20,
-                height: 14,
-                borderRadius: 3,
-                background: platformColor,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#fff",
-                fontSize: 7,
-                fontWeight: 700,
-              }}
-            >
-              {platformAbbr}
-            </div>
-            {post.type && (
-              <span
-                style={{
-                  fontSize: 9,
-                  color: "var(--tx-3)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                }}
-              >
-                {post.type}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Text */}
-        <p
-          style={{
-            fontSize: 12,
-            color: "var(--tx-1)",
-            lineHeight: 1.5,
-            marginBottom: 8,
-            overflow: "hidden",
-            display: "-webkit-box",
-            WebkitLineClamp: 3,
-            WebkitBoxOrient: "vertical" as any,
-          }}
-        >
-          {post.text || "—"}
-        </p>
-
-        {/* Stats */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            flexWrap: "wrap",
-          }}
-        >
-          {post.views !== undefined && (
-            <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-              <span style={{ fontSize: 11, color: "var(--tx-3)" }}>👁</span>
-              <span
-                style={{ fontSize: 11, fontWeight: 500, color: "var(--tx-2)" }}
-              >
-                {fmtNum(post.views)}
-              </span>
-            </div>
-          )}
-          {post.likes !== undefined && (
-            <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-              <span style={{ fontSize: 11, color: "var(--tx-3)" }}>❤️</span>
-              <span
-                style={{ fontSize: 11, fontWeight: 500, color: "var(--tx-2)" }}
-              >
-                {fmtNum(post.likes)}
-              </span>
-            </div>
-          )}
-          {post.comments !== undefined && (
-            <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-              <span style={{ fontSize: 11, color: "var(--tx-3)" }}>💬</span>
-              <span
-                style={{ fontSize: 11, fontWeight: 500, color: "var(--tx-2)" }}
-              >
-                {fmtNum(post.comments)}
-              </span>
-            </div>
-          )}
-          {post.shares !== undefined && (
-            <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-              <span style={{ fontSize: 11, color: "var(--tx-3)" }}>🔄</span>
-              <span
-                style={{ fontSize: 11, fontWeight: 500, color: "var(--tx-2)" }}
-              >
-                {fmtNum(post.shares)}
-              </span>
-            </div>
-          )}
-          <span
-            style={{ marginLeft: "auto", fontSize: 10, color: "var(--tx-3)" }}
-          >
-            {timeAgo(post.date)}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Post detail modal ──────────────────────────────────────────────────────
-function PostModal({ post, onClose }: { post: Post; onClose: () => void }) {
-  const isTg = post.platform === "telegram";
-  const platformColor = isTg ? "#0088CC" : "#E1306C";
-  const platformName = isTg ? "Telegram" : "Instagram";
-
-  const engagementRate =
-    post.views && post.likes
-      ? (
-          ((post.likes + (post.comments ?? 0) + (post.shares ?? 0)) /
-            post.views) *
-          100
-        ).toFixed(1)
-      : null;
-
+// Platform logo
+function PlatformIcon({ platform }: { platform: string }) {
+  const configs: Record<string, { bg: string; label: string }> = {
+    instagram: {
+      bg: "linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045)",
+      label: "IG",
+    },
+    telegram: { bg: "#0088CC", label: "TG" },
+    tiktok: { bg: "#010101", label: "TT" },
+    vk: { bg: "#0077FF", label: "VK" },
+  };
+  const c = configs[platform] ?? { bg: "#888", label: "?" };
   return (
     <div
       style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 100,
-        background: "rgba(0,0,0,0.5)",
-        backdropFilter: "blur(4px)",
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        background: c.bg,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: 20,
+        color: "#fff",
+        fontSize: 13,
+        fontWeight: 700,
+        flexShrink: 0,
       }}
     >
-      <div
-        style={{
-          background: "var(--panel)",
-          border: "0.5px solid var(--line)",
-          borderRadius: 16,
-          width: "100%",
-          maxWidth: 680,
-          maxHeight: "90vh",
-          display: "flex",
-          flexDirection: "column",
-          boxShadow: "0 24px 60px rgba(0,0,0,0.3)",
-          overflow: "hidden",
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "16px 20px",
-            borderBottom: "0.5px solid var(--line)",
-            flexShrink: 0,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div
-              style={{
-                width: 28,
-                height: 20,
-                borderRadius: 5,
-                background: platformColor,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#fff",
-                fontSize: 9,
-                fontWeight: 700,
-              }}
-            >
-              {isTg ? "TG" : "IG"}
-            </div>
-            <div>
-              <p
-                style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)" }}
-              >
-                {platformName}
-              </p>
-              <p style={{ fontSize: 10, color: "var(--tx-3)", marginTop: 1 }}>
-                {new Date(post.date).toLocaleDateString("ru", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 8,
-              border: "0.5px solid var(--line)",
-              background: "transparent",
-              cursor: "pointer",
-              color: "var(--tx-3)",
-              fontSize: 16,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            ✕
-          </button>
-        </div>
-
-        <div style={{ flex: 1, overflowY: "auto" }}>
-          {/* Image */}
-          {post.image_url && (
-            <img
-              src={post.image_url}
-              alt=""
-              style={{ width: "100%", maxHeight: 340, objectFit: "cover" }}
-            />
-          )}
-
-          {/* Text */}
-          <div style={{ padding: "16px 20px" }}>
-            <p
-              style={{
-                fontSize: 13,
-                color: "var(--tx-1)",
-                lineHeight: 1.7,
-                whiteSpace: "pre-wrap",
-                marginBottom: 20,
-              }}
-            >
-              {post.text}
-            </p>
-
-            {/* Stats grid */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(4,1fr)",
-                gap: 10,
-                marginBottom: 16,
-              }}
-            >
-              {[
-                {
-                  label: "Просмотры",
-                  value: fmtNum(post.views),
-                  icon: "👁",
-                  color: "#3B82F6",
-                },
-                {
-                  label: "Лайки",
-                  value: fmtNum(post.likes),
-                  icon: "❤️",
-                  color: "#E1306C",
-                },
-                {
-                  label: "Комментарии",
-                  value: fmtNum(post.comments),
-                  icon: "💬",
-                  color: "#F59E0B",
-                },
-                {
-                  label: "Репосты",
-                  value: fmtNum(post.shares),
-                  icon: "🔄",
-                  color: "#10B981",
-                },
-              ].map((s) => (
-                <div
-                  key={s.label}
-                  style={{
-                    padding: "12px",
-                    background: "var(--panel-2)",
-                    borderRadius: 10,
-                    textAlign: "center",
-                    border: "0.5px solid var(--line)",
-                  }}
-                >
-                  <div style={{ fontSize: 20, marginBottom: 4 }}>{s.icon}</div>
-                  <div
-                    style={{
-                      fontSize: 18,
-                      fontWeight: 700,
-                      color: "var(--tx-1)",
-                    }}
-                  >
-                    {s.value}
-                  </div>
-                  <div
-                    style={{ fontSize: 9, color: "var(--tx-3)", marginTop: 2 }}
-                  >
-                    {s.label}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Extra stats */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3,1fr)",
-                gap: 10,
-              }}
-            >
-              {post.saves !== undefined && (
-                <div
-                  style={{
-                    padding: "10px 14px",
-                    background: "var(--panel-2)",
-                    borderRadius: 9,
-                    border: "0.5px solid var(--line)",
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: 10,
-                      color: "var(--tx-3)",
-                      marginBottom: 3,
-                    }}
-                  >
-                    Сохранения
-                  </p>
-                  <p
-                    style={{
-                      fontSize: 16,
-                      fontWeight: 600,
-                      color: "var(--tx-1)",
-                    }}
-                  >
-                    {fmtNum(post.saves)}
-                  </p>
-                </div>
-              )}
-              {post.reach !== undefined && (
-                <div
-                  style={{
-                    padding: "10px 14px",
-                    background: "var(--panel-2)",
-                    borderRadius: 9,
-                    border: "0.5px solid var(--line)",
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: 10,
-                      color: "var(--tx-3)",
-                      marginBottom: 3,
-                    }}
-                  >
-                    Охват
-                  </p>
-                  <p
-                    style={{
-                      fontSize: 16,
-                      fontWeight: 600,
-                      color: "var(--tx-1)",
-                    }}
-                  >
-                    {fmtNum(post.reach)}
-                  </p>
-                </div>
-              )}
-              {engagementRate && (
-                <div
-                  style={{
-                    padding: "10px 14px",
-                    background: "var(--panel-2)",
-                    borderRadius: 9,
-                    border: "0.5px solid var(--line)",
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: 10,
-                      color: "var(--tx-3)",
-                      marginBottom: 3,
-                    }}
-                  >
-                    Вовлечённость
-                  </p>
-                  <p
-                    style={{
-                      fontSize: 16,
-                      fontWeight: 600,
-                      color: "var(--pos)",
-                    }}
-                  >
-                    {engagementRate}%
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Reactions (Telegram) */}
-            {post.reactions && Object.keys(post.reactions).length > 0 && (
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: "10px 14px",
-                  background: "var(--panel-2)",
-                  borderRadius: 9,
-                  border: "0.5px solid var(--line)",
-                }}
-              >
-                <p
-                  style={{
-                    fontSize: 10,
-                    color: "var(--tx-3)",
-                    marginBottom: 8,
-                  }}
-                >
-                  Реакции
-                </p>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  {Object.entries(post.reactions).map(([emoji, count]) => (
-                    <div
-                      key={emoji}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 4,
-                        padding: "4px 10px",
-                        background: "var(--panel)",
-                        borderRadius: 20,
-                        border: "0.5px solid var(--line)",
-                      }}
-                    >
-                      <span style={{ fontSize: 16 }}>{emoji}</span>
-                      <span
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 600,
-                          color: "var(--tx-1)",
-                        }}
-                      >
-                        {count}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Footer actions */}
-        <div
-          style={{
-            padding: "12px 20px",
-            borderTop: "0.5px solid var(--line)",
-            display: "flex",
-            gap: 8,
-            flexShrink: 0,
-          }}
-        >
-          {post.url && (
-            <a
-              href={post.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                flex: 1,
-                padding: "9px",
-                borderRadius: 8,
-                border: "0.5px solid var(--line)",
-                background: "transparent",
-                color: "var(--tx-2)",
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: "pointer",
-                textAlign: "center",
-                textDecoration: "none",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 5,
-              }}
-            >
-              🔗 Открыть оригинал
-            </a>
-          )}
-          <button
-            onClick={onClose}
-            style={{
-              flex: 1,
-              padding: "9px",
-              borderRadius: 8,
-              border: "none",
-              background: "var(--accent)",
-              color: "var(--on-accent)",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            Закрыть
-          </button>
-        </div>
-      </div>
+      {c.label}
     </div>
   );
 }
 
-// ── AI Analysis modal ──────────────────────────────────────────────────────
-function AnalysisModal({
-  posts,
-  project,
-  onClose,
-  onPlanCreated,
-}: {
-  posts: Post[];
-  project: any;
-  onClose: () => void;
-  onPlanCreated: (plan: any[]) => void;
-}) {
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<string>("");
-  const [contentPlan, setContentPlan] = useState<any[]>([]);
-  const [step, setStep] = useState<"choose" | "analyzing" | "done">("choose");
-  const [period, setPeriod] = useState<"week" | "2weeks" | "month">("week");
+function IntegrationsPageInner() {
+  const supabase = createClient();
+  const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
-  const analyze = async () => {
-    setStep("analyzing");
-    setLoading(true);
-
-    const postsData = posts.slice(0, 20).map((p) => ({
-      platform: p.platform,
-      text: p.text?.slice(0, 200),
-      views: p.views ?? 0,
-      likes: p.likes ?? 0,
-      comments: p.comments ?? 0,
-      shares: p.shares ?? 0,
-      date: p.date,
-    }));
-
-    const periodDays = period === "week" ? 7 : period === "2weeks" ? 14 : 30;
-
-    const prompt = `Ты эксперт по контент-маркетингу. Проанализируй эти посты и создай контент-план.
-
-Проект: ${project?.name ?? "неизвестен"}
-Ниша: ${project?.niche ?? "не указана"}
-Описание: ${project?.description ?? "не указано"}
-Аудитория: ${project?.audience ?? "не указана"}
-Период планирования: ${periodDays} дней
-
-Последние посты (статистика):
-${JSON.stringify(postsData, null, 2)}
-
-Задача:
-1. Проанализируй что работает лучше всего (по просмотрам и вовлечённости)
-2. Определи лучшее время публикации
-3. Создай конкретный контент-план на ${periodDays} дней
-
-Ответь ТОЛЬКО в JSON без markdown:
-{
-  "analysis": "краткий анализ что работает лучше всего (2-3 предложения)",
-  "best_time": "лучшее время публикации",
-  "best_format": "лучший формат контента",
-  "plan": [
-    {
-      "day": 1,
-      "date": "дата публикации",
-      "platform": "telegram или instagram",
-      "type": "пост/видео/reels/stories",
-      "topic": "тема поста",
-      "hook": "первое предложение-хук",
-      "time": "время публикации"
-    }
-  ]
-}`;
-
-    try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 3000,
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-      const data = await res.json();
-      const text =
-        data.content?.find((c: any) => c.type === "text")?.text ?? "{}";
-      const clean = text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
-      setResult(parsed.analysis ?? "");
-      setContentPlan(parsed.plan ?? []);
-      onPlanCreated(parsed.plan ?? []);
-      setStep("done");
-    } catch (e) {
-      setResult("Ошибка анализа. Попробуйте ещё раз.");
-      setStep("done");
-    } finally {
-      setLoading(false);
-    }
+  const showToast = (msg: string, ok = true) => {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 3000);
   };
 
-  return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 100,
-        background: "rgba(0,0,0,0.5)",
-        backdropFilter: "blur(4px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-      }}
-    >
-      <div
-        style={{
-          background: "var(--panel)",
-          border: "0.5px solid var(--line)",
-          borderRadius: 16,
-          width: "100%",
-          maxWidth: 640,
-          maxHeight: "90vh",
-          display: "flex",
-          flexDirection: "column",
-          boxShadow: "0 24px 60px rgba(0,0,0,0.3)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "16px 20px",
-            borderBottom: "0.5px solid var(--line)",
-            flexShrink: 0,
-          }}
-        >
-          <div>
-            <p style={{ fontSize: 15, fontWeight: 700, color: "var(--tx-1)" }}>
-              ✦ AI Аналитика и планирование
-            </p>
-            <p style={{ fontSize: 11, color: "var(--tx-3)", marginTop: 2 }}>
-              {project?.name ?? "Проект"} · {posts.length} постов
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 8,
-              border: "0.5px solid var(--line)",
-              background: "transparent",
-              cursor: "pointer",
-              color: "var(--tx-3)",
-              fontSize: 16,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            ✕
-          </button>
-        </div>
+  useEffect(() => {
+    const s = searchParams.get("success");
+    const e = searchParams.get("error");
+    if (s === "instagram") {
+      showToast("✓ Instagram успешно подключён!");
+      queryClient.invalidateQueries({ queryKey: ["integrations"] });
+    } else if (e) {
+      showToast(`Ошибка: ${decodeURIComponent(e)}`, false);
+    }
+  }, [searchParams]);
 
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
-          {step === "choose" && (
-            <div>
-              <p
-                style={{
-                  fontSize: 13,
-                  color: "var(--tx-2)",
-                  marginBottom: 20,
-                  lineHeight: 1.6,
-                }}
-              >
-                AI проанализирует твои посты, определит что работает лучше всего
-                и создаст контент-план с темами, хуками и временем публикации.
-              </p>
-              <div style={{ marginBottom: 20 }}>
-                <p
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: "var(--tx-3)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.06em",
-                    marginBottom: 10,
-                  }}
-                >
-                  Период планирования
-                </p>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(3,1fr)",
-                    gap: 10,
-                  }}
-                >
-                  {[
-                    { v: "week", l: "Неделя", d: "7 постов" },
-                    { v: "2weeks", l: "2 недели", d: "14 постов" },
-                    { v: "month", l: "Месяц", d: "~20 постов" },
-                  ].map((opt) => (
-                    <button
-                      key={opt.v}
-                      onClick={() => setPeriod(opt.v as any)}
-                      style={{
-                        padding: "14px",
-                        borderRadius: 10,
-                        border: `0.5px solid ${period === opt.v ? "var(--accent)" : "var(--line)"}`,
-                        background:
-                          period === opt.v
-                            ? "var(--accent-dim)"
-                            : "var(--panel)",
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                        transition: "all 0.12s",
-                      }}
-                    >
-                      <p
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color:
-                            period === opt.v ? "var(--accent)" : "var(--tx-1)",
-                        }}
-                      >
-                        {opt.l}
-                      </p>
-                      <p
-                        style={{
-                          fontSize: 10,
-                          color: "var(--tx-3)",
-                          marginTop: 3,
-                        }}
-                      >
-                        {opt.d}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div
-                style={{
-                  padding: "12px 14px",
-                  background: "var(--panel-2)",
-                  borderRadius: 9,
-                  border: "0.5px solid var(--line)",
-                  marginBottom: 20,
-                }}
-              >
-                <p
-                  style={{
-                    fontSize: 11,
-                    color: "var(--tx-2)",
-                    lineHeight: 1.6,
-                  }}
-                >
-                  ✦ AI изучит твои <strong>{posts.length} постов</strong>,
-                  найдёт паттерны успешного контента и предложит конкретные темы
-                  и хуки для новых публикаций
-                </p>
-              </div>
-              <button
-                onClick={analyze}
-                style={{
-                  width: "100%",
-                  padding: "14px",
-                  borderRadius: 10,
-                  border: "none",
-                  background: "var(--accent)",
-                  color: "var(--on-accent)",
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                ✦ Начать анализ
-              </button>
-            </div>
-          )}
+  // Telegram form state
+  const [showTgForm, setShowTgForm] = useState(false);
+  const [channelId, setChannelId] = useState("");
+  const [channelName, setChannelName] = useState("");
+  const [tgLoading, setTgLoading] = useState(false);
+  const [tgError, setTgError] = useState("");
+  const [tgSuccess, setTgSuccess] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState("");
 
-          {step === "analyzing" && (
-            <div style={{ textAlign: "center", padding: "40px 0" }}>
-              <div
-                style={{
-                  fontSize: 48,
-                  marginBottom: 16,
-                  animation: "spin 2s linear infinite",
-                }}
-              >
-                ✦
-              </div>
-              <p
-                style={{
-                  fontSize: 15,
-                  fontWeight: 600,
-                  color: "var(--tx-1)",
-                  marginBottom: 8,
-                }}
-              >
-                AI анализирует контент...
-              </p>
-              <p
-                style={{ fontSize: 12, color: "var(--tx-3)", lineHeight: 1.6 }}
-              >
-                Изучаю статистику постов,
-                <br />
-                определяю что работает лучше,
-                <br />
-                составляю контент-план
-              </p>
-              <style>{`@keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }`}</style>
-            </div>
-          )}
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
 
-          {step === "done" && (
-            <div>
-              {result && (
-                <div
-                  style={{
-                    padding: "14px",
-                    background: "var(--accent-dim)",
-                    borderRadius: 10,
-                    border: "0.5px solid var(--accent)",
-                    marginBottom: 16,
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: "var(--accent)",
-                      marginBottom: 6,
-                    }}
-                  >
-                    ✦ Вывод AI
-                  </p>
-                  <p
-                    style={{
-                      fontSize: 12,
-                      color: "var(--tx-1)",
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {result}
-                  </p>
-                </div>
-              )}
+  // Stats
+  const [channelStats, setChannelStats] = useState<Record<string, any>>({});
+  const [loadingStats, setLoadingStats] = useState<string | null>(null);
+  const [openStatsId, setOpenStatsId] = useState<string | null>(null);
 
-              {contentPlan.length > 0 && (
-                <div>
-                  <p
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: "var(--tx-3)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.06em",
-                      marginBottom: 12,
-                    }}
-                  >
-                    Контент-план · {contentPlan.length} публикаций
-                  </p>
-                  <div
-                    style={{ display: "flex", flexDirection: "column", gap: 8 }}
-                  >
-                    {contentPlan.map((item, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          display: "flex",
-                          gap: 12,
-                          padding: "12px 14px",
-                          background: "var(--panel-2)",
-                          borderRadius: 10,
-                          border: "0.5px solid var(--line)",
-                          alignItems: "flex-start",
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: 8,
-                            background: "var(--accent)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: "var(--on-accent)",
-                            fontSize: 12,
-                            fontWeight: 700,
-                            flexShrink: 0,
-                          }}
-                        >
-                          {item.day}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              marginBottom: 4,
-                            }}
-                          >
-                            <span
-                              style={{
-                                fontSize: 11,
-                                fontWeight: 600,
-                                color: "var(--tx-1)",
-                              }}
-                            >
-                              {item.topic}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: 9,
-                                padding: "2px 6px",
-                                borderRadius: 10,
-                                background:
-                                  item.platform === "telegram"
-                                    ? "rgba(0,136,204,0.15)"
-                                    : "rgba(225,48,108,0.15)",
-                                color:
-                                  item.platform === "telegram"
-                                    ? "#0088CC"
-                                    : "#E1306C",
-                                fontWeight: 600,
-                              }}
-                            >
-                              {item.platform === "telegram" ? "TG" : "IG"}
-                            </span>
-                            <span style={{ fontSize: 9, color: "var(--tx-3)" }}>
-                              {item.type}
-                            </span>
-                          </div>
-                          {item.hook && (
-                            <p
-                              style={{
-                                fontSize: 11,
-                                color: "var(--tx-2)",
-                                fontStyle: "italic",
-                                marginBottom: 3,
-                              }}
-                            >
-                              «{item.hook}»
-                            </p>
-                          )}
-                          <div style={{ display: "flex", gap: 10 }}>
-                            {item.date && (
-                              <span
-                                style={{ fontSize: 10, color: "var(--tx-3)" }}
-                              >
-                                📅 {item.date}
-                              </span>
-                            )}
-                            {item.time && (
-                              <span
-                                style={{ fontSize: 10, color: "var(--tx-3)" }}
-                              >
-                                🕐 {item.time}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {step === "done" && (
-          <div
-            style={{
-              padding: "12px 20px",
-              borderTop: "0.5px solid var(--line)",
-              display: "flex",
-              gap: 8,
-              flexShrink: 0,
-            }}
-          >
-            <button
-              onClick={() => setStep("choose")}
-              style={{
-                flex: 1,
-                padding: "10px",
-                borderRadius: 8,
-                border: "0.5px solid var(--line)",
-                background: "transparent",
-                color: "var(--tx-2)",
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              ↺ Перепланировать
-            </button>
-            <button
-              onClick={onClose}
-              style={{
-                flex: 1,
-                padding: "10px",
-                borderRadius: 8,
-                border: "none",
-                background: "var(--accent)",
-                color: "var(--on-accent)",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              ✓ Готово
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Main page ──────────────────────────────────────────────────────────────
-function CreateContentPageInner() {
-  const supabase = createClient();
-  const locale = useLocale();
-
-  const [platform, setPlatform] = useState<Platform>("all");
-  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [showAnalysis, setShowAnalysis] = useState(false);
-  const [contentPlan, setContentPlan] = useState<any[]>([]);
-  const [projectId, setProjectId] = useState<string>("");
-  const [loadingPosts, setLoadingPosts] = useState(false);
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [error, setError] = useState<string>("");
-
-  // Fetch projects
-  const { data: projects = [] } = useQuery({
-    queryKey: ["projects"],
-    queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("projects")
-        .select("id,name,niche,description,audience,logo_url")
-        .eq("user_id", user.id)
-        .eq("is_active", true);
-      return data ?? [];
-    },
-  });
-
-  // Fetch integrations
-  const { data: integrations = [] } = useQuery({
+  const { data: integrations = [], isLoading } = useQuery({
     queryKey: ["integrations"],
     queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return [];
       const { data } = await supabase
         .from("integrations")
         .select("*")
-        .eq("user_id", user.id)
-        .eq("is_active", true);
-      return data ?? [];
+        .order("created_at", { ascending: false });
+      return (data || []) as Integration[];
     },
   });
 
-  const activeProject = projects.find((p: any) => p.id === projectId) as any;
-  const tgChannels = integrations.filter((i: any) => i.platform === "telegram");
-  const igChannels = integrations.filter(
-    (i: any) => i.platform === "instagram",
+  const telegramChannels = integrations.filter(
+    (i) => i.platform === "telegram",
+  );
+  const instagramAccounts = integrations.filter(
+    (i) => i.platform === "instagram",
   );
 
-  useEffect(() => {
-    if (projects.length > 0 && !projectId)
-      setProjectId((projects[0] as any).id);
-  }, [projects]);
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("integrations")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["integrations"] }),
+  });
 
-  // Load posts from connected platforms
-  const loadPosts = async () => {
-    setLoadingPosts(true);
-    setError("");
-    const allPosts: Post[] = [];
+  const toggleMutation = useMutation({
+    mutationFn: async ({
+      id,
+      is_active,
+    }: {
+      id: string;
+      is_active: boolean;
+    }) => {
+      const { error } = await supabase
+        .from("integrations")
+        .update({ is_active })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["integrations"] }),
+  });
 
-    // Telegram — our new route that reads from publish_logs + real stats
-    if (tgChannels.length > 0) {
-      try {
-        const res = await fetch(`/api/telegram/posts?limit=30`);
-        if (res.ok) {
-          const data = await res.json();
-          const mapped: Post[] = (data.messages ?? []).map((m: any) => ({
-            id: `tg_${m.id}`,
-            platform: "telegram" as const,
-            text: m.text ?? "",
-            image_url: m.image_url ?? null,
-            date: m.date,
-            views: m.views ?? 0,
-            shares: m.shares ?? 0,
-            reactions: m.reactions ?? {},
-            url: m.url ?? null,
-            type: "post" as const,
-          }));
-          allPosts.push(...mapped);
-        }
-      } catch (e) {
-        console.error("Telegram posts error:", e);
-      }
-    }
+  const editMutation = useMutation({
+    mutationFn: async ({
+      id,
+      channel_name,
+    }: {
+      id: string;
+      channel_name: string;
+    }) => {
+      const res = await fetch("/api/telegram/add-channel", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, channel_name }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["integrations"] });
+      setEditingId(null);
+      showToast("Название обновлено");
+    },
+  });
 
-    // Instagram — our new route that reads from Instagram Graph API
-    if (igChannels.length > 0) {
-      try {
-        const res = await fetch(`/api/instagram/posts?limit=30`);
-        if (res.ok) {
-          const data = await res.json();
-          const mapped: Post[] = (data.data ?? []).map((m: any) => ({
-            id: `ig_${m.id}`,
-            platform: "instagram" as const,
-            text: m.text ?? "",
-            image_url: m.image_url ?? null,
-            date: m.date,
-            likes: m.likes ?? 0,
-            comments: m.comments ?? 0,
-            saves: m.saves ?? 0,
-            reach: m.reach ?? 0,
-            type: (m.type ?? "post") as any,
-            url: m.url ?? null,
-          }));
-          allPosts.push(...mapped);
-        }
-      } catch (e) {
-        console.error("Instagram posts error:", e);
-      }
-    }
-
-    // Sort by date newest first
-    allPosts.sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-    );
-
-    if (
-      allPosts.length === 0 &&
-      (tgChannels.length > 0 || igChannels.length > 0)
-    ) {
-      setError(
-        "Постов не найдено. Опубликуйте хотя бы один пост через PostCentro чтобы он появился здесь.",
+  const testChannel = async (cId: string) => {
+    if (!cId) return;
+    setTesting(true);
+    setTestResult("");
+    try {
+      const res = await fetch("/api/telegram/check-chanel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel_id: cId }),
+      });
+      const data = await res.json();
+      setTestResult(
+        data.ok
+          ? `✓ Найден: ${data.result?.title || cId}`
+          : `✗ Не найден. Убедитесь что @${BOT_USERNAME} добавлен как администратор`,
       );
+    } catch {
+      setTestResult("✗ Ошибка проверки");
     }
-
-    setPosts(allPosts);
-    setLoadingPosts(false);
+    setTesting(false);
   };
 
-  useEffect(() => {
-    if (integrations.length > 0) loadPosts();
-  }, [integrations]);
+  const fetchChannelStats = async (cId: string) => {
+    setLoadingStats(cId);
+    try {
+      const res = await fetch("/api/telegram/channel-stats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel_id: cId }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setChannelStats((prev) => ({ ...prev, [cId]: data }));
+        setOpenStatsId(cId);
+      }
+    } catch {}
+    setLoadingStats(null);
+  };
 
-  const filteredPosts = posts.filter(
-    (p) => platform === "all" || p.platform === platform,
-  );
-  const hasConnected = tgChannels.length > 0 || igChannels.length > 0;
+  const handleSaveTg = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTgLoading(true);
+    setTgError("");
+    try {
+      const res = await fetch("/api/telegram/add-channel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channel_id: channelId,
+          channel_name: channelName || channelId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Ошибка подключения");
+      queryClient.invalidateQueries({ queryKey: ["integrations"] });
+      setChannelId("");
+      setChannelName("");
+      setTestResult("");
+      setShowTgForm(false);
+      showToast(`✓ Канал «${data.channel_title}» подключён!`);
+    } catch (err: any) {
+      setTgError(err.message || "Ошибка сохранения");
+    }
+    setTgLoading(false);
+  };
 
-  // Stats summary
-  const totalViews = posts.reduce((s, p) => s + (p.views ?? 0), 0);
-  const totalLikes = posts.reduce((s, p) => s + (p.likes ?? 0), 0);
-  const totalComments = posts.reduce((s, p) => s + (p.comments ?? 0), 0);
-  const avgViews = posts.length > 0 ? Math.round(totalViews / posts.length) : 0;
-
-  const COLORS = ["#4ABA74", "#3B82F6", "#8B5CF6", "#F59E0B"];
-  const colorFor = (id: string) => COLORS[id.charCodeAt(0) % COLORS.length];
+  const btn = {
+    base: "px-3 py-1.5 rounded-[7px] text-[11px] font-medium cursor-pointer border transition-colors",
+    green: "border-transparent bg-accent text-on-accent hover:opacity-90",
+    amber: "border-line text-tx-2 hover:bg-hover",
+    red: "border-line text-neg hover:bg-hover",
+    ghost: "border-line text-tx-3 hover:bg-hover",
+  };
 
   return (
     <div
@@ -1309,7 +258,6 @@ function CreateContentPageInner() {
         flexDirection: "column",
         height: "100%",
         overflow: "hidden",
-        fontFamily: "'Space Grotesk', sans-serif",
       }}
     >
       {/* Header */}
@@ -1328,510 +276,787 @@ function CreateContentPageInner() {
         <p style={{ fontSize: 11, color: "var(--tx-3)" }}>
           Маркетинг /{" "}
           <span style={{ color: "var(--tx-2)", fontWeight: 500 }}>
-            Создать контент
+            Подключения
           </span>
         </p>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {hasConnected && posts.length > 0 && (
-            <button
-              onClick={() => setShowAnalysis(true)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 14px",
-                borderRadius: 8,
-                border: "none",
-                background: "var(--accent)",
-                color: "var(--on-accent)",
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              ✦ AI Анализ и план
-            </button>
-          )}
-          <button
-            onClick={loadPosts}
-            disabled={loadingPosts}
-            style={{
-              padding: "6px 12px",
-              borderRadius: 8,
-              border: "0.5px solid var(--line)",
-              background: "transparent",
-              color: "var(--tx-2)",
-              fontSize: 12,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              opacity: loadingPosts ? 0.6 : 1,
-            }}
-          >
-            {loadingPosts ? "⟳" : "↻"} Обновить
-          </button>
-        </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
-        {/* Project selector */}
+      {/* Toast */}
+      {toast && (
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            marginBottom: 20,
-            flexWrap: "wrap",
+            position: "fixed",
+            top: 16,
+            right: 16,
+            zIndex: 200,
+            padding: "10px 16px",
+            borderRadius: 10,
+            background: toast.ok ? "var(--pos)" : "var(--neg)",
+            color: "#fff",
+            fontSize: 12,
+            fontWeight: 600,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
           }}
         >
-          <span style={{ fontSize: 11, color: "var(--tx-3)", fontWeight: 500 }}>
-            Проект:
-          </span>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {projects.map((p: any) => (
-              <button
-                key={p.id}
-                onClick={() => setProjectId(p.id)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "5px 12px",
-                  borderRadius: 20,
-                  border: `0.5px solid ${projectId === p.id ? "var(--accent)" : "var(--line)"}`,
-                  background:
-                    projectId === p.id ? "var(--accent-dim)" : "transparent",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  fontSize: 11,
-                  fontWeight: projectId === p.id ? 600 : 400,
-                  color: projectId === p.id ? "var(--accent)" : "var(--tx-2)",
-                }}
-              >
-                {p.logo_url ? (
-                  <img
-                    src={p.logo_url}
-                    alt=""
-                    style={{
-                      width: 16,
-                      height: 16,
-                      borderRadius: "50%",
-                      objectFit: "cover",
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: 16,
-                      height: 16,
-                      borderRadius: "50%",
-                      background: colorFor(p.id),
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "#fff",
-                      fontSize: 9,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {p.name.slice(0, 1).toUpperCase()}
-                  </div>
-                )}
-                {p.name}
-              </button>
-            ))}
-          </div>
+          {toast.msg}
         </div>
+      )}
 
-        {/* Stats bar */}
-        {posts.length > 0 && (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4,1fr)",
-              gap: 12,
-              marginBottom: 20,
-            }}
-          >
-            {[
-              { l: "Всего постов", v: posts.length, icon: "📝" },
-              { l: "Средние просмотры", v: fmtNum(avgViews), icon: "👁" },
-              { l: "Суммарные лайки", v: fmtNum(totalLikes), icon: "❤️" },
-              { l: "Комментарии", v: fmtNum(totalComments), icon: "💬" },
-            ].map((k) => (
-              <div
-                key={k.l}
-                className="ui-surface"
-                style={{ padding: "14px 16px" }}
-              >
+      <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+        <div
+          style={{
+            maxWidth: 680,
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+          }}
+        >
+          {/* ── Instagram ── */}
+          <div className="ui-surface p-4">
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <PlatformIcon platform="instagram" />
+              <div style={{ flex: 1 }}>
                 <div
                   style={{
                     display: "flex",
                     alignItems: "center",
                     gap: 8,
-                    marginBottom: 6,
+                    marginBottom: 3,
                   }}
                 >
-                  <span style={{ fontSize: 16 }}>{k.icon}</span>
-                  <span
+                  <p
                     style={{
-                      fontSize: 10,
-                      color: "var(--tx-3)",
-                      fontWeight: 500,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: "var(--tx-1)",
                     }}
                   >
-                    {k.l}
-                  </span>
+                    Instagram
+                  </p>
+                  {instagramAccounts.length > 0 && (
+                    <span
+                      style={{
+                        fontSize: 9,
+                        padding: "2px 8px",
+                        borderRadius: 10,
+                        background: "var(--pos-dim)",
+                        color: "var(--pos)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Подключён
+                    </span>
+                  )}
                 </div>
-                <p
-                  style={{
-                    fontSize: 22,
-                    fontWeight: 700,
-                    color: "var(--tx-1)",
-                  }}
-                >
-                  {k.v}
+                <p style={{ fontSize: 11, color: "var(--tx-3)" }}>
+                  Business или Creator аккаунт
                 </p>
               </div>
-            ))}
-          </div>
-        )}
-
-        {/* Content plan if generated */}
-        {contentPlan.length > 0 && (
-          <div
-            style={{
-              marginBottom: 20,
-              padding: "14px 16px",
-              background: "var(--accent-dim)",
-              borderRadius: 12,
-              border: "0.5px solid var(--accent)",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 10,
-              }}
-            >
-              <p
+              <button
+                onClick={connectInstagram}
                 style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "var(--accent)",
+                  color: "var(--on-accent)",
                   fontSize: 12,
                   fontWeight: 600,
-                  color: "var(--accent)",
-                }}
-              >
-                ✦ Контент-план · {contentPlan.length} публикаций
-              </p>
-              <button
-                onClick={() => setContentPlan([])}
-                style={{
-                  background: "none",
-                  border: "none",
                   cursor: "pointer",
-                  color: "var(--tx-3)",
-                  fontSize: 12,
+                  fontFamily: "inherit",
                 }}
               >
-                ✕
+                {instagramAccounts.length > 0 ? "Добавить ещё" : "Подключить"}
               </button>
             </div>
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                overflowX: "auto",
-                paddingBottom: 4,
-              }}
-            >
-              {contentPlan.map((item, i) => (
-                <div
-                  key={i}
-                  style={{
-                    padding: "10px 12px",
-                    background: "var(--panel)",
-                    borderRadius: 9,
-                    border: "0.5px solid var(--line)",
-                    minWidth: 160,
-                    flexShrink: 0,
-                  }}
-                >
+
+            {instagramAccounts.length > 0 && (
+              <div
+                style={{
+                  marginTop: 12,
+                  borderTop: "0.5px solid var(--line)",
+                  paddingTop: 12,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
+                {instagramAccounts.map((acc) => (
                   <div
+                    key={acc.id}
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: 6,
-                      marginBottom: 5,
+                      gap: 10,
+                      padding: "10px 12px",
+                      background: "var(--panel-2)",
+                      borderRadius: 9,
+                      border: "0.5px solid var(--line)",
                     }}
                   >
                     <div
                       style={{
-                        width: 20,
-                        height: 20,
-                        borderRadius: "50%",
-                        background: "var(--accent)",
+                        width: 28,
+                        height: 28,
+                        borderRadius: 8,
+                        background:
+                          "linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        color: "var(--on-accent)",
-                        fontSize: 9,
+                        color: "#fff",
+                        fontSize: 11,
                         fontWeight: 700,
+                        flexShrink: 0,
                       }}
                     >
-                      Д{item.day}
+                      IG
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: "var(--tx-1)",
+                        }}
+                      >
+                        {acc.channel_name}
+                      </p>
+                      <p style={{ fontSize: 10, color: "var(--tx-3)" }}>
+                        {acc.channel_id}
+                      </p>
                     </div>
                     <span
                       style={{
                         fontSize: 9,
-                        padding: "2px 5px",
-                        borderRadius: 8,
-                        background:
-                          item.platform === "telegram"
-                            ? "rgba(0,136,204,0.15)"
-                            : "rgba(225,48,108,0.15)",
-                        color:
-                          item.platform === "telegram" ? "#0088CC" : "#E1306C",
+                        padding: "2px 7px",
+                        borderRadius: 10,
+                        background: acc.is_active
+                          ? "var(--pos-dim)"
+                          : "var(--chip)",
+                        color: acc.is_active ? "var(--pos)" : "var(--tx-3)",
                         fontWeight: 600,
                       }}
                     >
-                      {item.platform === "telegram" ? "TG" : "IG"}
+                      {acc.is_active ? "Активен" : "Откл."}
                     </span>
+                    <button
+                      onClick={() =>
+                        toggleMutation.mutate({
+                          id: acc.id,
+                          is_active: !acc.is_active,
+                        })
+                      }
+                      className={`${btn.base} ${acc.is_active ? btn.amber : btn.green}`}
+                    >
+                      {acc.is_active ? "Откл." : "Вкл."}
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Удалить ${acc.channel_name}?`))
+                          deleteMutation.mutate(acc.id);
+                      }}
+                      className={`${btn.base} ${btn.red}`}
+                    >
+                      Удалить
+                    </button>
                   </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Telegram ── */}
+          <div className="ui-surface p-4">
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <PlatformIcon platform="telegram" />
+              <div style={{ flex: 1 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    marginBottom: 3,
+                  }}
+                >
                   <p
                     style={{
-                      fontSize: 11,
-                      fontWeight: 500,
+                      fontSize: 14,
+                      fontWeight: 600,
                       color: "var(--tx-1)",
+                    }}
+                  >
+                    Telegram
+                  </p>
+                  {telegramChannels.length > 0 && (
+                    <span
+                      style={{
+                        fontSize: 9,
+                        padding: "2px 8px",
+                        borderRadius: 10,
+                        background: "var(--pos-dim)",
+                        color: "var(--pos)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {telegramChannels.length} канал
+                      {telegramChannels.length > 1 ? "а" : ""}
+                    </span>
+                  )}
+                </div>
+                <p style={{ fontSize: 11, color: "var(--tx-3)" }}>
+                  Автопостинг через @{BOT_USERNAME}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowTgForm((v) => !v);
+                  setTgError("");
+                }}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "var(--accent)",
+                  color: "var(--on-accent)",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                + Добавить
+              </button>
+            </div>
+
+            {/* Add form */}
+            {showTgForm && (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: 14,
+                  background: "var(--panel-2)",
+                  borderRadius: 10,
+                  border: "0.5px solid var(--line)",
+                }}
+              >
+                <form
+                  onSubmit={handleSaveTg}
+                  style={{ display: "flex", flexDirection: "column", gap: 10 }}
+                >
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: "var(--tx-3)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        marginBottom: 6,
+                      }}
+                    >
+                      ID канала *
+                    </label>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input
+                        value={channelId}
+                        onChange={(e) => {
+                          setChannelId(e.target.value);
+                          setTestResult("");
+                        }}
+                        placeholder="@mychannel или -1001234567890"
+                        required
+                        className={`${inp} flex-1`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => testChannel(channelId)}
+                        disabled={!channelId || testing}
+                        style={{
+                          padding: "8px 12px",
+                          borderRadius: 8,
+                          border: "0.5px solid var(--line)",
+                          background: "var(--panel)",
+                          color: "var(--tx-2)",
+                          fontSize: 11,
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                          whiteSpace: "nowrap",
+                          opacity: !channelId || testing ? 0.5 : 1,
+                        }}
+                      >
+                        {testing ? "..." : "Проверить"}
+                      </button>
+                    </div>
+                    <p
+                      style={{
+                        fontSize: 10,
+                        color: "var(--tx-3)",
+                        marginTop: 5,
+                      }}
+                    >
+                      Добавь{" "}
+                      <strong style={{ color: "var(--tx-2)" }}>
+                        @{BOT_USERNAME}
+                      </strong>{" "}
+                      как администратора в канал
+                    </p>
+                    {testResult && (
+                      <p
+                        style={{
+                          fontSize: 11,
+                          marginTop: 5,
+                          fontWeight: 500,
+                          color: testResult.startsWith("✓")
+                            ? "var(--pos)"
+                            : "var(--neg)",
+                        }}
+                      >
+                        {testResult}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: "var(--tx-3)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        marginBottom: 6,
+                      }}
+                    >
+                      Название (необязательно)
+                    </label>
+                    <input
+                      value={channelName}
+                      onChange={(e) => setChannelName(e.target.value)}
+                      placeholder="Мой канал"
+                      className={inp}
+                    />
+                  </div>
+                  {tgError && (
+                    <div
+                      style={{
+                        padding: "8px 12px",
+                        background: "rgba(193,18,31,0.08)",
+                        border: "0.5px solid var(--neg)",
+                        borderRadius: 8,
+                        fontSize: 11,
+                        color: "var(--neg)",
+                      }}
+                    >
+                      {tgError}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      type="submit"
+                      disabled={tgLoading}
+                      style={{
+                        flex: 1,
+                        padding: "10px",
+                        borderRadius: 8,
+                        border: "none",
+                        background: "var(--accent)",
+                        color: "var(--on-accent)",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        opacity: tgLoading ? 0.6 : 1,
+                      }}
+                    >
+                      {tgLoading
+                        ? "Проверяем права бота..."
+                        : "Подключить канал"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowTgForm(false);
+                        setTgError("");
+                        setTestResult("");
+                      }}
+                      style={{
+                        padding: "10px 16px",
+                        borderRadius: 8,
+                        border: "0.5px solid var(--line)",
+                        background: "transparent",
+                        color: "var(--tx-2)",
+                        fontSize: 12,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      Отмена
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Channel list */}
+            {isLoading ? (
+              <div
+                style={{
+                  marginTop: 12,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
+                {[1, 2].map((i) => (
+                  <div
+                    key={i}
+                    style={{
+                      height: 52,
+                      background: "var(--panel-2)",
+                      borderRadius: 9,
+                      animation: "pulse 1.5s infinite",
+                    }}
+                  />
+                ))}
+              </div>
+            ) : telegramChannels.length > 0 ? (
+              <div
+                style={{
+                  marginTop: 12,
+                  borderTop: "0.5px solid var(--line)",
+                  paddingTop: 12,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
+                {telegramChannels.map((ch) => (
+                  <div key={ch.id}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        padding: "10px 12px",
+                        background: "var(--panel-2)",
+                        borderRadius: 9,
+                        border: "0.5px solid var(--line)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 8,
+                          background: "#0088CC",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="white"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                        >
+                          <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
+                        </svg>
+                      </div>
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {editingId === ch.id ? (
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <input
+                              value={editingName}
+                              onChange={(e) => setEditingName(e.target.value)}
+                              style={{
+                                flex: 1,
+                                padding: "4px 8px",
+                                border: "0.5px solid var(--accent)",
+                                borderRadius: 6,
+                                fontSize: 11,
+                                outline: "none",
+                                background: "var(--panel)",
+                                color: "var(--tx-1)",
+                                fontFamily: "inherit",
+                              }}
+                              autoFocus
+                            />
+                            <button
+                              onClick={() =>
+                                editMutation.mutate({
+                                  id: ch.id,
+                                  channel_name: editingName,
+                                })
+                              }
+                              disabled={editMutation.isPending}
+                              style={{
+                                padding: "4px 8px",
+                                borderRadius: 6,
+                                border: "none",
+                                background: "var(--accent)",
+                                color: "var(--on-accent)",
+                                fontSize: 10,
+                                cursor: "pointer",
+                                fontFamily: "inherit",
+                              }}
+                            >
+                              {editMutation.isPending ? "..." : "OK"}
+                            </button>
+                            <button
+                              onClick={() => setEditingId(null)}
+                              style={{
+                                padding: "4px 8px",
+                                borderRadius: 6,
+                                border: "0.5px solid var(--line)",
+                                background: "transparent",
+                                color: "var(--tx-3)",
+                                fontSize: 10,
+                                cursor: "pointer",
+                                fontFamily: "inherit",
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <p
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: "var(--tx-1)",
+                              }}
+                            >
+                              {ch.channel_name || ch.channel_id}
+                            </p>
+                            <p style={{ fontSize: 10, color: "var(--tx-3)" }}>
+                              {ch.channel_id}
+                            </p>
+                          </>
+                        )}
+                      </div>
+
+                      <span
+                        style={{
+                          fontSize: 9,
+                          padding: "2px 7px",
+                          borderRadius: 10,
+                          background: ch.is_active
+                            ? "var(--pos-dim)"
+                            : "var(--chip)",
+                          color: ch.is_active ? "var(--pos)" : "var(--tx-3)",
+                          fontWeight: 600,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {ch.is_active ? "Активен" : "Откл."}
+                      </span>
+
+                      {/* Actions */}
+                      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                        <button
+                          onClick={() => {
+                            setEditingId(ch.id);
+                            setEditingName(ch.channel_name || ch.channel_id);
+                          }}
+                          className={`${btn.base} ${btn.ghost}`}
+                          title="Переименовать"
+                        >
+                          ✎
+                        </button>
+                        <button
+                          onClick={() =>
+                            toggleMutation.mutate({
+                              id: ch.id,
+                              is_active: !ch.is_active,
+                            })
+                          }
+                          className={`${btn.base} ${ch.is_active ? btn.amber : btn.green}`}
+                        >
+                          {ch.is_active ? "Откл." : "Вкл."}
+                        </button>
+                        <button
+                          onClick={() => {
+                            fetchChannelStats(ch.channel_id);
+                          }}
+                          disabled={loadingStats === ch.channel_id}
+                          className={`${btn.base} ${btn.ghost}`}
+                          title="Статистика"
+                        >
+                          {loadingStats === ch.channel_id ? "..." : "📊"}
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`Удалить канал ${ch.channel_name}?`))
+                              deleteMutation.mutate(ch.id);
+                          }}
+                          className={`${btn.base} ${btn.red}`}
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Stats panel */}
+                    {openStatsId === ch.channel_id &&
+                      channelStats[ch.channel_id] && (
+                        <div
+                          style={{
+                            padding: "12px 14px",
+                            background: "var(--panel-2)",
+                            borderRadius: "0 0 9px 9px",
+                            border: "0.5px solid var(--line)",
+                            borderTop: "none",
+                            display: "grid",
+                            gridTemplateColumns: "repeat(4,1fr)",
+                            gap: 10,
+                          }}
+                        >
+                          {[
+                            {
+                              l: "Подписчиков",
+                              v:
+                                channelStats[ch.channel_id].member_count ?? "—",
+                            },
+                            {
+                              l: "Постов за неделю",
+                              v:
+                                channelStats[ch.channel_id].posts_this_week ??
+                                0,
+                            },
+                            {
+                              l: "Последний пост",
+                              v: channelStats[ch.channel_id].last_post_at
+                                ? new Date(
+                                    channelStats[ch.channel_id].last_post_at,
+                                  ).toLocaleDateString("ru")
+                                : "—",
+                            },
+                            {
+                              l: "Название",
+                              v: channelStats[ch.channel_id].title ?? "—",
+                            },
+                          ].map((s) => (
+                            <div key={s.l} style={{ textAlign: "center" }}>
+                              <p
+                                style={{
+                                  fontSize: 16,
+                                  fontWeight: 700,
+                                  color: "var(--tx-1)",
+                                }}
+                              >
+                                {s.v}
+                              </p>
+                              <p
+                                style={{
+                                  fontSize: 9,
+                                  color: "var(--tx-3)",
+                                  marginTop: 2,
+                                }}
+                              >
+                                {s.l}
+                              </p>
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => setOpenStatsId(null)}
+                            style={{
+                              gridColumn: "1/-1",
+                              textAlign: "center",
+                              fontSize: 10,
+                              color: "var(--tx-3)",
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              marginTop: 4,
+                            }}
+                          >
+                            Скрыть ▲
+                          </button>
+                        </div>
+                      )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              !showTgForm && (
+                <div
+                  style={{
+                    marginTop: 12,
+                    textAlign: "center",
+                    padding: "20px 0",
+                    color: "var(--tx-3)",
+                    fontSize: 12,
+                  }}
+                >
+                  Нет подключённых каналов
+                </div>
+              )
+            )}
+          </div>
+
+          {/* ── TikTok / VK — скоро ── */}
+          {[
+            { id: "tiktok", name: "TikTok", desc: "Business аккаунт" },
+            { id: "vk", name: "ВКонтакте", desc: "Группа или сообщество" },
+          ].map((p) => (
+            <div key={p.id} className="ui-surface p-4">
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <PlatformIcon platform={p.id} />
+                <div style={{ flex: 1 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
                       marginBottom: 3,
                     }}
                   >
-                    {item.topic}
-                  </p>
-                  {item.time && (
-                    <p style={{ fontSize: 10, color: "var(--tx-3)" }}>
-                      🕐 {item.time}
+                    <p
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: "var(--tx-1)",
+                      }}
+                    >
+                      {p.name}
                     </p>
-                  )}
+                    <span
+                      style={{
+                        fontSize: 9,
+                        padding: "2px 8px",
+                        borderRadius: 10,
+                        background: "var(--chip)",
+                        color: "var(--tx-3)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Скоро
+                    </span>
+                  </div>
+                  <p style={{ fontSize: 11, color: "var(--tx-3)" }}>{p.desc}</p>
                 </div>
-              ))}
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* Platform filter */}
-        {hasConnected && (
-          <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-            {[
-              { v: "all", l: "Все платформы", count: posts.length },
-              ...(tgChannels.length > 0
-                ? [
-                    {
-                      v: "telegram",
-                      l: "Telegram",
-                      count: posts.filter((p) => p.platform === "telegram")
-                        .length,
-                    },
-                  ]
-                : []),
-              ...(igChannels.length > 0
-                ? [
-                    {
-                      v: "instagram",
-                      l: "Instagram",
-                      count: posts.filter((p) => p.platform === "instagram")
-                        .length,
-                    },
-                  ]
-                : []),
-            ].map((opt) => (
-              <button
-                key={opt.v}
-                onClick={() => setPlatform(opt.v as Platform)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "6px 14px",
-                  borderRadius: 20,
-                  border: `0.5px solid ${platform === opt.v ? "var(--accent)" : "var(--line)"}`,
-                  background:
-                    platform === opt.v ? "var(--accent-dim)" : "transparent",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  fontSize: 11,
-                  fontWeight: platform === opt.v ? 600 : 400,
-                  color: platform === opt.v ? "var(--accent)" : "var(--tx-2)",
-                }}
-              >
-                {opt.v === "telegram" && (
-                  <span style={{ fontSize: 10 }}>✈️</span>
-                )}
-                {opt.v === "instagram" && (
-                  <span style={{ fontSize: 10 }}>📸</span>
-                )}
-                {opt.l} · {opt.count}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* No platforms connected */}
-        {!hasConnected && (
-          <div style={{ textAlign: "center", padding: "60px 20px" }}>
-            <div style={{ fontSize: 52, marginBottom: 16 }}>🔌</div>
-            <p
-              style={{
-                fontSize: 16,
-                fontWeight: 700,
-                color: "var(--tx-1)",
-                marginBottom: 8,
-              }}
-            >
-              Нет подключённых платформ
-            </p>
-            <p
-              style={{
-                fontSize: 12,
-                color: "var(--tx-3)",
-                marginBottom: 24,
-                lineHeight: 1.6,
-              }}
-            >
-              Подключите Telegram или Instagram чтобы видеть посты и аналитику
-            </p>
-            <a
-              href={`/${locale}/integrations`}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "10px 24px",
-                borderRadius: 9,
-                background: "var(--accent)",
-                color: "var(--on-accent)",
-                fontSize: 13,
-                fontWeight: 600,
-                textDecoration: "none",
-              }}
-            >
-              → Перейти в Подключения
-            </a>
-          </div>
-        )}
-
-        {/* Loading */}
-        {loadingPosts && (
-          <div style={{ textAlign: "center", padding: "60px" }}>
-            <div
-              style={{ fontSize: 40, animation: "spin 1.5s linear infinite" }}
-            >
-              ✦
-            </div>
-            <p style={{ fontSize: 13, color: "var(--tx-3)", marginTop: 16 }}>
-              Загрузка постов...
-            </p>
-            <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
-          </div>
-        )}
-
-        {/* Error */}
-        {error && !loadingPosts && (
-          <div
-            style={{
-              padding: "12px 16px",
-              background: "rgba(193,18,31,0.08)",
-              border: "0.5px solid var(--neg)",
-              borderRadius: 9,
-              marginBottom: 16,
-            }}
-          >
-            <p style={{ fontSize: 12, color: "var(--neg)" }}>⚠ {error}</p>
-          </div>
-        )}
-
-        {/* Posts grid */}
-        {!loadingPosts && filteredPosts.length > 0 && (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-              gap: 14,
-            }}
-          >
-            {filteredPosts.map((post) => (
-              <PostCard
-                key={post.id}
-                post={post}
-                onClick={() => setSelectedPost(post)}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Empty state - connected but no posts */}
-        {!loadingPosts &&
-          hasConnected &&
-          filteredPosts.length === 0 &&
-          !error && (
-            <div style={{ textAlign: "center", padding: "60px 20px" }}>
-              <div style={{ fontSize: 48, marginBottom: 14 }}>📭</div>
-              <p
-                style={{
-                  fontSize: 15,
-                  fontWeight: 600,
-                  color: "var(--tx-1)",
-                  marginBottom: 6,
-                }}
-              >
-                Нет постов
-              </p>
-              <p style={{ fontSize: 12, color: "var(--tx-3)" }}>
-                Посты появятся после публикации в подключённых каналах
-              </p>
-            </div>
-          )}
+          ))}
+        </div>
       </div>
-
-      {/* Modals */}
-      {selectedPost && (
-        <PostModal post={selectedPost} onClose={() => setSelectedPost(null)} />
-      )}
-      {showAnalysis && (
-        <AnalysisModal
-          posts={posts}
-          project={activeProject}
-          onClose={() => setShowAnalysis(false)}
-          onPlanCreated={(plan) => {
-            setContentPlan(plan);
-            setShowAnalysis(false);
-          }}
-        />
-      )}
     </div>
   );
 }
 
-export default function CreateContentPage() {
+export default function IntegrationsPage() {
   return (
-    <Suspense
-      fallback={
-        <div
-          style={{
-            height: "100%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "var(--tx-3)",
-            fontSize: 12,
-          }}
-        >
-          ...
-        </div>
-      }
-    >
-      <CreateContentPageInner />
+    <Suspense>
+      <IntegrationsPageInner />
     </Suspense>
   );
 }

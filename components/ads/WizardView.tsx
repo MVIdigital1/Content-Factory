@@ -538,9 +538,20 @@ export function WizardView({
   const [step, setStep] = useState(draft?.step ?? 0);
   const [name, setName] = useState(draft?.name ?? "");
 
+  const [nameError, setNameError] = useState("");
+
   const handleNameChange = (value: string) => {
     setName(value);
     onNameChange?.(value);
+    // Duplicate check against existing campaigns
+    const isDuplicate = existingCampaigns.some(
+      (c: any) =>
+        c.name.toLowerCase().trim() === value.toLowerCase().trim() &&
+        c.id !== draftId,
+    );
+    setNameError(
+      isDuplicate ? "Кампания с таким названием уже существует" : "",
+    );
   };
   const [goal, setGoal] = useState(draft?.goal ?? "Продажи / заявки");
   const [product, setProduct] = useState(draft?.product ?? "");
@@ -1180,8 +1191,11 @@ export function WizardView({
                 value={name}
                 onChange={(e) => handleNameChange(e.target.value)}
                 placeholder="Например: Ramadan акция 2026"
-                className={inp}
+                className={`${inp} ${nameError ? "border-neg" : ""}`}
               />
+              {nameError && (
+                <p className="text-[10px] text-neg mt-1">{nameError}</p>
+              )}
             </div>
 
             {/* Clone campaign */}
@@ -1365,6 +1379,10 @@ export function WizardView({
               onClick={() => {
                 if (!name.trim()) {
                   setError("Введите название");
+                  return;
+                }
+                if (nameError) {
+                  setError(nameError);
                   return;
                 }
                 setError("");

@@ -2,12 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 const BOT_TOKEN = process.env.BOT_TOKEN!;
-const IG_API = "https://graph.instagram.com/v22.0";
 
-// GET /api/telegram/posts?limit=20
-// Returns posts from all connected Telegram channels
-// Uses publish_logs + contents from DB (posts WE published)
-// Plus fetches real view counts from Telegram Bot API
+// GET /api/telegram/posts?limit=30
+// Reads published posts from contents + publish_logs tables
+// Then fetches real view stats from Telegram for each post
 export async function GET(request: Request) {
   const supabase = await createClient();
   const {
@@ -17,45 +15,53 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const url = new URL(request.url);
-  const limit = Math.min(Number(url.searchParams.get("limit") ?? "20"), 50);
+  const limit = Math.min(Number(url.searchParams.get("limit") ?? "30"), 50);
 
-  // Get connected Telegram channels
-  const { data: channels } = await supabase
+  // Get connected Telegram channel
+  const { data: integration } = await supabase
     .from("integrations")
     .select("channel_id, channel_name")
     .eq("user_id", user.id)
     .eq("platform", "telegram")
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
 
-  if (!channels?.length) {
+  if (!integration) {
     return NextResponse.json({ messages: [] });
   }
 
-  // Get published posts from our DB
+  // Get posts we published via PostCentro (from publish_logs + contents)
   const { data: logs } = await supabase
     .from("publish_logs")
     .select(
       `
-      id, created_at, telegram_message_id, platform, status,
+      id,
+      created_at,
+      telegram_message_id,
+      platform,
+      status,
+      content_id,
       contents (
-        id, title, body, image_url, platform
+        id, title, body, caption, image_url, platform, content_type
       )
     `,
     )
-    .eq("user_id", user.id)
     .eq("platform", "telegram")
     .eq("status", "published")
+    .not("content_id", "is", null)
     .order("created_at", { ascending: false })
     .limit(limit);
 
   if (!logs?.length) {
-    return NextResponse.json({ messages: [] });
+    return NextResponse.json({ messages: [], note: "no_posts_yet" });
   }
 
-  const channelId = channels[0].channel_id;
-  const channelName = channels[0].channel_name;
+  const channelId = integration.channel_id;
+  const channelName = integration.channel_name;
 
-  // Fetch real stats for each post from Telegram
+  // Fetch real view stats for each post that has a telegram_message_id
   const messages = await Promise.all(
     logs.map(async (log: any) => {
       let views = 0;
@@ -64,7 +70,7 @@ export async function GET(request: Request) {
 
       if (log.telegram_message_id) {
         try {
-          // Get message views via forwardMessage trick or getMessageStatistics
+          // getMessageStatistics only works for channels via Bot API
           const statsRes = await fetch(
             `https://api.telegram.org/bot${BOT_TOKEN}/getMessageStatistics`,
             {
@@ -76,10 +82,10 @@ export async function GET(request: Request) {
               }),
             },
           );
-          const statsData = await statsRes.json();
-          if (statsData.ok) {
-            views = statsData.result?.views ?? 0;
-            forwards = statsData.result?.forwards ?? 0;
+          const stats = await statsRes.json();
+          if (stats.ok) {
+            views = stats.result?.views ?? 0;
+            forwards = stats.result?.forwards ?? 0;
           }
 
           // Get reactions
@@ -96,29 +102,35 @@ export async function GET(request: Request) {
           );
           const reactData = await reactRes.json();
           if (reactData.ok && reactData.result?.reactions) {
-            reactData.result.reactions.forEach((r: any) => {
-              const emoji = r.type?.emoji ?? r.type?.custom_emoji_id ?? "👍";
+            for (const r of reactData.result.reactions) {
+              const emoji = r.type?.emoji ?? "👍";
               reactions[emoji] = (reactions[emoji] ?? 0) + (r.count ?? 0);
-            });
+            }
           }
         } catch {}
       }
 
       const content = log.contents as any;
+      const text = content?.body ?? content?.caption ?? content?.title ?? "";
+      const imageUrl = content?.image_url ?? null;
+
       return {
         id: log.id,
+        content_id: log.content_id,
+        message_id: log.telegram_message_id,
         platform: "telegram",
-        text: content?.body ?? content?.title ?? "",
-        image_url: content?.image_url ?? null,
+        text,
+        image_url: imageUrl,
         date: log.created_at,
         views,
         shares: forwards,
         reactions,
-        url: log.telegram_message_id
-          ? `https://t.me/${channelName?.replace("@", "")}/${log.telegram_message_id}`
-          : null,
+        url:
+          log.telegram_message_id && channelName
+            ? `https://t.me/${channelName.replace("@", "")}/${log.telegram_message_id}`
+            : null,
         channel_name: channelName,
-        message_id: log.telegram_message_id,
+        type: content?.content_type ?? "post",
       };
     }),
   );

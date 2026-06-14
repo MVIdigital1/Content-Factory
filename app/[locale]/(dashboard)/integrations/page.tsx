@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
@@ -20,49 +20,59 @@ function connectInstagram() {
   const redirectUri =
     process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI ??
     "https://content-factory-khaki.vercel.app/api/auth/instagram/callback";
-
   const params = new URLSearchParams({
     client_id: appId,
     redirect_uri: redirectUri,
     scope: "instagram_business_basic,instagram_business_content_publish",
     response_type: "code",
   });
-
   window.location.href = `https://www.instagram.com/oauth/authorize?${params}`;
 }
 
-const PLATFORMS = [
-  {
-    id: "instagram",
-    name: "Instagram",
-    description: "Business или Creator аккаунт",
-    gradient: "from-purple-500 via-pink-500 to-orange-400",
-    oauth: true,
-  },
-  {
-    id: "tiktok",
-    name: "TikTok",
-    description: "Business аккаунт",
-    gradient: "from-gray-800 to-gray-900",
-    comingSoon: true,
-  },
-  {
-    id: "vk",
-    name: "ВКонтакте",
-    description: "Группа или сообщество",
-    gradient: "from-blue-500 to-blue-600",
-    comingSoon: true,
-  },
-] as const;
+const inp =
+  "w-full px-3 py-2.5 rounded-[8px] border border-line text-[12px] outline-none focus:border-line-strong bg-panel text-tx-1 placeholder:text-tx-3 transition-colors";
 
-export default function IntegrationsPage() {
+// Platform logo
+function PlatformIcon({ platform }: { platform: string }) {
+  const configs: Record<string, { bg: string; label: string }> = {
+    instagram: {
+      bg: "linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045)",
+      label: "IG",
+    },
+    telegram: { bg: "#0088CC", label: "TG" },
+    tiktok: { bg: "#010101", label: "TT" },
+    vk: { bg: "#0077FF", label: "VK" },
+  };
+  const c = configs[platform] ?? { bg: "#888", label: "?" };
+  return (
+    <div
+      style={{
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        background: c.bg,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#fff",
+        fontSize: 13,
+        fontWeight: 700,
+        flexShrink: 0,
+      }}
+    >
+      {c.label}
+    </div>
+  );
+}
+
+function IntegrationsPageInner() {
   const supabase = createClient();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
-  const showToast = (msg: string) => {
-    setToast(msg);
+  const showToast = (msg: string, ok = true) => {
+    setToast({ msg, ok });
     setTimeout(() => setToast(null), 3000);
   };
 
@@ -70,30 +80,33 @@ export default function IntegrationsPage() {
     const s = searchParams.get("success");
     const e = searchParams.get("error");
     if (s === "instagram") {
-      showToast("✅ Instagram успешно подключён!");
+      showToast("✓ Instagram успешно подключён!");
       queryClient.invalidateQueries({ queryKey: ["integrations"] });
     } else if (e) {
-      showToast(`❌ Ошибка: ${decodeURIComponent(e)}`);
+      showToast(`Ошибка: ${decodeURIComponent(e)}`, false);
     }
   }, [searchParams]);
 
-  const [showTelegramForm, setShowTelegramForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState("");
+  // Telegram form state
+  const [showTgForm, setShowTgForm] = useState(false);
   const [channelId, setChannelId] = useState("");
   const [channelName, setChannelName] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [tgLoading, setTgLoading] = useState(false);
+  const [tgError, setTgError] = useState("");
+  const [tgSuccess, setTgSuccess] = useState("");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState("");
+
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+
+  // Stats
   const [channelStats, setChannelStats] = useState<Record<string, any>>({});
   const [loadingStats, setLoadingStats] = useState<string | null>(null);
+  const [openStatsId, setOpenStatsId] = useState<string | null>(null);
 
-  const inputClass =
-    "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#1D9E75] focus:ring-1 focus:ring-[#1D9E75] transition-colors bg-white";
-
-  const { data: integrations, isLoading } = useQuery({
+  const { data: integrations = [], isLoading } = useQuery({
     queryKey: ["integrations"],
     queryFn: async () => {
       const { data } = await supabase
@@ -104,10 +117,12 @@ export default function IntegrationsPage() {
     },
   });
 
-  const telegramChannels =
-    integrations?.filter((i) => i.platform === "telegram") || [];
-  const instagramAccounts =
-    integrations?.filter((i) => i.platform === "instagram") || [];
+  const telegramChannels = integrations.filter(
+    (i) => i.platform === "telegram",
+  );
+  const instagramAccounts = integrations.filter(
+    (i) => i.platform === "instagram",
+  );
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -158,8 +173,7 @@ export default function IntegrationsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["integrations"] });
       setEditingId(null);
-      setSuccess("Название обновлено");
-      setTimeout(() => setSuccess(""), 2000);
+      showToast("Название обновлено");
     },
   });
 
@@ -168,47 +182,45 @@ export default function IntegrationsPage() {
     setTesting(true);
     setTestResult("");
     try {
-      const res = await fetch("/api/telegram/check-channel", {
+      const res = await fetch("/api/telegram/check-chanel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ channel_id: cId }),
       });
       const data = await res.json();
-      if (data.ok) {
-        setTestResult(`✓ Канал найден: ${data.result?.title || cId}`);
-      } else {
-        setTestResult(
-          `✗ Канал не найден. Убедитесь что @${BOT_USERNAME} добавлен как администратор`,
-        );
-      }
+      setTestResult(
+        data.ok
+          ? `✓ Найден: ${data.result?.title || cId}`
+          : `✗ Не найден. Убедитесь что @${BOT_USERNAME} добавлен как администратор`,
+      );
     } catch {
       setTestResult("✗ Ошибка проверки");
     }
     setTesting(false);
   };
 
-  const fetchChannelStats = async (channelId: string) => {
-    setLoadingStats(channelId);
+  const fetchChannelStats = async (cId: string) => {
+    setLoadingStats(cId);
     try {
       const res = await fetch("/api/telegram/channel-stats", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channel_id: channelId }),
+        body: JSON.stringify({ channel_id: cId }),
       });
       const data = await res.json();
-      if (data.ok) setChannelStats((prev) => ({ ...prev, [channelId]: data }));
-    } catch {
-      /* silent */
-    }
+      if (data.ok) {
+        setChannelStats((prev) => ({ ...prev, [cId]: data }));
+        setOpenStatsId(cId);
+      }
+    } catch {}
     setLoadingStats(null);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSaveTg = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setError("");
+    setTgLoading(true);
+    setTgError("");
     try {
-      // Используем серверный API — токен никогда не попадает в браузер
       const res = await fetch("/api/telegram/add-channel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -223,365 +235,828 @@ export default function IntegrationsPage() {
       setChannelId("");
       setChannelName("");
       setTestResult("");
-      setShowTelegramForm(false);
-      setSuccess(`✓ Канал «${data.channel_title}» подключён!`);
-      setTimeout(() => setSuccess(""), 4000);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Ошибка сохранения");
+      setShowTgForm(false);
+      showToast(`✓ Канал «${data.channel_title}» подключён!`);
+    } catch (err: any) {
+      setTgError(err.message || "Ошибка сохранения");
     }
-    setLoading(false);
+    setTgLoading(false);
+  };
+
+  const btn = {
+    base: "px-3 py-1.5 rounded-[7px] text-[11px] font-medium cursor-pointer border transition-colors",
+    green: "border-transparent bg-accent text-on-accent hover:opacity-90",
+    amber: "border-line text-tx-2 hover:bg-hover",
+    red: "border-line text-neg hover:bg-hover",
+    ghost: "border-line text-tx-3 hover:bg-hover",
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-2xl space-y-6 relative">
-      {toast && (
-        <div className="fixed top-4 right-4 z-50 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg">
-          {toast}
-        </div>
-      )}
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Интеграции</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Подключите соцсети для автопостинга
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        overflow: "hidden",
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 16px",
+          height: 44,
+          borderBottom: "0.5px solid var(--line)",
+          background: "var(--panel)",
+          flexShrink: 0,
+        }}
+      >
+        <p style={{ fontSize: 11, color: "var(--tx-3)" }}>
+          Маркетинг /{" "}
+          <span style={{ color: "var(--tx-2)", fontWeight: 500 }}>
+            Подключения
+          </span>
         </p>
       </div>
 
-      {success && (
-        <div className="bg-[#E1F5EE] border border-[#1D9E75]/30 rounded-xl px-4 py-3 text-sm text-[#1D9E75] font-medium">
-          {success}
+      {/* Toast */}
+      {toast && (
+        <div
+          style={{
+            position: "fixed",
+            top: 16,
+            right: 16,
+            zIndex: 200,
+            padding: "10px 16px",
+            borderRadius: 10,
+            background: toast.ok ? "var(--pos)" : "var(--neg)",
+            color: "#fff",
+            fontSize: 12,
+            fontWeight: 600,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
+          }}
+        >
+          {toast.msg}
         </div>
       )}
 
-      {/* Другие платформы */}
-      <div className="space-y-3">
-        {PLATFORMS.map((platform) => {
-          const accounts = platform.id === "instagram" ? instagramAccounts : [];
-          const isConnected = accounts.length > 0;
-          return (
-            <div
-              key={platform.id}
-              className="bg-white rounded-xl border border-gray-100 p-4"
-            >
-              <div className="flex items-center gap-4">
+      <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+        <div
+          style={{
+            maxWidth: 680,
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+          }}
+        >
+          {/* ── Instagram ── */}
+          <div className="ui-surface p-4">
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <PlatformIcon platform="instagram" />
+              <div style={{ flex: 1 }}>
                 <div
-                  className={`w-12 h-12 rounded-xl bg-gradient-to-br ${platform.gradient} flex items-center justify-center flex-shrink-0`}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    marginBottom: 3,
+                  }}
                 >
-                  <span className="text-white text-xs font-bold">
-                    {platform.name[0]}
-                  </span>
+                  <p
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: "var(--tx-1)",
+                    }}
+                  >
+                    Instagram
+                  </p>
+                  {instagramAccounts.length > 0 && (
+                    <span
+                      style={{
+                        fontSize: 9,
+                        padding: "2px 8px",
+                        borderRadius: 10,
+                        background: "var(--pos-dim)",
+                        color: "var(--pos)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Подключён
+                    </span>
+                  )}
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-gray-900">
-                      {platform.name}
+                <p style={{ fontSize: 11, color: "var(--tx-3)" }}>
+                  Business или Creator аккаунт
+                </p>
+              </div>
+              <button
+                onClick={connectInstagram}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "var(--accent)",
+                  color: "var(--on-accent)",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {instagramAccounts.length > 0 ? "Добавить ещё" : "Подключить"}
+              </button>
+            </div>
+
+            {instagramAccounts.length > 0 && (
+              <div
+                style={{
+                  marginTop: 12,
+                  borderTop: "0.5px solid var(--line)",
+                  paddingTop: 12,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
+                {instagramAccounts.map((acc) => (
+                  <div
+                    key={acc.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "10px 12px",
+                      background: "var(--panel-2)",
+                      borderRadius: 9,
+                      border: "0.5px solid var(--line)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 8,
+                        background:
+                          "linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#fff",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        flexShrink: 0,
+                      }}
+                    >
+                      IG
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: "var(--tx-1)",
+                        }}
+                      >
+                        {acc.channel_name}
+                      </p>
+                      <p style={{ fontSize: 10, color: "var(--tx-3)" }}>
+                        {acc.channel_id}
+                      </p>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: 9,
+                        padding: "2px 7px",
+                        borderRadius: 10,
+                        background: acc.is_active
+                          ? "var(--pos-dim)"
+                          : "var(--chip)",
+                        color: acc.is_active ? "var(--pos)" : "var(--tx-3)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {acc.is_active ? "Активен" : "Откл."}
+                    </span>
+                    <button
+                      onClick={() =>
+                        toggleMutation.mutate({
+                          id: acc.id,
+                          is_active: !acc.is_active,
+                        })
+                      }
+                      className={`${btn.base} ${acc.is_active ? btn.amber : btn.green}`}
+                    >
+                      {acc.is_active ? "Откл." : "Вкл."}
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Удалить ${acc.channel_name}?`))
+                          deleteMutation.mutate(acc.id);
+                      }}
+                      className={`${btn.base} ${btn.red}`}
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Telegram ── */}
+          <div className="ui-surface p-4">
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <PlatformIcon platform="telegram" />
+              <div style={{ flex: 1 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    marginBottom: 3,
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: "var(--tx-1)",
+                    }}
+                  >
+                    Telegram
+                  </p>
+                  {telegramChannels.length > 0 && (
+                    <span
+                      style={{
+                        fontSize: 9,
+                        padding: "2px 8px",
+                        borderRadius: 10,
+                        background: "var(--pos-dim)",
+                        color: "var(--pos)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {telegramChannels.length} канал
+                      {telegramChannels.length > 1 ? "а" : ""}
+                    </span>
+                  )}
+                </div>
+                <p style={{ fontSize: 11, color: "var(--tx-3)" }}>
+                  Автопостинг через @{BOT_USERNAME}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowTgForm((v) => !v);
+                  setTgError("");
+                }}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "var(--accent)",
+                  color: "var(--on-accent)",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                + Добавить
+              </button>
+            </div>
+
+            {/* Add form */}
+            {showTgForm && (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: 14,
+                  background: "var(--panel-2)",
+                  borderRadius: 10,
+                  border: "0.5px solid var(--line)",
+                }}
+              >
+                <form
+                  onSubmit={handleSaveTg}
+                  style={{ display: "flex", flexDirection: "column", gap: 10 }}
+                >
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: "var(--tx-3)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        marginBottom: 6,
+                      }}
+                    >
+                      ID канала *
+                    </label>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input
+                        value={channelId}
+                        onChange={(e) => {
+                          setChannelId(e.target.value);
+                          setTestResult("");
+                        }}
+                        placeholder="@mychannel или -1001234567890"
+                        required
+                        className={`${inp} flex-1`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => testChannel(channelId)}
+                        disabled={!channelId || testing}
+                        style={{
+                          padding: "8px 12px",
+                          borderRadius: 8,
+                          border: "0.5px solid var(--line)",
+                          background: "var(--panel)",
+                          color: "var(--tx-2)",
+                          fontSize: 11,
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                          whiteSpace: "nowrap",
+                          opacity: !channelId || testing ? 0.5 : 1,
+                        }}
+                      >
+                        {testing ? "..." : "Проверить"}
+                      </button>
+                    </div>
+                    <p
+                      style={{
+                        fontSize: 10,
+                        color: "var(--tx-3)",
+                        marginTop: 5,
+                      }}
+                    >
+                      Добавь{" "}
+                      <strong style={{ color: "var(--tx-2)" }}>
+                        @{BOT_USERNAME}
+                      </strong>{" "}
+                      как администратора в канал
                     </p>
-                    {(platform as any).comingSoon && (
-                      <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-400 rounded-full font-medium">
-                        Скоро
-                      </span>
-                    )}
-                    {isConnected && (
-                      <span className="text-[10px] px-2 py-0.5 bg-[#E1F5EE] text-[#1D9E75] rounded-full font-medium">
-                        Подключён
-                      </span>
+                    {testResult && (
+                      <p
+                        style={{
+                          fontSize: 11,
+                          marginTop: 5,
+                          fontWeight: 500,
+                          color: testResult.startsWith("✓")
+                            ? "var(--pos)"
+                            : "var(--neg)",
+                        }}
+                      >
+                        {testResult}
+                      </p>
                     )}
                   </div>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {platform.description}
-                  </p>
-                </div>
-                {!(platform as any).comingSoon && (
-                  <button
-                    onClick={
-                      (platform as any).oauth ? connectInstagram : undefined
-                    }
-                    className="px-4 py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
-                  >
-                    {isConnected ? "Добавить ещё" : "Подключить"}
-                  </button>
-                )}
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: "var(--tx-3)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        marginBottom: 6,
+                      }}
+                    >
+                      Название (необязательно)
+                    </label>
+                    <input
+                      value={channelName}
+                      onChange={(e) => setChannelName(e.target.value)}
+                      placeholder="Мой канал"
+                      className={inp}
+                    />
+                  </div>
+                  {tgError && (
+                    <div
+                      style={{
+                        padding: "8px 12px",
+                        background: "rgba(193,18,31,0.08)",
+                        border: "0.5px solid var(--neg)",
+                        borderRadius: 8,
+                        fontSize: 11,
+                        color: "var(--neg)",
+                      }}
+                    >
+                      {tgError}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      type="submit"
+                      disabled={tgLoading}
+                      style={{
+                        flex: 1,
+                        padding: "10px",
+                        borderRadius: 8,
+                        border: "none",
+                        background: "var(--accent)",
+                        color: "var(--on-accent)",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        opacity: tgLoading ? 0.6 : 1,
+                      }}
+                    >
+                      {tgLoading
+                        ? "Проверяем права бота..."
+                        : "Подключить канал"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowTgForm(false);
+                        setTgError("");
+                        setTestResult("");
+                      }}
+                      style={{
+                        padding: "10px 16px",
+                        borderRadius: 8,
+                        border: "0.5px solid var(--line)",
+                        background: "transparent",
+                        color: "var(--tx-2)",
+                        fontSize: 12,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      Отмена
+                    </button>
+                  </div>
+                </form>
               </div>
-              {accounts.length > 0 && (
-                <div className="mt-3 space-y-2 border-t border-gray-50 pt-3">
-                  {accounts.map((acc) => (
-                    <div key={acc.id} className="flex items-center gap-3 py-1">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-gray-900">
-                          {acc.channel_name}
-                        </p>
+            )}
+
+            {/* Channel list */}
+            {isLoading ? (
+              <div
+                style={{
+                  marginTop: 12,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
+                {[1, 2].map((i) => (
+                  <div
+                    key={i}
+                    style={{
+                      height: 52,
+                      background: "var(--panel-2)",
+                      borderRadius: 9,
+                      animation: "pulse 1.5s infinite",
+                    }}
+                  />
+                ))}
+              </div>
+            ) : telegramChannels.length > 0 ? (
+              <div
+                style={{
+                  marginTop: 12,
+                  borderTop: "0.5px solid var(--line)",
+                  paddingTop: 12,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
+                {telegramChannels.map((ch) => (
+                  <div key={ch.id}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        padding: "10px 12px",
+                        background: "var(--panel-2)",
+                        borderRadius: 9,
+                        border: "0.5px solid var(--line)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 8,
+                          background: "#0088CC",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="white"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                        >
+                          <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
+                        </svg>
                       </div>
-                      <div className="flex gap-1">
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {editingId === ch.id ? (
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <input
+                              value={editingName}
+                              onChange={(e) => setEditingName(e.target.value)}
+                              style={{
+                                flex: 1,
+                                padding: "4px 8px",
+                                border: "0.5px solid var(--accent)",
+                                borderRadius: 6,
+                                fontSize: 11,
+                                outline: "none",
+                                background: "var(--panel)",
+                                color: "var(--tx-1)",
+                                fontFamily: "inherit",
+                              }}
+                              autoFocus
+                            />
+                            <button
+                              onClick={() =>
+                                editMutation.mutate({
+                                  id: ch.id,
+                                  channel_name: editingName,
+                                })
+                              }
+                              disabled={editMutation.isPending}
+                              style={{
+                                padding: "4px 8px",
+                                borderRadius: 6,
+                                border: "none",
+                                background: "var(--accent)",
+                                color: "var(--on-accent)",
+                                fontSize: 10,
+                                cursor: "pointer",
+                                fontFamily: "inherit",
+                              }}
+                            >
+                              {editMutation.isPending ? "..." : "OK"}
+                            </button>
+                            <button
+                              onClick={() => setEditingId(null)}
+                              style={{
+                                padding: "4px 8px",
+                                borderRadius: 6,
+                                border: "0.5px solid var(--line)",
+                                background: "transparent",
+                                color: "var(--tx-3)",
+                                fontSize: 10,
+                                cursor: "pointer",
+                                fontFamily: "inherit",
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <p
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: "var(--tx-1)",
+                              }}
+                            >
+                              {ch.channel_name || ch.channel_id}
+                            </p>
+                            <p style={{ fontSize: 10, color: "var(--tx-3)" }}>
+                              {ch.channel_id}
+                            </p>
+                          </>
+                        )}
+                      </div>
+
+                      <span
+                        style={{
+                          fontSize: 9,
+                          padding: "2px 7px",
+                          borderRadius: 10,
+                          background: ch.is_active
+                            ? "var(--pos-dim)"
+                            : "var(--chip)",
+                          color: ch.is_active ? "var(--pos)" : "var(--tx-3)",
+                          fontWeight: 600,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {ch.is_active ? "Активен" : "Откл."}
+                      </span>
+
+                      {/* Actions */}
+                      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                        <button
+                          onClick={() => {
+                            setEditingId(ch.id);
+                            setEditingName(ch.channel_name || ch.channel_id);
+                          }}
+                          className={`${btn.base} ${btn.ghost}`}
+                          title="Переименовать"
+                        >
+                          ✎
+                        </button>
                         <button
                           onClick={() =>
                             toggleMutation.mutate({
-                              id: acc.id,
-                              is_active: !acc.is_active,
+                              id: ch.id,
+                              is_active: !ch.is_active,
                             })
                           }
-                          className={`text-[10px] px-2 py-1 rounded border font-medium cursor-pointer transition-colors ${acc.is_active ? "border-amber-200 text-amber-600 hover:bg-amber-50" : "border-[#1D9E75] text-[#1D9E75] hover:bg-[#E1F5EE]"}`}
+                          className={`${btn.base} ${ch.is_active ? btn.amber : btn.green}`}
                         >
-                          {acc.is_active ? "Откл." : "Вкл."}
+                          {ch.is_active ? "Откл." : "Вкл."}
                         </button>
                         <button
-                          onClick={() => deleteMutation.mutate(acc.id)}
-                          className="text-[10px] px-2 py-1 rounded border border-red-200 text-red-400 hover:bg-red-50 cursor-pointer transition-colors"
+                          onClick={() => {
+                            fetchChannelStats(ch.channel_id);
+                          }}
+                          disabled={loadingStats === ch.channel_id}
+                          className={`${btn.base} ${btn.ghost}`}
+                          title="Статистика"
+                        >
+                          {loadingStats === ch.channel_id ? "..." : "📊"}
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`Удалить канал ${ch.channel_name}?`))
+                              deleteMutation.mutate(ch.id);
+                          }}
+                          className={`${btn.base} ${btn.red}`}
                         >
                           Удалить
                         </button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
 
-      {/* Telegram */}
-      <div className="bg-white rounded-xl border border-gray-100 p-4">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="w-12 h-12 rounded-xl bg-[#2AABEE] flex items-center justify-center flex-shrink-0">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
-            </svg>
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold text-gray-900">Telegram</p>
-              {telegramChannels.length > 0 && (
-                <span className="text-[10px] px-2 py-0.5 bg-[#E1F5EE] text-[#1D9E75] rounded-full font-medium">
-                  {telegramChannels.length} канал
-                  {telegramChannels.length > 1 ? "а" : ""}
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Автопостинг через @{BOT_USERNAME}
-            </p>
-          </div>
-          <button
-            onClick={() => {
-              setShowTelegramForm((v) => !v);
-              setError("");
-            }}
-            className="px-4 py-2 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
-          >
-            + Добавить
-          </button>
-        </div>
-
-        {/* Форма добавления */}
-        {showTelegramForm && (
-          <div className="border border-gray-100 rounded-xl p-4 mb-3 bg-gray-50">
-            <form onSubmit={handleSave} className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  ID канала *
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    value={channelId}
-                    onChange={(e) => {
-                      setChannelId(e.target.value);
-                      setTestResult("");
-                    }}
-                    placeholder="@mychannel или -1001234567890"
-                    required
-                    className={`${inputClass} flex-1`}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => testChannel(channelId)}
-                    disabled={!channelId || testing}
-                    className="px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 cursor-pointer whitespace-nowrap bg-white"
-                  >
-                    {testing ? "..." : "Проверить"}
-                  </button>
-                </div>
-                <p className="text-xs text-gray-400 mt-1.5">
-                  Добавьте{" "}
-                  <span className="font-semibold text-gray-600">
-                    @{BOT_USERNAME}
-                  </span>{" "}
-                  как администратора в ваш канал
-                </p>
-                {testResult && (
-                  <p
-                    className={`text-xs mt-1.5 font-medium ${testResult.startsWith("✓") ? "text-[#1D9E75]" : "text-red-500"}`}
-                  >
-                    {testResult}
-                  </p>
-                )}
+                    {/* Stats panel */}
+                    {openStatsId === ch.channel_id &&
+                      channelStats[ch.channel_id] && (
+                        <div
+                          style={{
+                            padding: "12px 14px",
+                            background: "var(--panel-2)",
+                            borderRadius: "0 0 9px 9px",
+                            border: "0.5px solid var(--line)",
+                            borderTop: "none",
+                            display: "grid",
+                            gridTemplateColumns: "repeat(4,1fr)",
+                            gap: 10,
+                          }}
+                        >
+                          {[
+                            {
+                              l: "Подписчиков",
+                              v:
+                                channelStats[ch.channel_id].member_count ?? "—",
+                            },
+                            {
+                              l: "Постов за неделю",
+                              v:
+                                channelStats[ch.channel_id].posts_this_week ??
+                                0,
+                            },
+                            {
+                              l: "Последний пост",
+                              v: channelStats[ch.channel_id].last_post_at
+                                ? new Date(
+                                    channelStats[ch.channel_id].last_post_at,
+                                  ).toLocaleDateString("ru")
+                                : "—",
+                            },
+                            {
+                              l: "Название",
+                              v: channelStats[ch.channel_id].title ?? "—",
+                            },
+                          ].map((s) => (
+                            <div key={s.l} style={{ textAlign: "center" }}>
+                              <p
+                                style={{
+                                  fontSize: 16,
+                                  fontWeight: 700,
+                                  color: "var(--tx-1)",
+                                }}
+                              >
+                                {s.v}
+                              </p>
+                              <p
+                                style={{
+                                  fontSize: 9,
+                                  color: "var(--tx-3)",
+                                  marginTop: 2,
+                                }}
+                              >
+                                {s.l}
+                              </p>
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => setOpenStatsId(null)}
+                            style={{
+                              gridColumn: "1/-1",
+                              textAlign: "center",
+                              fontSize: 10,
+                              color: "var(--tx-3)",
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              marginTop: 4,
+                            }}
+                          >
+                            Скрыть ▲
+                          </button>
+                        </div>
+                      )}
+                  </div>
+                ))}
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Название (необязательно)
-                </label>
-                <input
-                  value={channelName}
-                  onChange={(e) => setChannelName(e.target.value)}
-                  placeholder="Мой канал"
-                  className={inputClass}
-                />
-              </div>
-              {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-600">
-                  {error}
-                </div>
-              )}
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 py-2.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-60 cursor-pointer"
-                >
-                  {loading ? "Проверяем права бота..." : "Подключить канал"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowTelegramForm(false);
-                    setError("");
-                    setTestResult("");
+            ) : (
+              !showTgForm && (
+                <div
+                  style={{
+                    marginTop: 12,
+                    textAlign: "center",
+                    padding: "20px 0",
+                    color: "var(--tx-3)",
+                    fontSize: 12,
                   }}
-                  className="px-4 py-2.5 border border-gray-200 text-gray-500 text-sm rounded-lg hover:bg-gray-50 cursor-pointer"
                 >
-                  Отмена
-                </button>
-              </div>
-            </form>
+                  Нет подключённых каналов
+                </div>
+              )
+            )}
           </div>
-        )}
 
-        {/* Список каналов */}
-        {isLoading ? (
-          <div className="space-y-2">
-            {[1, 2].map((i) => (
-              <div
-                key={i}
-                className="h-12 bg-gray-100 rounded-lg animate-pulse"
-              />
-            ))}
-          </div>
-        ) : telegramChannels.length > 0 ? (
-          <div className="space-y-2">
-            {telegramChannels.map((ch) => (
-              <div
-                key={ch.id}
-                className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors"
-              >
-                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#2AABEE"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" />
-                  </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  {editingId === ch.id ? (
-                    <div className="flex gap-2">
-                      <input
-                        value={editingName}
-                        onChange={(e) => setEditingName(e.target.value)}
-                        className="flex-1 px-2 py-1 text-xs border border-[#1D9E75] rounded outline-none"
-                        autoFocus
-                      />
-                      <button
-                        onClick={() =>
-                          editMutation.mutate({
-                            id: ch.id,
-                            channel_name: editingName,
-                          })
-                        }
-                        disabled={editMutation.isPending}
-                        className="text-[10px] px-2 py-1 bg-[#1D9E75] text-white rounded cursor-pointer"
-                      >
-                        {editMutation.isPending ? "..." : "OK"}
-                      </button>
-                      <button
-                        onClick={() => setEditingId(null)}
-                        className="text-[10px] px-2 py-1 border border-gray-200 text-gray-500 rounded cursor-pointer"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {ch.channel_name || ch.channel_id}
-                      </p>
-                      <p className="text-xs text-gray-400">{ch.channel_id}</p>
-                    </>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${ch.is_active ? "bg-[#E1F5EE] text-[#1D9E75]" : "bg-gray-100 text-gray-400"}`}
-                  >
-                    {ch.is_active ? "Активен" : "Откл."}
-                  </span>
-                  <button
-                    onClick={() => {
-                      setEditingId(ch.id);
-                      setEditingName(ch.channel_name || ch.channel_id);
+          {/* ── TikTok / VK — скоро ── */}
+          {[
+            { id: "tiktok", name: "TikTok", desc: "Business аккаунт" },
+            { id: "vk", name: "ВКонтакте", desc: "Группа или сообщество" },
+          ].map((p) => (
+            <div key={p.id} className="ui-surface p-4">
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <PlatformIcon platform={p.id} />
+                <div style={{ flex: 1 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      marginBottom: 3,
                     }}
-                    className="text-[10px] px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 cursor-pointer transition-colors"
-                    title="Переименовать"
                   >
-                    ✎
-                  </button>
-                  <button
-                    onClick={() =>
-                      toggleMutation.mutate({
-                        id: ch.id,
-                        is_active: !ch.is_active,
-                      })
-                    }
-                    className={`text-[10px] px-2 py-1 rounded border font-medium cursor-pointer transition-colors ${ch.is_active ? "border-amber-200 text-amber-600 hover:bg-amber-50" : "border-[#1D9E75] text-[#1D9E75] hover:bg-[#E1F5EE]"}`}
-                  >
-                    {ch.is_active ? "Откл." : "Вкл."}
-                  </button>
-                  <button
-                    onClick={() => fetchChannelStats(ch.channel_id)}
-                    disabled={loadingStats === ch.channel_id}
-                    className="text-[10px] px-2 py-1 rounded border border-gray-200 text-gray-400 hover:bg-gray-50 cursor-pointer transition-colors disabled:opacity-50"
-                    title="Статистика"
-                  >
-                    {loadingStats === ch.channel_id ? "..." : "📊"}
-                  </button>
-                  <button
-                    onClick={() => deleteMutation.mutate(ch.id)}
-                    className="text-[10px] px-2 py-1 rounded border border-red-200 text-red-400 hover:bg-red-50 cursor-pointer transition-colors"
-                  >
-                    Удалить
-                  </button>
+                    <p
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: "var(--tx-1)",
+                      }}
+                    >
+                      {p.name}
+                    </p>
+                    <span
+                      style={{
+                        fontSize: 9,
+                        padding: "2px 8px",
+                        borderRadius: 10,
+                        background: "var(--chip)",
+                        color: "var(--tx-3)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Скоро
+                    </span>
+                  </div>
+                  <p style={{ fontSize: 11, color: "var(--tx-3)" }}>{p.desc}</p>
                 </div>
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-6 text-sm text-gray-400">
-            Нет подключённых каналов
-          </div>
-        )}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
+  );
+}
+
+export default function IntegrationsPage() {
+  return (
+    <Suspense>
+      <IntegrationsPageInner />
+    </Suspense>
   );
 }
