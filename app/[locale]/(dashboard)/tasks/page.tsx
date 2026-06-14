@@ -390,7 +390,7 @@ export default function TasksPage() {
         >
           {[
             { label: "Создано", value: todo.length, color: "var(--tx-1)" },
-            { label: "Запланировано", value: inProg.length, color: "#3B82F6" },
+            { label: "В работе", value: inProg.length, color: "#3B82F6" },
             { label: "Выполнено", value: done.length, color: "var(--pos)" },
           ].map((s) => (
             <div
