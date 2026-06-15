@@ -4,15 +4,85 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useLocale } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
-import { Search, Bell, ChevronDown, Settings, LogOut, User } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  Search,
+  Bell,
+  ChevronDown,
+  Settings,
+  LogOut,
+  User,
+} from "lucide-react";
 import Link from "next/link";
 
 const NAV_LINKS = [
-  { label: "Кампании",   href: "/campaigns" },
-  { label: "Проекты",    href: "/projects" },
+  { label: "Кампании", href: "/campaigns" },
+  { label: "Проекты", href: "/projects" },
   { label: "Подключения", href: "/integrations" },
-  { label: "AI-агенты",  href: "/ai-workers" },
+  { label: "Сотрудники", href: "/ai-workers" },
 ];
+
+// ── Mini stats for topbar ─────────────────────────────────────────────────
+function MiniStats() {
+  const supabase = createClient();
+  const { data: stats } = useQuery({
+    queryKey: ["topbar_stats"],
+    queryFn: async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return null;
+      const [camps, contents, projects] = await Promise.all([
+        supabase
+          .from("ad_campaigns")
+          .select("id", { count: "exact" })
+          .eq("user_id", user.id),
+        supabase.from("contents").select("id", { count: "exact" }),
+        supabase
+          .from("projects")
+          .select("id", { count: "exact" })
+          .eq("user_id", user.id)
+          .eq("is_active", true),
+      ]);
+      return {
+        campaigns: camps.count ?? 0,
+        contents: contents.count ?? 0,
+        projects: projects.count ?? 0,
+      };
+    },
+    staleTime: 60000,
+  });
+
+  if (!stats) return null;
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+      {[
+        { label: "Кампании", value: stats.campaigns, icon: "📡" },
+        { label: "Материалы", value: stats.contents, icon: "📝" },
+        { label: "Проекты", value: stats.projects, icon: "📁" },
+      ].map((s, i) => (
+        <div
+          key={s.label}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            padding: "3px 8px",
+            borderRadius: 7,
+            background: "var(--panel-2)",
+          }}
+        >
+          <span style={{ fontSize: 11 }}>{s.icon}</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--tx-1)" }}>
+            {s.value}
+          </span>
+          <span style={{ fontSize: 10, color: "var(--tx-3)" }}>{s.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function TopNavbar() {
   const locale = useLocale();
@@ -35,15 +105,22 @@ export function TopNavbar() {
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
-      if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileOpen(false);
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchOpen(false);
+      if (profileRef.current && !profileRef.current.contains(e.target as Node))
+        setProfileOpen(false);
+      if (searchRef.current && !searchRef.current.contains(e.target as Node))
+        setSearchOpen(false);
     };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
   const initials = user?.user_metadata?.full_name
-    ? user.user_metadata.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)
+    ? user.user_metadata.full_name
+        .split(" ")
+        .map((n: string) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
     : user?.email?.[0]?.toUpperCase() || "U";
 
   const handleLogout = async () => {
@@ -81,8 +158,16 @@ export function TopNavbar() {
                 color: active ? "var(--tx-1)" : "var(--tx-3)",
                 textDecoration: "none",
               }}
-              onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLElement).style.background = "var(--hover)"; }}
-              onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+              onMouseEnter={(e) => {
+                if (!active)
+                  (e.currentTarget as HTMLElement).style.background =
+                    "var(--hover)";
+              }}
+              onMouseLeave={(e) => {
+                if (!active)
+                  (e.currentTarget as HTMLElement).style.background =
+                    "transparent";
+              }}
             >
               {link.label}
             </Link>
@@ -90,33 +175,80 @@ export function TopNavbar() {
         })}
       </div>
 
-      {/* Center: spacer */}
-      <div className="flex-1" />
+      {/* Center: mini stats infographic */}
+      <div className="flex-1 flex items-center justify-center gap-1">
+        <MiniStats />
+      </div>
 
       {/* Right */}
       <div className="flex items-center gap-2">
         {/* Search */}
         <div ref={searchRef} style={{ position: "relative" }}>
           {searchOpen ? (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-[8px]" style={{ background: "var(--panel-2)", border: "0.5px solid var(--line)" }}>
-              <Search size={13} style={{ color: "var(--tx-3)", flexShrink: 0 }} />
+            <div
+              className="flex items-center gap-2 px-3 py-1.5 rounded-[8px]"
+              style={{
+                background: "var(--panel-2)",
+                border: "0.5px solid var(--line)",
+              }}
+            >
+              <Search
+                size={13}
+                style={{ color: "var(--tx-3)", flexShrink: 0 }}
+              />
               <input
                 autoFocus
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Escape") { setSearchOpen(false); setSearchQuery(""); } }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setSearchOpen(false);
+                    setSearchQuery("");
+                  }
+                }}
                 placeholder="Поиск..."
-                style={{ background: "none", border: "none", outline: "none", fontSize: 12, color: "var(--tx-1)", width: 160, fontFamily: "inherit" }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  outline: "none",
+                  fontSize: 12,
+                  color: "var(--tx-1)",
+                  width: 160,
+                  fontFamily: "inherit",
+                }}
               />
-              <button onClick={() => { setSearchOpen(false); setSearchQuery(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--tx-3)", fontSize: 12 }}>✕</button>
+              <button
+                onClick={() => {
+                  setSearchOpen(false);
+                  setSearchQuery("");
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "var(--tx-3)",
+                  fontSize: 12,
+                }}
+              >
+                ✕
+              </button>
             </div>
           ) : (
             <button
               onClick={() => setSearchOpen(true)}
               className="w-8 h-8 flex items-center justify-center rounded-[8px] cursor-pointer transition-colors"
-              style={{ background: "none", border: "none", color: "var(--tx-3)" }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--hover)"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "none"; }}
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--tx-3)",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.background =
+                  "var(--hover)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.background = "none";
+              }}
             >
               <Search size={15} strokeWidth={1.6} />
             </button>
@@ -127,16 +259,27 @@ export function TopNavbar() {
         <button
           className="w-8 h-8 flex items-center justify-center rounded-[8px] cursor-pointer transition-colors relative"
           style={{ background: "none", border: "none", color: "var(--tx-3)" }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--hover)"; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "none"; }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background = "var(--hover)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = "none";
+          }}
         >
           <Bell size={15} strokeWidth={1.6} />
           {notifications > 0 && (
-            <div style={{
-              position: "absolute", top: 4, right: 4,
-              width: 7, height: 7, borderRadius: "50%",
-              background: "var(--neg)", border: "1.5px solid var(--panel)",
-            }} />
+            <div
+              style={{
+                position: "absolute",
+                top: 4,
+                right: 4,
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                background: "var(--neg)",
+                border: "1.5px solid var(--panel)",
+              }}
+            />
           )}
         </button>
 
@@ -145,51 +288,131 @@ export function TopNavbar() {
           <button
             onClick={() => setProfileOpen((v) => !v)}
             className="flex items-center gap-2 px-2 py-1 rounded-[8px] cursor-pointer transition-colors"
-            style={{ background: profileOpen ? "var(--hover)" : "none", border: "none" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--hover)"; }}
-            onMouseLeave={(e) => { if (!profileOpen) (e.currentTarget as HTMLElement).style.background = "none"; }}
+            style={{
+              background: profileOpen ? "var(--hover)" : "none",
+              border: "none",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.background =
+                "var(--hover)";
+            }}
+            onMouseLeave={(e) => {
+              if (!profileOpen)
+                (e.currentTarget as HTMLElement).style.background = "none";
+            }}
           >
-            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0" style={{ background: "var(--accent)", color: "var(--on-accent)" }}>
+            <div
+              className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0"
+              style={{ background: "var(--accent)", color: "var(--on-accent)" }}
+            >
               {initials}
             </div>
-            <ChevronDown size={12} strokeWidth={2} style={{ color: "var(--tx-3)", transform: profileOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }} />
+            <ChevronDown
+              size={12}
+              strokeWidth={2}
+              style={{
+                color: "var(--tx-3)",
+                transform: profileOpen ? "rotate(180deg)" : "rotate(0deg)",
+                transition: "transform 0.15s",
+              }}
+            />
           </button>
 
           {profileOpen && (
-            <div style={{
-              position: "absolute", top: "calc(100% + 6px)", right: 0,
-              background: "var(--panel)", border: "0.5px solid var(--line)",
-              borderRadius: 10, padding: 6, minWidth: 200,
-              boxShadow: "0 8px 24px rgba(0,0,0,0.15)", zIndex: 100,
-            }}>
-              <div style={{ padding: "8px 10px", borderBottom: "0.5px solid var(--line)", marginBottom: 4 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-1)" }}>
-                  {user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Пользователь"}
+            <div
+              style={{
+                position: "absolute",
+                top: "calc(100% + 6px)",
+                right: 0,
+                background: "var(--panel)",
+                border: "0.5px solid var(--line)",
+                borderRadius: 10,
+                padding: 6,
+                minWidth: 200,
+                boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                zIndex: 100,
+              }}
+            >
+              <div
+                style={{
+                  padding: "8px 10px",
+                  borderBottom: "0.5px solid var(--line)",
+                  marginBottom: 4,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "var(--tx-1)",
+                  }}
+                >
+                  {user?.user_metadata?.full_name ||
+                    user?.email?.split("@")[0] ||
+                    "Пользователь"}
                 </div>
-                <div style={{ fontSize: 10, color: "var(--tx-3)", marginTop: 2 }}>{user?.email}</div>
+                <div
+                  style={{ fontSize: 10, color: "var(--tx-3)", marginTop: 2 }}
+                >
+                  {user?.email}
+                </div>
               </div>
               {[
                 { icon: User, label: "Профиль", href: "/profile" },
                 { icon: Settings, label: "Настройки", href: "/settings" },
               ].map((item) => (
-                <button key={item.href}
-                  onClick={() => { router.push(`/${locale}${item.href}`); setProfileOpen(false); }}
+                <button
+                  key={item.href}
+                  onClick={() => {
+                    router.push(`/${locale}${item.href}`);
+                    setProfileOpen(false);
+                  }}
                   className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-[7px] text-[12px] cursor-pointer transition-colors"
-                  style={{ background: "none", border: "none", color: "var(--tx-2)", fontFamily: "inherit" }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--hover)"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "none"; }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--tx-2)",
+                    fontFamily: "inherit",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.background =
+                      "var(--hover)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLElement).style.background = "none";
+                  }}
                 >
-                  <item.icon size={14} strokeWidth={1.6} style={{ color: "var(--tx-3)" }} />
+                  <item.icon
+                    size={14}
+                    strokeWidth={1.6}
+                    style={{ color: "var(--tx-3)" }}
+                  />
                   {item.label}
                 </button>
               ))}
-              <div style={{ borderTop: "0.5px solid var(--line)", marginTop: 4, paddingTop: 4 }}>
+              <div
+                style={{
+                  borderTop: "0.5px solid var(--line)",
+                  marginTop: 4,
+                  paddingTop: 4,
+                }}
+              >
                 <button
                   onClick={handleLogout}
                   className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-[7px] text-[12px] cursor-pointer transition-colors"
-                  style={{ background: "none", border: "none", color: "var(--neg)", fontFamily: "inherit" }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--hover)"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "none"; }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--neg)",
+                    fontFamily: "inherit",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.background =
+                      "var(--hover)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLElement).style.background = "none";
+                  }}
                 >
                   <LogOut size={14} strokeWidth={1.6} />
                   Выйти

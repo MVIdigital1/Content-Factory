@@ -733,7 +733,7 @@ function AIWorkersPageInner() {
         <p style={{ fontSize: 11, color: "var(--tx-3)" }}>
           Маркетинг /{" "}
           <span style={{ color: "var(--tx-2)", fontWeight: 500 }}>
-            AI-агенты
+            AI-сотрудники
           </span>
         </p>
         <button
@@ -875,7 +875,7 @@ function AIWorkersPageInner() {
               <div className="ui-surface flex flex-col items-center py-16 text-center">
                 <div style={{ fontSize: 48, marginBottom: 14 }}>🤖</div>
                 <p className="text-[16px] font-semibold text-tx-1 mb-2">
-                  Нет AI-агентов
+                  Нет AI-сотрудников
                 </p>
                 <p className="text-[12px] text-tx-3 mb-5 max-w-[280px] leading-relaxed">
                   Создайте агента который будет автоматически выполнять задачи

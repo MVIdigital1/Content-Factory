@@ -409,31 +409,29 @@ function WizardTabs({
             >
               {tab.title}
             </span>
-            {tabs.length > 1 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onClose(tab.id);
-                }}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "var(--tx-3)",
-                  fontSize: 13,
-                  padding: "0 2px",
-                  lineHeight: 1,
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.color = "var(--tx-1)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.color = "var(--tx-3)")
-                }
-              >
-                ✕
-              </button>
-            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose(tab.id);
+              }}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "var(--tx-3)",
+                fontSize: 13,
+                padding: "0 2px",
+                lineHeight: 1,
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.color = "var(--tx-1)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.color = "var(--tx-3)")
+              }
+            >
+              ✕
+            </button>
           </div>
         );
       })}
@@ -625,9 +623,6 @@ function CampaignsPageInner() {
   const inp =
     "w-full px-3 py-2.5 rounded-[8px] border border-line text-[12px] outline-none focus:border-line-strong bg-panel text-tx-1 placeholder:text-tx-3";
 
-  // Static tabs bar (no TabBar component — we inline it here without "Создать" duplicate)
-  const TABS_DEFS = [{ key: "campaigns", label: "Кампании", icon: "≡" }];
-
   return (
     <div
       style={{
@@ -637,7 +632,7 @@ function CampaignsPageInner() {
         overflow: "hidden",
       }}
     >
-      {/* ── Static tabs — NO "Создать" tab here (it's a button below) ── */}
+      {/* ── Top nav: ← Назад | Кампании | ✦ Создать | ⏳ В процессе ── */}
       <div
         style={{
           display: "flex",
@@ -650,44 +645,60 @@ function CampaignsPageInner() {
           overflowX: "auto",
         }}
       >
-        {TABS_DEFS.map((t) => {
-          const active = tab === t.key;
-          return (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "10px 14px",
-                fontSize: 12,
-                fontWeight: active ? 600 : 400,
-                border: "none",
-                borderBottom: `2px solid ${active ? "var(--accent)" : "transparent"}`,
-                background: "transparent",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                color: active ? "var(--accent)" : "var(--tx-3)",
-                whiteSpace: "nowrap",
-                transition: "color 0.12s, border-color 0.12s",
-              }}
-              onMouseEnter={(e) => {
-                if (!active)
-                  (e.currentTarget as HTMLElement).style.color = "var(--tx-1)";
-              }}
-              onMouseLeave={(e) => {
-                if (!active)
-                  (e.currentTarget as HTMLElement).style.color = "var(--tx-3)";
-              }}
-            >
-              <span>{t.icon}</span>
-              {t.label}
-            </button>
-          );
-        })}
+        {/* ← Назад — only on wizard */}
+        {tab === "wizard" && (
+          <button
+            onClick={() => setTab("campaigns")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              padding: "10px 10px 10px 4px",
+              fontSize: 12,
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              color: "var(--tx-3)",
+              whiteSpace: "nowrap",
+              borderBottom: "2px solid transparent",
+            }}
+            onMouseEnter={(e) =>
+              ((e.currentTarget as HTMLElement).style.color = "var(--tx-1)")
+            }
+            onMouseLeave={(e) =>
+              ((e.currentTarget as HTMLElement).style.color = "var(--tx-3)")
+            }
+          >
+            ← Назад
+          </button>
+        )}
 
-        {/* Wizard tab — only shows when active */}
+        {/* Кампании tab */}
+        {tab !== "wizard" && (
+          <button
+            onClick={() => setTab("campaigns")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "10px 14px",
+              fontSize: 12,
+              fontWeight: tab === "campaigns" ? 600 : 400,
+              border: "none",
+              borderBottom: `2px solid ${tab === "campaigns" ? "var(--accent)" : "transparent"}`,
+              background: "transparent",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              color: tab === "campaigns" ? "var(--accent)" : "var(--tx-3)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            ≡ Кампании
+          </button>
+        )}
+
+        {/* ✦ Создать tab — only when wizard active */}
         {tab === "wizard" && (
           <button
             style={{
@@ -700,7 +711,7 @@ function CampaignsPageInner() {
               border: "none",
               borderBottom: "2px solid var(--accent)",
               background: "transparent",
-              cursor: "pointer",
+              cursor: "default",
               fontFamily: "inherit",
               color: "var(--accent)",
               whiteSpace: "nowrap",
@@ -709,8 +720,58 @@ function CampaignsPageInner() {
             ✦ Создать
           </button>
         )}
-      </div>
 
+        {/* ⏳ В процессе — always visible */}
+        <button
+          onClick={() => {
+            if (wizardTabs.length > 0) setTab("wizard");
+            else addWizardTab();
+          }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "10px 14px",
+            fontSize: 12,
+            fontWeight: 400,
+            border: "none",
+            borderBottom: "2px solid transparent",
+            background: "transparent",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            color: "var(--tx-3)",
+            whiteSpace: "nowrap",
+          }}
+          onMouseEnter={(e) =>
+            ((e.currentTarget as HTMLElement).style.color = "var(--tx-1)")
+          }
+          onMouseLeave={(e) =>
+            ((e.currentTarget as HTMLElement).style.color = "var(--tx-3)")
+          }
+        >
+          ⏳ В процессе
+          {wizardTabs.length > 0 && (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                minWidth: 18,
+                height: 18,
+                borderRadius: 9,
+                padding: "0 5px",
+                background: "var(--accent)",
+                color: "var(--on-accent)",
+                fontSize: 10,
+                fontWeight: 700,
+                marginLeft: 2,
+              }}
+            >
+              {wizardTabs.length}
+            </span>
+          )}
+        </button>
+      </div>
       {/* ── 3 action buttons on Campaigns tab ── */}
       {tab === "campaigns" && (
         <div

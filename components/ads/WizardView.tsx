@@ -135,8 +135,6 @@ async function generateCreativeContent(params: {
   goal: string;
   audience: string;
   projectName: string;
-  projectNiche?: string;
-  existingPosts?: string[];
 }): Promise<{ title: string; caption: string; hook?: string }> {
   const platformNames: Record<string, string> = {
     telegram: "Telegram",
@@ -161,48 +159,33 @@ async function generateCreativeContent(params: {
     banner: "баннер",
   };
 
-  const nicheContext = params.projectNiche
-    ? `\nНиша: ${params.projectNiche}`
-    : "";
-  const postsContext = params.existingPosts?.length
-    ? `\n\nПримеры успешных постов этого бренда для вдохновения:\n${params.existingPosts
-        .slice(0, 3)
-        .map((p, i) => `${i + 1}. ${p.slice(0, 200)}`)
-        .join("\n")}`
-    : "";
+  const prompt = `Создай ${subtypeNames[params.subtype] ?? params.subtype} для платформы ${platformNames[params.platform] ?? params.platform}.
 
-  const prompt = `Ты эксперт SMM. Создай ${subtypeNames[params.subtype] ?? params.subtype} для платформы ${platformNames[params.platform] ?? params.platform}.
-
-Продукт/бизнес: ${params.product || params.projectName}${nicheContext}
+Продукт/бизнес: ${params.product || params.projectName}
 Цель кампании: ${params.goal}
-Целевая аудитория: ${params.audience || "широкая аудитория"}${postsContext}
+Целевая аудитория: ${params.audience || "широкая аудитория"}
 
-Проанализируй стиль бренда из примеров выше (если есть) и создай пост в том же стиле.
-
-Требования для ${platformNames[params.platform]}:
-${params.platform === "instagram" ? "- Используй эмодзи умеренно\n- Хештеги в конце\n- Длина 100-200 слов" : ""}
-${params.platform === "telegram" ? "- Форматирование с эмодзи в начале строк\n- Длина 150-300 слов\n- CTA в конце" : ""}
+Требования:
 - Заголовок (title): короткий, цепляющий, до 10 слов
-- Хук (hook): первое предложение которое ОСТАНАВЛИВАЕТ прокрутку
-- Текст (caption): полный текст поста с призывом к действию
+- Хук (hook): первое предложение которое останавливает прокрутку
+- Текст (caption): полный текст поста/объявления с CTA
 
 Отвечай ТОЛЬКО в JSON формате без markdown:
-{"title":"...","hook":"...","caption":"..."}\``;
+{"title":"...","hook":"...","caption":"..."}`;
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 1200,
-      tools: [{ type: "web_search_20250305", name: "web_search" }],
+      max_tokens: 1000,
       messages: [{ role: "user", content: prompt }],
     }),
   });
 
   if (!response.ok) throw new Error("API error");
   const data = await response.json();
-  const text = data.content?.find((c: any) => c.type === "text")?.text ?? "{}";
+  const text = data.content?.[0]?.text ?? "{}";
   try {
     const clean = text.replace(/```json|```/g, "").trim();
     return JSON.parse(clean);
@@ -1075,18 +1058,6 @@ export function WizardView({
       qc.invalidateQueries({ queryKey: ["ad_campaigns"] });
 
       // Save already generated creatives to DB (don't regenerate)
-      // Fetch existing posts for AI style context
-      let existingPosts: string[] = [];
-      try {
-        const postsRes = await fetch("/api/telegram/posts?limit=10");
-        if (postsRes.ok) {
-          const postsData = await postsRes.json();
-          existingPosts = (postsData.messages ?? [])
-            .map((m: any) => m.text)
-            .filter(Boolean);
-        }
-      } catch {}
-
       const allCreatives: any[] = [];
       setLaunchProgress(`Сохраняю ${generatedCreatives.length} креативов...`);
       for (const c of generatedCreatives) {
@@ -1167,8 +1138,8 @@ export function WizardView({
         {STEPS.map((label, i) => (
           <div key={label} className="flex items-center gap-1">
             <button
-              onClick={() => i < step && setStep(i)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-medium transition-colors ${step === i ? "bg-accent text-on-accent" : step > i ? "bg-chip text-pos cursor-pointer" : "bg-panel text-tx-3"}`}
+              onClick={() => setStep(i)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer ${step === i ? "bg-accent text-on-accent" : step > i ? "bg-chip text-pos" : "bg-panel text-tx-2 hover:bg-hover"}`}
             >
               <div
                 className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold flex-shrink-0 ${step === i ? "bg-white/20" : step > i ? "bg-pos text-white" : "border border-line text-tx-3"}`}
@@ -1182,14 +1153,58 @@ export function WizardView({
             )}
           </div>
         ))}
-        {autoSaved && (
-          <span className="ml-auto text-[10px] text-pos">
-            ✓ Черновик сохранён
-          </span>
-        )}
-        {draftId && !autoSaved && (
-          <span className="ml-auto text-[10px] text-tx-3">Черновик</span>
-        )}
+        <div className="ml-auto flex items-center gap-4">
+          {(activeProject as any) && (
+            <button
+              onClick={() => setProjectOpen(true)}
+              className="flex items-center gap-1.5 cursor-pointer hover:opacity-80"
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                fontFamily: "inherit",
+              }}
+            >
+              <span style={{ fontSize: 10, color: "var(--tx-3)" }}>📁</span>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "var(--accent)",
+                }}
+              >
+                {(activeProject as any).name}
+              </span>
+              <span style={{ fontSize: 10, color: "var(--tx-3)" }}>
+                ↻ сменить
+              </span>
+            </button>
+          )}
+          {!(activeProject as any) && (
+            <button
+              onClick={() => setProjectOpen(true)}
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                fontSize: 10,
+                color: "var(--tx-3)",
+                fontFamily: "inherit",
+              }}
+            >
+              📁 Выбрать проект
+            </button>
+          )}
+          {autoSaved && (
+            <span style={{ fontSize: 10, color: "var(--pos)" }}>
+              ✓ Черновик сохранён
+            </span>
+          )}
+          {draftId && !autoSaved && (
+            <span style={{ fontSize: 10, color: "var(--tx-3)" }}>Черновик</span>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -1520,53 +1535,33 @@ export function WizardView({
             </>
           )}
 
-          {/* Other platforms - add button or "coming soon" */}
-          {Object.keys(PLATFORM_META).some(
-            (key) => !connectedKeys.has(key),
-          ) && (
-            <div>
-              <p className="ui-label mt-4 mb-2">Добавить платформу</p>
-              <div className="grid grid-cols-3 gap-2">
-                {Object.entries(PLATFORM_META)
-                  .filter(([key]) => !connectedKeys.has(key))
-                  .map(([key, meta]) => {
-                    const comingSoon = [
-                      "tiktok",
-                      "youtube",
-                      "vk_ads",
-                      "mytarget",
-                      "tiktok_ads",
-                    ].includes(key);
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => !comingSoon && setConnectModal(key)}
-                        disabled={comingSoon}
-                        className={`flex items-center gap-2 p-3 border rounded-[9px] text-left transition-colors ${comingSoon ? "border-line opacity-50 cursor-not-allowed" : "border-line hover:border-line-strong cursor-pointer hover:bg-hover"}`}
-                      >
-                        <PlatformLogo
-                          abbr={meta.abbr}
-                          color={meta.color}
-                          textColor={(meta as any).textColor}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[11px] font-medium text-tx-1 truncate">
-                            {meta.name}
-                          </p>
-                          {comingSoon ? (
-                            <p className="text-[9px] text-tx-3">Скоро</p>
-                          ) : (
-                            <p className="text-[9px] text-accent">
-                              + Подключить
-                            </p>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-              </div>
+          {/* Other platforms - add button */}
+          <div>
+            <p className="ui-label mt-4 mb-2">Добавить платформу</p>
+            <div className="grid grid-cols-3 gap-2">
+              {Object.entries(PLATFORM_META)
+                .filter(([key]) => !connectedKeys.has(key))
+                .map(([key, meta]) => (
+                  <button
+                    key={key}
+                    onClick={() => setConnectModal(key)}
+                    className="flex items-center gap-2 p-3 border border-line rounded-[9px] hover:border-line-strong cursor-pointer transition-colors hover:bg-hover text-left"
+                  >
+                    <PlatformLogo
+                      abbr={meta.abbr}
+                      color={meta.color}
+                      textColor={(meta as any).textColor}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-medium text-tx-1 truncate">
+                        {meta.name}
+                      </p>
+                      <p className="text-[9px] text-accent">+ Подключить</p>
+                    </div>
+                  </button>
+                ))}
             </div>
-          )}
+          </div>
 
           <div className="flex justify-between pt-3">
             <button
@@ -1610,18 +1605,6 @@ export function WizardView({
             <button
               onClick={async () => {
                 setGenerating(true);
-                // Fetch existing posts for style analysis
-                let postsForContext: string[] = [];
-                try {
-                  const pr = await fetch("/api/telegram/posts?limit=10");
-                  if (pr.ok) {
-                    const pd = await pr.json();
-                    postsForContext = (pd.messages ?? [])
-                      .map((m: any) => m.text)
-                      .filter(Boolean);
-                  }
-                } catch {}
-
                 const creatives: any[] = [];
                 for (const platformKey of selectedPlatforms) {
                   const rp = realPlatforms.find((p) => p.key === platformKey);
@@ -1639,8 +1622,6 @@ export function WizardView({
                           goal,
                           audience,
                           projectName: (activeProject as any)?.name ?? name,
-                          projectNiche: (activeProject as any)?.niche ?? "",
-                          existingPosts: postsForContext,
                         });
                         creatives.push({
                           id: `${platformKey}__${subtype}__${Date.now()}__${i}`,
