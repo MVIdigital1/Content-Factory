@@ -536,6 +536,7 @@ export function WizardView({
   // genMode kept for backward compat but not shown in UI
   const [genMode] = useState<"text" | "image" | "video">("text");
   const [step, setStep] = useState(draft?.step ?? 0);
+  const [maxStep, setMaxStep] = useState(draft?.maxStep ?? draft?.step ?? 0);
   const [name, setName] = useState(draft?.name ?? "");
 
   const handleNameChange = (value: string) => {
@@ -546,6 +547,8 @@ export function WizardView({
   const [product, setProduct] = useState(draft?.product ?? "");
   const [audience, setAudience] = useState(draft?.audience ?? "");
   const [budget, setBudget] = useState(draft?.budget ?? "");
+  const [dateFrom, setDateFrom] = useState(draft?.dateFrom ?? "");
+  const [dateTo, setDateTo] = useState(draft?.dateTo ?? "");
   const [projectId, setProjectId] = useState(
     draft?.projectId ?? defaultProjectId ?? "",
   );
@@ -747,11 +750,14 @@ export function WizardView({
         product,
         audience,
         budget,
+        dateFrom,
+        dateTo,
         projectId,
         platforms: [...selectedPlatforms],
         subtypes: subtypesSer,
         draftId,
         step,
+        maxStep,
       },
       tabId,
     );
@@ -767,10 +773,13 @@ export function WizardView({
     product,
     audience,
     budget,
+    dateFrom,
+    dateTo,
     projectId,
     selectedPlatforms,
     selectedSubtypes,
     step,
+    maxStep,
   ]);
 
   // Auto-create draft in DB when name is entered
@@ -1133,18 +1142,19 @@ export function WizardView({
 
   return (
     <div>
-      {/* Step bar - now 3 steps */}
+      {/* Step bar */}
       <div className="flex items-center gap-1 bg-panel-2 border border-line rounded-[9px] p-2.5 mb-5">
         {STEPS.map((label, i) => (
           <div key={label} className="flex items-center gap-1">
             <button
-              onClick={() => setStep(i)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer ${step === i ? "bg-accent text-on-accent" : step > i ? "bg-chip text-pos" : "bg-panel text-tx-2 hover:bg-hover"}`}
+              onClick={() => { if (i <= maxStep) setStep(i); }}
+              style={{ cursor: i <= maxStep ? "pointer" : "default" }}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-medium transition-colors ${step === i ? "bg-accent text-on-accent" : i < maxStep ? "bg-chip text-pos hover:bg-chip/70" : i <= maxStep ? "bg-panel text-tx-2 hover:bg-hover" : "bg-panel text-tx-3 opacity-50"}`}
             >
               <div
-                className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold flex-shrink-0 ${step === i ? "bg-white/20" : step > i ? "bg-pos text-white" : "border border-line text-tx-3"}`}
+                className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold flex-shrink-0 ${step === i ? "bg-white/20" : i < maxStep ? "bg-pos text-white" : "border border-line text-tx-3"}`}
               >
-                {step > i ? "✓" : i + 1}
+                {i < maxStep ? "✓" : i + 1}
               </div>
               {label}
             </button>
@@ -1219,7 +1229,26 @@ export function WizardView({
           <div className="space-y-4">
             {/* Name */}
             <div>
-              <label className="block ui-label mb-1">Название *</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block ui-label">Название *</label>
+                {activeProject && (
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      padding: "2px 8px",
+                      borderRadius: 20,
+                      background: "var(--chip)",
+                      fontSize: 10,
+                      color: "var(--accent)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    📁 {(activeProject as any).name}
+                  </span>
+                )}
+              </div>
               <input
                 value={name}
                 onChange={(e) => handleNameChange(e.target.value)}
@@ -1346,6 +1375,37 @@ export function WizardView({
                 className={inp}
               />
             </div>
+
+            {/* Deadline / period */}
+            <div>
+              <label className="block ui-label mb-1">Период кампании</label>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className={inp}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ fontSize: 11, color: "var(--tx-3)", flexShrink: 0 }}>—</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className={inp}
+                  style={{ flex: 1 }}
+                />
+              </div>
+              {dateFrom && dateTo && (() => {
+                const days = Math.max(1, Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000));
+                const postsPerType = days < 7 ? 1 : days < 30 ? 2 : 3;
+                return (
+                  <p style={{ fontSize: 10, color: "var(--tx-3)", marginTop: 4 }}>
+                    {days} дн. · AI сгенерирует по {postsPerType} поста на каждый тип
+                  </p>
+                );
+              })()}
+            </div>
           </div>
 
           {/* Right: project images */}
@@ -1413,6 +1473,7 @@ export function WizardView({
                 }
                 setError("");
                 setStep(1);
+                setMaxStep((prev: number) => Math.max(prev, 1));
               }}
               className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
             >
@@ -1571,13 +1632,49 @@ export function WizardView({
               ← Назад
             </button>
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (selectedPlatforms.size === 0) {
                   setError("Выберите платформу");
                   return;
                 }
                 setError("");
                 setStep(2);
+                setMaxStep((prev: number) => Math.max(prev, 2));
+                // Auto-generate creatives
+                setGenerating(true);
+                const days = dateFrom && dateTo
+                  ? Math.max(1, Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000))
+                  : 0;
+                const postsPerType = days < 7 ? 1 : days < 30 ? 2 : 3;
+                const perType = days > 0 ? postsPerType : 2;
+                const creatives: any[] = [];
+                for (const platformKey of selectedPlatforms) {
+                  const rp = realPlatforms.find((p) => p.key === platformKey);
+                  const subs = selectedSubtypes[platformKey] ?? new Set();
+                  for (const subtype of subs) {
+                    for (let i = 0; i < perType; i++) {
+                      try {
+                        const content = await generateCreativeContent({
+                          platform: platformKey,
+                          subtype,
+                          product: product || (activeProject as any)?.description || "",
+                          goal,
+                          audience,
+                          projectName: (activeProject as any)?.name ?? name,
+                        });
+                        creatives.push({
+                          id: `${platformKey}__${subtype}__${Date.now()}__${i}`,
+                          platform: platformKey,
+                          subtype,
+                          ...content,
+                          rp,
+                        });
+                      } catch {}
+                    }
+                  }
+                }
+                setGeneratedCreatives(creatives);
+                setGenerating(false);
               }}
               className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
             >
@@ -1589,7 +1686,36 @@ export function WizardView({
 
       {/* ══ STEP 2: Creatives ══ */}
       {step === 2 && (
-        <div>
+        <div style={{ position: "relative" }}>
+          {/* Auto-gen loading overlay */}
+          {generating && generatedCreatives.length === 0 && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                zIndex: 10,
+                background: "var(--panel)",
+                borderRadius: 12,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 16,
+                minHeight: 200,
+              }}
+            >
+              <div className="w-8 h-8 border-[3px] border-accent border-t-transparent rounded-full animate-spin" />
+              <div style={{ textAlign: "center" }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)" }}>
+                  ✦ AI генерирует креативы
+                </p>
+                <p style={{ fontSize: 11, color: "var(--tx-3)", marginTop: 4 }}>
+                  Создаю тексты для каждой платформы...
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3 p-3 bg-chip/30 rounded-[9px] flex-1 mr-3">
               <span className="text-[16px]">✦</span>
@@ -1605,20 +1731,21 @@ export function WizardView({
             <button
               onClick={async () => {
                 setGenerating(true);
+                const days = dateFrom && dateTo
+                  ? Math.max(1, Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000))
+                  : 0;
+                const perType = days > 0 ? (days < 7 ? 1 : days < 30 ? 2 : 3) : 2;
                 const creatives: any[] = [];
                 for (const platformKey of selectedPlatforms) {
                   const rp = realPlatforms.find((p) => p.key === platformKey);
                   const subs = selectedSubtypes[platformKey] ?? new Set();
                   for (const subtype of subs) {
-                    for (let i = 0; i < 2; i++) {
+                    for (let i = 0; i < perType; i++) {
                       try {
                         const content = await generateCreativeContent({
                           platform: platformKey,
                           subtype,
-                          product:
-                            product ||
-                            (activeProject as any)?.description ||
-                            "",
+                          product: product || (activeProject as any)?.description || "",
                           goal,
                           audience,
                           projectName: (activeProject as any)?.name ?? name,
@@ -1646,12 +1773,7 @@ export function WizardView({
                   Генерирую...
                 </>
               ) : (
-                <>
-                  ✦{" "}
-                  {generatedCreatives.length > 0
-                    ? "Перегенерировать"
-                    : "Сгенерировать"}
-                </>
+                <>✦ {generatedCreatives.length > 0 ? "Перегенерировать" : "Сгенерировать"}</>
               )}
             </button>
           </div>
@@ -1871,6 +1993,7 @@ export function WizardView({
                   }
                   setError("");
                   setStep(3);
+                  setMaxStep((prev: number) => Math.max(prev, 3));
                 }}
                 className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
               >

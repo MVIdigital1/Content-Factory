@@ -18,6 +18,7 @@ import Link from "next/link";
 const NAV_LINKS = [
   { label: "Кампании", href: "/campaigns" },
   { label: "Проекты", href: "/projects" },
+  { label: "Отчёты", href: "/campaigns?tab=reports" },
   { label: "Подключения", href: "/integrations" },
   { label: "Сотрудники", href: "/ai-workers" },
 ];
@@ -129,6 +130,15 @@ export function TopNavbar() {
   };
 
   const isActive = (href: string) => {
+    if (href === "/campaigns?tab=reports") {
+      return pathname === `/${locale}/campaigns` && (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") === "reports" : false);
+    }
+    if (href === "/campaigns") {
+      return (
+        pathname === `/${locale}/campaigns` &&
+        (typeof window === "undefined" || new URLSearchParams(window.location.search).get("tab") !== "reports")
+      ) || pathname.startsWith(`/${locale}/campaigns/`);
+    }
     const full = `/${locale}${href}`;
     return pathname === full || pathname.startsWith(full + "/");
   };

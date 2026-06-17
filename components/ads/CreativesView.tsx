@@ -81,9 +81,27 @@ export function CreativesView({ projectId }: { projectId?: string }) {
   } = useAdCreatives(projectId);
   const createCreative = useCreateAdCreative();
 
-  // Fix 6: Platform + subtype filter
+  // Filters
   const [platformFilter, setPlatformFilter] = useState("all");
   const [subtypeFilter, setSubtypeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [campaignFilter, setCampaignFilter] = useState("all");
+
+  // Campaign list for filter
+  const { data: campaigns = [] } = useQuery({
+    queryKey: ["campaigns_for_filter"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      const { data } = await supabase
+        .from("ad_campaigns")
+        .select("id, name")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(30);
+      return data ?? [];
+    },
+  });
 
   // Fix 11: Creative action modal
   const [actionModal, setActionModal] = useState<AdCreative | null>(null);
@@ -107,16 +125,26 @@ export function CreativesView({ projectId }: { projectId?: string }) {
     Boolean,
   );
 
-  // Fix 6: Filter logic
+  // Filter logic
   const filtered = creatives.filter((c) => {
     if (platformFilter !== "all" && c.platform !== platformFilter) return false;
     if (subtypeFilter !== "all" && c.format !== subtypeFilter) return false;
+    if (statusFilter !== "all" && c.status !== statusFilter) return false;
+    if (campaignFilter !== "all" && (c as any).campaign_id !== campaignFilter) return false;
     return true;
   });
 
   const handlePlatformFilter = (p: string) => {
     setPlatformFilter(p);
     setSubtypeFilter("all");
+  };
+
+  // Stats
+  const stats = {
+    total: creatives.length,
+    active: creatives.filter((c) => c.status === "active").length,
+    draft: creatives.filter((c) => c.status === "draft").length,
+    paused: creatives.filter((c) => c.status === "paused").length,
   };
 
   // Fix 11: Schedule
@@ -243,13 +271,39 @@ export function CreativesView({ projectId }: { projectId?: string }) {
 
   return (
     <div>
+      {/* Stats bar */}
+      <div className="grid grid-cols-4 gap-3 mb-4">
+        {[
+          { label: "Всего", value: stats.total, color: "var(--tx-1)" },
+          { label: "Опубликованы", value: stats.active, color: "var(--pos)" },
+          { label: "Черновики", value: stats.draft, color: "var(--tx-3)" },
+          { label: "На паузе", value: stats.paused, color: "var(--warn, #F59E0B)" },
+        ].map((s) => (
+          <div key={s.label} className="ui-surface px-4 py-3">
+            <p className="ui-label mb-1">{s.label}</p>
+            <p className="text-[20px] font-semibold" style={{ color: s.color }}>{s.value}</p>
+          </div>
+        ))}
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <div>
-          <p className="text-[13px] font-semibold text-tx-1">
-            Креативы проекта
-          </p>
-          <p className="text-[11px] text-tx-3 mt-0.5">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          {/* Campaign filter */}
+          {campaigns.length > 0 && (
+            <select
+              value={campaignFilter}
+              onChange={(e) => setCampaignFilter(e.target.value)}
+              className="px-2.5 py-1.5 rounded-[8px] border border-line text-[11px] bg-panel text-tx-1 outline-none cursor-pointer"
+              style={{ maxWidth: 200 }}
+            >
+              <option value="all">Все кампании</option>
+              {campaigns.map((c: any) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          )}
+          <p className="text-[11px] text-tx-3">
             {filtered.length} из {creatives.length} креативов
           </p>
         </div>
@@ -280,7 +334,29 @@ export function CreativesView({ projectId }: { projectId?: string }) {
         </div>
       </div>
 
-      {/* Fix 6: Platform filter */}
+      {/* Status filter */}
+      <div className="flex gap-2 mb-3 flex-wrap">
+        {[
+          { v: "all", l: "Все" },
+          { v: "active", l: "Опубликованы" },
+          { v: "draft", l: "Черновики" },
+          { v: "paused", l: "Пауза" },
+        ].map((s) => (
+          <button
+            key={s.v}
+            onClick={() => setStatusFilter(s.v)}
+            className={`px-3 py-1.5 rounded-full text-[11px] border cursor-pointer transition-colors ${statusFilter === s.v ? "bg-tx-1 text-panel border-tx-1" : "border-line text-tx-3 hover:bg-hover"}`}
+          >
+            {s.l}
+            {s.v === "all" && ` · ${stats.total}`}
+            {s.v === "active" && stats.active > 0 && ` · ${stats.active}`}
+            {s.v === "draft" && stats.draft > 0 && ` · ${stats.draft}`}
+            {s.v === "paused" && stats.paused > 0 && ` · ${stats.paused}`}
+          </button>
+        ))}
+      </div>
+
+      {/* Platform filter */}
       <div className="flex gap-2 mb-3 flex-wrap">
         <button
           onClick={() => handlePlatformFilter("all")}

@@ -475,6 +475,17 @@ function CampaignsPageInner() {
   const searchParams = useSearchParams();
   const tab = (searchParams.get("tab") as TabKey) ?? "campaigns";
   const [projectId, setProjectId] = useState<string | undefined>(undefined);
+  const [draftsDropOpen, setDraftsDropOpen] = useState(false);
+  const draftsDropRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (draftsDropRef.current && !draftsDropRef.current.contains(e.target as Node))
+        setDraftsDropOpen(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
 
   // Persist wizard tabs
   const [wizardTabs, setWizardTabs] = useState<WizardTab[]>(() => {
@@ -581,9 +592,9 @@ function CampaignsPageInner() {
     setWizardTabs((prev) => {
       const next = prev.filter((t) => t.id !== id);
       if (next.length === 0) {
-        const fallback = { id: "1", title: "Новая кампания" };
-        saveActiveId("1");
-        return [fallback];
+        setTab("campaigns");
+        saveTabs([]);
+        return [];
       }
       if (activeWizardId === id) {
         const newActive = next[next.length - 1].id;
@@ -675,7 +686,7 @@ function CampaignsPageInner() {
         )}
 
         {/* Кампании tab */}
-        {tab !== "wizard" && (
+        {tab !== "wizard" && tab !== "campaigns" && (
           <button
             onClick={() => setTab("campaigns")}
             style={{
@@ -684,13 +695,13 @@ function CampaignsPageInner() {
               gap: 6,
               padding: "10px 14px",
               fontSize: 12,
-              fontWeight: tab === "campaigns" ? 600 : 400,
+              fontWeight: 400,
               border: "none",
-              borderBottom: `2px solid ${tab === "campaigns" ? "var(--accent)" : "transparent"}`,
+              borderBottom: "2px solid transparent",
               background: "transparent",
               cursor: "pointer",
               fontFamily: "inherit",
-              color: tab === "campaigns" ? "var(--accent)" : "var(--tx-3)",
+              color: "var(--tx-3)",
               whiteSpace: "nowrap",
             }}
           >
@@ -721,137 +732,209 @@ function CampaignsPageInner() {
           </button>
         )}
 
-        {/* ⏳ В процессе — always visible */}
-        <button
-          onClick={() => {
-            if (wizardTabs.length > 0) setTab("wizard");
-            else addWizardTab();
-          }}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "10px 14px",
-            fontSize: 12,
-            fontWeight: 400,
-            border: "none",
-            borderBottom: "2px solid transparent",
-            background: "transparent",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            color: "var(--tx-3)",
-            whiteSpace: "nowrap",
-          }}
-          onMouseEnter={(e) =>
-            ((e.currentTarget as HTMLElement).style.color = "var(--tx-1)")
-          }
-          onMouseLeave={(e) =>
-            ((e.currentTarget as HTMLElement).style.color = "var(--tx-3)")
-          }
-        >
-          ⏳ В процессе
-          {wizardTabs.length > 0 && (
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                minWidth: 18,
-                height: 18,
-                borderRadius: 9,
-                padding: "0 5px",
-                background: "var(--accent)",
-                color: "var(--on-accent)",
-                fontSize: 10,
-                fontWeight: 700,
-                marginLeft: 2,
-              }}
-            >
-              {wizardTabs.length}
-            </span>
-          )}
-        </button>
       </div>
-      {/* ── 3 action buttons on Campaigns tab ── */}
-      {tab === "campaigns" && (
+      {/* ── Action buttons row (campaigns / creatives / reports tabs) ── */}
+      {(tab === "campaigns" || tab === "creatives" || tab === "reports") && (
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 8,
-            padding: "10px 14px",
+            gap: 6,
+            padding: "8px 14px",
             borderBottom: "0.5px solid var(--line)",
             flexShrink: 0,
           }}
         >
-          <button
-            onClick={handleCreateClick}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "7px 16px",
-              borderRadius: 8,
-              border: "none",
-              background: "var(--accent)",
-              color: "var(--on-accent)",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            + Создать
-          </button>
-          <button
-            onClick={() => setTab("reports")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "7px 16px",
-              borderRadius: 8,
-              border: "0.5px solid var(--line)",
-              background: "var(--panel)",
-              color: "var(--tx-2)",
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.background = "var(--hover)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.background = "var(--panel)")
-            }
-          >
-            ◫ Отчёты
-          </button>
+          {/* Создать — split button with drafts dropdown */}
+          <div ref={draftsDropRef} style={{ position: "relative" }}>
+            <div
+              style={{
+                display: "flex",
+                border: "0.5px solid var(--line)",
+                borderRadius: 8,
+                overflow: "visible",
+              }}
+            >
+              <button
+                onClick={handleCreateClick}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "6px 14px",
+                  border: "none",
+                  borderRight: wizardTabs.length > 0 ? "0.5px solid var(--line)" : "none",
+                  borderRadius: wizardTabs.length > 0 ? "8px 0 0 8px" : "8px",
+                  background: "var(--accent)",
+                  color: "var(--on-accent)",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                + Создать
+              </button>
+              {wizardTabs.length > 0 && (
+                <button
+                  onClick={() => setDraftsDropOpen((v) => !v)}
+                  title="Черновики в процессе"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    padding: "6px 10px",
+                    border: "none",
+                    borderRadius: "0 8px 8px 0",
+                    background: "var(--accent)",
+                    color: "var(--on-accent)",
+                    fontSize: 11,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    opacity: 0.85,
+                  }}
+                >
+                  <span style={{ fontSize: 10 }}>⏳</span>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      minWidth: 16,
+                      height: 16,
+                      borderRadius: 8,
+                      padding: "0 4px",
+                      background: "rgba(255,255,255,0.25)",
+                      fontSize: 10,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {wizardTabs.length}
+                  </span>
+                </button>
+              )}
+            </div>
+
+            {/* Drafts dropdown */}
+            {draftsDropOpen && wizardTabs.length > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 6px)",
+                  left: 0,
+                  zIndex: 200,
+                  background: "var(--panel)",
+                  border: "0.5px solid var(--line)",
+                  borderRadius: 10,
+                  padding: 6,
+                  minWidth: 220,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "var(--tx-3)",
+                    padding: "4px 8px 6px",
+                    borderBottom: "0.5px solid var(--line)",
+                    marginBottom: 4,
+                  }}
+                >
+                  Черновики в процессе
+                </div>
+                {wizardTabs.map((wt) => (
+                  <button
+                    key={wt.id}
+                    onClick={() => {
+                      setActiveWizardId(wt.id);
+                      saveActiveId(wt.id);
+                      setTab("wizard");
+                      setDraftsDropOpen(false);
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      width: "100%",
+                      padding: "7px 10px",
+                      borderRadius: 7,
+                      border: "none",
+                      background: wt.id === activeWizardId ? "var(--chip)" : "none",
+                      color: "var(--tx-1)",
+                      fontSize: 12,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      textAlign: "left",
+                    }}
+                    onMouseEnter={(e) =>
+                      ((e.currentTarget as HTMLElement).style.background = "var(--hover)")
+                    }
+                    onMouseLeave={(e) =>
+                      ((e.currentTarget as HTMLElement).style.background =
+                        wt.id === activeWizardId ? "var(--chip)" : "none")
+                    }
+                  >
+                    <span style={{ fontSize: 10, flexShrink: 0 }}>
+                      {wt.projectId ? "📡" : "📝"}
+                    </span>
+                    <span
+                      style={{
+                        flex: 1,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {wt.title}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Креативы */}
           <button
             onClick={() => setTab("creatives")}
             style={{
               display: "flex",
               alignItems: "center",
               gap: 6,
-              padding: "7px 16px",
+              padding: "6px 14px",
               borderRadius: 8,
               border: "0.5px solid var(--line)",
-              background: "var(--panel)",
-              color: "var(--tx-2)",
+              background: tab === "creatives" ? "var(--tx-1)" : "var(--panel)",
+              color: tab === "creatives" ? "var(--panel)" : "var(--tx-2)",
               fontSize: 12,
-              fontWeight: 500,
+              fontWeight: tab === "creatives" ? 600 : 400,
               cursor: "pointer",
               fontFamily: "inherit",
+              transition: "all 0.15s",
             }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.background = "var(--hover)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.background = "var(--panel)")
-            }
           >
             ⬡ Креативы
+          </button>
+
+          {/* Отчёты */}
+          <button
+            onClick={() => setTab("reports")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 14px",
+              borderRadius: 8,
+              border: "0.5px solid var(--line)",
+              background: tab === "reports" ? "var(--tx-1)" : "var(--panel)",
+              color: tab === "reports" ? "var(--panel)" : "var(--tx-2)",
+              fontSize: 12,
+              fontWeight: tab === "reports" ? 600 : 400,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              transition: "all 0.15s",
+            }}
+          >
+            ◫ Отчёты
           </button>
         </div>
       )}
