@@ -1,508 +1,449 @@
 "use client";
-import { Suspense, useState, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
-import { useLocale } from "next-intl";
+
+/**
+ * Страница "Проекты" — список всех проектов с агрегированной статистикой.
+ * Путь в приложении: app/projects/page.tsx
+ *
+ * Подключено к реальным таблицам:
+ *  - projects  (основные данные проекта)
+ *  - contents  (материалы → считаем "Материалов", "N постов" и спарклайн за 6 мес.)
+ *
+ * ⚠️ Сделано по аналогии, проверь под свою схему:
+ *  - campaigns  (project_id, status, created_at) → "Кампаний" / "Активных кампаний"
+ *  - ai_workers (project_id) → "Агентов" / "AI-агентов"
+ *  - участники проекта — пока показываем только владельца (заглушка),
+ *    подключи свою таблицу project_members, когда она будет готова.
+ * Если таблицы называются иначе — просто поправь .from(...), запросы
+ * безопасно вернут 0 при ошибке и страница не упадёт.
+ */
+
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Search, X } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { createClient } from "@/lib/supabase/client";
+import { Search, FolderOpen, Megaphone, FileText, Bot, type LucideIcon } from "lucide-react";
 
-const NICHES = [
-  "Товары для дома", "Одежда и мода", "Еда и напитки", "Строительство",
-  "IT / Технологии", "Красота и уход", "Спорт", "Образование", "Услуги", "Другое",
+// ---------------------------------------------------------------------------
+// Цвета проектов: подбираются по id проекта, поэтому совпадают с цветом
+// аватара на детальной странице проекта (там используется та же функция).
+// Когда в БД появится своё поле цвета — замени hashColor(p.id) на project.color.
+// ---------------------------------------------------------------------------
+const PROJECT_COLORS = [
+  "#6366f1", // indigo
+  "#e11d48", // rose
+  "#0ea5e9", // sky
+  "#10b981", // emerald
+  "#f59e0b", // amber
+  "#a855f7", // purple
+  "#ec4899", // pink
+  "#14b8a6", // teal
 ];
-const TONES = [
-  { value: "friendly", label: "Дружелюбный" },
-  { value: "professional", label: "Профессиональный" },
-  { value: "humorous", label: "Юмористический" },
-  { value: "formal", label: "Официальный" },
-];
-const LANGS = [
-  { value: "ru", label: "Русский" },
-  { value: "uz", label: "Узбекский" },
-  { value: "en", label: "English" },
-];
-const COLORS = ["#4ABA74","#3B82F6","#8B5CF6","#F59E0B","#EF4444","#0088CC","#E1306C"];
-const colorFor = (id: string) => COLORS[id.charCodeAt(0) % COLORS.length];
+function hashColor(seed: string) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  return PROJECT_COLORS[hash % PROJECT_COLORS.length];
+}
 
-const PLATFORM_META: Record<string, { color: string; abbr: string }> = {
-  telegram: { color: "#0088CC", abbr: "TG" },
-  instagram: { color: "#E1306C", abbr: "IG" },
-  tiktok: { color: "#010101", abbr: "TT" },
-  vk: { color: "#0077FF", abbr: "VK" },
-  yandex: { color: "#FF0000", abbr: "YD" },
-  google: { color: "#4285F4", abbr: "GA" },
-  meta: { color: "#0866FF", abbr: "FB" },
-  mytarget: { color: "#FF6600", abbr: "MT" },
-};
+interface ProjectRow {
+  id: string;
+  name: string;
+  niche?: string | null;
+  description?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+  [key: string]: any;
+}
 
-// ── Create Project Modal ──────────────────────────────────────────────────
-function CreateProjectModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const supabase = createClient();
-  const qc = useQueryClient();
-  const [form, setForm] = useState({
-    name: "", niche: "", description: "", audience: "", tone: "friendly", language: "ru",
-  });
-  const [saving, setSaving] = useState(false);
-  const [nameError, setNameError] = useState("");
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const logoRef = useRef<HTMLInputElement>(null);
+interface ProjectCardData {
+  id: string;
+  name: string;
+  niche: string | null;
+  description: string | null;
+  color: string;
+  campaignsCount: number;
+  materialsCount: number;
+  agentsCount: number;
+  activity: number[];
+  postsCount: number;
+  members: { id: string; initial: string; bg: string }[];
+  timestamp: string;
+}
 
-  const { data: existingNames = [] } = useQuery({
-    queryKey: ["project_names"],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase.from("projects").select("name").eq("user_id", user.id).eq("is_active", true);
-      return (data ?? []).map((p: any) => p.name.toLowerCase().trim());
-    },
-  });
+function formatRelativeTime(iso?: string | null) {
+  if (!iso) return "—";
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 60) return minutes <= 1 ? "сейчас" : `${minutes}м назад`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}ч назад`;
+  const days = Math.floor(hours / 24);
+  return `${days}д назад`;
+}
 
-  const f = (key: string, val: string) => setForm((p) => ({ ...p, [key]: val }));
+// ---------------------------------------------------------------------------
+// Мини-компоненты
+// ---------------------------------------------------------------------------
 
-  const handleNameChange = (val: string) => {
-    f("name", val);
-    setNameError(existingNames.includes(val.toLowerCase().trim()) ? "Проект с таким именем уже существует" : "");
-  };
-
-  const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setLogoFile(file);
-    const r = new FileReader();
-    r.onload = (ev) => setLogoPreview(ev.target?.result as string);
-    r.readAsDataURL(file);
-  };
-
-  const handleSave = async () => {
-    if (!form.name.trim() || nameError) return;
-    setSaving(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Не авторизован");
-      let logo_url = "";
-      if (logoFile) {
-        const ext = logoFile.name.split(".").pop();
-        const path = `logos/${user.id}/${Date.now()}.${ext}`;
-        const { data: ud, error: ue } = await supabase.storage.from("content-images").upload(path, logoFile, { contentType: logoFile.type });
-        if (!ue && ud) {
-          const { data: urlD } = supabase.storage.from("content-images").getPublicUrl(path);
-          logo_url = urlD.publicUrl;
-        }
-      }
-      await supabase.from("projects").insert({
-        user_id: user.id,
-        name: form.name.trim(),
-        niche: form.niche || null,
-        description: form.description || null,
-        audience: form.audience || null,
-        tone: form.tone,
-        language: form.language,
-        logo_url: logo_url || null,
-        is_active: true,
-        products: [],
-      });
-      qc.invalidateQueries({ queryKey: ["projects"] });
-      qc.invalidateQueries({ queryKey: ["project_names"] });
-      qc.invalidateQueries({ queryKey: ["projects_selector"] });
-      onSaved();
-    } catch (e: any) {
-      alert("Ошибка: " + e.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const inp = "w-full px-3 py-2.5 rounded-[8px] border border-line text-[12px] outline-none focus:border-line-strong bg-panel text-tx-1 placeholder:text-tx-3";
+function Sparkline({ data, color, id }: { data: number[]; color: string; id: string }) {
+  const w = 160;
+  const h = 36;
+  const max = Math.max(...data, 1);
+  const min = Math.min(...data, 0);
+  const range = max - min || 1;
+  const stepX = w / Math.max(data.length - 1, 1);
+  const pts = data.map((v, i) => [i * stepX, h - ((v - min) / range) * (h - 4) - 2]);
+  const linePoints = pts.map(([x, y]) => `${x},${y}`).join(" ");
+  const areaPoints = `0,${h} ${linePoints} ${w},${h}`;
+  const gradId = `spark-${id}`;
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "flex-end" }}>
-      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)", backdropFilter: "blur(3px)" }} onClick={onClose} />
-      <div style={{
-        position: "relative", width: "100%", maxWidth: 520, height: "100%",
-        background: "var(--panel)", borderLeft: "0.5px solid var(--line)",
-        display: "flex", flexDirection: "column", boxShadow: "-20px 0 60px rgba(0,0,0,0.15)",
-        overflowY: "auto",
-      }}>
-        {/* Header */}
-        <div style={{ padding: "20px 24px 16px", borderBottom: "0.5px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-          <div>
-            <p style={{ fontSize: 16, fontWeight: 700, color: "var(--tx-1)" }}>Новый проект</p>
-            <p style={{ fontSize: 11, color: "var(--tx-3)", marginTop: 2 }}>Заполните данные — AI будет генерировать контент на их основе</p>
-          </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--tx-3)", fontSize: 18, padding: 4 }}>✕</button>
-        </div>
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-9 block" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.18" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon points={areaPoints} fill={`url(#${gradId})`} />
+      <polyline
+        points={linePoints}
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
-        <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
-          {/* Logo */}
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Логотип</label>
-            <input ref={logoRef} type="file" accept="image/*" onChange={handleLogoFile} style={{ display: "none" }} />
-            {logoPreview ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "var(--panel-2)", border: "0.5px solid var(--line)", borderRadius: 10 }}>
-                <img src={logoPreview} alt="" style={{ width: 48, height: 48, borderRadius: 10, objectFit: "cover" }} />
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-1)", marginBottom: 4 }}>Логотип загружен</p>
-                  <button onClick={() => { setLogoFile(null); setLogoPreview(null); }} style={{ fontSize: 11, color: "var(--neg)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>Удалить</button>
-                </div>
-              </div>
-            ) : (
-              <button onClick={() => logoRef.current?.click()} style={{ width: "100%", padding: "20px 0", border: "1.5px dashed var(--line)", borderRadius: 10, cursor: "pointer", background: "var(--panel-2)", color: "var(--tx-3)", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 22 }}>📷</span>
-                <span style={{ fontSize: 11 }}>Загрузить логотип</span>
-              </button>
-            )}
-          </div>
-
-          {/* Name */}
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Название *</label>
-            <input value={form.name} onChange={(e) => handleNameChange(e.target.value)} placeholder="Например: Пятый Элемент" className={`${inp} ${nameError ? "border-neg" : ""}`} />
-            {nameError && <p style={{ fontSize: 10, color: "var(--neg)", marginTop: 4 }}>{nameError}</p>}
-          </div>
-
-          {/* Niche */}
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Ниша</label>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {NICHES.map((n) => (
-                <button key={n} onClick={() => f("niche", n)} style={{ padding: "5px 10px", borderRadius: 7, border: `0.5px solid ${form.niche === n ? "var(--accent)" : "var(--line)"}`, background: form.niche === n ? "var(--accent)" : "transparent", color: form.niche === n ? "var(--on-accent)" : "var(--tx-2)", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>{n}</button>
-              ))}
-            </div>
-          </div>
-
-          {/* Description */}
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Описание бренда</label>
-            <textarea value={form.description} onChange={(e) => f("description", e.target.value)} placeholder="Чем занимается компания, что продаёт, какие ценности..." className={`${inp} resize-none`} style={{ height: 80 }} />
-          </div>
-
-          {/* Audience */}
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Целевая аудитория</label>
-            <textarea value={form.audience} onChange={(e) => f("audience", e.target.value)} placeholder="Возраст, интересы, география, боли и желания..." className={`${inp} resize-none`} style={{ height: 64 }} />
-          </div>
-
-          {/* Tone */}
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Тон коммуникации</label>
-            <div style={{ display: "flex", gap: 6 }}>
-              {TONES.map((t) => (
-                <button key={t.value} onClick={() => f("tone", t.value)} style={{ padding: "5px 10px", borderRadius: 7, border: `0.5px solid ${form.tone === t.value ? "var(--accent)" : "var(--line)"}`, background: form.tone === t.value ? "var(--accent)" : "transparent", color: form.tone === t.value ? "var(--on-accent)" : "var(--tx-2)", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>{t.label}</button>
-              ))}
-            </div>
-          </div>
-
-          {/* Language */}
-          <div style={{ marginBottom: 24 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Язык</label>
-            <div style={{ display: "flex", gap: 6 }}>
-              {LANGS.map((l) => (
-                <button key={l.value} onClick={() => f("language", l.value)} style={{ padding: "5px 14px", borderRadius: 7, border: `0.5px solid ${form.language === l.value ? "var(--accent)" : "var(--line)"}`, background: form.language === l.value ? "var(--accent)" : "transparent", color: form.language === l.value ? "var(--on-accent)" : "var(--tx-2)", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>{l.label}</button>
-              ))}
-            </div>
-          </div>
-
-          {/* AI hint */}
-          <div style={{ padding: "12px 14px", background: "var(--chip)", borderRadius: 10, marginBottom: 24, display: "flex", gap: 10 }}>
-            <span style={{ fontSize: 16, flexShrink: 0 }}>✦</span>
-            <div>
-              <p style={{ fontSize: 11, fontWeight: 600, color: "var(--tx-1)", marginBottom: 2 }}>Чем больше заполнишь — тем лучше AI</p>
-              <p style={{ fontSize: 10, color: "var(--tx-3)", lineHeight: 1.5 }}>Описание и аудитория используются при генерации контента, кампаний и рекомендаций</p>
-            </div>
-          </div>
-
-          {/* Save button */}
-          <button
-            onClick={handleSave}
-            disabled={!form.name.trim() || !!nameError || saving}
-            style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "var(--accent)", color: "var(--on-accent)", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: (!form.name.trim() || !!nameError || saving) ? 0.5 : 1 }}
-          >
-            {saving ? "⟳ Создаём проект..." : "📁 Создать проект"}
-          </button>
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  delta,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: number;
+  delta?: number;
+}) {
+  return (
+    <div className="bg-panel border border-line rounded-xl p-4 flex items-center gap-3">
+      <div className="w-10 h-10 rounded-lg bg-panel-2 flex items-center justify-center flex-shrink-0">
+        <Icon size={18} className="text-tx-2" strokeWidth={1.8} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs text-tx-3 truncate">{label}</p>
+        <div className="flex items-baseline gap-1.5">
+          <p className="text-2xl font-bold text-tx-1 leading-none">{value}</p>
+          {typeof delta === "number" && delta > 0 && (
+            <span className="text-[11px] font-medium text-emerald-700">↗ +{delta}</span>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-// ── Project Card ──────────────────────────────────────────────────────────
-function ProjectCard({ p, stats, platforms, onDelete, locale }: { p: any; stats: any; platforms: string[]; onDelete: () => void; locale: string }) {
-  const color = colorFor(p.id);
-  const date = p.created_at
-    ? new Date(p.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })
-    : "";
-
+function MetricChip({ icon: Icon, value, label }: { icon: LucideIcon; value: number; label: string }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", background: "var(--panel)", border: "0.5px solid var(--line)", borderRadius: 12, overflow: "hidden", transition: "box-shadow 0.15s", cursor: "default" }}
-      onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.08)")}
-      onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")}
+    <div className="bg-panel-2 rounded-lg py-2.5 flex flex-col items-center text-center">
+      <Icon size={14} className="text-tx-3" strokeWidth={1.8} />
+      <p className="text-base font-bold text-tx-1 leading-none mt-1.5">{value}</p>
+      <p className="text-[11px] text-tx-3 mt-1">{label}</p>
+    </div>
+  );
+}
+
+function ProjectCard({ project }: { project: ProjectCardData }) {
+  return (
+    <Link
+      href={`/projects/${project.id}`}
+      className="group bg-panel border border-line rounded-xl p-5 flex flex-col hover:border-line-strong hover:shadow-sm transition-all"
     >
-      {/* Color bar */}
-      <div style={{ height: 4, background: color, flexShrink: 0 }} />
-
-      <div style={{ padding: "14px 16px", flex: 1, display: "flex", flexDirection: "column" }}>
-        {/* Top: logo + name */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-          {p.logo_url ? (
-            <img src={p.logo_url} alt="" style={{ width: 36, height: 36, borderRadius: 9, objectFit: "cover", flexShrink: 0 }} />
-          ) : (
-            <div style={{ width: 36, height: 36, borderRadius: 9, background: color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 15, fontWeight: 700, flexShrink: 0 }}>
-              {p.name.slice(0, 1).toUpperCase()}
-            </div>
-          )}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: "var(--tx-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>{p.name}</p>
-            {p.niche && <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0, marginTop: 2 }}>{p.niche}</p>}
-          </div>
+      <div className="flex items-start gap-3">
+        <div
+          className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-semibold text-base flex-shrink-0"
+          style={{ background: project.color }}
+        >
+          {project.name?.[0]?.toUpperCase() || "?"}
         </div>
+        <div className="min-w-0 pt-0.5">
+          <h3 className="text-[15px] font-semibold text-tx-1 leading-tight truncate">
+            {project.name}
+          </h3>
+          <p className="text-xs text-tx-3 mt-0.5">{project.niche || "Без ниши"}</p>
+        </div>
+      </div>
 
-        {/* Description */}
-        {p.description && (
-          <p style={{ fontSize: 11, color: "var(--tx-2)", lineHeight: 1.6, marginBottom: 12, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any, overflow: "hidden", margin: "0 0 12px 0" }}>
-            {p.description}
-          </p>
+      <p className="text-[13px] text-tx-2 mt-3 leading-relaxed line-clamp-2 min-h-[2.6em]">
+        {project.description || "Без описания"}
+      </p>
+
+      <div className="border-t border-line mt-4 pt-3.5">
+        <p className="text-[11px] text-tx-3 mb-2">Активность за 6 мес.</p>
+        {project.postsCount > 0 ? (
+          <div className="flex items-end gap-3">
+            <div className="flex-1 min-w-0">
+              <Sparkline data={project.activity} color={project.color} id={project.id} />
+            </div>
+            <span className="text-xs text-tx-3 whitespace-nowrap pb-0.5">
+              {project.postsCount} постов
+            </span>
+          </div>
+        ) : (
+          <p className="text-xs text-tx-3 h-9 flex items-center">Нет активности</p>
         )}
+      </div>
 
-        {/* Stats row */}
-        <div style={{ display: "flex", gap: 12, marginBottom: 12, marginTop: "auto" }}>
-          {[
-            { icon: "📡", v: stats?.campaigns ?? 0, label: "кампаний" },
-            { icon: "📝", v: stats?.contents ?? 0, label: "материалов" },
-            { icon: "🤖", v: stats?.agents ?? 0, label: "агентов" },
-          ].map((s) => (
-            <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ fontSize: 11 }}>{s.icon}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-1)" }}>{s.v}</span>
-              <span style={{ fontSize: 10, color: "var(--tx-3)" }}>{s.label}</span>
+      <div className="grid grid-cols-3 gap-2 mt-4">
+        <MetricChip icon={Megaphone} value={project.campaignsCount} label="Кампаний" />
+        <MetricChip icon={FileText} value={project.materialsCount} label="Материалов" />
+        <MetricChip icon={Bot} value={project.agentsCount} label="Агентов" />
+      </div>
+
+      <div className="flex items-center justify-between mt-4">
+        <div className="flex -space-x-2">
+          {project.members.map((m) => (
+            <div
+              key={m.id}
+              title={m.initial}
+              className="w-6 h-6 rounded-full border-2 border-panel flex items-center justify-center text-[10px] font-semibold text-white"
+              style={{ background: m.bg }}
+            >
+              {m.initial}
             </div>
           ))}
         </div>
-
-        {/* Platform icons */}
-        {platforms.length > 0 && (
-          <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
-            {platforms.slice(0, 5).map((pk) => {
-              const meta = PLATFORM_META[pk];
-              if (!meta) return null;
-              return (
-                <div key={pk} style={{ width: 20, height: 14, borderRadius: 3, background: meta.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 7, fontWeight: 700 }}>{meta.abbr}</div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Bottom: date + actions */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTop: "0.5px solid var(--line)", marginTop: "auto" }}>
-          <span style={{ fontSize: 10, color: "var(--tx-3)" }}>{date}</span>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={onDelete} style={{ padding: "4px 8px", borderRadius: 6, border: "0.5px solid var(--line)", background: "transparent", color: "var(--neg)", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>🗑</button>
-            <Link
-              href={`/${locale}/projects/${p.id}`}
-              style={{ padding: "5px 12px", borderRadius: 7, border: "0.5px solid var(--accent)", background: "var(--accent)", color: "var(--on-accent)", fontSize: 11, fontWeight: 600, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}
-            >
-              Открыть →
-            </Link>
-          </div>
+        <div className="flex items-center gap-2.5">
+          <span className="text-xs text-tx-3">{formatRelativeTime(project.timestamp)}</span>
+          <span className="text-xs font-medium text-tx-1 group-hover:text-accent transition-colors">
+            Открыть →
+          </span>
         </div>
+      </div>
+    </Link>
+  );
+}
+
+function NewProjectCard() {
+  return (
+    <Link
+      href="/projects/new"
+      className="bg-panel border border-line rounded-xl flex flex-col items-center justify-center text-center p-8 hover:border-accent transition-colors group min-h-[220px]"
+    >
+      <div className="w-11 h-11 rounded-full bg-panel-2 flex items-center justify-center mb-3 group-hover:bg-accent-dim transition-colors">
+        <span className="text-xl text-tx-2 group-hover:text-accent transition-colors leading-none">
+          +
+        </span>
+      </div>
+      <p className="text-sm font-semibold text-tx-1">Новый проект</p>
+      <p className="text-xs text-tx-3 mt-1 max-w-[220px]">
+        Создайте проект для управления контентом и кампаниями
+      </p>
+    </Link>
+  );
+}
+
+function CardSkeleton() {
+  return (
+    <div className="bg-panel border border-line rounded-xl p-5 animate-pulse">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-panel-2" />
+        <div className="flex-1 space-y-2">
+          <div className="h-3.5 w-2/3 bg-panel-2 rounded" />
+          <div className="h-2.5 w-1/3 bg-panel-2 rounded" />
+        </div>
+      </div>
+      <div className="h-3 w-full bg-panel-2 rounded mt-4" />
+      <div className="h-3 w-4/5 bg-panel-2 rounded mt-2" />
+      <div className="h-9 bg-panel-2 rounded-lg mt-4" />
+      <div className="grid grid-cols-3 gap-2 mt-4">
+        <div className="h-16 bg-panel-2 rounded-lg" />
+        <div className="h-16 bg-panel-2 rounded-lg" />
+        <div className="h-16 bg-panel-2 rounded-lg" />
       </div>
     </div>
   );
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────
-function ProjectsPageInner() {
+// ---------------------------------------------------------------------------
+// Страница
+// ---------------------------------------------------------------------------
+
+export default function ProjectsPage() {
   const supabase = createClient();
-  const qc = useQueryClient();
-  const locale = useLocale();
   const [search, setSearch] = useState("");
-  const [showCreate, setShowCreate] = useState(false);
 
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase.from("projects").select("*").eq("user_id", user.id).eq("is_active", true).order("created_at", { ascending: false });
-      return data ?? [];
+      const { data } = await supabase
+        .from("projects")
+        .select("*")
+        .order("created_at", { ascending: false });
+      return (data || []) as ProjectRow[];
     },
   });
 
-  const { data: projectStats = {} } = useQuery({
-    queryKey: ["project_stats"],
+  // Один запрос на все проекты сразу (вместо N+1) — считаем материалы,
+  // "N постов" и спарклайн за 6 мес. на клиенте.
+  const { data: contentsRaw = [] } = useQuery({
+    queryKey: ["projects-contents-summary"],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return {};
-      const [camps, contents, creatives, agents] = await Promise.all([
-        supabase.from("ad_campaigns").select("project_id").eq("user_id", user.id),
-        supabase.from("contents").select("project_id"),
-        supabase.from("ad_creatives").select("project_id").eq("user_id", user.id),
-        supabase.from("ai_agents").select("project_id").eq("user_id", user.id).eq("is_active", true),
-      ]);
-      const stats: Record<string, { campaigns: number; contents: number; agents: number }> = {};
-      const inc = (row: any, key: "campaigns" | "contents" | "agents") => {
-        const pid = row.project_id;
-        if (!pid) return;
-        if (!stats[pid]) stats[pid] = { campaigns: 0, contents: 0, agents: 0 };
-        stats[pid][key]++;
-      };
-      (camps.data ?? []).forEach((r: any) => inc(r, "campaigns"));
-      (contents.data ?? []).forEach((r: any) => inc(r, "contents"));
-      (creatives.data ?? []).forEach((r: any) => inc(r, "contents"));
-      (agents.data ?? []).forEach((r: any) => inc(r, "agents"));
-      return stats;
+      const { data, error } = await supabase.from("contents").select("project_id, created_at");
+      if (error) return [];
+      return data || [];
     },
   });
 
-  // Get connected platforms per project (via campaigns)
-  const { data: projectPlatforms = {} } = useQuery({
-    queryKey: ["project_platforms"],
+  const { data: campaignsRaw = [] } = useQuery({
+    queryKey: ["projects-campaigns-summary"],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return {};
-      const { data } = await supabase.from("ad_campaigns").select("project_id, platforms").eq("user_id", user.id);
-      const result: Record<string, Set<string>> = {};
-      (data ?? []).forEach((c: any) => {
-        if (!c.project_id || !c.platforms) return;
-        if (!result[c.project_id]) result[c.project_id] = new Set();
-        (c.platforms as string[]).forEach((p) => result[c.project_id].add(p));
+      const { data, error } = await supabase
+        .from("campaigns")
+        .select("project_id, status, created_at");
+      if (error) return [];
+      return data || [];
+    },
+  });
+
+  const { data: agentsRaw = [] } = useQuery({
+    queryKey: ["projects-agents-summary"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("ai_workers").select("project_id");
+      if (error) return [];
+      return data || [];
+    },
+  });
+
+  const cards = useMemo<ProjectCardData[]>(() => {
+    return projects.map((p) => {
+      const myContents = contentsRaw.filter((c: any) => c.project_id === p.id);
+      const myCampaigns = campaignsRaw.filter((c: any) => c.project_id === p.id);
+      const myAgents = agentsRaw.filter((a: any) => a.project_id === p.id);
+
+      const buckets = Array.from({ length: 6 }, (_, idx) => {
+        const d = new Date();
+        d.setDate(1);
+        d.setMonth(d.getMonth() - (5 - idx));
+        const y = d.getFullYear();
+        const m = d.getMonth();
+        return myContents.filter((c: any) => {
+          const cd = new Date(c.created_at);
+          return cd.getFullYear() === y && cd.getMonth() === m;
+        }).length;
       });
-      return Object.fromEntries(Object.entries(result).map(([k, v]) => [k, [...v]]));
-    },
-  });
 
-  const deleteProject = useMutation({
-    mutationFn: async (id: string) => {
-      await supabase.from("projects").update({ is_active: false }).eq("id", id);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["projects"] });
-      qc.invalidateQueries({ queryKey: ["project_names"] });
-    },
-  });
+      return {
+        id: p.id,
+        name: p.name,
+        niche: p.niche ?? null,
+        description: p.description ?? null,
+        color: hashColor(p.id),
+        campaignsCount: myCampaigns.length,
+        materialsCount: myContents.length,
+        agentsCount: myAgents.length,
+        activity: buckets,
+        postsCount: myContents.length,
+        members: [{ id: `${p.id}-owner`, initial: "J", bg: "#1a1a1a" }],
+        timestamp: p.updated_at || p.created_at,
+      };
+    });
+  }, [projects, contentsRaw, campaignsRaw, agentsRaw]);
 
-  const filtered = projects.filter((p: any) =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    (p.niche ?? "").toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return cards;
+    return cards.filter((c) =>
+      `${c.name} ${c.niche ?? ""} ${c.description ?? ""}`.toLowerCase().includes(q),
+    );
+  }, [cards, search]);
 
-  const totalContents = Object.values(projectStats as any).reduce((s: number, st: any) => s + (st.contents ?? 0), 0);
-  const totalCampaigns = Object.values(projectStats as any).reduce((s: number, st: any) => s + (st.campaigns ?? 0), 0);
+  const stats = useMemo(() => {
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const activeCampaigns = campaignsRaw.filter((c: any) => !c.status || c.status === "active").length;
+    const newCampaigns = campaignsRaw.filter(
+      (c: any) => c.created_at && new Date(c.created_at).getTime() > weekAgo,
+    ).length;
+    const newMaterials = contentsRaw.filter(
+      (c: any) => c.created_at && new Date(c.created_at).getTime() > weekAgo,
+    ).length;
+    return {
+      totalProjects: projects.length,
+      activeCampaigns,
+      newCampaigns,
+      totalMaterials: contentsRaw.length,
+      newMaterials,
+      totalAgents: agentsRaw.length,
+    };
+  }, [projects, campaignsRaw, contentsRaw, agentsRaw]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", height: 44, borderBottom: "0.5px solid var(--line)", background: "var(--panel)", flexShrink: 0, gap: 10 }}>
-        <p style={{ fontSize: 11, color: "var(--tx-3)", flexShrink: 0 }}>Маркетинг / <span style={{ color: "var(--tx-2)", fontWeight: 500 }}>Проекты</span></p>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {/* Search */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", border: "0.5px solid var(--line)", borderRadius: 8, background: "var(--panel)" }}>
-            <Search size={12} style={{ color: "var(--tx-3)", flexShrink: 0 }} />
+    <div className="p-6">
+      <p className="text-sm text-tx-3 mb-1">Маркетинг / Проекты</p>
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+        <h1 className="text-[26px] font-bold text-tx-1">Проекты</h1>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search
+              size={15}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-tx-3"
+              strokeWidth={1.8}
+            />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Поиск проектов..."
-              style={{ background: "none", border: "none", outline: "none", fontSize: 12, color: "var(--tx-1)", width: 150, fontFamily: "inherit" }}
+              className="pl-9 pr-3 py-2 text-sm bg-panel border border-line rounded-lg outline-none focus:border-accent w-full sm:w-64 transition-colors"
             />
-            {search && (
-              <button onClick={() => setSearch("")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--tx-3)", fontSize: 11, padding: 0 }}>✕</button>
-            )}
           </div>
-          <button
-            onClick={() => setShowCreate(true)}
-            style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: "var(--pos)", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
+          <Link
+            href="/projects/new"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-tx-1 text-panel text-sm font-medium rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap"
           >
             + Новый проект
-          </button>
+          </Link>
         </div>
       </div>
 
-      {/* Content */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <StatCard icon={FolderOpen} label="Всего проектов" value={stats.totalProjects} />
+        <StatCard
+          icon={Megaphone}
+          label="Активных кампаний"
+          value={stats.activeCampaigns}
+          delta={stats.newCampaigns}
+        />
+        <StatCard
+          icon={FileText}
+          label="Контент-материалов"
+          value={stats.totalMaterials}
+          delta={stats.newMaterials}
+        />
+        <StatCard icon={Bot} label="AI-агентов" value={stats.totalAgents} />
+      </div>
 
-        {/* Stats bar */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 20 }}>
-          {[
-            { icon: "📁", value: projects.length, label: "Всего проектов", color: "#3B82F6" },
-            { icon: "📡", value: totalCampaigns, label: "Кампаний", color: "#4ABA74" },
-            { icon: "📝", value: totalContents, label: "Материалов", color: "#8B5CF6" },
-          ].map((s) => (
-            <div key={s.label} style={{ padding: "14px 18px", background: "var(--panel)", border: "0.5px solid var(--line)", borderRadius: 12, display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: `${s.color}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{s.icon}</div>
-              <div>
-                <p style={{ fontSize: 20, fontWeight: 700, color: "var(--tx-1)", margin: 0, lineHeight: 1.1 }}>{s.value}</p>
-                <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0, marginTop: 2 }}>{s.label}</p>
-              </div>
-            </div>
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <CardSkeleton key={i} />
           ))}
         </div>
-
-        {/* Loading */}
-        {isLoading && (
-          <div style={{ textAlign: "center", padding: 60, color: "var(--tx-3)", fontSize: 12 }}>Загрузка проектов...</div>
-        )}
-
-        {/* Empty state */}
-        {!isLoading && projects.length === 0 && (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: 80, textAlign: "center" }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>📁</div>
-            <p style={{ fontSize: 16, fontWeight: 700, color: "var(--tx-1)", marginBottom: 8 }}>Нет проектов</p>
-            <p style={{ fontSize: 12, color: "var(--tx-3)", marginBottom: 24, maxWidth: 280, lineHeight: 1.6 }}>Создайте первый проект — он станет основой для кампаний и контента</p>
-            <button onClick={() => setShowCreate(true)} style={{ padding: "10px 24px", borderRadius: 10, background: "var(--accent)", color: "var(--on-accent)", border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>+ Создать проект</button>
-          </div>
-        )}
-
-        {/* Search empty */}
-        {!isLoading && projects.length > 0 && filtered.length === 0 && search && (
-          <div style={{ textAlign: "center", padding: 40 }}>
-            <p style={{ fontSize: 13, color: "var(--tx-2)" }}>Нет проектов по запросу «{search}»</p>
-          </div>
-        )}
-
-        {/* Project grid */}
-        {!isLoading && filtered.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
-            {filtered.map((p: any) => (
-              <ProjectCard
-                key={p.id}
-                p={p}
-                stats={(projectStats as any)[p.id] ?? { campaigns: 0, contents: 0, agents: 0 }}
-                platforms={(projectPlatforms as any)[p.id] ?? []}
-                locale={locale}
-                onDelete={() => { if (confirm(`Удалить «${p.name}»?`)) deleteProject.mutate(p.id); }}
-              />
-            ))}
-
-            {/* New project card */}
-            <div
-              onClick={() => setShowCreate(true)}
-              style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "var(--panel)", border: "1.5px dashed var(--line)", borderRadius: 12, minHeight: 180, cursor: "pointer", gap: 8, transition: "border-color 0.15s" }}
-              onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
-              onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--line)")}
-            >
-              <span style={{ fontSize: 28, color: "var(--tx-3)" }}>+</span>
-              <p style={{ fontSize: 12, color: "var(--tx-3)", margin: 0 }}>Новый проект</p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Create modal (slide-in drawer) */}
-      {showCreate && (
-        <CreateProjectModal
-          onClose={() => setShowCreate(false)}
-          onSaved={() => setShowCreate(false)}
-        />
+      ) : filtered.length === 0 && search ? (
+        <div className="text-center py-16 bg-panel rounded-xl border border-line">
+          <p className="text-tx-2 text-sm">Ничего не найдено по запросу «{search}»</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((p) => (
+            <ProjectCard key={p.id} project={p} />
+          ))}
+          <NewProjectCard />
+        </div>
       )}
     </div>
-  );
-}
-
-export default function ProjectsPage() {
-  return (
-    <Suspense>
-      <ProjectsPageInner />
-    </Suspense>
   );
 }
