@@ -1,774 +1,503 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import {
-  BarChart3,
-  FileText,
-  FolderOpen,
-  Palette,
-  Settings,
-  Image as ImageIcon,
-  Film,
-  ClipboardList,
-  type LucideIcon,
-} from "lucide-react";
+import { useParams } from "next/navigation";
+import { useLocale } from "next-intl";
 
-type Tab = "overview" | "content" | "storage" | "brandbook" | "settings";
+const COLORS = ["#4ABA74","#3B82F6","#8B5CF6","#F59E0B","#EF4444","#0088CC","#E1306C"];
+const colorFor = (id: string) => COLORS[id.charCodeAt(0) % COLORS.length];
 
-const TABS: { key: Tab; label: string; Icon: LucideIcon }[] = [
-  { key: "overview", label: "Обзор", Icon: BarChart3 },
-  { key: "content", label: "Контент", Icon: FileText },
-  { key: "storage", label: "Хранилище", Icon: FolderOpen },
-  { key: "brandbook", label: "Брендбук", Icon: Palette },
-  { key: "settings", label: "Настройки", Icon: Settings },
+const PLATFORM_META: Record<string, { color: string; abbr: string; name: string }> = {
+  telegram:  { color: "#0088CC", abbr: "TG", name: "Telegram" },
+  instagram: { color: "#E1306C", abbr: "IG", name: "Instagram" },
+  tiktok:    { color: "#010101", abbr: "TT", name: "TikTok" },
+  vk:        { color: "#0077FF", abbr: "VK", name: "ВКонтакте" },
+  yandex:    { color: "#FF0000", abbr: "YD", name: "Яндекс" },
+  google:    { color: "#4285F4", abbr: "GA", name: "Google Ads" },
+  meta:      { color: "#0866FF", abbr: "FB", name: "Meta Ads" },
+  mytarget:  { color: "#FF6600", abbr: "MT", name: "myTarget" },
+};
+
+// Maps creative formats to display groups
+const FORMAT_GROUP: Record<string, string> = {
+  post: "posts", feed: "posts",
+  video: "video", reels: "video",
+  ad: "ads", search: "ads", rsya: "ads", display: "ads", banner: "ads",
+  stories: "stories",
+};
+
+const FORMAT_ICON: Record<string, string> = {
+  post: "📝", feed: "📝", video: "🎬", reels: "🎬", ad: "📣",
+  search: "🔍", rsya: "📊", display: "🖼", banner: "🖼", stories: "⭕",
+};
+
+const FORMAT_LABEL: Record<string, string> = {
+  post: "Пост", feed: "Пост", video: "Видео", reels: "Reels",
+  ad: "Реклама", search: "Поиск", rsya: "РСЯ", display: "КМС", banner: "Баннер", stories: "Stories",
+};
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  active:     { label: "Активен",      color: "#16a34a", bg: "rgba(22,163,74,0.1)" },
+  draft:      { label: "Черновик",     color: "var(--tx-3)", bg: "var(--chip)" },
+  published:  { label: "Опубликовано", color: "#16a34a", bg: "rgba(22,163,74,0.1)" },
+  scheduled:  { label: "Запланировано",color: "#2563eb", bg: "rgba(37,99,235,0.1)" },
+  generated:  { label: "Готово",       color: "#7c3aed", bg: "rgba(124,58,237,0.1)" },
+  paused:     { label: "Пауза",        color: "#d97706", bg: "rgba(217,119,6,0.1)" },
+  failed:     { label: "Ошибка",       color: "#dc2626", bg: "rgba(220,38,38,0.1)" },
+};
+
+const LEFT_NAV = [
+  { section: "КРЕАТИВЫ", key: "all",     label: "Все" },
+  { section: "КРЕАТИВЫ", key: "posts",   label: "Посты" },
+  { section: "КРЕАТИВЫ", key: "video",   label: "Видео" },
+  { section: "КРЕАТИВЫ", key: "stories", label: "Stories" },
+  { section: "КРЕАТИВЫ", key: "ads",     label: "Объявления" },
+  { section: "КАМПАНИИ", key: "_campaigns", label: "Кампании" },
+  { section: "АНАЛИТИКА", key: "_analytics", label: "Аналитика" },
+  { section: "НАСТРОЙКИ", key: "_settings", label: "Настройки" },
 ];
-
-const STATUS_STYLES: Record<string, string> = {
-  published: "bg-chip text-c-2",
-  scheduled: "bg-accent-dim text-accent",
-  generated: "bg-chip text-c-3",
-  draft: "bg-chip text-tx-2",
-  failed: "bg-chip text-neg",
-};
-
-const FILE_ICONS: Record<string, LucideIcon> = {
-  image: ImageIcon,
-  video: Film,
-  document: FileText,
-  brandbook: ClipboardList,
-};
 
 export default function ProjectDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const supabase = createClient();
   const queryClient = useQueryClient();
+  const locale = useLocale();
   const projectId = params?.id as string;
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
-  const [uploadType, setUploadType] = useState("image");
-  const [newColor, setNewColor] = useState("#3B82F6");
-  const [colorLabel, setColorLabel] = useState("");
-  const [guidelinesText, setGuidelinesText] = useState("");
+  const [filter, setFilter] = useState("all");
 
-  // Проект
+  // ── Project data ──
   const { data: project, isLoading } = useQuery({
     queryKey: ["project", projectId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("projects")
-        .select("*")
-        .eq("id", projectId)
-        .single();
+      const { data } = await supabase.from("projects").select("*").eq("id", projectId).single();
       return data;
     },
     enabled: !!projectId,
   });
 
-  // Статистика
-  const { data: stats } = useQuery({
-    queryKey: ["project-stats", projectId],
+  // ── Ad creatives for this project (primary content) ──
+  const { data: creatives = [] } = useQuery({
+    queryKey: ["project-creatives", projectId],
     queryFn: async () => {
-      const now = new Date();
-      const weekAgo = new Date(
-        now.getTime() - 7 * 24 * 60 * 60 * 1000,
-      ).toISOString();
-      const [
-        { count: total },
-        { count: published },
-        { count: scheduled },
-        { count: thisWeek },
-      ] = await Promise.all([
-        supabase
-          .from("contents")
-          .select("*", { count: "exact", head: true })
-          .eq("project_id", projectId),
-        supabase
-          .from("contents")
-          .select("*", { count: "exact", head: true })
-          .eq("project_id", projectId)
-          .eq("status", "published"),
-        supabase
-          .from("contents")
-          .select("*", { count: "exact", head: true })
-          .eq("project_id", projectId)
-          .eq("status", "scheduled"),
-        supabase
-          .from("contents")
-          .select("*", { count: "exact", head: true })
-          .eq("project_id", projectId)
-          .gte("created_at", weekAgo),
-      ]);
-      return {
-        total: total ?? 0,
-        published: published ?? 0,
-        scheduled: scheduled ?? 0,
-        thisWeek: thisWeek ?? 0,
-      };
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      const { data } = await supabase
+        .from("ad_creatives")
+        .select("id, title, caption, platform, format, status, created_at, campaign_id, ai_generated")
+        .eq("user_id", user.id)
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      return data ?? [];
     },
     enabled: !!projectId,
   });
 
-  // Контент
-  const { data: contents = [] } = useQuery({
-    queryKey: ["project-contents", projectId],
+  // ── Campaigns for this project ──
+  const { data: campaigns = [] } = useQuery({
+    queryKey: ["project-campaigns", projectId],
     queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
       const { data } = await supabase
-        .from("contents")
-        .select("id, title, type, platform, status, created_at")
+        .from("ad_campaigns")
+        .select("id, name, status, platforms, created_at, budget_total, budget_spent")
+        .eq("user_id", user.id)
         .eq("project_id", projectId)
         .order("created_at", { ascending: false })
-        .limit(50);
-      return data || [];
+        .limit(30);
+      return data ?? [];
     },
-    enabled: activeTab === "content" && !!projectId,
+    enabled: !!projectId,
   });
 
-  // Файлы
-  const { data: files = [] } = useQuery({
-    queryKey: ["project-files", projectId],
+  // ── Connected platforms (user's real connections) ──
+  const { data: connectedPlatforms = [] } = useQuery({
+    queryKey: ["connected-platforms", projectId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("project_files")
-        .select("*")
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: false });
-      return data || [];
-    },
-    enabled: activeTab === "storage" && !!projectId,
-  });
-
-  // Активность по дням (последние 30 дней)
-  const { data: activityData = [] } = useQuery({
-    queryKey: ["project-activity", projectId],
-    queryFn: async () => {
-      const thirtyDaysAgo = new Date(
-        Date.now() - 29 * 24 * 60 * 60 * 1000,
-      ).toISOString();
-      const { data } = await supabase
-        .from("contents")
-        .select("created_at")
-        .eq("project_id", projectId)
-        .gte("created_at", thirtyDaysAgo);
-      return data || [];
-    },
-    enabled: activeTab === "overview" && !!projectId,
-  });
-
-  // Загрузка файла
-  const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      const ext = file.name.split(".").pop();
-      const path = `${user.id}/${projectId}/${Date.now()}.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("project-files")
-        .upload(path, file);
-      if (uploadError) throw uploadError;
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("project-files").getPublicUrl(path);
-
-      const { error: dbError } = await supabase.from("project_files").insert({
-        project_id: projectId,
-        user_id: user.id,
-        name: file.name,
-        file_url: publicUrl,
-        file_type: uploadType,
-        size_bytes: file.size,
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      const [adPlatformsRes, integrationsRes] = await Promise.all([
+        supabase.from("ad_platforms").select("platform_key, name, account_id").eq("user_id", user.id).eq("is_active", true),
+        supabase.from("integrations").select("platform, channel_name").eq("user_id", user.id).eq("is_active", true),
+      ]);
+      const seen = new Set<string>();
+      const result: { key: string; label: string }[] = [];
+      (adPlatformsRes.data ?? []).forEach((p: any) => {
+        if (!seen.has(p.platform_key)) {
+          seen.add(p.platform_key);
+          result.push({ key: p.platform_key, label: p.account_id ?? p.name });
+        }
       });
-      if (dbError) throw dbError;
+      (integrationsRes.data ?? []).forEach((i: any) => {
+        if (!seen.has(i.platform)) {
+          seen.add(i.platform);
+          result.push({ key: i.platform, label: i.channel_name ? `@${i.channel_name}` : i.platform });
+        }
+      });
+      return result;
     },
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["project-files", projectId] }),
+    enabled: !!projectId,
   });
 
-  const deleteFileMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await supabase.from("project_files").delete().eq("id", id);
+  // ── AI agents (user's active agents) ──
+  const { data: agents = [] } = useQuery({
+    queryKey: ["project-agents"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      const { data } = await supabase
+        .from("ai_agents")
+        .select("id, name, type, is_active")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .limit(8);
+      return data ?? [];
     },
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["project-files", projectId] }),
+    enabled: !!projectId,
   });
 
-  const saveBrandbookMutation = useMutation({
+  // ── Update project settings ──
+  const saveMutation = useMutation({
     mutationFn: async (updates: Record<string, unknown>) => {
-      const { error } = await supabase
-        .from("projects")
-        .update(updates)
-        .eq("id", projectId);
+      const { error } = await supabase.from("projects").update(updates).eq("id", projectId);
       if (error) throw error;
     },
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["project", projectId] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project", projectId] }),
   });
 
-  const addColor = () => {
-    if (!newColor || !colorLabel) return;
-    const current = (project?.brand_colors as any[]) || [];
-    saveBrandbookMutation.mutate({
-      brand_colors: [...current, { hex: newColor, label: colorLabel }],
-    });
-    setColorLabel("");
-  };
+  if (isLoading) {
+    return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--tx-3)", fontSize: 12 }}>Загрузка...</div>;
+  }
+  if (!project) {
+    return (
+      <div style={{ padding: 40, textAlign: "center" }}>
+        <p style={{ fontSize: 14, color: "var(--tx-2)", marginBottom: 12 }}>Проект не найден</p>
+        <Link href={`/${locale}/projects`} style={{ color: "var(--accent)", fontSize: 12, textDecoration: "none" }}>← К проектам</Link>
+      </div>
+    );
+  }
 
-  const removeColor = (idx: number) => {
-    const current = (project?.brand_colors as any[]) || [];
-    saveBrandbookMutation.mutate({
-      brand_colors: current.filter((_: any, i: number) => i !== idx),
-    });
-  };
+  const color = colorFor(project.id);
 
-  const days30 = Array.from({ length: 30 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (29 - i));
-    const key = d.toISOString().split("T")[0];
-    const count = activityData.filter((a: any) =>
-      a.created_at.startsWith(key),
-    ).length;
-    return { key, count };
+  // Filter creatives by group
+  const filteredCreatives = (creatives as any[]).filter((c) => {
+    if (filter === "all") return true;
+    if (filter.startsWith("_")) return false;
+    return FORMAT_GROUP[c.format] === filter;
   });
-  const maxCount = Math.max(...days30.map((d) => d.count), 1);
 
-  if (isLoading)
-    return (
-      <div className="p-6">
-        <div className="h-8 w-48 bg-chip rounded animate-pulse mb-4" />
-        <div className="h-4 w-64 bg-chip rounded animate-pulse" />
-      </div>
-    );
+  // Count per group for left nav badges
+  const countByGroup = (creatives as any[]).reduce((acc: Record<string, number>, c: any) => {
+    const g = FORMAT_GROUP[c.format] ?? "ads";
+    acc[g] = (acc[g] ?? 0) + 1;
+    acc.all = (acc.all ?? 0) + 1;
+    return acc;
+  }, {});
 
-  if (!project)
-    return (
-      <div className="p-6 text-center">
-        <p className="text-tx-2">Проект не найден</p>
-        <Link
-          href="/projects"
-          className="text-accent text-sm mt-2 inline-block"
-        >
-          ← Назад
-        </Link>
-      </div>
-    );
-
-  const brandColors = (project.brand_colors as any[]) || [];
+  const sections = Array.from(new Set(LEFT_NAV.map((n) => n.section)));
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="border-b border-line px-6 py-4 flex items-center gap-4 flex-shrink-0 bg-panel sticky top-0 z-10">
-        <Link
-          href="/projects"
-          className="text-tx-3 hover:text-tx-2 transition-colors text-sm"
-        >
-          ←
-        </Link>
-        <div className="w-10 h-10 rounded-xl bg-accent-dim flex items-center justify-center text-lg overflow-hidden flex-shrink-0">
-          {project.logo_url ? (
-            <img
-              src={project.logo_url}
-              alt={project.name}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            project.name[0]?.toUpperCase()
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+      {/* ── Top bar ── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 16px", height: 44, borderBottom: "0.5px solid var(--line)", background: "var(--panel)", flexShrink: 0 }}>
+        <Link href={`/${locale}/projects`} style={{ fontSize: 11, color: "var(--tx-3)", textDecoration: "none" }}
+          onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--tx-1)")}
+          onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--tx-3)")}
+        >← Проекты</Link>
+        <span style={{ fontSize: 11, color: "var(--tx-3)" }}>›</span>
+        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--tx-1)" }}>{project.name}</span>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          <Link href={`/${locale}/campaigns?tab=wizard`}
+            style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: "var(--pos)", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", textDecoration: "none" }}
+          >+ Новая кампания</Link>
+        </div>
+      </div>
+
+      {/* ── 3-column body ── */}
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+
+        {/* LEFT nav */}
+        <div style={{ width: 176, flexShrink: 0, borderRight: "0.5px solid var(--line)", background: "var(--panel)", overflowY: "auto", padding: "12px 8px" }}>
+          {sections.map((section) => {
+            const items = LEFT_NAV.filter((n) => n.section === section);
+            return (
+              <div key={section} style={{ marginBottom: 20 }}>
+                <p style={{ fontSize: 9, fontWeight: 700, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.08em", padding: "0 8px", margin: "0 0 4px 0" }}>{section}</p>
+                {items.map((item) => {
+                  const active = filter === item.key;
+                  const count = !item.key.startsWith("_")
+                    ? (item.key === "all" ? (creatives as any[]).length : (countByGroup[item.key] ?? 0))
+                    : item.key === "_campaigns" ? (campaigns as any[]).length : undefined;
+                  return (
+                    <button key={item.key} onClick={() => setFilter(item.key)} style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      width: "100%", padding: "6px 8px", borderRadius: 7, border: "none",
+                      background: active ? "var(--chip)" : "transparent",
+                      color: active ? "var(--accent)" : "var(--tx-2)",
+                      fontSize: 12, fontWeight: active ? 600 : 400,
+                      cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                    }}
+                      onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLElement).style.background = "var(--hover)"; }}
+                      onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                    >
+                      <span>{item.label}</span>
+                      {count !== undefined && count > 0 && (
+                        <span style={{ fontSize: 10, color: "var(--tx-3)", background: "var(--panel-2)", padding: "1px 6px", borderRadius: 8 }}>{count}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* CENTER: content */}
+        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", minWidth: 0 }}>
+
+          {/* ── Creatives table ── */}
+          {!filter.startsWith("_") && (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 110px 120px 90px", gap: 0, padding: "10px 16px 8px", borderBottom: "0.5px solid var(--line)", background: "var(--panel-2)", flexShrink: 0 }}>
+                {["Заголовок", "Платформа", "Статус", "Дата"].map((h) => (
+                  <span key={h} style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tx-3)" }}>{h}</span>
+                ))}
+              </div>
+
+              {filteredCreatives.length === 0 && (
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 48, textAlign: "center" }}>
+                  <span style={{ fontSize: 40 }}>✦</span>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "var(--tx-1)", margin: 0 }}>
+                    {filter === "all" ? "Нет AI-креативов" : `Нет креативов типа «${LEFT_NAV.find(n => n.key === filter)?.label ?? filter}»`}
+                  </p>
+                  <p style={{ fontSize: 12, color: "var(--tx-3)", maxWidth: 260, lineHeight: 1.6, margin: 0 }}>
+                    Создайте кампанию с этим проектом — AI автоматически сгенерирует тексты для каждой платформы
+                  </p>
+                  <Link href={`/${locale}/campaigns?tab=wizard`} style={{ padding: "8px 18px", borderRadius: 8, background: "var(--accent)", color: "var(--on-accent)", border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer", textDecoration: "none" }}>
+                    + Создать кампанию
+                  </Link>
+                </div>
+              )}
+
+              {filteredCreatives.length > 0 && (
+                <div>
+                  {filteredCreatives.map((c: any) => {
+                    const status = STATUS_CONFIG[c.status] ?? STATUS_CONFIG.draft;
+                    const pm = PLATFORM_META[c.platform];
+                    const date = c.created_at ? new Date(c.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : "—";
+                    return (
+                      <div key={c.id} style={{ display: "grid", gridTemplateColumns: "1fr 110px 120px 90px", gap: 0, padding: "10px 16px", borderBottom: "0.5px solid var(--line)", alignItems: "center", cursor: "pointer", transition: "background 0.1s" }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "var(--hover)")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                          <span style={{ fontSize: 14, flexShrink: 0 }}>{FORMAT_ICON[c.format] ?? "📄"}</span>
+                          <div style={{ minWidth: 0 }}>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>
+                              {c.title || "Без заголовка"}
+                            </p>
+                            {c.caption && (
+                              <p style={{ fontSize: 10, color: "var(--tx-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: "2px 0 0 0" }}>
+                                {c.caption.slice(0, 80)}{c.caption.length > 80 ? "..." : ""}
+                              </p>
+                            )}
+                          </div>
+                          {c.ai_generated && <span style={{ fontSize: 9, color: "var(--accent)", background: "var(--chip)", padding: "1px 6px", borderRadius: 8, flexShrink: 0 }}>AI</span>}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          {pm && <div style={{ width: 22, height: 15, borderRadius: 3, background: pm.color, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 7, fontWeight: 700 }}>{pm.abbr}</div>}
+                          <span style={{ fontSize: 10, color: "var(--tx-3)" }}>{FORMAT_LABEL[c.format] ?? c.format}</span>
+                        </div>
+                        <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 600, color: status.color, background: status.bg }}>
+                          {status.label}
+                        </span>
+                        <p style={{ fontSize: 11, color: "var(--tx-3)", margin: 0 }}>{date}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── Campaigns list ── */}
+          {filter === "_campaigns" && (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 110px 90px", gap: 0, padding: "10px 16px 8px", borderBottom: "0.5px solid var(--line)", background: "var(--panel-2)", flexShrink: 0 }}>
+                {["Кампания", "Платформы", "Статус", "Дата"].map((h) => (
+                  <span key={h} style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tx-3)" }}>{h}</span>
+                ))}
+              </div>
+              {(campaigns as any[]).length === 0 && (
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 48, textAlign: "center" }}>
+                  <span style={{ fontSize: 40 }}>📡</span>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "var(--tx-1)", margin: 0 }}>Нет кампаний</p>
+                  <Link href={`/${locale}/campaigns?tab=wizard`} style={{ padding: "8px 18px", borderRadius: 8, background: "var(--accent)", color: "var(--on-accent)", fontSize: 12, fontWeight: 600, textDecoration: "none" }}>+ Создать кампанию</Link>
+                </div>
+              )}
+              {(campaigns as any[]).map((c: any) => {
+                const status = STATUS_CONFIG[c.status] ?? STATUS_CONFIG.draft;
+                const date = c.created_at ? new Date(c.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) : "—";
+                return (
+                  <div key={c.id} style={{ display: "grid", gridTemplateColumns: "1fr 120px 110px 90px", gap: 0, padding: "10px 16px", borderBottom: "0.5px solid var(--line)", alignItems: "center", cursor: "pointer", transition: "background 0.1s" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--hover)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                      <span style={{ fontSize: 13, flexShrink: 0 }}>📡</span>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>{c.name}</p>
+                    </div>
+                    <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+                      {(c.platforms ?? []).slice(0, 3).map((pk: string) => {
+                        const meta = PLATFORM_META[pk];
+                        return meta ? <div key={pk} style={{ width: 20, height: 14, borderRadius: 2, background: meta.color, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 7, fontWeight: 700 }}>{meta.abbr}</div> : null;
+                      })}
+                    </div>
+                    <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 600, color: status.color, background: status.bg }}>{status.label}</span>
+                    <p style={{ fontSize: 11, color: "var(--tx-3)", margin: 0 }}>{date}</p>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* ── Analytics / Settings placeholder ── */}
+          {(filter === "_analytics" || filter === "_settings") && (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 48, textAlign: "center" }}>
+              <span style={{ fontSize: 40 }}>{filter === "_analytics" ? "📊" : "⚙"}</span>
+              <p style={{ fontSize: 14, fontWeight: 700, color: "var(--tx-1)", margin: 0 }}>
+                {filter === "_analytics" ? "Аналитика" : "Настройки проекта"}
+              </p>
+              {filter === "_settings" && (
+                <div style={{ maxWidth: 360, width: "100%", textAlign: "left" }}>
+                  <div style={{ background: "var(--panel)", border: "0.5px solid var(--line)", borderRadius: 12, padding: 20, marginTop: 16 }}>
+                    {[
+                      { label: "Название", key: "name", type: "input", value: project.name },
+                      { label: "Описание", key: "description", type: "textarea", value: project.description ?? "" },
+                      { label: "Целевая аудитория", key: "audience", type: "textarea", value: project.audience ?? "" },
+                    ].map((f) => (
+                      <div key={f.key} style={{ marginBottom: 16 }}>
+                        <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--tx-3)", marginBottom: 6 }}>{f.label}</label>
+                        {f.type === "textarea" ? (
+                          <textarea defaultValue={f.value} rows={3}
+                            style={{ width: "100%", padding: "8px 10px", border: "0.5px solid var(--line)", borderRadius: 8, fontSize: 12, fontFamily: "inherit", background: "var(--bg)", color: "var(--tx-1)", outline: "none", resize: "none", boxSizing: "border-box" }}
+                            onBlur={(e) => saveMutation.mutate({ [f.key]: e.target.value })}
+                          />
+                        ) : (
+                          <input defaultValue={f.value}
+                            style={{ width: "100%", padding: "8px 10px", border: "0.5px solid var(--line)", borderRadius: 8, fontSize: 12, fontFamily: "inherit", background: "var(--bg)", color: "var(--tx-1)", outline: "none", boxSizing: "border-box" }}
+                            onBlur={(e) => saveMutation.mutate({ [f.key]: e.target.value })}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {filter === "_analytics" && (
+                <p style={{ fontSize: 12, color: "var(--tx-3)", maxWidth: 240, lineHeight: 1.6, margin: 0 }}>
+                  Аналитика появится после запуска первой кампании с этим проектом
+                </p>
+              )}
+            </div>
           )}
         </div>
-        <div className="flex-1">
-          <h1 className="text-base font-bold text-tx-1">{project.name}</h1>
-          <p className="text-xs text-tx-3">
-            {project.niche || "Без ниши"} · {project.language?.toUpperCase()}
-          </p>
+
+        {/* RIGHT panel */}
+        <div style={{ width: 216, flexShrink: 0, borderLeft: "0.5px solid var(--line)", background: "var(--panel)", display: "flex", flexDirection: "column", overflowY: "auto" }}>
+          <div style={{ flex: 1, padding: "16px 14px" }}>
+            {/* Project avatar */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", marginBottom: 18, paddingBottom: 16, borderBottom: "0.5px solid var(--line)" }}>
+              {project.logo_url ? (
+                <img src={project.logo_url} alt="" style={{ width: 52, height: 52, borderRadius: 14, objectFit: "cover", marginBottom: 10 }} />
+              ) : (
+                <div style={{ width: 52, height: 52, borderRadius: 14, background: color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 20, fontWeight: 700, marginBottom: 10 }}>
+                  {project.name.slice(0, 1).toUpperCase()}
+                </div>
+              )}
+              <p style={{ fontSize: 13, fontWeight: 700, color: "var(--tx-1)", margin: 0 }}>{project.name}</p>
+              {project.niche && <p style={{ fontSize: 10, color: "var(--tx-3)", margin: "4px 0 0 0" }}>{project.niche}</p>}
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <div style={{ textAlign: "center" }}>
+                  <p style={{ fontSize: 16, fontWeight: 700, color: "var(--tx-1)", margin: 0 }}>{(creatives as any[]).length}</p>
+                  <p style={{ fontSize: 9, color: "var(--tx-3)", margin: 0 }}>креативов</p>
+                </div>
+                <div style={{ width: 1, background: "var(--line)" }} />
+                <div style={{ textAlign: "center" }}>
+                  <p style={{ fontSize: 16, fontWeight: 700, color: "var(--tx-1)", margin: 0 }}>{(campaigns as any[]).length}</p>
+                  <p style={{ fontSize: 9, color: "var(--tx-3)", margin: 0 }}>кампаний</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Connected platforms */}
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 8px 0" }}>Платформы</p>
+              {(connectedPlatforms as any[]).length === 0 ? (
+                <Link href={`/${locale}/integrations`} style={{ display: "block", fontSize: 11, color: "var(--accent)", textDecoration: "none" }}>+ Подключить платформу</Link>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                  {(connectedPlatforms as any[]).map((p: any) => {
+                    const meta = PLATFORM_META[p.key];
+                    return (
+                      <div key={p.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: 7, background: "var(--panel-2)", border: "0.5px solid var(--line)" }}>
+                        {meta && <div style={{ width: 22, height: 15, borderRadius: 3, background: meta.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 7, fontWeight: 700, flexShrink: 0 }}>{meta.abbr}</div>}
+                        <p style={{ fontSize: 11, color: "var(--tx-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>{p.label}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* AI agents / team */}
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 8px 0" }}>Сотрудники</p>
+              {(agents as any[]).length === 0 ? (
+                <Link href={`/${locale}/ai-workers`} style={{ display: "block", fontSize: 11, color: "var(--accent)", textDecoration: "none" }}>+ Добавить агента</Link>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {(agents as any[]).map((a: any) => (
+                    <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ width: 26, height: 26, borderRadius: "50%", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--on-accent)", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                        {a.name.slice(0, 1).toUpperCase()}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ fontSize: 11, fontWeight: 500, color: "var(--tx-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", margin: 0 }}>{a.name}</p>
+                        {a.type && <p style={{ fontSize: 9, color: "var(--tx-3)", margin: 0 }}>{a.type}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* About project */}
+            {project.description && (
+              <div style={{ padding: "10px 12px", background: "var(--panel-2)", borderRadius: 9, border: "0.5px solid var(--line)" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 6px 0" }}>О проекте</p>
+                <p style={{ fontSize: 11, color: "var(--tx-2)", lineHeight: 1.6, margin: 0, display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical" as any, overflow: "hidden" }}>{project.description}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom CTA */}
+          <div style={{ padding: "12px 14px", borderTop: "0.5px solid var(--line)", flexShrink: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+            <Link href={`/${locale}/campaigns?tab=wizard`}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", padding: "9px", borderRadius: 9, background: "var(--pos)", color: "#fff", fontSize: 12, fontWeight: 600, textDecoration: "none", boxSizing: "border-box" }}
+            >+ Создать кампанию</Link>
+            <button onClick={() => setFilter("_settings")}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", padding: "8px", borderRadius: 9, background: "transparent", border: "none", color: "var(--tx-3)", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--tx-1)")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--tx-3)")}
+            >⚙ Настройки проекта</button>
+          </div>
         </div>
-        <Link
-          href={`/create?projectId=${projectId}`}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-on-accent text-xs font-medium rounded-lg hover:opacity-90 transition-colors"
-        >
-          + Создать пост
-        </Link>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex border-b border-line px-6 bg-panel flex-shrink-0">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`flex items-center gap-1.5 px-4 py-3 text-xs font-medium border-b-2 transition-colors cursor-pointer -mb-px ${activeTab === tab.key ? "border-accent text-accent" : "border-transparent text-tx-3 hover:text-tx-2"}`}
-          >
-            <tab.Icon size={14} strokeWidth={1.8} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex-1 overflow-auto p-6">
-        {/* OVERVIEW */}
-        {activeTab === "overview" && (
-          <div className="space-y-5 max-w-3xl">
-            {/* Stats */}
-            <div className="grid grid-cols-4 gap-3">
-              {[
-                {
-                  label: "Всего постов",
-                  value: stats?.total || 0,
-                  color: "text-tx-1",
-                },
-                {
-                  label: "Опубликовано",
-                  value: stats?.published || 0,
-                  color: "text-c-2",
-                },
-                {
-                  label: "Запланировано",
-                  value: stats?.scheduled || 0,
-                  color: "text-c-3",
-                },
-                {
-                  label: "За эту неделю",
-                  value: stats?.thisWeek || 0,
-                  color: "text-accent",
-                },
-              ].map((s) => (
-                <div
-                  key={s.label}
-                  className="bg-panel border border-line rounded-xl p-4"
-                >
-                  <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-                  <p className="text-xs text-tx-3 mt-0.5">{s.label}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Activity heatmap */}
-            <div className="bg-panel border border-line rounded-xl p-4">
-              <p className="text-xs font-semibold text-tx-1 mb-3">
-                Активность за 30 дней
-              </p>
-              <div className="flex items-end gap-1 h-12">
-                {days30.map((d) => (
-                  <div
-                    key={d.key}
-                    title={`${d.key}: ${d.count} постов`}
-                    className="flex-1 rounded-sm transition-all cursor-default"
-                    style={{
-                      height: `${Math.max((d.count / maxCount) * 100, d.count > 0 ? 15 : 4)}%`,
-                      background:
-                        d.count > 0 ? "var(--accent)" : "var(--track)",
-                      opacity:
-                        d.count > 0 ? 0.5 + (d.count / maxCount) * 0.5 : 1,
-                    }}
-                  />
-                ))}
-              </div>
-              <div className="flex justify-between mt-1">
-                <span className="text-[9px] text-tx-3">30 дней назад</span>
-                <span className="text-[9px] text-tx-3">Сегодня</span>
-              </div>
-            </div>
-
-            {/* Info */}
-            <div className="bg-panel border border-line rounded-xl p-4">
-              <p className="text-xs font-semibold text-tx-1 mb-3">О проекте</p>
-              <div className="space-y-2 text-sm">
-                {project.description && (
-                  <p className="text-tx-2">{project.description}</p>
-                )}
-                {project.audience && (
-                  <p className="text-xs text-tx-3">
-                    Аудитория: {project.audience}
-                  </p>
-                )}
-                {project.tone && (
-                  <p className="text-xs text-tx-3">Тон: {project.tone}</p>
-                )}
-                {(project as any).stop_words && (
-                  <p className="text-xs text-c-3">
-                    Стоп-слова: {(project as any).stop_words}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* CONTENT */}
-        {activeTab === "content" && (
-          <div className="max-w-3xl">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm font-semibold text-tx-1">
-                Весь контент проекта
-              </p>
-              <Link
-                href={`/create?projectId=${projectId}`}
-                className="text-xs text-accent hover:underline font-medium"
-              >
-                + Новый пост
-              </Link>
-            </div>
-            {contents.length === 0 ? (
-              <div className="text-center py-12 bg-panel rounded-xl border border-line">
-                <p className="text-tx-3 text-sm mb-3">Нет контента</p>
-                <Link
-                  href={`/create?projectId=${projectId}`}
-                  className="text-accent text-sm font-medium hover:underline"
-                >
-                  Создать первый пост →
-                </Link>
-              </div>
-            ) : (
-              <div className="bg-panel rounded-xl border border-line overflow-hidden">
-                {(contents as any[]).map((c: any, i: number) => (
-                  <Link
-                    key={c.id}
-                    href={`/history?id=${c.id}`}
-                    className="flex items-center gap-3 px-4 py-3 border-b border-line last:border-0 hover:bg-hover transition-colors group"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-chip flex items-center justify-center text-sm flex-shrink-0">
-                      {c.type === "video" ? (
-                        <Film
-                          size={16}
-                          className="text-tx-2"
-                          strokeWidth={1.8}
-                        />
-                      ) : c.type === "stories" ? (
-                        <ImageIcon
-                          size={16}
-                          className="text-tx-2"
-                          strokeWidth={1.8}
-                        />
-                      ) : (
-                        <FileText
-                          size={16}
-                          className="text-tx-2"
-                          strokeWidth={1.8}
-                        />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-tx-1 truncate">
-                        {c.title || "Без названия"}
-                      </p>
-                      <p className="text-xs text-tx-3">
-                        {c.platform} ·{" "}
-                        {new Date(c.created_at).toLocaleDateString("ru-RU", {
-                          day: "numeric",
-                          month: "short",
-                        })}
-                      </p>
-                    </div>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATUS_STYLES[c.status] || "bg-chip text-tx-2"}`}
-                    >
-                      {c.status}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* STORAGE */}
-        {activeTab === "storage" && (
-          <div className="max-w-3xl">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm font-semibold text-tx-1">
-                Хранилище файлов
-              </p>
-              <div className="flex gap-2">
-                <select
-                  value={uploadType}
-                  onChange={(e) => setUploadType(e.target.value)}
-                  className="px-2.5 py-1.5 text-xs border border-line-strong rounded-lg bg-panel outline-none cursor-pointer"
-                >
-                  <option value="image">Изображение</option>
-                  <option value="video">Видео</option>
-                  <option value="document">Документ</option>
-                  <option value="brandbook">Брендбук</option>
-                </select>
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadMutation.isPending}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-on-accent text-xs font-medium rounded-lg hover:opacity-90 cursor-pointer disabled:opacity-60"
-                >
-                  {uploadMutation.isPending ? "Загрузка..." : "+ Загрузить"}
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) uploadMutation.mutate(f);
-                    e.target.value = "";
-                  }}
-                />
-              </div>
-            </div>
-
-            {files.length === 0 ? (
-              <div
-                className="border-2 border-dashed border-line-strong rounded-xl py-16 text-center cursor-pointer hover:border-accent transition-colors"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <div className="w-12 h-12 rounded-2xl bg-accent-dim flex items-center justify-center mb-3 mx-auto">
-                  <FolderOpen
-                    size={22}
-                    className="text-accent"
-                    strokeWidth={1.6}
-                  />
-                </div>
-                <p className="text-sm text-tx-3">Нажми чтобы загрузить файл</p>
-                <p className="text-xs text-tx-3 mt-1">
-                  Изображения, видео, документы, брендбук
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {(files as any[]).map((f: any) => (
-                  <div
-                    key={f.id}
-                    className="bg-panel border border-line rounded-xl p-3 hover:border-line-strong transition-colors group"
-                  >
-                    {f.file_type === "image" && f.file_url ? (
-                      <img
-                        src={f.file_url}
-                        alt={f.name}
-                        className="w-full h-24 object-cover rounded-lg mb-2"
-                      />
-                    ) : (
-                      <div className="w-full h-24 bg-panel-2 rounded-lg mb-2 flex items-center justify-center text-3xl">
-                        {(() => {
-                          const I = FILE_ICONS[f.file_type] || FileText;
-                          return (
-                            <I
-                              size={28}
-                              className="text-tx-3"
-                              strokeWidth={1.5}
-                            />
-                          );
-                        })()}
-                      </div>
-                    )}
-                    <p className="text-xs font-medium text-tx-1 truncate">
-                      {f.name}
-                    </p>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-[9px] text-tx-3">
-                        {f.size_bytes
-                          ? `${(f.size_bytes / 1024).toFixed(0)} KB`
-                          : "—"}
-                      </span>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <a
-                          href={f.file_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[9px] px-2 py-0.5 bg-accent-dim text-accent rounded font-medium"
-                        >
-                          Открыть
-                        </a>
-                        <button
-                          onClick={() => deleteFileMutation.mutate(f.id)}
-                          className="text-[9px] px-2 py-0.5 bg-chip text-neg rounded font-medium cursor-pointer"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* BRANDBOOK */}
-        {activeTab === "brandbook" && (
-          <div className="max-w-2xl space-y-5">
-            {/* Цвета бренда */}
-            <div className="bg-panel border border-line rounded-xl p-4">
-              <p className="text-xs font-semibold text-tx-1 mb-3">
-                Цвета бренда
-              </p>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {brandColors.map((c: any, i: number) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-2 bg-panel-2 border border-line-strong rounded-lg px-2.5 py-1.5 group"
-                  >
-                    <div
-                      className="w-5 h-5 rounded-md border border-line-strong flex-shrink-0"
-                      style={{ background: c.hex }}
-                    />
-                    <span className="text-xs text-tx-1">{c.label}</span>
-                    <span className="text-[9px] text-tx-3 font-mono">
-                      {c.hex}
-                    </span>
-                    <button
-                      onClick={() => removeColor(i)}
-                      className="opacity-0 group-hover:opacity-100 text-tx-3 hover:text-neg cursor-pointer text-xs"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="color"
-                  value={newColor}
-                  onChange={(e) => setNewColor(e.target.value)}
-                  className="w-10 h-9 rounded cursor-pointer border border-line-strong"
-                />
-                <input
-                  value={colorLabel}
-                  onChange={(e) => setColorLabel(e.target.value)}
-                  placeholder="Название цвета"
-                  className="flex-1 px-3 py-2 text-xs border border-line-strong rounded-lg outline-none focus:border-accent"
-                />
-                <button
-                  onClick={addColor}
-                  disabled={!colorLabel}
-                  className="px-3 py-2 bg-accent text-on-accent text-xs rounded-lg hover:opacity-90 disabled:opacity-50 cursor-pointer"
-                >
-                  + Добавить
-                </button>
-              </div>
-            </div>
-
-            {/* Guidelines */}
-            <div className="bg-panel border border-line rounded-xl p-4">
-              <p className="text-xs font-semibold text-tx-1 mb-3">
-                Правила и гайдлайны
-              </p>
-              <textarea
-                value={
-                  guidelinesText || (project.brand_guidelines as string) || ""
-                }
-                onChange={(e) => setGuidelinesText(e.target.value)}
-                placeholder="Tone of voice, правила написания, что запрещено, особенности бренда..."
-                rows={6}
-                className="w-full px-3 py-2.5 text-sm border border-line-strong rounded-lg outline-none focus:border-accent resize-none"
-              />
-              <button
-                onClick={() =>
-                  saveBrandbookMutation.mutate({
-                    brand_guidelines:
-                      guidelinesText ||
-                      (project.brand_guidelines as string) ||
-                      "",
-                  })
-                }
-                disabled={saveBrandbookMutation.isPending}
-                className="mt-2 px-4 py-2 bg-accent text-on-accent text-xs font-medium rounded-lg hover:opacity-90 disabled:opacity-60 cursor-pointer"
-              >
-                {saveBrandbookMutation.isPending ? "Сохраняем..." : "Сохранить"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* SETTINGS */}
-        {activeTab === "settings" && (
-          <div className="max-w-xl">
-            <div className="bg-panel border border-line rounded-xl p-5">
-              <p className="text-sm font-semibold text-tx-1 mb-4">
-                Настройки проекта
-              </p>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-medium text-tx-2 block mb-1.5">
-                    Название
-                  </label>
-                  <input
-                    defaultValue={project.name}
-                    className="w-full px-3 py-2.5 border border-line-strong rounded-lg text-sm outline-none focus:border-accent"
-                    onBlur={(e) =>
-                      saveBrandbookMutation.mutate({ name: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-tx-2 block mb-1.5">
-                    Описание
-                  </label>
-                  <textarea
-                    defaultValue={project.description || ""}
-                    rows={3}
-                    className="w-full px-3 py-2.5 border border-line-strong rounded-lg text-sm outline-none focus:border-accent resize-none"
-                    onBlur={(e) =>
-                      saveBrandbookMutation.mutate({
-                        description: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-tx-2 block mb-1.5">
-                    Стоп-слова
-                  </label>
-                  <input
-                    defaultValue={(project as any).stop_words || ""}
-                    placeholder="скидка, акция, дешево — через запятую"
-                    className="w-full px-3 py-2.5 border border-line-strong rounded-lg text-sm outline-none focus:border-accent"
-                    onBlur={(e) =>
-                      saveBrandbookMutation.mutate({
-                        stop_words: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-tx-2 block mb-1.5">
-                    Логотип (URL)
-                  </label>
-                  <input
-                    defaultValue={project.logo_url || ""}
-                    placeholder="https://example.com/logo.png"
-                    className="w-full px-3 py-2.5 border border-line-strong rounded-lg text-sm outline-none focus:border-accent"
-                    onBlur={(e) =>
-                      saveBrandbookMutation.mutate({ logo_url: e.target.value })
-                    }
-                  />
-                </div>
-              </div>
-              <div className="mt-5 pt-4 border-t border-line">
-                <p className="text-xs font-medium text-neg mb-2">
-                  Опасная зона
-                </p>
-                <button
-                  onClick={async () => {
-                    if (
-                      !confirm("Архивировать проект? Весь контент сохранится.")
-                    )
-                      return;
-                    await supabase
-                      .from("projects")
-                      .update({ is_active: false })
-                      .eq("id", projectId);
-                    router.push("/projects");
-                  }}
-                  className="px-4 py-2 border border-line text-neg text-xs rounded-lg hover:bg-chip cursor-pointer transition-colors"
-                >
-                  Архивировать проект
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

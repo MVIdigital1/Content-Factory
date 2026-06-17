@@ -524,8 +524,21 @@ function CampaignsPageInner() {
 
   // When clicking "Создать" — show project selector first
   const handleCreateClick = () => {
+    // If no tabs exist (all were closed), create one first
+    if (wizardTabs.length === 0 || !wizardTabs.find((t) => t.id === activeWizardId)) {
+      const id = String(Date.now());
+      try { localStorage.removeItem(`wizard_draft_v5_${id}`); } catch {}
+      const newTab: WizardTab = { id, title: "Новая кампания" };
+      setWizardTabs([newTab]);
+      setActiveWizardId(id);
+      saveActiveId(id);
+      saveTabs([newTab]);
+      pendingTabId.current = id;
+      setTab("wizard");
+      setShowProjectSelector(true);
+      return;
+    }
     setTab("wizard");
-    // If active tab has no project yet — show selector
     const activeTab = wizardTabs.find((t) => t.id === activeWizardId);
     if (!activeTab?.projectId) {
       pendingTabId.current = activeWizardId;

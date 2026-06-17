@@ -134,6 +134,8 @@ async function generateCreativeContent(params: {
   goal: string;
   audience: string;
   projectName: string;
+  niche?: string;
+  variationIndex?: number;
 }): Promise<{ title: string; caption: string; hook?: string }> {
   const res = await fetch("/api/ai/generate-creative", {
     method: "POST",
@@ -1746,6 +1748,7 @@ export function WizardView({
                 const postsPerType = days < 7 ? 1 : days < 30 ? 2 : 3;
                 const perType = days > 0 ? postsPerType : 2;
                 const creatives: any[] = [];
+                let globalVariationIndex = 0;
                 for (const platformKey of selectedPlatforms) {
                   const rp = realPlatforms.find((p) => p.key === platformKey);
                   const subs = selectedSubtypes[platformKey] ?? new Set();
@@ -1759,6 +1762,8 @@ export function WizardView({
                           goal,
                           audience,
                           projectName: (activeProject as any)?.name ?? name,
+                          niche: (activeProject as any)?.niche ?? "",
+                          variationIndex: globalVariationIndex,
                         });
                         creatives.push({
                           id: `${platformKey}__${subtype}__${Date.now()}__${i}`,
@@ -1768,6 +1773,7 @@ export function WizardView({
                           rp,
                         });
                       } catch {}
+                      globalVariationIndex++;
                     }
                   }
                 }
@@ -1834,6 +1840,7 @@ export function WizardView({
                   : 0;
                 const perType = days > 0 ? (days < 7 ? 1 : days < 30 ? 2 : 3) : 2;
                 const creatives: any[] = [];
+                let globalVariationIndex = 0;
                 for (const platformKey of selectedPlatforms) {
                   const rp = realPlatforms.find((p) => p.key === platformKey);
                   const subs = selectedSubtypes[platformKey] ?? new Set();
@@ -1847,6 +1854,8 @@ export function WizardView({
                           goal,
                           audience,
                           projectName: (activeProject as any)?.name ?? name,
+                          niche: (activeProject as any)?.niche ?? "",
+                          variationIndex: globalVariationIndex,
                         });
                         creatives.push({
                           id: `${platformKey}__${subtype}__${Date.now()}__${i}`,
@@ -1856,6 +1865,7 @@ export function WizardView({
                           rp,
                         });
                       } catch {}
+                      globalVariationIndex++;
                     }
                   }
                 }
