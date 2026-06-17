@@ -813,9 +813,37 @@ export function WizardView({
 
   const activeProject = projects.find((p: any) => p.id === projectId) as any;
 
-  // AI project recommendations
+  // AI project recommendations + autofill
   const [projectRecs, setProjectRecs] = useState<string[]>([]);
   const [loadingRecs, setLoadingRecs] = useState(false);
+  const [autofilling, setAutofilling] = useState(false);
+
+  const autofillFromProject = async (project: any) => {
+    if (!project) return;
+    setAutofilling(true);
+    try {
+      const res = await fetch("/api/ai/autofill-campaign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectName: project.name,
+          niche: project.niche,
+          description: project.description,
+          audience: project.audience,
+        }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.name && !name.trim()) handleNameChange(data.name);
+      if (data.goal) setGoal(data.goal);
+      if (data.product && !product.trim()) setProduct(data.product);
+      if (data.audience && !audience.trim()) setAudience(data.audience);
+    } catch {
+      // silent fail — user can fill manually
+    } finally {
+      setAutofilling(false);
+    }
+  };
 
   const generateProjectRecs = async (project: any) => {
     if (!project) return;
@@ -854,10 +882,9 @@ export function WizardView({
     setProjectOpen(false);
     const p = projects.find((p: any) => p.id === pid) as any;
     if (!p) return;
-    // Don't autofill fields — just generate AI recommendations
-    // Reset old recs and generate new ones for this project
     setProjectRecs([]);
     generateProjectRecs(p);
+    autofillFromProject(p);
   };
 
   // Reset recs when projectId cleared
@@ -1290,6 +1317,20 @@ export function WizardView({
                 </>
               )}
             </div>
+
+            {/* Autofill banner */}
+            {autofilling && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "8px 12px", borderRadius: 8,
+                background: "var(--chip)", border: "0.5px solid var(--line)",
+              }}>
+                <div className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                <span style={{ fontSize: 11, color: "var(--tx-2)" }}>
+                  ✦ AI анализирует проект и заполняет поля...
+                </span>
+              </div>
+            )}
 
             {/* Name */}
             <div>

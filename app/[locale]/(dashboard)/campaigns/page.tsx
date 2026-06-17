@@ -657,34 +657,9 @@ function CampaignsPageInner() {
           WebkitOverflowScrolling: "touch" as any,
         }}
       >
-        {/* Wizard nav: ← Назад | Кампании › Создать */}
+        {/* Wizard nav: Кампании › Создать */}
         {tab === "wizard" && (
           <>
-            <button
-              onClick={() => setTab("campaigns")}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-                padding: "10px 8px 10px 4px",
-                fontSize: 12,
-                border: "none",
-                background: "transparent",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                color: "var(--tx-3)",
-                whiteSpace: "nowrap",
-                borderBottom: "2px solid transparent",
-              }}
-              onMouseEnter={(e) =>
-                ((e.currentTarget as HTMLElement).style.color = "var(--tx-1)")
-              }
-              onMouseLeave={(e) =>
-                ((e.currentTarget as HTMLElement).style.color = "var(--tx-3)")
-              }
-            >
-              ← Назад
-            </button>
             <button
               onClick={() => setTab("campaigns")}
               style={{
@@ -739,8 +714,6 @@ function CampaignsPageInner() {
             padding: "8px 14px",
             borderBottom: "0.5px solid var(--line)",
             flexShrink: 0,
-            overflowX: "auto",
-            WebkitOverflowScrolling: "touch" as any,
           }}
         >
           {/* Создать — split button with drafts dropdown */}
