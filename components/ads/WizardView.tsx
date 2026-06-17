@@ -127,7 +127,6 @@ function Dropdown({
   );
 }
 
-// Generate real creative content via Claude API
 async function generateCreativeContent(params: {
   platform: string;
   subtype: string;
@@ -136,62 +135,13 @@ async function generateCreativeContent(params: {
   audience: string;
   projectName: string;
 }): Promise<{ title: string; caption: string; hook?: string }> {
-  const platformNames: Record<string, string> = {
-    telegram: "Telegram",
-    instagram: "Instagram",
-    tiktok: "TikTok",
-    vk: "ВКонтакте",
-    yandex: "Яндекс Директ",
-    google: "Google Ads",
-    meta: "Meta Ads",
-    mytarget: "myTarget",
-  };
-  const subtypeNames: Record<string, string> = {
-    post: "пост",
-    video: "видео-сценарий",
-    ad: "рекламное объявление",
-    reels: "Reels сценарий",
-    stories: "Stories",
-    feed: "пост в ленту",
-    search: "текстовое объявление",
-    rsya: "баннерный текст",
-    display: "медийный баннер",
-    banner: "баннер",
-  };
-
-  const prompt = `Создай ${subtypeNames[params.subtype] ?? params.subtype} для платформы ${platformNames[params.platform] ?? params.platform}.
-
-Продукт/бизнес: ${params.product || params.projectName}
-Цель кампании: ${params.goal}
-Целевая аудитория: ${params.audience || "широкая аудитория"}
-
-Требования:
-- Заголовок (title): короткий, цепляющий, до 10 слов
-- Хук (hook): первое предложение которое останавливает прокрутку
-- Текст (caption): полный текст поста/объявления с CTA
-
-Отвечай ТОЛЬКО в JSON формате без markdown:
-{"title":"...","hook":"...","caption":"..."}`;
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch("/api/ai/generate-creative", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
-      messages: [{ role: "user", content: prompt }],
-    }),
+    body: JSON.stringify(params),
   });
-
-  if (!response.ok) throw new Error("API error");
-  const data = await response.json();
-  const text = data.content?.[0]?.text ?? "{}";
-  try {
-    const clean = text.replace(/```json|```/g, "").trim();
-    return JSON.parse(clean);
-  } catch {
-    return { title: "Креатив", caption: text };
-  }
+  if (!res.ok) throw new Error("API error");
+  return res.json();
 }
 
 // ── Project images panel ──────────────────────────────────────────────────
@@ -588,6 +538,11 @@ export function WizardView({
   const [generating, setGenerating] = useState(false);
   const [creativePlatformFilter, setCreativePlatformFilter] = useState("all");
 
+  // AI agent assignment: platform key → agent id
+  const [selectedAgents, setSelectedAgents] = useState<Record<string, string>>(
+    draft?.selectedAgents ?? {},
+  );
+
   // Connect platform inline
   const [connectModal, setConnectModal] = useState<string | null>(null);
   const [tokenInput, setTokenInput] = useState("");
@@ -737,6 +692,21 @@ export function WizardView({
 
   const connectedKeys = new Set(realPlatforms.map((p) => p.key));
 
+  // AI agents
+  const { data: aiAgents = [] } = useQuery({
+    queryKey: ["ai_agents_wizard"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      const { data } = await supabase
+        .from("ai_agents")
+        .select("id, name, type, is_active")
+        .eq("user_id", user.id)
+        .eq("is_active", true);
+      return data ?? [];
+    },
+  });
+
   // Autosave draft to localStorage + create draft in DB
   useEffect(() => {
     const subtypesSer = Object.fromEntries(
@@ -755,6 +725,7 @@ export function WizardView({
         projectId,
         platforms: [...selectedPlatforms],
         subtypes: subtypesSer,
+        selectedAgents,
         draftId,
         step,
         maxStep,
@@ -778,6 +749,7 @@ export function WizardView({
     projectId,
     selectedPlatforms,
     selectedSubtypes,
+    selectedAgents,
     step,
     maxStep,
   ]);
@@ -862,18 +834,13 @@ export function WizardView({
 
 Каждая рекомендация — одно конкретное действие для кампании, до 15 слов.`;
 
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/ai/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 300,
-          messages: [{ role: "user", content: prompt }],
-        }),
+        body: JSON.stringify({ prompt, max_tokens: 300 }),
       });
       const data = await res.json();
-      const text = data.content?.[0]?.text ?? "{}";
-      const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+      const parsed = JSON.parse(data.text.replace(/```json|```/g, "").trim());
       setProjectRecs(parsed.recs ?? []);
     } catch {
       setProjectRecs([]);
@@ -1143,7 +1110,7 @@ export function WizardView({
   return (
     <div>
       {/* Step bar */}
-      <div className="flex items-center gap-1 bg-panel-2 border border-line rounded-[9px] p-2.5 mb-5">
+      <div className="flex items-center gap-1 bg-panel-2 border border-line rounded-[9px] p-2.5 mb-5 overflow-x-auto">
         {STEPS.map((label, i) => (
           <div key={label} className="flex items-center gap-1">
             <button
@@ -1225,30 +1192,108 @@ export function WizardView({
 
       {/* ══ STEP 0: Goal ══ */}
       {step === 0 && (
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <div className="space-y-4">
+            {/* Project selector block — always visible above Название */}
+            <div style={{ position: "relative" }}>
+              <button
+                type="button"
+                onClick={() => setProjectOpen((v) => !v)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  width: "100%",
+                  padding: "10px 12px",
+                  border: `0.5px solid ${activeProject ? "var(--accent)" : "var(--line)"}`,
+                  borderRadius: 9,
+                  background: activeProject ? "var(--chip)" : "var(--panel-2)",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  textAlign: "left" as const,
+                  transition: "border-color 0.15s",
+                }}
+              >
+                {activeProject ? (
+                  <>
+                    <div style={{
+                      width: 28, height: 28, borderRadius: 7,
+                      background: "var(--accent)", color: "var(--on-accent)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 12, fontWeight: 700, flexShrink: 0,
+                    }}>
+                      {(activeProject as any).name.slice(0, 1).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>{(activeProject as any).name}</p>
+                      {(activeProject as any).niche && <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0, marginTop: 1 }}>{(activeProject as any).niche}</p>}
+                    </div>
+                    <span style={{ fontSize: 10, color: "var(--tx-3)", flexShrink: 0 }}>↻ Сменить</span>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: 20, flexShrink: 0 }}>📁</span>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: 12, fontWeight: 500, color: "var(--tx-1)", margin: 0 }}>Выберите проект</p>
+                      <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0, marginTop: 1 }}>Бренд, описание и аудитория подтянутся автоматически</p>
+                    </div>
+                    <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600, flexShrink: 0 }}>Выбрать →</span>
+                  </>
+                )}
+              </button>
+              {projectOpen && (
+                <>
+                  <div
+                    style={{ position: "fixed", inset: 0, zIndex: 49 }}
+                    onClick={() => setProjectOpen(false)}
+                  />
+                  <div style={{
+                    position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+                    zIndex: 50, background: "var(--panel)", border: "0.5px solid var(--line)",
+                    borderRadius: 10, padding: 6, maxHeight: 220, overflowY: "auto",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                  }}>
+                    {(projects as any[]).length === 0 ? (
+                      <p style={{ fontSize: 11, color: "var(--tx-3)", padding: "10px", textAlign: "center" }}>Нет проектов</p>
+                    ) : (
+                      (projects as any[]).map((p: any) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => { handleProjectSelect(p.id); }}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 8,
+                            width: "100%", padding: "8px 10px", borderRadius: 7,
+                            border: "none", background: projectId === p.id ? "var(--chip)" : "none",
+                            color: "var(--tx-1)", fontSize: 12, cursor: "pointer",
+                            fontFamily: "inherit", textAlign: "left",
+                          }}
+                          onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--hover)")}
+                          onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = projectId === p.id ? "var(--chip)" : "none")}
+                        >
+                          <div style={{
+                            width: 22, height: 22, borderRadius: 5,
+                            background: "var(--accent)", color: "var(--on-accent)",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: 10, fontWeight: 700, flexShrink: 0,
+                          }}>
+                            {p.name.slice(0, 1).toUpperCase()}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ margin: 0, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</p>
+                            {p.niche && <p style={{ margin: 0, fontSize: 10, color: "var(--tx-3)", marginTop: 1 }}>{p.niche}</p>}
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
             {/* Name */}
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block ui-label">Название *</label>
-                {activeProject && (
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 4,
-                      padding: "2px 8px",
-                      borderRadius: 20,
-                      background: "var(--chip)",
-                      fontSize: 10,
-                      color: "var(--accent)",
-                      fontWeight: 600,
-                    }}
-                  >
-                    📁 {(activeProject as any).name}
-                  </span>
-                )}
-              </div>
+              <label className="block ui-label mb-1">Название *</label>
               <input
                 value={name}
                 onChange={(e) => handleNameChange(e.target.value)}
@@ -1426,7 +1471,7 @@ export function WizardView({
                 )}
               </div>
               {!loadingRecs && (
-                <div className="grid grid-cols-3 gap-0 divide-x divide-line">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-0 sm:divide-x divide-y sm:divide-y-0 divide-line">
                   {projectRecs.map((rec, i) => (
                     <div key={i} className="px-4 py-3">
                       <div className="flex items-start gap-2">
@@ -1452,7 +1497,7 @@ export function WizardView({
                 </div>
               )}
               {loadingRecs && (
-                <div className="grid grid-cols-3 gap-0 divide-x divide-line">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-0 sm:divide-x divide-y sm:divide-y-0 divide-line">
                   {[1, 2, 3].map((i) => (
                     <div key={i} className="px-4 py-3">
                       <div className="h-3 bg-panel-2 rounded animate-pulse mb-1.5 w-full" />
@@ -1562,32 +1607,44 @@ export function WizardView({
                         )}
                       </div>
                     </div>
-                    {sel && subtypes.length > 0 && (
-                      <div className="px-4 pb-3 pt-2 border-t border-line bg-panel-2">
-                        <p className="text-[10px] text-tx-3 mb-2">
-                          Типы контента:
-                        </p>
-                        <div className="flex gap-2 flex-wrap">
-                          {subtypes.map((st) => {
-                            const isSel = selSubs.has(st.value);
-                            return (
-                              <button
-                                key={st.value}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleSubtype(rp.key, st.value);
-                                }}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] border cursor-pointer transition-colors ${isSel ? "bg-accent text-on-accent border-accent" : "border-line text-tx-3 hover:bg-hover"}`}
-                              >
-                                <span>{st.emoji}</span>
-                                {st.label}
-                                <span className="text-[8px] opacity-70">
-                                  ×2
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
+                    {/* AI agent assignment */}
+                    {sel && (
+                      <div
+                        className="px-3 pb-3 pt-2 border-t border-line bg-panel-2 flex items-center gap-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <span className="text-[10px] text-tx-3 flex-shrink-0">🤖 AI агент:</span>
+                        {(aiAgents as any[]).length > 0 ? (
+                          <select
+                            value={selectedAgents[rp.key] ?? ""}
+                            onChange={(e) =>
+                              setSelectedAgents((prev) => ({ ...prev, [rp.key]: e.target.value }))
+                            }
+                            style={{
+                              flex: 1,
+                              padding: "4px 8px",
+                              fontSize: 11,
+                              fontFamily: "inherit",
+                              border: "0.5px solid var(--line)",
+                              borderRadius: 6,
+                              background: "var(--bg)",
+                              color: "var(--tx-1)",
+                              outline: "none",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <option value="">— Без агента —</option>
+                            {(aiAgents as any[]).map((a: any) => (
+                              <option key={a.id} value={a.id}>
+                                {a.name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-[10px] text-tx-3">
+                            Нет агентов — создайте в разделе «Сотрудники»
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1599,7 +1656,7 @@ export function WizardView({
           {/* Other platforms - add button */}
           <div>
             <p className="ui-label mt-4 mb-2">Добавить платформу</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {Object.entries(PLATFORM_META)
                 .filter(([key]) => !connectedKeys.has(key))
                 .map(([key, meta]) => (
@@ -1862,7 +1919,7 @@ export function WizardView({
 
           {/* Grid - horizontal 4 columns */}
           {!generating && generatedCreatives.length > 0 && (
-            <div className="grid grid-cols-4 gap-3 mb-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
               {generatedCreatives
                 .filter(
                   (c) =>
@@ -2037,6 +2094,18 @@ export function WizardView({
                 v: budget ? `₽${Number(budget).toLocaleString("ru")}` : "—",
               },
               { l: "Креативов", v: `${generatedCreatives.length} штук готово` },
+              ...(Object.keys(selectedAgents).length > 0
+                ? [{
+                    l: "AI агенты",
+                    v: Object.entries(selectedAgents)
+                      .filter(([, id]) => id)
+                      .map(([platform, id]) => {
+                        const agent = (aiAgents as any[]).find((a: any) => a.id === id);
+                        return `${platform}: ${agent?.name ?? id}`;
+                      })
+                      .join(", ") || "—",
+                  }]
+                : []),
             ].map((row) => (
               <div
                 key={row.l}

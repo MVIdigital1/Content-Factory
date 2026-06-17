@@ -155,7 +155,7 @@ export function TopNavbar() {
       }}
     >
       {/* Left: nav links */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 overflow-x-auto flex-shrink-0" style={{ scrollbarWidth: "none" }}>
         {NAV_LINKS.map((link) => {
           const active = isActive(link.href);
           return (

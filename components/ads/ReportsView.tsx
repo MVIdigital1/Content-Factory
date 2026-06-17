@@ -85,17 +85,13 @@ ROAS: ${report.total_roas > 0 ? Math.round(report.total_roas) + "%" : "—"}
 
 Напиши 3-4 предложения: что хорошо, что улучшить, главный вывод. Без заголовков, только текст.`;
 
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/ai/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 300,
-          messages: [{ role: "user", content: prompt }],
-        }),
+        body: JSON.stringify({ prompt, max_tokens: 300 }),
       });
       const data = await res.json();
-      setAiSummary(data.content?.[0]?.text ?? "");
+      setAiSummary(data.text ?? "");
     } catch {
       setAiSummary("Ошибка генерации. Попробуйте ещё раз.");
     } finally {
@@ -243,7 +239,7 @@ ROAS: ${report.total_roas > 0 ? Math.round(report.total_roas) + "%" : "—"}
 
             <div className="p-5 space-y-4">
               {/* KPIs */}
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {[
                   { l: "Расход", v: fmt(selected.total_spend ?? 0) },
                   { l: "Доход", v: fmt(selected.total_revenue ?? 0) },

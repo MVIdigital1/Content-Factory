@@ -87,6 +87,16 @@ export function CreativesView({ projectId }: { projectId?: string }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [campaignFilter, setCampaignFilter] = useState("all");
 
+  // AI generation modal
+  const [aiModal, setAiModal] = useState(false);
+  const [aiPlatform, setAiPlatform] = useState("telegram");
+  const [aiSubtype, setAiSubtype] = useState("post");
+  const [aiProduct, setAiProduct] = useState("");
+  const [aiGoal, setAiGoal] = useState("Продажи / заявки");
+  const [aiAudience, setAiAudience] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiResult, setAiResult] = useState<{ title: string; hook?: string; caption: string } | null>(null);
+
   // Campaign list for filter
   const { data: campaigns = [] } = useQuery({
     queryKey: ["campaigns_for_filter"],
@@ -266,13 +276,63 @@ export function CreativesView({ projectId }: { projectId?: string }) {
     }
   };
 
+  const handleAiGenerate = async () => {
+    setAiGenerating(true);
+    setAiResult(null);
+    try {
+      const subtypes = PLATFORM_SUBTYPES[aiPlatform] ?? [];
+      const subtype = subtypes.find((s) => s.value === aiSubtype)?.value ?? subtypes[0]?.value ?? "post";
+      const res = await fetch("/api/ai/generate-creative", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platform: aiPlatform,
+          subtype,
+          product: aiProduct,
+          goal: aiGoal,
+          audience: aiAudience,
+          projectName: aiProduct,
+        }),
+      });
+      if (!res.ok) throw new Error("Ошибка");
+      setAiResult(await res.json());
+    } catch {
+      alert("Ошибка генерации. Попробуйте ещё раз.");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handleSaveAiCreative = async () => {
+    if (!aiResult) return;
+    const subtypes = PLATFORM_SUBTYPES[aiPlatform] ?? [];
+    const subtype = subtypes.find((s) => s.value === aiSubtype)?.value ?? subtypes[0]?.value ?? "post";
+    await createCreative.mutateAsync({
+      platform: aiPlatform,
+      format: subtype,
+      title: aiResult.title,
+      caption: aiResult.caption,
+      status: "draft",
+      ai_generated: true,
+      project_id: projectId,
+      ctr: 0,
+      impressions: 0,
+      clicks: 0,
+      is_winner: false,
+    });
+    setAiModal(false);
+    setAiResult(null);
+    setAiProduct("");
+    setAiAudience("");
+  };
+
   const inp =
     "w-full px-3 py-2.5 rounded-[8px] border border-line text-[12px] outline-none focus:border-line-strong bg-panel text-tx-1 placeholder:text-tx-3";
 
   return (
     <div>
       {/* Stats bar */}
-      <div className="grid grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         {[
           { label: "Всего", value: stats.total, color: "var(--tx-1)" },
           { label: "Опубликованы", value: stats.active, color: "var(--pos)" },
@@ -328,7 +388,10 @@ export function CreativesView({ projectId }: { projectId?: string }) {
           >
             ↑ Загрузить
           </button>
-          <button className="inline-flex items-center gap-1.5 bg-accent text-on-accent rounded-[7px] px-3 py-1.5 text-[11px] font-medium hover:opacity-90 cursor-pointer">
+          <button
+            onClick={() => { setAiModal(true); setAiResult(null); }}
+            className="inline-flex items-center gap-1.5 bg-accent text-on-accent rounded-[7px] px-3 py-1.5 text-[11px] font-medium hover:opacity-90 cursor-pointer"
+          >
             ✦ AI сгенерировать
           </button>
         </div>
@@ -787,6 +850,140 @@ export function CreativesView({ projectId }: { projectId?: string }) {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI generate modal */}
+      {aiModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/30 backdrop-blur-[3px]"
+            onClick={() => { setAiModal(false); setAiResult(null); }}
+          />
+          <div className="relative w-full max-w-[480px] bg-panel border border-line rounded-[14px] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-[14px] font-semibold text-tx-1">✦ AI сгенерировать</h2>
+                <p className="text-[10px] text-tx-3 mt-0.5">Введите данные — AI напишет готовый текст</p>
+              </div>
+              <button
+                onClick={() => { setAiModal(false); setAiResult(null); }}
+                className="w-7 h-7 flex items-center justify-center rounded-[7px] border border-line hover:bg-hover cursor-pointer text-tx-3 text-[14px]"
+              >
+                ✕
+              </button>
+            </div>
+
+            {!aiResult ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="block ui-label mb-2">Платформа</label>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {Object.entries(PLATFORM_META).map(([key, meta]) => (
+                      <button
+                        key={key}
+                        onClick={() => { setAiPlatform(key); const subs = PLATFORM_SUBTYPES[key]; if (subs?.length) setAiSubtype(subs[0].value); }}
+                        className={`px-2.5 py-1 rounded-[6px] text-[10px] border cursor-pointer transition-colors ${aiPlatform === key ? "bg-accent text-on-accent border-accent" : "border-line text-tx-3 hover:bg-hover"}`}
+                      >
+                        {meta.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {PLATFORM_SUBTYPES[aiPlatform] && (
+                  <div>
+                    <label className="block ui-label mb-2">Тип</label>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {PLATFORM_SUBTYPES[aiPlatform].map((st) => (
+                        <button
+                          key={st.value}
+                          onClick={() => setAiSubtype(st.value)}
+                          className={`px-2.5 py-1 rounded-[6px] text-[10px] border cursor-pointer transition-colors ${aiSubtype === st.value ? "bg-accent text-on-accent border-accent" : "border-line text-tx-3 hover:bg-hover"}`}
+                        >
+                          {st.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <label className="block ui-label mb-1">Продукт / описание бизнеса</label>
+                  <textarea
+                    value={aiProduct}
+                    onChange={(e) => setAiProduct(e.target.value)}
+                    placeholder="Опишите продукт, преимущества, акции..."
+                    className={`${inp} resize-none h-16`}
+                  />
+                </div>
+                <div>
+                  <label className="block ui-label mb-2">Цель</label>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {["Продажи / заявки", "Трафик на сайт", "Охват", "Подписчики"].map((g) => (
+                      <button
+                        key={g}
+                        onClick={() => setAiGoal(g)}
+                        className={`px-2.5 py-1 rounded-[6px] text-[10px] border cursor-pointer transition-colors ${aiGoal === g ? "bg-accent text-on-accent border-accent" : "border-line text-tx-3 hover:bg-hover"}`}
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block ui-label mb-1">Аудитория (необязательно)</label>
+                  <input
+                    value={aiAudience}
+                    onChange={(e) => setAiAudience(e.target.value)}
+                    placeholder="Возраст, интересы, гео..."
+                    className={inp}
+                  />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={() => { setAiModal(false); setAiResult(null); }}
+                    className="flex-1 py-2.5 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    onClick={handleAiGenerate}
+                    disabled={!aiProduct.trim() || aiGenerating}
+                    className="flex-1 py-2.5 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {aiGenerating ? (
+                      <>
+                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Генерирую...
+                      </>
+                    ) : "✦ Сгенерировать"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="p-4 bg-panel-2 border border-line rounded-[9px]">
+                  <p className="text-[13px] font-semibold text-tx-1 mb-2">{aiResult.title}</p>
+                  {aiResult.hook && <p className="text-[11px] text-accent italic mb-2">{aiResult.hook}</p>}
+                  <p className="text-[11px] text-tx-2 leading-relaxed whitespace-pre-wrap">{aiResult.caption}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setAiResult(null)}
+                    className="flex-1 py-2.5 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
+                  >
+                    ↺ Перегенерировать
+                  </button>
+                  <button
+                    onClick={handleSaveAiCreative}
+                    disabled={createCreative.isPending}
+                    className="flex-1 py-2.5 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-50"
+                  >
+                    {createCreative.isPending ? "Сохраняю..." : "💾 Сохранить в черновик"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
