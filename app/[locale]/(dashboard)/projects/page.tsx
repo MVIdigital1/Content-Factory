@@ -97,6 +97,10 @@ function ProjectForm({
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const logoRef = useRef<HTMLInputElement>(null);
+  const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch existing names for duplicate check
   const { data: existingNames = [] } = useQuery({
@@ -204,7 +208,63 @@ function ProjectForm({
     onDirtyChange?.(true);
   };
 
+  const sendChat = async () => {
+    const msg = chatInput.trim();
+    if (!msg || chatLoading) return;
+    const newMessages: { role: "user" | "assistant"; content: string }[] = [
+      ...chatMessages,
+      { role: "user", content: msg },
+    ];
+    setChatMessages(newMessages);
+    setChatInput("");
+    setChatLoading(true);
+    try {
+      const ctx = [
+        `Ты AI-ассистент для создания маркетинговых проектов.`,
+        `Текущий проект — Название: "${form.name || "не указано"}", Ниша: "${form.niche || "не указана"}".`,
+        `Текущее описание: "${form.description || "пусто"}". Текущая аудитория: "${form.audience || "пусто"}".`,
+        `Когда пользователь просит написать описание, аудиторию или упоминает ключевые слова — сгенерируй тексты для обоих полей.`,
+        `Отвечай ТОЛЬКО в JSON формате: {"description": "текст или null", "audience": "текст или null", "message": "краткий комментарий"}`,
+        `Если вопрос без просьбы заполнить поля — верни description: null, audience: null, message: "ответ на вопрос".`,
+      ].join(" ");
+      const history = newMessages
+        .map((m) => `${m.role === "user" ? "Пользователь" : "AI"}: ${m.content}`)
+        .join("\n");
+      const prompt = `${ctx}\n\nЧат:\n${history}`;
+      const res = await fetch("/api/ai/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, max_tokens: 700 }),
+      });
+      const { text } = await res.json();
+      let description: string | null = null;
+      let audience: string | null = null;
+      let message = text;
+      try {
+        const matched = text.match(/\{[\s\S]*\}/);
+        if (matched) {
+          const parsed = JSON.parse(matched[0]);
+          description = parsed.description || null;
+          audience = parsed.audience || null;
+          message = parsed.message || text;
+        }
+      } catch {}
+      if (description) f("description", description);
+      if (audience) f("audience", audience);
+      setChatMessages((prev) => [...prev, { role: "assistant", content: message }]);
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+    } catch {
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Ошибка соединения. Попробуй ещё раз." },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   return (
+    <>
     <div className="grid grid-cols-2 gap-6">
       <div className="space-y-4">
         <div>
@@ -355,6 +415,61 @@ function ProjectForm({
         </button>
       </div>
     </div>
+
+    {/* AI Assistant Chat */}
+    <div className="mt-6 border border-line rounded-[12px] overflow-hidden">
+      <div className="px-4 py-3 border-b border-line flex items-center gap-2 bg-panel-2">
+        <span style={{ fontSize: 14 }}>✦</span>
+        <span className="text-[12px] font-semibold text-tx-1">AI Ассистент</span>
+        <span className="text-[10px] text-tx-3 ml-2">напиши ключевые слова — AI заполнит поля автоматически</span>
+      </div>
+      <div className="px-4 py-3 space-y-3 max-h-56 overflow-y-auto bg-panel">
+        {chatMessages.length === 0 && (
+          <p className="text-[11px] text-tx-3 text-center py-6">
+            Например: <span className="text-tx-2">«IT-технологии, landing страницы, B2B проекты — напиши описание»</span>
+          </p>
+        )}
+        {chatMessages.map((m, i) => (
+          <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div
+              className={`max-w-[80%] px-3 py-2 rounded-[8px] text-[11px] leading-relaxed ${
+                m.role === "user"
+                  ? "bg-accent text-on-accent"
+                  : "bg-chip/40 text-tx-1 border border-line"
+              }`}
+            >
+              {m.content}
+            </div>
+          </div>
+        ))}
+        {chatLoading && (
+          <div className="flex justify-start">
+            <div className="bg-chip/40 border border-line px-3 py-2 rounded-[8px] text-[11px] text-tx-3">
+              Генерирую...
+            </div>
+          </div>
+        )}
+        <div ref={chatEndRef} />
+      </div>
+      <div className="px-4 py-3 border-t border-line bg-panel-2 flex gap-2">
+        <input
+          value={chatInput}
+          onChange={(e) => setChatInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendChat()}
+          placeholder="IT-технологии, landing страницы, B2B клиенты..."
+          className={`${inp} flex-1`}
+          disabled={chatLoading}
+        />
+        <button
+          onClick={sendChat}
+          disabled={!chatInput.trim() || chatLoading}
+          className="px-4 py-2 bg-accent text-on-accent text-[11px] font-semibold rounded-[8px] cursor-pointer hover:opacity-90 disabled:opacity-50 transition-opacity whitespace-nowrap"
+        >
+          {chatLoading ? "⟳" : "Отправить →"}
+        </button>
+      </div>
+    </div>
+    </>
   );
 }
 

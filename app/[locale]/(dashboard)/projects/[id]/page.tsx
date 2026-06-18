@@ -266,8 +266,9 @@ export default function ProjectDetailPage() {
         project_id: projectId,
         user_id: user.id,
         name: file.name,
-        file_url: publicUrl,
-        size_bytes: file.size,
+        url: publicUrl,
+        size: file.size,
+        mime_type: file.type,
       });
       if (dbError) throw dbError;
     },
@@ -782,16 +783,16 @@ export default function ProjectDetailPage() {
                         key={f.id}
                         className="bg-panel border border-line rounded-xl p-3 hover:border-line-strong transition-colors group"
                       >
-                        {fileKind(f.name) === "image" && f.file_url ? (
+                        {fileKind(f.name) === "image" && f.url ? (
                           <img
-                            src={f.file_url}
+                            src={f.url}
                             alt={f.name}
                             className="w-full h-24 object-cover rounded-lg mb-2"
                             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                           />
-                        ) : fileKind(f.name) === "video" && f.file_url ? (
+                        ) : fileKind(f.name) === "video" && f.url ? (
                           <video
-                            src={f.file_url}
+                            src={f.url}
                             className="w-full h-24 object-cover rounded-lg mb-2"
                             muted
                             onMouseEnter={(e) => (e.currentTarget as HTMLVideoElement).play()}
@@ -805,11 +806,11 @@ export default function ProjectDetailPage() {
                         <p className="text-xs font-medium text-tx-1 truncate">{f.name}</p>
                         <div className="flex items-center justify-between mt-1">
                           <span className="text-[9px] text-tx-3">
-                            {f.size_bytes ? `${(f.size_bytes / 1024).toFixed(0)} KB` : "—"}
+                            {f.size ? `${(f.size / 1024).toFixed(0)} KB` : "—"}
                           </span>
                           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <a
-                              href={f.file_url}
+                              href={f.url}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-[9px] px-2 py-0.5 bg-accent-dim text-accent rounded font-medium"
