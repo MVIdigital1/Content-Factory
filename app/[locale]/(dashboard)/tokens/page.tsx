@@ -165,70 +165,102 @@ export default function TokensPage() {
             </div>
           </div>
 
-          {/* Bottom: service costs */}
+          {/* Bottom: per-service usage bars */}
           <div className="border-t border-line p-5">
-            <p className="text-[12px] font-semibold text-tx-1 mb-3">
-              За что списываются токены
+            <p className="text-[12px] font-semibold text-tx-1 mb-4">
+              Использование по услугам
             </p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-3">
               {[
                 {
                   icon: "✦",
-                  label: "AI чат — описание проекта",
-                  where: "Модуль «Проекты» → создание проекта → чат снизу формы",
-                  cost: 5,
+                  action: "ai_chat",
+                  label: "AI чат",
+                  where: "Модуль «Проекты» → создание проекта",
+                  costPerUse: 5,
                 },
                 {
                   icon: "✦",
-                  label: "AI автозаполнение полей",
-                  where: "Модуль «Проекты» → описание бренда и целевая аудитория",
-                  cost: 5,
+                  action: "ai_description",
+                  label: "AI автозаполнение",
+                  where: "Модуль «Проекты» → описание и аудитория",
+                  costPerUse: 5,
                 },
                 {
                   icon: "📢",
-                  label: "Генерация рекламного текста",
-                  where: "Модуль «Создать контент» → заголовок, крючок, подпись",
-                  cost: 10,
+                  action: "creative_gen",
+                  label: "Генерация рекламы",
+                  where: "Модуль «Создать контент»",
+                  costPerUse: 10,
                 },
                 {
                   icon: "📡",
-                  label: "Создание кампании с AI",
-                  where: "Модуль «Кампании» → новая кампания с AI-помощником",
-                  cost: 20,
+                  action: "campaign_ai",
+                  label: "Кампания с AI",
+                  where: "Модуль «Кампании»",
+                  costPerUse: 20,
                 },
                 {
                   icon: "📅",
-                  label: "Генерация контент-плана",
-                  where: "Модуль «Создать контент» → контент-план на месяц",
-                  cost: 30,
+                  action: "content_plan",
+                  label: "Контент-план",
+                  where: "Модуль «Создать контент»",
+                  costPerUse: 30,
                 },
                 {
                   icon: "🖼️",
-                  label: "Обработка инфографики",
-                  where: "Модуль «Инфографика» → загрузка фото + AI обработка",
-                  cost: 50,
+                  action: "infographic_gen",
+                  label: "Инфографика",
+                  where: "Модуль «Инфографика»",
+                  costPerUse: 50,
                 },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  className="flex gap-3 p-3 rounded-[10px]"
-                  style={{ background: "var(--panel)" }}
-                >
-                  <span className="text-[18px] flex-shrink-0 mt-0.5">{item.icon}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[12px] font-medium text-tx-1">{item.label}</span>
-                      <span
-                        className="text-[12px] font-bold flex-shrink-0"
-                        style={{ color: "var(--accent)" }}
-                      >
-                        −{item.cost}
-                      </span>
+              ].map((item) => {
+                const spent = transactions
+                  .filter((tx: any) => tx.action === item.action)
+                  .reduce((sum: number, tx: any) => sum + Math.abs(tx.amount), 0);
+                const total = balance.tokens_total;
+                const barPct = total > 0 ? Math.min(100, Math.round((spent / total) * 100)) : 0;
+
+                return (
+                  <div key={item.action}>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span style={{ fontSize: 14 }}>{item.icon}</span>
+                        <div>
+                          <span className="text-[12px] font-medium text-tx-1">{item.label}</span>
+                          <span className="text-[10px] text-tx-3 ml-2">{item.where}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-[11px] text-tx-2">
+                          {spent} / {total}
+                        </span>
+                        <span
+                          className="text-[11px] font-semibold tabular-nums"
+                          style={{ color: barPct > 0 ? "var(--accent)" : "var(--tx-3)", minWidth: 34, textAlign: "right" }}
+                        >
+                          {barPct}%
+                        </span>
+                      </div>
                     </div>
-                    <p className="text-[10px] text-tx-3 mt-0.5 leading-relaxed">{item.where}</p>
+                    <div
+                      className="h-2 rounded-full overflow-hidden"
+                      style={{ background: "var(--line)" }}
+                    >
+                      <div
+                        style={{
+                          height: "100%",
+                          width: `${barPct}%`,
+                          borderRadius: 999,
+                          background: barPct > 75 ? "var(--neg)" : "var(--accent)",
+                          transition: "width 0.5s ease",
+                          minWidth: barPct > 0 ? 6 : 0,
+                        }}
+                      />
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
