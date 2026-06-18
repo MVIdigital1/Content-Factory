@@ -246,12 +246,12 @@ export default function ProjectDetailPage() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       const ext = file.name.split(".").pop();
-      const path = `${user.id}/${projectId}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("project-files").upload(path, file);
+      const path = `project-files/${user.id}/${projectId}/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("content-images").upload(path, file);
       if (uploadError) throw uploadError;
       const {
         data: { publicUrl },
-      } = supabase.storage.from("project-files").getPublicUrl(path);
+      } = supabase.storage.from("content-images").getPublicUrl(path);
       const { error: dbError } = await supabase.from("project_files").insert({
         project_id: projectId,
         user_id: user.id,
