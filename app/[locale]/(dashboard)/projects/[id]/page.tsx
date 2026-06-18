@@ -111,6 +111,9 @@ export default function ProjectDetailPage() {
   const [voiceEditing, setVoiceEditing] = useState(false);
   const [voiceDraft, setVoiceDraft] = useState("");
 
+  // optimistic file previews
+  const [pendingFiles, setPendingFiles] = useState<{ id: string; name: string; url: string; type: string; size: number }[]>([]);
+
   // edit project info
   const [editingProject, setEditingProject] = useState(false);
   const [editName, setEditName] = useState("");
@@ -259,7 +262,14 @@ export default function ProjectDetailPage() {
       });
       if (dbError) throw dbError;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-files", projectId] }),
+    onSuccess: (_data, file) => {
+      setPendingFiles((prev) => prev.filter((p) => p.name + p.size !== file.name + file.size));
+      queryClient.invalidateQueries({ queryKey: ["project-files", projectId] });
+    },
+    onError: (err: any, file) => {
+      setPendingFiles((prev) => prev.filter((p) => p.name + p.size !== file.name + file.size));
+      alert("Ошибка загрузки «" + file.name + "»: " + err.message);
+    },
   });
 
   const deleteFileMutation = useMutation({
@@ -700,14 +710,31 @@ export default function ProjectDetailPage() {
                       className="hidden"
                       onChange={(e) => {
                         const f = e.target.files?.[0];
-                        if (f) uploadMutation.mutate(f);
+                        if (!f) return;
+                        const ftype = uploadType;
+                        if (ftype === "image" || ftype === "video") {
+                          const reader = new FileReader();
+                          reader.onload = (ev) => {
+                            setPendingFiles((prev) => [
+                              { id: "pending-" + Date.now(), name: f.name, url: ev.target?.result as string, type: ftype, size: f.size },
+                              ...prev,
+                            ]);
+                          };
+                          reader.readAsDataURL(f);
+                        } else {
+                          setPendingFiles((prev) => [
+                            { id: "pending-" + Date.now(), name: f.name, url: "", type: ftype, size: f.size },
+                            ...prev,
+                          ]);
+                        }
+                        uploadMutation.mutate(f);
                         e.target.value = "";
                       }}
                     />
                   </div>
                 </div>
 
-                {files.length === 0 ? (
+                {files.length === 0 && pendingFiles.length === 0 ? (
                   <div
                     className="border-2 border-dashed border-line-strong rounded-xl py-16 text-center cursor-pointer hover:border-accent transition-colors"
                     onClick={() => fileInputRef.current?.click()}
@@ -720,19 +747,50 @@ export default function ProjectDetailPage() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {/* Optimistic preview — shown immediately after selecting */}
+                    {pendingFiles.map((pf) => (
+                      <div
+                        key={pf.id}
+                        className="bg-panel border border-accent/40 rounded-xl p-3 opacity-70 animate-pulse"
+                      >
+                        {pf.type === "image" && pf.url ? (
+                          <img src={pf.url} alt={pf.name} className="w-full h-24 object-cover rounded-lg mb-2" />
+                        ) : pf.type === "video" && pf.url ? (
+                          <video src={pf.url} className="w-full h-24 object-cover rounded-lg mb-2" muted />
+                        ) : (
+                          <div className="w-full h-24 bg-panel-2 rounded-lg mb-2 flex items-center justify-center">
+                            {(() => { const I = FILE_ICONS[pf.type] || FileText; return <I size={28} className="text-tx-3" strokeWidth={1.5} />; })()}
+                          </div>
+                        )}
+                        <p className="text-xs font-medium text-tx-1 truncate">{pf.name}</p>
+                        <p className="text-[9px] text-accent mt-0.5">Загрузка...</p>
+                      </div>
+                    ))}
+
+                    {/* Real uploaded files */}
                     {(files as any[]).map((f) => (
                       <div
                         key={f.id}
                         className="bg-panel border border-line rounded-xl p-3 hover:border-line-strong transition-colors group"
                       >
                         {f.file_type === "image" && f.file_url ? (
-                          <img src={f.file_url} alt={f.name} className="w-full h-24 object-cover rounded-lg mb-2" />
+                          <img
+                            src={f.file_url}
+                            alt={f.name}
+                            className="w-full h-24 object-cover rounded-lg mb-2"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                          />
+                        ) : f.file_type === "video" && f.file_url ? (
+                          <video
+                            src={f.file_url}
+                            className="w-full h-24 object-cover rounded-lg mb-2"
+                            muted
+                            onMouseEnter={(e) => (e.currentTarget as HTMLVideoElement).play()}
+                            onMouseLeave={(e) => (e.currentTarget as HTMLVideoElement).pause()}
+                          />
                         ) : (
                           <div className="w-full h-24 bg-panel-2 rounded-lg mb-2 flex items-center justify-center">
-                            {(() => {
-                              const I = FILE_ICONS[f.file_type] || FileText;
-                              return <I size={28} className="text-tx-3" strokeWidth={1.5} />;
-                            })()}
+                            {(() => { const I = FILE_ICONS[f.file_type] || FileText; return <I size={28} className="text-tx-3" strokeWidth={1.5} />; })()}
                           </div>
                         )}
                         <p className="text-xs font-medium text-tx-1 truncate">{f.name}</p>
