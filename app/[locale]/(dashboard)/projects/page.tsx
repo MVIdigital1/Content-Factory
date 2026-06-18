@@ -82,20 +82,38 @@ function ProjectForm({
 }) {
   const supabase = createClient();
   const qc = useQueryClient();
-  const [form, setForm] = useState({
-    name: "",
-    niche: "",
-    description: "",
-    audience: "",
-    tone: "friendly",
-    language: "ru",
-    logo_url: "",
+  const [form, setForm] = useState(() => {
+    if (typeof window === "undefined")
+      return { name: "", niche: "", description: "", audience: "", tone: "friendly", language: "ru", logo_url: "" };
+    try {
+      const saved = localStorage.getItem(`project-draft-${tabId}`);
+      if (saved) {
+        const d = JSON.parse(saved);
+        return { name: d.name || "", niche: d.niche || "", description: d.description || "", audience: d.audience || "", tone: d.tone || "friendly", language: d.language || "ru", logo_url: d.logo_url || "" };
+      }
+    } catch {}
+    return { name: "", niche: "", description: "", audience: "", tone: "friendly", language: "ru", logo_url: "" };
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [nameError, setNameError] = useState("");
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const saved = localStorage.getItem(`project-draft-${tabId}`);
+      if (saved) return JSON.parse(saved).logoPreview || null;
+    } catch {}
+    return null;
+  });
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoFileName, setLogoFileName] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const saved = localStorage.getItem(`project-draft-${tabId}`);
+      if (saved) return JSON.parse(saved).logoFileName || null;
+    } catch {}
+    return null;
+  });
   const logoRef = useRef<HTMLInputElement>(null);
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -125,6 +143,31 @@ function ProjectForm({
     onNameChangeRef.current?.(form.name);
   }, [form.name]);
 
+  // Reconstruct logo File from saved base64 on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`project-draft-${tabId}`);
+      if (!saved) return;
+      const d = JSON.parse(saved);
+      if (d.logoPreview && d.logoFileName) {
+        fetch(d.logoPreview)
+          .then((r) => r.blob())
+          .then((blob) => setLogoFile(new File([blob], d.logoFileName, { type: blob.type })))
+          .catch(() => {});
+      }
+    } catch {}
+  }, []);
+
+  // Auto-save draft on every change
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        `project-draft-${tabId}`,
+        JSON.stringify({ ...form, logoPreview: logoPreview || null, logoFileName: logoFileName || null })
+      );
+    } catch {}
+  }, [form, logoPreview, logoFileName, tabId]);
+
   const handleNameChange = (val: string) => {
     setForm((p) => ({ ...p, name: val }));
     onDirtyChange?.(true);
@@ -139,6 +182,7 @@ function ProjectForm({
     const f = e.target.files?.[0];
     if (!f) return;
     setLogoFile(f);
+    setLogoFileName(f.name);
     onDirtyChange?.(true);
     const r = new FileReader();
     r.onload = (ev) => setLogoPreview(ev.target?.result as string);
@@ -188,6 +232,7 @@ function ProjectForm({
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["project_names"] });
       qc.invalidateQueries({ queryKey: ["projects_selector"] });
+      localStorage.removeItem(`project-draft-${tabId}`);
       onDirtyChange?.(false);
       setSaved(true);
       setTimeout(() => {
@@ -264,7 +309,6 @@ function ProjectForm({
   };
 
   return (
-    <>
     <div className="grid grid-cols-2 gap-6">
       <div className="space-y-4">
         <div>
@@ -296,6 +340,7 @@ function ProjectForm({
                   onClick={() => {
                     setLogoFile(null);
                     setLogoPreview(null);
+                    setLogoFileName(null);
                   }}
                   className="text-[11px] text-neg cursor-pointer"
                   style={{ background: "none", border: "none" }}
@@ -388,6 +433,58 @@ function ProjectForm({
             className={`${inp} resize-none h-20`}
           />
         </div>
+        <div className="border border-line rounded-[12px] overflow-hidden">
+          <div className="px-3 py-2 border-b border-line flex items-center gap-2 bg-panel-2">
+            <span style={{ fontSize: 12 }}>✦</span>
+            <span className="text-[11px] font-semibold text-tx-1">AI Ассистент</span>
+            <span className="text-[10px] text-tx-3 ml-1">— напиши ключевые слова</span>
+          </div>
+          <div className="px-3 py-2 space-y-2 max-h-40 overflow-y-auto bg-panel">
+            {chatMessages.length === 0 && (
+              <p className="text-[10px] text-tx-3 text-center py-3">
+                Например: «IT-технологии, landing страницы — напиши описание»
+              </p>
+            )}
+            {chatMessages.map((m, i) => (
+              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`max-w-[85%] px-2.5 py-1.5 rounded-[7px] text-[10px] leading-relaxed ${
+                    m.role === "user"
+                      ? "bg-accent text-on-accent"
+                      : "bg-chip/40 text-tx-1 border border-line"
+                  }`}
+                >
+                  {m.content}
+                </div>
+              </div>
+            ))}
+            {chatLoading && (
+              <div className="flex justify-start">
+                <div className="bg-chip/40 border border-line px-2.5 py-1.5 rounded-[7px] text-[10px] text-tx-3">
+                  Генерирую...
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+          <div className="px-3 py-2 border-t border-line bg-panel-2 flex gap-2">
+            <input
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendChat()}
+              placeholder="Ключевые слова или запрос..."
+              className={`${inp} flex-1 !py-1.5 !text-[11px]`}
+              disabled={chatLoading}
+            />
+            <button
+              onClick={sendChat}
+              disabled={!chatInput.trim() || chatLoading}
+              className="px-3 py-1.5 bg-accent text-on-accent text-[10px] font-semibold rounded-[7px] cursor-pointer hover:opacity-90 disabled:opacity-50 transition-opacity whitespace-nowrap"
+            >
+              {chatLoading ? "⟳" : "→"}
+            </button>
+          </div>
+        </div>
         <div className="p-4 bg-chip/30 rounded-[10px] border border-line">
           <div className="flex items-start gap-2">
             <span style={{ fontSize: 16 }}>✦</span>
@@ -415,61 +512,6 @@ function ProjectForm({
         </button>
       </div>
     </div>
-
-    {/* AI Assistant Chat */}
-    <div className="mt-6 border border-line rounded-[12px] overflow-hidden">
-      <div className="px-4 py-3 border-b border-line flex items-center gap-2 bg-panel-2">
-        <span style={{ fontSize: 14 }}>✦</span>
-        <span className="text-[12px] font-semibold text-tx-1">AI Ассистент</span>
-        <span className="text-[10px] text-tx-3 ml-2">напиши ключевые слова — AI заполнит поля автоматически</span>
-      </div>
-      <div className="px-4 py-3 space-y-3 max-h-56 overflow-y-auto bg-panel">
-        {chatMessages.length === 0 && (
-          <p className="text-[11px] text-tx-3 text-center py-6">
-            Например: <span className="text-tx-2">«IT-технологии, landing страницы, B2B проекты — напиши описание»</span>
-          </p>
-        )}
-        {chatMessages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div
-              className={`max-w-[80%] px-3 py-2 rounded-[8px] text-[11px] leading-relaxed ${
-                m.role === "user"
-                  ? "bg-accent text-on-accent"
-                  : "bg-chip/40 text-tx-1 border border-line"
-              }`}
-            >
-              {m.content}
-            </div>
-          </div>
-        ))}
-        {chatLoading && (
-          <div className="flex justify-start">
-            <div className="bg-chip/40 border border-line px-3 py-2 rounded-[8px] text-[11px] text-tx-3">
-              Генерирую...
-            </div>
-          </div>
-        )}
-        <div ref={chatEndRef} />
-      </div>
-      <div className="px-4 py-3 border-t border-line bg-panel-2 flex gap-2">
-        <input
-          value={chatInput}
-          onChange={(e) => setChatInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendChat()}
-          placeholder="IT-технологии, landing страницы, B2B клиенты..."
-          className={`${inp} flex-1`}
-          disabled={chatLoading}
-        />
-        <button
-          onClick={sendChat}
-          disabled={!chatInput.trim() || chatLoading}
-          className="px-4 py-2 bg-accent text-on-accent text-[11px] font-semibold rounded-[8px] cursor-pointer hover:opacity-90 disabled:opacity-50 transition-opacity whitespace-nowrap"
-        >
-          {chatLoading ? "⟳" : "Отправить →"}
-        </button>
-      </div>
-    </div>
-    </>
   );
 }
 
@@ -583,6 +625,7 @@ function ProjectsPageInner() {
 
   const forceCloseTab = (id: string) => {
     if (id === "all") return;
+    localStorage.removeItem(`project-draft-${id}`);
     setTabs((prev) => {
       const next = prev.filter((t) => t.id !== id);
       if (activeId === id) {
