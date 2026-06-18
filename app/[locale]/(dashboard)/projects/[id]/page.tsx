@@ -87,6 +87,16 @@ function hashColor(seed: string) {
   return PROJECT_COLORS[hash % PROJECT_COLORS.length];
 }
 
+const IMAGE_EXTS = ["jpg", "jpeg", "png", "gif", "webp", "svg", "avif", "bmp"];
+const VIDEO_EXTS = ["mp4", "mov", "avi", "webm", "mkv", "m4v"];
+
+function fileKind(name?: string | null): "image" | "video" | "document" {
+  const ext = (name || "").split(".").pop()?.toLowerCase() || "";
+  if (IMAGE_EXTS.includes(ext)) return "image";
+  if (VIDEO_EXTS.includes(ext)) return "video";
+  return "document";
+}
+
 function getInitials(name?: string | null) {
   if (!name) return "?";
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -257,7 +267,6 @@ export default function ProjectDetailPage() {
         user_id: user.id,
         name: file.name,
         file_url: publicUrl,
-        file_type: uploadType,
         size_bytes: file.size,
       });
       if (dbError) throw dbError;
@@ -773,14 +782,14 @@ export default function ProjectDetailPage() {
                         key={f.id}
                         className="bg-panel border border-line rounded-xl p-3 hover:border-line-strong transition-colors group"
                       >
-                        {f.file_type === "image" && f.file_url ? (
+                        {fileKind(f.name) === "image" && f.file_url ? (
                           <img
                             src={f.file_url}
                             alt={f.name}
                             className="w-full h-24 object-cover rounded-lg mb-2"
                             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                           />
-                        ) : f.file_type === "video" && f.file_url ? (
+                        ) : fileKind(f.name) === "video" && f.file_url ? (
                           <video
                             src={f.file_url}
                             className="w-full h-24 object-cover rounded-lg mb-2"
@@ -790,7 +799,7 @@ export default function ProjectDetailPage() {
                           />
                         ) : (
                           <div className="w-full h-24 bg-panel-2 rounded-lg mb-2 flex items-center justify-center">
-                            {(() => { const I = FILE_ICONS[f.file_type] || FileText; return <I size={28} className="text-tx-3" strokeWidth={1.5} />; })()}
+                            {(() => { const I = FILE_ICONS[fileKind(f.name)] || FileText; return <I size={28} className="text-tx-3" strokeWidth={1.5} />; })()}
                           </div>
                         )}
                         <p className="text-xs font-medium text-tx-1 truncate">{f.name}</p>
