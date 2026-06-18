@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useLocale } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
-import { useQuery } from "@tanstack/react-query";
 import {
   Search,
   Bell,
@@ -16,72 +15,125 @@ import {
 import Link from "next/link";
 
 const NAV_LINKS = [
-  { label: "Кампании", href: "/campaigns" },
   { label: "Проекты", href: "/projects" },
+  { label: "Кампании", href: "/campaigns" },
+  { label: "Инфографика", href: "/infographics" },
   { label: "Отчёты", href: "/campaigns?tab=reports" },
   { label: "Подключения", href: "/integrations" },
   { label: "Сотрудники", href: "/ai-workers" },
 ];
 
-// ── Mini stats for topbar ─────────────────────────────────────────────────
-function MiniStats() {
-  const supabase = createClient();
-  const { data: stats } = useQuery({
-    queryKey: ["topbar_stats"],
-    queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return null;
-      const [camps, contents, projects] = await Promise.all([
-        supabase
-          .from("ad_campaigns")
-          .select("id", { count: "exact" })
-          .eq("user_id", user.id),
-        supabase.from("contents").select("id", { count: "exact" }),
-        supabase
-          .from("projects")
-          .select("id", { count: "exact" })
-          .eq("user_id", user.id)
-          .eq("is_active", true),
-      ]);
-      return {
-        campaigns: camps.count ?? 0,
-        contents: contents.count ?? 0,
-        projects: projects.count ?? 0,
-      };
-    },
-    staleTime: 60000,
-  });
+const PLAN_LABELS: Record<string, string> = {
+  free: "Free",
+  starter: "Starter",
+  pro: "Pro",
+  business: "Business",
+};
 
-  if (!stats) return null;
+function TokenWidget() {
+  const supabase = createClient();
+  const locale = useLocale();
+  const router = useRouter();
+  const [tokens, setTokens] = useState<{
+    plan: string;
+    tokens_total: number;
+    tokens_used: number;
+    tokens_remaining: number;
+  } | null>(null);
+
+  const fetchBalance = async () => {
+    const res = await fetch("/api/tokens/balance");
+    if (res.ok) setTokens(await res.json());
+  };
+
+  useEffect(() => {
+    fetchBalance();
+  }, []);
+
+  // Realtime subscription — updates widget instantly when tokens_used changes
+  useEffect(() => {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      channel = supabase
+        .channel("user_tokens_rt")
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "user_tokens",
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const row = payload.new as any;
+            setTokens({
+              plan: row.plan,
+              tokens_total: row.tokens_total,
+              tokens_used: row.tokens_used,
+              tokens_remaining: Math.max(0, row.tokens_total - row.tokens_used),
+            });
+          }
+        )
+        .subscribe();
+    });
+    return () => {
+      channel?.unsubscribe();
+    };
+  }, []);
+
+  if (!tokens) return null;
+
+  const pct = Math.min(100, Math.round((tokens.tokens_used / tokens.tokens_total) * 100));
+  const low = tokens.tokens_remaining <= tokens.tokens_total * 0.15;
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-      {[
-        { label: "Кампании", value: stats.campaigns, icon: "📡" },
-        { label: "Материалы", value: stats.contents, icon: "📝" },
-        { label: "Проекты", value: stats.projects, icon: "📁" },
-      ].map((s, i) => (
-        <div
-          key={s.label}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            padding: "3px 8px",
-            borderRadius: 7,
-            background: "var(--panel-2)",
-          }}
-        >
-          <span style={{ fontSize: 11 }}>{s.icon}</span>
-          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--tx-1)" }}>
-            {s.value}
+    <button
+      onClick={() => router.push(`/${locale}/tokens`)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "4px 10px",
+        borderRadius: 8,
+        background: "var(--panel-2)",
+        border: "0.5px solid var(--line)",
+        cursor: "pointer",
+        outline: "none",
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLElement).style.background = "var(--hover)";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.background = "var(--panel-2)";
+      }}
+    >
+      <span style={{ fontSize: 12 }}>⚡</span>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 90 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: low ? "var(--neg)" : "var(--tx-1)" }}>
+            {tokens.tokens_remaining.toLocaleString()}
+            <span style={{ fontSize: 10, fontWeight: 400, color: "var(--tx-3)" }}>
+              {" "}/ {tokens.tokens_total.toLocaleString()}
+            </span>
           </span>
-          <span style={{ fontSize: 10, color: "var(--tx-3)" }}>{s.label}</span>
+          <span style={{ fontSize: 9, color: "var(--tx-3)", background: "var(--chip)", padding: "1px 5px", borderRadius: 4 }}>
+            {PLAN_LABELS[tokens.plan] ?? tokens.plan}
+          </span>
         </div>
-      ))}
-    </div>
+        <div style={{ height: 3, borderRadius: 2, background: "var(--line)", overflow: "hidden" }}>
+          <div
+            style={{
+              height: "100%",
+              width: `${pct}%`,
+              borderRadius: 2,
+              background: low ? "var(--neg)" : "var(--accent)",
+              transition: "width 0.4s ease",
+            }}
+          />
+        </div>
+      </div>
+    </button>
   );
 }
 
@@ -185,9 +237,9 @@ export function TopNavbar() {
         })}
       </div>
 
-      {/* Center: mini stats infographic */}
-      <div className="flex-1 flex items-center justify-center gap-1">
-        <MiniStats />
+      {/* Center: token balance */}
+      <div className="flex-1 flex items-center justify-center">
+        <TokenWidget />
       </div>
 
       {/* Right */}

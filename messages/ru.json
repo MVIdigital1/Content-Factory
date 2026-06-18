@@ -25,7 +25,9 @@
     "groupTools": "Инструменты",
     "groupAgency": "Агентство",
     "groupAccount": "Аккаунт",
-    "summary": "Сводка"
+    "summary": "Сводка",
+    "infographics": "Инфографика",
+    "tokens": "Токены"
   },
   "dashboard": {
     "title": "Главная панель",
