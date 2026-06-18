@@ -109,14 +109,17 @@ function TokenWidget() {
       }}
     >
       <span style={{ fontSize: 12 }}>⚡</span>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 90 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 110 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: low ? "var(--neg)" : "var(--tx-1)" }}>
-            {tokens.tokens_remaining.toLocaleString()}
-            <span style={{ fontSize: 10, fontWeight: 400, color: "var(--tx-3)" }}>
-              {" "}/ {tokens.tokens_total.toLocaleString()}
+          <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
+            <span style={{ fontSize: 10, color: "var(--tx-3)" }}>Токены:</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: low ? "var(--neg)" : "var(--tx-1)" }}>
+              {tokens.tokens_remaining.toLocaleString()}
             </span>
-          </span>
+            <span style={{ fontSize: 10, color: "var(--tx-3)" }}>
+              / {tokens.tokens_total.toLocaleString()}
+            </span>
+          </div>
           <span style={{ fontSize: 9, color: "var(--tx-3)", background: "var(--chip)", padding: "1px 5px", borderRadius: 4 }}>
             {PLAN_LABELS[tokens.plan] ?? tokens.plan}
           </span>

@@ -108,81 +108,128 @@ export default function TokensPage() {
       {/* Balance card */}
       {balance && (
         <div
-          className="p-5 rounded-[14px] border border-line mb-6"
+          className="rounded-[14px] border border-line mb-6 overflow-hidden"
           style={{ background: "var(--panel-2)" }}
         >
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <p className="text-[11px] text-tx-3 mb-1">Текущий план</p>
-              <div className="flex items-center gap-2">
-                <span className="text-[22px] font-bold text-tx-1">
-                  {balance.tokens_remaining.toLocaleString()}
-                </span>
-                <span className="text-[13px] text-tx-3">
-                  / {balance.tokens_total.toLocaleString()} токенов
-                </span>
-                <span
-                  className="text-[10px] px-2 py-0.5 rounded-full ml-1"
-                  style={{ background: "var(--chip)", color: "var(--tx-2)" }}
-                >
-                  {PLAN_LABELS[balance.plan] ?? balance.plan}
-                </span>
+          {/* Top: balance overview */}
+          <div className="p-5">
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <p className="text-[11px] text-tx-3 mb-1.5">Доступно токенов</p>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-[32px] font-bold text-tx-1 leading-none">
+                    {balance.tokens_remaining.toLocaleString()}
+                  </span>
+                  <span className="text-[14px] text-tx-3">
+                    / {balance.tokens_total.toLocaleString()}
+                  </span>
+                  <span
+                    className="text-[11px] px-2.5 py-0.5 rounded-full font-medium"
+                    style={{ background: "var(--accent)", color: "var(--on-accent)" }}
+                  >
+                    {PLAN_LABELS[balance.plan] ?? balance.plan}
+                  </span>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-[11px] text-tx-3 mb-1">Потрачено</p>
+                <p className="text-[20px] font-semibold text-tx-1">
+                  {balance.tokens_used.toLocaleString()}
+                </p>
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-[11px] text-tx-3 mb-1">Использовано</p>
-              <p className="text-[16px] font-semibold text-tx-1">
-                {balance.tokens_used.toLocaleString()}
-              </p>
-            </div>
-          </div>
 
-          {/* Progress bar */}
-          <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--line)" }}>
-            <div
-              style={{
-                height: "100%",
-                width: `${pct}%`,
-                borderRadius: 999,
-                background: low ? "var(--neg)" : "var(--accent)",
-                transition: "width 0.5s ease",
-              }}
-            />
-          </div>
-          <div className="flex justify-between mt-1.5">
-            <span className="text-[10px]" style={{ color: low ? "var(--neg)" : "var(--tx-3)" }}>
-              {low ? "⚠ Мало токенов" : `${pct}% использовано`}
-            </span>
-            <span className="text-[10px] text-tx-3">
-              Сброс:{" "}
-              {new Date(balance.reset_at).toLocaleDateString("ru", {
-                day: "numeric",
-                month: "long",
-              })}
-            </span>
-          </div>
-
-          {/* Cost reference */}
-          <div className="mt-4 pt-4 border-t border-line grid grid-cols-3 gap-2">
-            {[
-              { label: "AI чат", cost: 5 },
-              { label: "Генерация рекламы", cost: 10 },
-              { label: "Кампания AI", cost: 20 },
-              { label: "Контент-план", cost: 30 },
-              { label: "Инфографика", cost: 50 },
-              { label: "AI описание", cost: 5 },
-            ].map((item) => (
+            {/* Progress bar */}
+            <div className="h-2.5 rounded-full overflow-hidden" style={{ background: "var(--line)" }}>
               <div
-                key={item.label}
-                className="flex items-center justify-between px-2.5 py-1.5 rounded-[7px]"
-                style={{ background: "var(--panel)" }}
-              >
-                <span className="text-[10px] text-tx-2">{item.label}</span>
-                <span className="text-[10px] font-semibold text-tx-1 ml-2">
-                  −{item.cost}
-                </span>
-              </div>
-            ))}
+                style={{
+                  height: "100%",
+                  width: `${pct}%`,
+                  borderRadius: 999,
+                  background: low ? "var(--neg)" : "var(--accent)",
+                  transition: "width 0.5s ease",
+                }}
+              />
+            </div>
+            <div className="flex justify-between mt-2">
+              <span className="text-[11px]" style={{ color: low ? "var(--neg)" : "var(--tx-3)" }}>
+                {low ? "⚠ Осталось мало токенов — пополни баланс" : `${pct}% использовано`}
+              </span>
+              <span className="text-[11px] text-tx-3">
+                Сброс:{" "}
+                {new Date(balance.reset_at).toLocaleDateString("ru", {
+                  day: "numeric",
+                  month: "long",
+                })}
+              </span>
+            </div>
+          </div>
+
+          {/* Bottom: service costs */}
+          <div className="border-t border-line p-5">
+            <p className="text-[12px] font-semibold text-tx-1 mb-3">
+              За что списываются токены
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                {
+                  icon: "✦",
+                  label: "AI чат — описание проекта",
+                  where: "Модуль «Проекты» → создание проекта → чат снизу формы",
+                  cost: 5,
+                },
+                {
+                  icon: "✦",
+                  label: "AI автозаполнение полей",
+                  where: "Модуль «Проекты» → описание бренда и целевая аудитория",
+                  cost: 5,
+                },
+                {
+                  icon: "📢",
+                  label: "Генерация рекламного текста",
+                  where: "Модуль «Создать контент» → заголовок, крючок, подпись",
+                  cost: 10,
+                },
+                {
+                  icon: "📡",
+                  label: "Создание кампании с AI",
+                  where: "Модуль «Кампании» → новая кампания с AI-помощником",
+                  cost: 20,
+                },
+                {
+                  icon: "📅",
+                  label: "Генерация контент-плана",
+                  where: "Модуль «Создать контент» → контент-план на месяц",
+                  cost: 30,
+                },
+                {
+                  icon: "🖼️",
+                  label: "Обработка инфографики",
+                  where: "Модуль «Инфографика» → загрузка фото + AI обработка",
+                  cost: 50,
+                },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="flex gap-3 p-3 rounded-[10px]"
+                  style={{ background: "var(--panel)" }}
+                >
+                  <span className="text-[18px] flex-shrink-0 mt-0.5">{item.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[12px] font-medium text-tx-1">{item.label}</span>
+                      <span
+                        className="text-[12px] font-bold flex-shrink-0"
+                        style={{ color: "var(--accent)" }}
+                      >
+                        −{item.cost}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-tx-3 mt-0.5 leading-relaxed">{item.where}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
