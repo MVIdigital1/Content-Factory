@@ -1646,10 +1646,275 @@ function CreatePostModal({
 }
 
 // ── Main page ──────────────────────────────────────────────────────────────
+// ── Landing Tab ───────────────────────────────────────────────────────────────
+function LandingTab({ projectId, projects }: { projectId: string; projects: any[] }) {
+  const supabase = createClient();
+  const qc = useQueryClient();
+  const locale = useLocale();
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    title: "", slogan: "", description: "", services: "",
+    contact_email: "", contact_phone: "", contact_link: "",
+    template: "1", color: "#6366f1",
+  });
+  const [aiLoading, setAiLoading] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const { data: pages = [], refetch } = useQuery({
+    queryKey: ["landing_pages", projectId],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      const { data } = await supabase
+        .from("landing_pages")
+        .select("*, landing_leads(count)")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+      return data ?? [];
+    },
+  });
+
+  const activeProject = projects.find((p: any) => p.id === projectId);
+
+  const fillWithAI = async () => {
+    if (!activeProject) return;
+    setAiLoading(true);
+    try {
+      const prompt = `Создай контент для лендинга компании "${activeProject.name}"${activeProject.niche ? ` в нише "${activeProject.niche}"` : ""}.
+${activeProject.description ? `Описание: ${activeProject.description}` : ""}
+Верни ТОЛЬКО JSON без пояснений:
+{"title":"название компании","slogan":"короткий слоган 5-8 слов","description":"описание компании 2-3 предложения","services":"список услуг через запятую (5-7 пунктов)"}`;
+      const res = await fetch("/api/ai/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, max_tokens: 400 }),
+      });
+      const { text } = await res.json();
+      const m = text.match(/\{[\s\S]*\}/);
+      if (m) {
+        const d = JSON.parse(m[0]);
+        setForm(f => ({ ...f, title: d.title || f.title, slogan: d.slogan || f.slogan, description: d.description || f.description, services: d.services || f.services }));
+      }
+    } catch {}
+    setAiLoading(false);
+  };
+
+  const handleSave = async () => {
+    if (!form.title.trim()) return;
+    setSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Не авторизован");
+      const slug = `${form.title.toLowerCase().replace(/[^a-zа-я0-9]/gi, "-").replace(/-+/g, "-").slice(0, 30)}-${Math.random().toString(36).slice(2, 6)}`;
+      await supabase.from("landing_pages").insert({
+        user_id: user.id,
+        project_id: projectId || null,
+        slug,
+        title: form.title.trim(),
+        slogan: form.slogan || null,
+        description: form.description || null,
+        services: form.services || null,
+        logo_url: activeProject?.logo_url || null,
+        contact_email: form.contact_email || null,
+        contact_phone: form.contact_phone || null,
+        contact_link: form.contact_link || null,
+        template: form.template,
+        color: form.color,
+        is_published: true,
+      });
+      await refetch();
+      setShowForm(false);
+      setForm({ title: "", slogan: "", description: "", services: "", contact_email: "", contact_phone: "", contact_link: "", template: "1", color: "#6366f1" });
+    } catch (e: any) { alert("Ошибка: " + e.message); }
+    setSaving(false);
+  };
+
+  const copyLink = (slug: string, id: string) => {
+    navigator.clipboard.writeText(`${window.location.origin}/l/${slug}`);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const deletePage = async (id: string) => {
+    if (!confirm("Удалить лендинг?")) return;
+    await supabase.from("landing_pages").delete().eq("id", id);
+    refetch();
+  };
+
+  const inp = "w-full px-3 py-2 rounded-[8px] border border-line text-[12px] outline-none focus:border-line-strong bg-panel text-tx-1 placeholder:text-tx-3";
+  const TEMPLATES = [
+    { key: "1", label: "Минимал", preview: "bg-white border" },
+    { key: "2", label: "Тёмный", preview: "bg-gray-900" },
+    { key: "3", label: "Градиент", preview: "bg-gradient-to-r from-purple-500 to-blue-500" },
+  ];
+
+  return (
+    <div style={{ padding: 16 }}>
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h2 className="text-[16px] font-semibold text-tx-1">Лендинги</h2>
+          <p className="text-[11px] text-tx-3 mt-0.5">Быстрые сайты для приёма заявок от клиентов</p>
+        </div>
+        <button
+          onClick={() => {
+            if (activeProject) setForm(f => ({ ...f, title: activeProject.name || "" }));
+            setShowForm(true);
+          }}
+          className="flex items-center gap-2 px-4 py-2 rounded-[8px] text-[12px] font-semibold cursor-pointer hover:opacity-90 transition-opacity"
+          style={{ background: "var(--accent)", color: "var(--on-accent)", border: "none" }}
+        >
+          + Создать лендинг
+        </button>
+      </div>
+
+      {/* Create form */}
+      {showForm && (
+        <div className="mb-6 p-5 rounded-[14px] border border-line" style={{ background: "var(--panel-2)" }}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[13px] font-semibold text-tx-1">Новый лендинг</h3>
+            <button
+              onClick={fillWithAI}
+              disabled={aiLoading || !activeProject}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[7px] text-[11px] font-medium cursor-pointer disabled:opacity-50 hover:opacity-80 transition-opacity"
+              style={{ background: "var(--chip)", color: "var(--tx-1)", border: "none" }}
+            >
+              {aiLoading ? "⟳ Заполняю..." : "✦ Заполнить AI"}
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] text-tx-3 mb-1">Название компании *</label>
+                <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Nike Uzbekistan" className={inp} />
+              </div>
+              <div>
+                <label className="block text-[11px] text-tx-3 mb-1">Слоган</label>
+                <input value={form.slogan} onChange={e => setForm(f => ({ ...f, slogan: e.target.value }))} placeholder="Просто сделай это" className={inp} />
+              </div>
+              <div>
+                <label className="block text-[11px] text-tx-3 mb-1">О компании</label>
+                <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Чем занимается компания..." className={`${inp} resize-none`} rows={3} />
+              </div>
+              <div>
+                <label className="block text-[11px] text-tx-3 mb-1">Услуги / товары</label>
+                <textarea value={form.services} onChange={e => setForm(f => ({ ...f, services: e.target.value }))} placeholder="Кроссовки, одежда, аксессуары..." className={`${inp} resize-none`} rows={2} />
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] text-tx-3 mb-1">Телефон</label>
+                <input value={form.contact_phone} onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))} placeholder="+998 90 000 00 00" className={inp} />
+              </div>
+              <div>
+                <label className="block text-[11px] text-tx-3 mb-1">Email</label>
+                <input value={form.contact_email} onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))} placeholder="info@company.uz" className={inp} />
+              </div>
+              <div>
+                <label className="block text-[11px] text-tx-3 mb-1">Telegram / WhatsApp ссылка</label>
+                <input value={form.contact_link} onChange={e => setForm(f => ({ ...f, contact_link: e.target.value }))} placeholder="https://t.me/username" className={inp} />
+              </div>
+              <div>
+                <label className="block text-[11px] text-tx-3 mb-1">Цвет акцента</label>
+                <div className="flex items-center gap-2">
+                  <input type="color" value={form.color} onChange={e => setForm(f => ({ ...f, color: e.target.value }))}
+                    className="w-8 h-8 rounded cursor-pointer border border-line" />
+                  <span className="text-[11px] text-tx-3">{form.color}</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] text-tx-3 mb-2">Шаблон</label>
+                <div className="flex gap-2">
+                  {TEMPLATES.map(t => (
+                    <button key={t.key} onClick={() => setForm(f => ({ ...f, template: t.key }))}
+                      className={`flex-1 py-3 rounded-[8px] text-[10px] font-medium cursor-pointer border-2 transition-all ${form.template === t.key ? "border-accent" : "border-line"}`}
+                      style={{ background: t.key === "2" ? "#1a1a1a" : t.key === "3" ? "linear-gradient(135deg,#6366f1,#3b82f6)" : "var(--panel)", color: t.key !== "1" ? "#fff" : "var(--tx-1)" }}>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4 pt-4 border-t border-line">
+            <button onClick={handleSave} disabled={!form.title.trim() || saving}
+              className="px-5 py-2 rounded-[8px] text-[12px] font-semibold cursor-pointer disabled:opacity-50 hover:opacity-90"
+              style={{ background: "var(--accent)", color: "var(--on-accent)", border: "none" }}>
+              {saving ? "⟳ Создаю..." : "🚀 Опубликовать"}
+            </button>
+            <button onClick={() => setShowForm(false)}
+              className="px-4 py-2 rounded-[8px] text-[12px] cursor-pointer hover:bg-hover"
+              style={{ border: "0.5px solid var(--line)", background: "none", color: "var(--tx-2)" }}>
+              Отмена
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Pages list */}
+      {pages.length === 0 && !showForm ? (
+        <div className="flex flex-col items-center justify-center py-20 border border-dashed border-line rounded-[14px]">
+          <span style={{ fontSize: 36 }}>🌐</span>
+          <p className="text-[13px] font-medium text-tx-1 mt-3">Нет лендингов</p>
+          <p className="text-[11px] text-tx-3 mt-1">Создай первый лендинг для приёма заявок</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4">
+          {pages.map((page: any) => {
+            const leadsCount = page.landing_leads?.[0]?.count ?? 0;
+            const url = `${typeof window !== "undefined" ? window.location.origin : ""}/l/${page.slug}`;
+            return (
+              <div key={page.id} className="p-4 rounded-[12px] border border-line" style={{ background: "var(--panel-2)" }}>
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full" style={{ background: page.color }} />
+                      <span className="text-[13px] font-semibold text-tx-1">{page.title}</span>
+                    </div>
+                    {page.slogan && <p className="text-[11px] text-tx-3 mt-0.5">{page.slogan}</p>}
+                  </div>
+                  <button onClick={() => deletePage(page.id)} className="text-[12px] text-tx-3 hover:text-neg cursor-pointer" style={{ background: "none", border: "none" }}>✕</button>
+                </div>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-[6px]" style={{ background: "var(--chip)" }}>
+                    <span className="text-[11px] font-semibold text-tx-1">{leadsCount}</span>
+                    <span className="text-[10px] text-tx-3">заявок</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-[6px]" style={{ background: "var(--chip)" }}>
+                    <span className="text-[11px] font-semibold text-tx-1">{page.views}</span>
+                    <span className="text-[10px] text-tx-3">просмотров</span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1 px-2.5 py-1.5 rounded-[6px] text-[10px] text-tx-3 truncate" style={{ background: "var(--panel)", border: "0.5px solid var(--line)" }}>
+                    /l/{page.slug}
+                  </div>
+                  <button onClick={() => copyLink(page.slug, page.id)}
+                    className="px-3 py-1.5 rounded-[6px] text-[10px] font-medium cursor-pointer hover:opacity-80 transition-opacity"
+                    style={{ background: copiedId === page.id ? "var(--pos)" : "var(--accent)", color: "var(--on-accent)", border: "none" }}>
+                    {copiedId === page.id ? "✓" : "Копировать"}
+                  </button>
+                  <a href={`/l/${page.slug}`} target="_blank" rel="noreferrer"
+                    className="px-3 py-1.5 rounded-[6px] text-[10px] font-medium cursor-pointer hover:opacity-80"
+                    style={{ background: "var(--chip)", color: "var(--tx-1)", textDecoration: "none" }}>
+                    ↗
+                  </a>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CreateContentPageInner() {
   const supabase = createClient();
   const locale = useLocale();
 
+  const [activeTab, setActiveTab] = useState<"content" | "landing">("content");
   const [platform, setPlatform] = useState<Platform>("all");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
@@ -1821,12 +2086,28 @@ function CreateContentPageInner() {
           flexShrink: 0,
         }}
       >
-        <p style={{ fontSize: 11, color: "var(--tx-3)" }}>
-          Маркетинг /{" "}
-          <span style={{ color: "var(--tx-2)", fontWeight: 500 }}>
-            Создать контент
-          </span>
-        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <p style={{ fontSize: 11, color: "var(--tx-3)" }}>
+            Маркетинг /{" "}
+            <span style={{ color: "var(--tx-2)", fontWeight: 500 }}>
+              Создать контент
+            </span>
+          </p>
+          <div style={{ display: "flex", gap: 2, background: "var(--panel-2)", borderRadius: 8, padding: 2, border: "0.5px solid var(--line)" }}>
+            {([["content", "Контент"], ["landing", "Landing"]] as const).map(([key, label]) => (
+              <button key={key} onClick={() => setActiveTab(key)}
+                style={{
+                  padding: "3px 12px", borderRadius: 6, fontSize: 11, fontWeight: activeTab === key ? 600 : 400,
+                  background: activeTab === key ? "var(--panel)" : "transparent",
+                  color: activeTab === key ? "var(--tx-1)" : "var(--tx-3)",
+                  border: activeTab === key ? "0.5px solid var(--line)" : "none",
+                  cursor: "pointer", transition: "all 0.15s",
+                }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {hasConnected && (
             <button
@@ -1890,7 +2171,13 @@ function CreateContentPageInner() {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
+      {activeTab === "landing" && (
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          <LandingTab projectId={projectId} projects={projects} />
+        </div>
+      )}
+
+      {activeTab === "content" && <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
         {/* Project selector */}
         <div
           style={{
@@ -2334,10 +2621,8 @@ function CreateContentPageInner() {
               </button>
             </div>
           )}
-      </div>
-
-      {/* Modals */}
-      {selectedPost && (
+      </div>}
+      {activeTab === "content" && selectedPost && (
         <PostModal post={selectedPost} onClose={() => setSelectedPost(null)} />
       )}
       {showCreatePost && (

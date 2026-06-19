@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlatformLogo } from "@/components/ui/PlatformLogo";
 import { PLATFORM_META } from "./data";
+import CreateCreativesStep from "./CreateCreativesStep";
 import {
   useCreateAdCampaign,
   useCreateAdCreative,
@@ -12,7 +13,7 @@ import { useLocale } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
 
-const STEPS = ["Цель", "Платформы", "Креативы", "Запуск"];
+const STEPS = ["Цель", "Платформы", "Создать", "Landing", "Креативы", "Запуск"];
 
 const PLATFORM_SUBTYPES: Record<
   string,
@@ -1732,7 +1733,7 @@ export function WizardView({
               ← Назад
             </button>
             <button
-              onClick={async () => {
+              onClick={() => {
                 if (selectedPlatforms.size === 0) {
                   setError("Выберите платформу");
                   return;
@@ -1740,6 +1741,45 @@ export function WizardView({
                 setError("");
                 setStep(2);
                 setMaxStep((prev: number) => Math.max(prev, 2));
+              }}
+              className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
+            >
+              Далее: Создать →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ══ STEP 2: Создать ══ */}
+      {step === 2 && (
+        <CreateCreativesStep
+          projectId={projectId}
+          campaignId={draftId ?? ""}
+          selectedPlatforms={[...selectedPlatforms]}
+          onBack={() => setStep(1)}
+          onNext={() => { setStep(3); setMaxStep((prev: number) => Math.max(prev, 3)); }}
+        />
+      )}
+
+      {/* ══ STEP 3: Landing ══ */}
+      {step === 3 && (
+        <div className="space-y-6">
+          <div className="text-center py-16 border border-dashed border-line rounded-[12px]" style={{ background: "var(--panel-2)" }}>
+            <div className="text-4xl mb-3">🌐</div>
+            <p className="text-[14px] font-semibold text-tx-1 mb-1">Landing страница</p>
+            <p className="text-[12px] text-tx-3">Логика этого шага будет добавлена позже</p>
+          </div>
+          <div className="flex justify-between pt-2">
+            <button
+              onClick={() => setStep(2)}
+              className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
+            >
+              ← Назад
+            </button>
+            <button
+              onClick={async () => {
+                setStep(4);
+                setMaxStep((prev: number) => Math.max(prev, 4));
                 // Auto-generate creatives
                 setGenerating(true);
                 const days = dateFrom && dateTo
@@ -1788,8 +1828,8 @@ export function WizardView({
         </div>
       )}
 
-      {/* ══ STEP 2: Creatives ══ */}
-      {step === 2 && (
+      {/* ══ STEP 4: Creatives ══ */}
+      {step === 4 && (
         <div style={{ position: "relative" }}>
           {/* Auto-gen loading overlay */}
           {generating && generatedCreatives.length === 0 && (
@@ -2079,7 +2119,7 @@ export function WizardView({
 
           <div className="flex justify-between items-center pt-2">
             <button
-              onClick={() => setStep(1)}
+              onClick={() => setStep(3)}
               className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
             >
               ← Назад
@@ -2100,8 +2140,8 @@ export function WizardView({
                     return;
                   }
                   setError("");
-                  setStep(3);
-                  setMaxStep((prev: number) => Math.max(prev, 3));
+                  setStep(5);
+                  setMaxStep((prev: number) => Math.max(prev, 5));
                 }}
                 className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
               >
@@ -2120,8 +2160,8 @@ export function WizardView({
         </div>
       )}
 
-      {/* ══ STEP 3: Launch ══ */}
-      {step === 3 && (
+      {/* ══ STEP 5: Launch ══ */}
+      {step === 5 && (
         <div>
           <div className="ui-surface p-4 mb-4 space-y-2">
             {[
@@ -2186,7 +2226,7 @@ export function WizardView({
 
           <div className="flex justify-between">
             <button
-              onClick={() => setStep(1)}
+              onClick={() => setStep(4)}
               className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
             >
               ← Назад
