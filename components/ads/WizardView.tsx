@@ -1697,12 +1697,69 @@ export function WizardView({
             </>
           )}
 
+          {/* ── Telegram каналы ── */}
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="ui-label">Telegram каналы</p>
+              <button
+                onClick={() => setConnectModal("telegram")}
+                className="flex items-center gap-1.5 text-[11px] text-accent hover:opacity-75 cursor-pointer"
+              >
+                <span className="text-[13px]">+</span> Подключить канал
+              </button>
+            </div>
+            {connectedIntegrations.filter((i: any) => i.platform === "telegram").length === 0 ? (
+              <button
+                onClick={() => setConnectModal("telegram")}
+                className="w-full flex items-center gap-3 p-3 border border-dashed border-line rounded-[9px] hover:border-accent hover:bg-hover cursor-pointer transition-colors text-left"
+              >
+                <div className="w-8 h-8 rounded-[8px] flex items-center justify-center text-white text-[13px] font-bold flex-shrink-0" style={{ background: "#0088CC" }}>✈️</div>
+                <div>
+                  <p className="text-[12px] font-medium text-tx-1">Подключить Telegram канал</p>
+                  <p className="text-[10px] text-tx-3">Добавь бота как администратора и введи @username</p>
+                </div>
+              </button>
+            ) : (
+              <div className="space-y-2">
+                {connectedIntegrations
+                  .filter((i: any) => i.platform === "telegram")
+                  .map((ch: any) => {
+                    const chKey = `telegram_${ch.channel_id}`;
+                    const isSel = selectedPlatforms.has(chKey) || selectedPlatforms.has("telegram");
+                    return (
+                      <div
+                        key={ch.channel_id}
+                        onClick={() => togglePlatform("telegram")}
+                        className={`flex items-center gap-3 p-3 border rounded-[9px] cursor-pointer hover:bg-hover transition-colors ${isSel ? "border-pos/40" : "border-line"}`}
+                      >
+                        <div className={`w-4 h-4 rounded-[4px] border flex items-center justify-center text-[9px] flex-shrink-0 ${isSel ? "bg-accent border-accent text-on-accent" : "border-line-strong"}`}>
+                          {isSel && "✓"}
+                        </div>
+                        <div className="w-7 h-7 rounded-[7px] flex items-center justify-center text-[12px]" style={{ background: "#0088CC" }}>✈️</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[12px] font-medium text-tx-1">@{ch.channel_name}</p>
+                          <p className="text-[10px] text-tx-3">Telegram канал · {isSel ? "Выбран" : "Не выбран"}</p>
+                        </div>
+                        {isSel && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-chip text-pos">Активен</span>}
+                      </div>
+                    );
+                  })}
+                <button
+                  onClick={() => setConnectModal("telegram")}
+                  className="w-full text-[11px] text-accent hover:opacity-75 cursor-pointer py-1.5 text-center"
+                >
+                  + Добавить ещё канал
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Other platforms - add button */}
           <div>
-            <p className="ui-label mt-4 mb-2">Добавить платформу</p>
+            <p className="ui-label mt-4 mb-2">Добавить рекламную платформу</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {Object.entries(PLATFORM_META)
-                .filter(([key]) => !connectedKeys.has(key))
+                .filter(([key]) => !connectedKeys.has(key) && key !== "telegram")
                 .map(([key, meta]) => (
                   <button
                     key={key}
@@ -2334,7 +2391,7 @@ export function WizardView({
                           }),
                         });
                         if (res.ok) {
-                          await refetchPlatforms();
+                          await refetchIntegrations();
                           setConnectModal(null);
                           setTokenInput("");
                         }
