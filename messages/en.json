@@ -25,9 +25,7 @@
     "groupTools": "Tools",
     "groupAgency": "Agency",
     "groupAccount": "Account",
-    "summary": "Summary",
-    "infographics": "Infographics",
-    "tokens": "Tokens"
+    "summary": "Summary"
   },
   "dashboard": {
     "title": "Dashboard",

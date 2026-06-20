@@ -25,9 +25,7 @@
     "groupTools": "Vositalar",
     "groupAgency": "Agentlik",
     "groupAccount": "Hisob",
-    "summary": "Sarhisob",
-    "infographics": "Infografika",
-    "tokens": "Tokenlar"
+    "summary": "Sarhisob"
   },
   "dashboard": {
     "title": "Bosh panel",

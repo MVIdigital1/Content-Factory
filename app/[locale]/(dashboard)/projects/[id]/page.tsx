@@ -1,141 +1,117 @@
 "use client";
 
-/**
- * Детальная страница проекта — app/projects/[id]/page.tsx
- * Заменяет предыдущую версию (вкладки Обзор/Контент/Хранилище/Брендбук/Настройки)
- * на новый дизайн: Контент / Кампании / Аналитика / Файлы + правая панель.
- *
- * Подключено к реальным таблицам: projects, contents, project_files, integrations.
- *
- * ⚠️ Сделано по аналогии, проверь под свою схему:
- *  - campaigns (project_id, name, status, created_at) → вкладка "Кампании"
- *  - projects.brand_voice (text[]) → тэги в блоке "Голос бренда"
- *  - "Участники" сейчас показывает только текущего пользователя как
- *    владельца — подключи свою таблицу project_members, когда она будет готова.
- * Если что-то называется иначе в твоей схеме — поправь .from(...)/.eq(...),
- * запросы к ещё не существующим таблицам просто вернут пустой список.
- */
-
-import { useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, useRef, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import {
   FileText,
-  Image as ImageIcon,
   Film,
-  ClipboardList,
-  FolderOpen,
-  Megaphone,
-  SquarePen,
+  Image as ImageIcon,
+  ChevronLeft,
+  Copy,
+  Archive,
   Pencil,
-  MoreHorizontal,
-  type LucideIcon,
+  X,
+  FolderOpen,
+  Upload,
+  Trash2,
+  CheckCircle2,
+  Circle,
+  AlertCircle,
 } from "lucide-react";
 
-type Tab = "content" | "campaigns" | "analytics" | "files";
-type Filter = "all" | "generated" | "scheduled" | "published";
+type Tab = "overview" | "content" | "campaigns" | "integrations" | "tasks" | "history" | "storage";
+
+type TaskStatus   = "todo" | "in_progress" | "review" | "done";
+type TaskPriority = "low" | "medium" | "high" | "urgent";
+
+type Task = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  due_date: string | null;
+  project_id: string | null;
+  created_at: string;
+};
+
+const PRIORITY_META: Record<TaskPriority, { label: string; color: string; bg: string }> = {
+  low:    { label: "Низкий",  color: "#0F6E56", bg: "rgba(29,158,117,0.1)" },
+  medium: { label: "Средний", color: "#854F0B", bg: "rgba(239,159,39,0.12)" },
+  high:   { label: "Высокий", color: "#A32D2D", bg: "rgba(226,75,74,0.1)" },
+  urgent: { label: "Срочно",  color: "#7C3AED", bg: "rgba(124,58,237,0.1)" },
+};
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: "overview",     label: "Обзор" },
+  { key: "content",      label: "Контент" },
+  { key: "campaigns",    label: "Кампании" },
+  { key: "integrations", label: "Интеграции" },
+  { key: "tasks",        label: "Задачи" },
+  { key: "history",      label: "История" },
+  { key: "storage",      label: "Хранилище" },
+];
 
 const STATUS_STYLES: Record<string, string> = {
   published: "bg-chip text-c-2",
   scheduled: "bg-accent-dim text-accent",
-  generated: "bg-chip text-c-3",
-  draft: "bg-chip text-tx-2",
-  failed: "bg-chip text-neg",
+  generated:  "bg-chip text-c-3",
+  draft:      "bg-chip text-tx-2",
+  failed:     "bg-chip text-neg",
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  published: "Опубликовано",
-  scheduled: "Запланировано",
-  generated: "Готово",
-  draft: "Черновик",
-  failed: "Ошибка",
+const PLATFORM_ICONS: Record<string, string> = {
+  telegram:  "ti ti-brand-telegram",
+  instagram: "ti ti-brand-instagram",
+  tiktok:    "ti ti-brand-tiktok",
+  vk:        "ti ti-brand-vk",
 };
 
-const FILE_ICONS: Record<string, LucideIcon> = {
-  image: ImageIcon,
-  video: Film,
-  document: FileText,
-  brandbook: ClipboardList,
+const FILE_TYPE_LABELS: Record<string, string> = {
+  image:    "Изображение",
+  video:    "Видео",
+  document: "Документ",
+  other:    "Другое",
 };
 
-const PLATFORM_META: Record<string, { label: string; badge: string; color: string }> = {
-  instagram: { label: "Instagram", badge: "IG", color: "#e1306c" },
-  telegram: { label: "Telegram", badge: "TG", color: "#2aabee" },
-  vk: { label: "VK", badge: "VK", color: "#0077ff" },
-  facebook: { label: "Facebook", badge: "FB", color: "#1877f2" },
-};
-function platformMeta(key?: string | null) {
-  const k = (key || "").toLowerCase();
-  return (
-    PLATFORM_META[k] || {
-      label: key || "Платформа",
-      badge: (key || "?").slice(0, 2).toUpperCase(),
-      color: "#71717a",
-    }
-  );
-}
-
-// Та же палитра и логика подбора цвета, что на странице списка проектов —
-// цвет аватара проекта одинаковый и в карточке, и здесь.
-const PROJECT_COLORS = ["#6366f1", "#e11d48", "#0ea5e9", "#10b981", "#f59e0b", "#a855f7", "#ec4899", "#14b8a6"];
-function hashColor(seed: string) {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-  return PROJECT_COLORS[hash % PROJECT_COLORS.length];
-}
-
-const IMAGE_EXTS = ["jpg", "jpeg", "png", "gif", "webp", "svg", "avif", "bmp"];
-const VIDEO_EXTS = ["mp4", "mov", "avi", "webm", "mkv", "m4v"];
-
-function fileKind(name?: string | null): "image" | "video" | "document" {
-  const ext = (name || "").split(".").pop()?.toLowerCase() || "";
-  if (IMAGE_EXTS.includes(ext)) return "image";
-  if (VIDEO_EXTS.includes(ext)) return "video";
-  return "document";
-}
-
-function getInitials(name?: string | null) {
-  if (!name) return "?";
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0][0].toUpperCase();
-  return (parts[0][0] + parts[1][0]).toUpperCase();
+function formatBytes(bytes: number) {
+  if (!bytes) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 export default function ProjectDetailPage() {
-  const params = useParams();
-  const router = useRouter();
-  const supabase = createClient();
+  const params      = useParams();
+  const router      = useRouter();
+  const supabase    = createClient();
   const queryClient = useQueryClient();
-  const projectId = params?.id as string;
+  const locale      = useLocale();
+  const projectId   = params?.id as string;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const locale = useLocale();
-  const [activeTab, setActiveTab] = useState<Tab>("content");
-  const [filter, setFilter] = useState<Filter>("all");
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [uploadType, setUploadType] = useState("image");
-  const [voiceEditing, setVoiceEditing] = useState(false);
-  const [voiceDraft, setVoiceDraft] = useState("");
+  const [activeTab,        setActiveTab]       = useState<Tab>("overview");
+  const [isEditOpen,       setIsEditOpen]      = useState(false);
+  const [editName,         setEditName]        = useState("");
+  const [editNiche,        setEditNiche]       = useState("");
+  const [editDescription,  setEditDescription] = useState("");
+  const [editAudience,     setEditAudience]    = useState("");
+  const [editStopWords,    setEditStopWords]   = useState("");
+  const [uploadType,       setUploadType]      = useState<"image"|"video"|"document"|"other">("image");
+  const [fileFilter,       setFileFilter]      = useState<"all"|"image"|"video"|"document"|"other">("all");
+  const [isDragging,       setIsDragging]      = useState(false);
+  const [showTaskModal,    setShowTaskModal]   = useState(false);
+  const [newTaskTitle,     setNewTaskTitle]    = useState("");
+  const [newTaskDesc,      setNewTaskDesc]     = useState("");
+  const [newTaskPriority,  setNewTaskPriority] = useState<TaskPriority>("medium");
+  const [taskError,        setTaskError]       = useState("");
+  const [taskFilter,       setTaskFilter]      = useState<"all"|"todo"|"done">("all");
 
-  // optimistic file previews
-  const [pendingFiles, setPendingFiles] = useState<{ id: string; name: string; url: string; type: string; size: number }[]>([]);
-
-  // edit project info
-  const [editingProject, setEditingProject] = useState(false);
-  const [editName, setEditName] = useState("");
-  const [editNiche, setEditNiche] = useState("");
-  const [editDescription, setEditDescription] = useState("");
-  const [editLogoUrl, setEditLogoUrl] = useState("");
-  const [editLogoFile, setEditLogoFile] = useState<File | null>(null);
-  const [editLogoPreview, setEditLogoPreview] = useState<string | null>(null);
-  const [editSaving, setEditSaving] = useState(false);
-  const logoEditRef = useRef<HTMLInputElement>(null);
-
-  // ---- Данные -------------------------------------------------------
+  // ── Queries ──────────────────────────────────────────────────────────────
 
   const { data: project, isLoading } = useQuery({
     queryKey: ["project", projectId],
@@ -146,79 +122,24 @@ export default function ProjectDetailPage() {
     enabled: !!projectId,
   });
 
-  const { data: currentUser } = useQuery({
-    queryKey: ["current-user"],
-    queryFn: async () => {
-      const { data } = await supabase.auth.getUser();
-      return data.user;
-    },
-  });
-
   const { data: stats } = useQuery({
     queryKey: ["project-stats", projectId],
     queryFn: async () => {
-      const now = new Date();
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      const [{ count: total }, { count: published }, { count: scheduled }, { count: thisWeek }] = await Promise.all([
+      const [{ count: published }, { count: scheduled }, { count: total }] = await Promise.all([
+        supabase.from("contents").select("*", { count: "exact", head: true }).eq("project_id", projectId).eq("status", "published"),
+        supabase.from("contents").select("*", { count: "exact", head: true }).eq("project_id", projectId).eq("status", "scheduled"),
         supabase.from("contents").select("*", { count: "exact", head: true }).eq("project_id", projectId),
-        supabase
-          .from("contents")
-          .select("*", { count: "exact", head: true })
-          .eq("project_id", projectId)
-          .eq("status", "published"),
-        supabase
-          .from("contents")
-          .select("*", { count: "exact", head: true })
-          .eq("project_id", projectId)
-          .eq("status", "scheduled"),
-        supabase
-          .from("contents")
-          .select("*", { count: "exact", head: true })
-          .eq("project_id", projectId)
-          .gte("created_at", weekAgo),
       ]);
-      return { total: total ?? 0, published: published ?? 0, scheduled: scheduled ?? 0, thisWeek: thisWeek ?? 0 };
+      return { published: published ?? 0, scheduled: scheduled ?? 0, total: total ?? 0 };
     },
     enabled: !!projectId,
   });
 
-  const { data: contents = [] } = useQuery({
-    queryKey: ["project-contents", projectId],
+  const { data: channelsCount = 0 } = useQuery({
+    queryKey: ["project-channels-count", projectId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("contents")
-        .select("id, title, type, platform, status, created_at")
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: false })
-        .limit(50);
-      return data || [];
-    },
-    enabled: activeTab === "content" && !!projectId,
-  });
-
-  const { data: campaigns = [] } = useQuery({
-    queryKey: ["project-campaigns", projectId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("campaigns")
-        .select("*")
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: false });
-      if (error) return [];
-      return data || [];
-    },
-    enabled: !!projectId,
-  });
-
-  const { data: files = [] } = useQuery({
-    queryKey: ["project-files", projectId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("project_files")
-        .select("*")
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: false });
-      return data || [];
+      const { count } = await supabase.from("integrations").select("*", { count: "exact", head: true }).eq("project_id", projectId).eq("is_active", true);
+      return count ?? 0;
     },
     enabled: !!projectId,
   });
@@ -226,851 +147,1089 @@ export default function ProjectDetailPage() {
   const { data: integrations = [] } = useQuery({
     queryKey: ["project-integrations", projectId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("integrations").select("*").eq("project_id", projectId);
-      if (error) return [];
+      const { data } = await supabase.from("integrations").select("*").eq("project_id", projectId).order("created_at", { ascending: false });
       return data || [];
     },
-    enabled: !!projectId,
+    enabled: activeTab === "integrations" || activeTab === "overview",
+  });
+
+  const { data: contents = [] } = useQuery({
+    queryKey: ["project-contents", projectId],
+    queryFn: async () => {
+      const { data } = await supabase.from("contents").select("id, title, type, platform, status, created_at").eq("project_id", projectId).order("created_at", { ascending: false }).limit(50);
+      return data || [];
+    },
+    enabled: (activeTab === "content" || activeTab === "history") && !!projectId,
+  });
+
+  const { data: campaigns = [] } = useQuery({
+    queryKey: ["project-campaigns", projectId],
+    queryFn: async () => {
+      const { data } = await supabase.from("campaigns").select("*").eq("project_id", projectId).order("created_at", { ascending: false });
+      return data || [];
+    },
+    enabled: activeTab === "campaigns" && !!projectId,
+  });
+
+  const { data: tasks = [] } = useQuery({
+    queryKey: ["project-tasks", projectId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("tasks")
+        .select("*")
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: false });
+      return (data || []) as Task[];
+    },
+    enabled: activeTab === "tasks" && !!projectId,
   });
 
   const { data: activityData = [] } = useQuery({
     queryKey: ["project-activity", projectId],
     queryFn: async () => {
-      const thirtyDaysAgo = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000).toISOString();
-      const { data } = await supabase
-        .from("contents")
-        .select("created_at")
-        .eq("project_id", projectId)
-        .gte("created_at", thirtyDaysAgo);
+      const ago30 = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000).toISOString();
+      const { data } = await supabase.from("contents").select("created_at").eq("project_id", projectId).gte("created_at", ago30);
       return data || [];
     },
-    enabled: activeTab === "analytics" && !!projectId,
+    enabled: activeTab === "overview" && !!projectId,
   });
 
-  // ---- Мутации -------------------------------------------------------
-
-  const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-      const ext = file.name.split(".").pop();
-      const path = `project-files/${user.id}/${projectId}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("content-images").upload(path, file);
-      if (uploadError) throw uploadError;
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("content-images").getPublicUrl(path);
-      const { error: dbError } = await supabase.from("project_files").insert({
-        project_id: projectId,
-        user_id: user.id,
-        name: file.name,
-        url: publicUrl,
-        size: file.size,
-        mime_type: file.type,
-      });
-      if (dbError) throw dbError;
+  const { data: files = [] } = useQuery({
+    queryKey: ["project-files", projectId],
+    queryFn: async () => {
+      const { data } = await supabase.from("project_files").select("*").eq("project_id", projectId).order("created_at", { ascending: false });
+      return data || [];
     },
-    onSuccess: (_data, file) => {
-      setPendingFiles((prev) => prev.filter((p) => p.name + p.size !== file.name + file.size));
-      queryClient.invalidateQueries({ queryKey: ["project-files", projectId] });
-    },
-    onError: (err: any, file) => {
-      setPendingFiles((prev) => prev.filter((p) => p.name + p.size !== file.name + file.size));
-      alert("Ошибка загрузки «" + file.name + "»: " + err.message);
-    },
+    enabled: activeTab === "storage" && !!projectId,
   });
 
-  const deleteFileMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await supabase.from("project_files").delete().eq("id", id);
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-files", projectId] }),
-  });
+  // ── Mutations ─────────────────────────────────────────────────────────────
 
   const updateProjectMutation = useMutation({
     mutationFn: async (updates: Record<string, unknown>) => {
       const { error } = await supabase.from("projects").update(updates).eq("id", projectId);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project", projectId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      setIsEditOpen(false);
+    },
   });
 
-  // ---- Производные значения -------------------------------------------
+  const duplicateProjectMutation = useMutation({
+    mutationFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !project) throw new Error("Not authenticated");
+      const { data, error } = await supabase.from("projects").insert({
+        user_id: user.id,
+        name: `${project.name} (копия)`,
+        niche: project.niche,
+        description: project.description,
+        audience: project.audience,
+        tone: project.tone,
+        language: project.language,
+        products: project.products,
+      }).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      router.push(`/${locale}/projects/${data.id}`);
+    },
+  });
 
-  const days30 = useMemo(() => {
-    return Array.from({ length: 30 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (29 - i));
-      const key = d.toISOString().split("T")[0];
-      const count = (activityData as any[]).filter((a) => a.created_at.startsWith(key)).length;
-      return { key, count };
-    });
-  }, [activityData]);
+  const archiveProjectMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("projects").update({ is_active: false }).eq("id", projectId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      router.push(`/${locale}/projects`);
+    },
+  });
+
+  const createTaskMutation = useMutation({
+    mutationFn: async ({ title, description, priority }: { title: string; description: string; priority: TaskPriority }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Не авторизован");
+      const { error } = await supabase.from("tasks").insert({
+        title:       title.trim(),
+        description: description.trim() || null,
+        status:      "todo",
+        priority,
+        project_id:  projectId,
+        created_by:  user.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
+      setShowTaskModal(false);
+      setNewTaskTitle("");
+      setNewTaskDesc("");
+      setNewTaskPriority("medium");
+      setTaskError("");
+    },
+    onError: (e: Error) => setTaskError(e.message),
+  });
+
+  const toggleTaskMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
+      const { error } = await supabase.from("tasks").update({ status }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] }),
+  });
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("tasks").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] }),
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const ext  = file.name.split(".").pop();
+      const path = `${user.id}/${projectId}/${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage.from("project-files").upload(path, file);
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from("project-files").getPublicUrl(path);
+
+      // Определяем тип автоматически если не выбран вручную
+      let detectedType = uploadType;
+      if (file.type.startsWith("image/"))  detectedType = "image";
+      if (file.type.startsWith("video/"))  detectedType = "video";
+      if (file.type.includes("pdf") || file.type.includes("document")) detectedType = "document";
+
+      const { error: dbError } = await supabase.from("project_files").insert({
+        project_id: projectId,
+        user_id:    user.id,
+        name:       file.name,
+        file_url:   publicUrl,
+        file_type:  detectedType,
+        size_bytes: file.size,
+      });
+      if (dbError) throw dbError;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-files", projectId] }),
+  });
+
+  const deleteFileMutation = useMutation({
+    mutationFn: async ({ id, file_url }: { id: string; file_url: string }) => {
+      const storageKey = file_url.split("/project-files/")[1];
+      if (storageKey) await supabase.storage.from("project-files").remove([storageKey]);
+      await supabase.from("project_files").delete().eq("id", id);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-files", projectId] }),
+  });
+
+  // ── Effects ───────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (project && isEditOpen) {
+      setEditName(project.name || "");
+      setEditNiche(project.niche || "");
+      setEditDescription(project.description || "");
+      setEditAudience(project.audience || "");
+      setEditStopWords((project as any).stop_words || "");
+    }
+  }, [project, isEditOpen]);
+
+  // ── Derived data ──────────────────────────────────────────────────────────
+
+  const days30 = Array.from({ length: 30 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (29 - i));
+    const key   = d.toISOString().split("T")[0];
+    const count = activityData.filter((a: any) => a.created_at.startsWith(key)).length;
+    return { key, count };
+  });
   const maxCount = Math.max(...days30.map((d) => d.count), 1);
 
-  const filteredContents = useMemo(() => {
-    if (filter === "all") return contents as any[];
-    return (contents as any[]).filter((c) => c.status === filter);
-  }, [contents, filter]);
+  // Шаги настройки проекта
+  const setupSteps = project
+    ? [
+        {
+          key:    "niche",
+          label:  "Укажи нишу проекта",
+          done:   !!project.niche,
+          action: () => setIsEditOpen(true),
+        },
+        {
+          key:    "description",
+          label:  "Добавь описание бренда",
+          done:   !!project.description,
+          action: () => setIsEditOpen(true),
+        },
+        {
+          key:    "audience",
+          label:  "Опиши целевую аудиторию",
+          done:   !!project.audience,
+          action: () => setIsEditOpen(true),
+        },
+        {
+          key:    "integration",
+          label:  "Подключи канал (Telegram / Instagram)",
+          done:   (channelsCount as number) > 0,
+          action: () => router.push(`/${locale}/integrations`),
+        },
+        {
+          key:    "content",
+          label:  "Создай первый контент",
+          done:   (stats?.total ?? 0) > 0,
+          action: () => router.push(`/${locale}/create?projectId=${projectId}`),
+        },
+      ]
+    : [];
 
-  // ---- Состояния загрузки / отсутствия проекта -------------------------
+  const doneCount      = setupSteps.filter((s) => s.done).length;
+  const isSetupDone    = doneCount === setupSteps.length;
+  const setupPct       = setupSteps.length > 0 ? Math.round((doneCount / setupSteps.length) * 100) : 100;
 
-  if (isLoading) {
+  const handleCreateTask = () => {
+    if (!newTaskTitle.trim()) { setTaskError("Введите название задачи"); return; }
+    createTaskMutation.mutate({ title: newTaskTitle, description: newTaskDesc, priority: newTaskPriority });
+  };
+
+  const filteredFiles  = fileFilter === "all"
+    ? (files as any[])
+    : (files as any[]).filter((f: any) => f.file_type === fileFilter);
+
+  // ── Loading / not found ───────────────────────────────────────────────────
+
+  if (isLoading)
     return (
-      <div className="p-6">
-        <div className="h-8 w-48 bg-chip rounded animate-pulse mb-4" />
-        <div className="h-4 w-64 bg-chip rounded animate-pulse" />
+      <div className="p-6 space-y-3">
+        <div className="h-4 w-48 bg-chip rounded animate-pulse" />
+        <div className="h-6 w-32 bg-chip rounded animate-pulse" />
+        <div className="h-3 w-64 bg-chip rounded animate-pulse" />
       </div>
     );
-  }
 
-  if (!project) {
+  if (!project)
     return (
       <div className="p-6 text-center">
-        <p className="text-tx-2">Проект не найден</p>
-        <Link href={`/${locale}/projects`} className="text-accent text-sm mt-2 inline-block">
-          ← Назад
-        </Link>
+        <p className="text-tx-2 text-sm">Проект не найден</p>
+        <Link href={`/${locale}/projects`} className="text-accent text-xs mt-2 inline-block">← Назад</Link>
       </div>
     );
-  }
 
-  const color = hashColor(project.id);
-  const brandVoice: string[] = (project.brand_voice as string[]) || [];
-  const isActive = project.is_active !== false;
-  const ownerName =
-    currentUser?.user_metadata?.full_name || currentUser?.user_metadata?.name || currentUser?.email || "Владелец";
-
-  function startEditVoice() {
-    setVoiceDraft(brandVoice.join(", "));
-    setVoiceEditing(true);
-  }
-  function saveVoice() {
-    const tags = voiceDraft
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
-    updateProjectMutation.mutate({ brand_voice: tags });
-    setVoiceEditing(false);
-  }
-
-  function startEditProject() {
-    setEditName(project.name || "");
-    setEditNiche((project as any).niche || "");
-    setEditDescription(project.description || "");
-    setEditLogoUrl(project.logo_url || "");
-    setEditLogoFile(null);
-    setEditLogoPreview(null);
-    setEditingProject(true);
-  }
-
-  function handleEditLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setEditLogoFile(f);
-    const r = new FileReader();
-    r.onload = (ev) => setEditLogoPreview(ev.target?.result as string);
-    r.readAsDataURL(f);
-  }
-
-  async function saveEditProject() {
-    setEditSaving(true);
-    try {
-      let logo_url = editLogoUrl;
-      if (editLogoFile) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error("Not authenticated");
-        const ext = editLogoFile.name.split(".").pop();
-        const path = `logos/${user.id}/${Date.now()}.${ext}`;
-        const { error: ue } = await supabase.storage
-          .from("content-images")
-          .upload(path, editLogoFile, { contentType: editLogoFile.type });
-        if (ue) throw ue;
-        const { data: urlD } = supabase.storage.from("content-images").getPublicUrl(path);
-        logo_url = urlD.publicUrl;
-      }
-      await updateProjectMutation.mutateAsync({
-        name: editName.trim(),
-        niche: editNiche.trim() || null,
-        description: editDescription.trim() || null,
-        logo_url: logo_url || null,
-      });
-      setEditingProject(false);
-    } catch (e: any) {
-      alert("Ошибка: " + e.message);
-    } finally {
-      setEditSaving(false);
-    }
-  }
-
-  async function handleArchive() {
-    setMenuOpen(false);
-    if (!confirm("Архивировать проект? Весь контент сохранится.")) return;
-    await supabase.from("projects").update({ is_active: false }).eq("id", projectId);
-    router.push(`/${locale}/projects`);
-  }
-
-  const TABS: { key: Tab; label: string; count?: number }[] = [
-    { key: "content", label: "Контент", count: stats?.total ?? 0 },
-    { key: "campaigns", label: "Кампании", count: campaigns.length },
-    { key: "analytics", label: "Аналитика" },
-    { key: "files", label: "Файлы", count: files.length },
-  ];
-
-  const FILTERS: { key: Filter; label: string }[] = [
-    { key: "all", label: "Все" },
-    { key: "generated", label: "Готово" },
-    { key: "scheduled", label: "Запланировано" },
-    { key: "published", label: "Опубликовано" },
-  ];
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="border-b border-line px-6 py-4 flex items-center gap-3 flex-shrink-0 bg-panel sticky top-0 z-10 flex-wrap">
-        <Link href={`/${locale}/projects`} className="text-tx-3 hover:text-tx-2 transition-colors">
-          ‹
-        </Link>
-        <Link href={`/${locale}/projects`} className="text-sm text-tx-3 hover:text-tx-2 transition-colors">
-          Проекты
-        </Link>
-        <span className="text-tx-3 text-sm">/</span>
-        {project.logo_url ? (
-          <img src={project.logo_url} alt={project.name} className="w-6 h-6 rounded-md object-cover flex-shrink-0" />
-        ) : (
-          <div
-            className="w-6 h-6 rounded-md flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
-            style={{ background: color }}
-          >
-            {project.name?.[0]?.toUpperCase() || "?"}
-          </div>
-        )}
-        <h1 className="text-base font-bold text-tx-1">{project.name}</h1>
-        <span
-          className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-            isActive ? "bg-emerald-50 text-emerald-700" : "bg-chip text-tx-3"
-          }`}
-        >
-          {isActive ? "Активен" : "Архивирован"}
-        </span>
 
-        <div className="flex-1" />
-
-        <div className="flex items-center gap-2">
-          <Link
-            href={`/${locale}/create?projectId=${projectId}`}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-tx-1 text-panel text-sm font-medium rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap"
-          >
-            <SquarePen size={15} strokeWidth={1.8} />
-            Создать контент
+      {/* ── Breadcrumb + actions ── */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-line bg-panel flex-shrink-0">
+        <div className="flex items-center gap-1.5 text-xs text-tx-3">
+          <Link href={`/${locale}/projects`} className="flex items-center gap-0.5 hover:text-tx-2 transition-colors">
+            <ChevronLeft size={13} strokeWidth={2} />
+            <span>Проекты</span>
           </Link>
-          <Link
-            href={`/${locale}/campaigns/new?projectId=${projectId}`}
-            className="flex items-center gap-1.5 px-3.5 py-2 border border-line text-tx-2 text-sm font-medium rounded-lg hover:bg-panel-2 transition-colors whitespace-nowrap"
+          <span>/</span>
+          <span className="text-tx-1 font-medium">{project.name}</span>
+        </div>
+        <div className="flex gap-1.5">
+          <button
+            onClick={() => setIsEditOpen(true)}
+            className="flex items-center gap-1 text-xs h-7 px-2.5 border border-line rounded-lg hover:bg-hover transition-colors cursor-pointer text-tx-2"
           >
-            <Megaphone size={15} strokeWidth={1.8} />
-            Новая кампания
-          </Link>
-
-          <div className="relative">
-            <button
-              onClick={() => setMenuOpen((v) => !v)}
-              className="w-9 h-9 flex items-center justify-center border border-line rounded-lg text-tx-2 hover:bg-panel-2 transition-colors cursor-pointer"
-            >
-              <MoreHorizontal size={16} strokeWidth={1.8} />
-            </button>
-            {menuOpen && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 top-full mt-1.5 w-48 bg-panel border border-line rounded-lg shadow-lg z-20 py-1">
-                  <Link
-                    href={`/${locale}/projects/${projectId}/settings`}
-                    className="block px-3 py-2 text-sm text-tx-1 hover:bg-panel-2 transition-colors"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    Настройки проекта
-                  </Link>
-                  <button
-                    onClick={handleArchive}
-                    className="block w-full text-left px-3 py-2 text-sm text-neg hover:bg-panel-2 transition-colors cursor-pointer"
-                  >
-                    Архивировать проект
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+            <Pencil size={11} strokeWidth={2} />
+            Редактировать
+          </button>
+          <button
+            onClick={() => { if (confirm("Дублировать проект?")) duplicateProjectMutation.mutate(); }}
+            disabled={duplicateProjectMutation.isPending}
+            className="flex items-center gap-1 text-xs h-7 px-2.5 border border-line rounded-lg hover:bg-hover transition-colors cursor-pointer text-tx-2 disabled:opacity-50"
+          >
+            <Copy size={11} strokeWidth={2} />
+            Дублировать
+          </button>
+          <button
+            onClick={() => { if (confirm("Архивировать проект? Весь контент сохранится.")) archiveProjectMutation.mutate(); }}
+            disabled={archiveProjectMutation.isPending}
+            className="flex items-center gap-1 text-xs h-7 px-2.5 border border-line rounded-lg hover:bg-hover transition-colors cursor-pointer text-tx-2 disabled:opacity-50"
+          >
+            <Archive size={11} strokeWidth={2} />
+            Архивировать
+          </button>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-line px-6 bg-panel flex-shrink-0 overflow-x-auto">
+      {/* ── Project title + status ── */}
+      <div className="px-4 pt-3 pb-2 border-b border-line bg-panel flex-shrink-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          <span className="text-base font-semibold text-tx-1">{project.name}</span>
+
+          {/* Активен */}
+          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${project.is_active ? "bg-green-500/10 text-green-600 dark:text-green-400" : "bg-chip text-tx-3"}`}>
+            {project.is_active ? "Активен" : "Архив"}
+          </span>
+
+          {/* В процессе — показывается пока настройка не завершена */}
+          {!isSetupDone && (
+            <button
+              onClick={() => setActiveTab("overview")}
+              className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 cursor-pointer hover:bg-amber-500/20 transition-colors"
+            >
+              <AlertCircle size={10} strokeWidth={2} />
+              В процессе · {setupPct}%
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-tx-3">
+          {[project.niche, project.description].filter(Boolean).join(" · ") || "Нет описания — нажми Редактировать"}
+        </p>
+      </div>
+
+      {/* ── Stats bar ── */}
+      <div className="grid grid-cols-4 gap-2 px-4 py-3 border-b border-line bg-panel flex-shrink-0">
+        {[
+          { label: "Каналов",      value: channelsCount },
+          { label: "Опубликовано", value: stats?.published ?? 0 },
+          { label: "Запланировано",value: stats?.scheduled ?? 0 },
+          { label: "Всего",        value: stats?.total ?? 0 },
+        ].map((s) => (
+          <div key={s.label} className="bg-panel-2 rounded-lg px-3 py-2">
+            <p className="text-[10px] text-tx-3 mb-1">{s.label}</p>
+            <p className="text-base font-semibold text-tx-1">{s.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Tabs ── */}
+      <div className="flex border-b border-line px-4 bg-panel flex-shrink-0 overflow-x-auto">
         {TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors cursor-pointer -mb-px whitespace-nowrap ${
-              activeTab === tab.key ? "border-tx-1 text-tx-1" : "border-transparent text-tx-3 hover:text-tx-2"
+            className={`flex-shrink-0 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors cursor-pointer -mb-px ${
+              activeTab === tab.key
+                ? "border-accent text-accent"
+                : "border-transparent text-tx-3 hover:text-tx-2"
             }`}
           >
             {tab.label}
-            {typeof tab.count === "number" && (
-              <span
-                className={`text-[11px] min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center font-medium ${
-                  activeTab === tab.key ? "bg-tx-1 text-panel" : "bg-chip text-tx-3"
-                }`}
-              >
-                {tab.count}
+            {/* Хранилище: показываем счётчик файлов */}
+            {tab.key === "storage" && (files as any[]).length > 0 && (
+              <span className="ml-1 text-[9px] bg-chip text-tx-3 px-1.5 py-0.5 rounded-full">
+                {(files as any[]).length}
               </span>
             )}
           </button>
         ))}
       </div>
 
-      {/* Body */}
-      <div className="flex-1 overflow-auto">
-        <div className="flex flex-col lg:flex-row gap-6 p-6">
-          {/* Main column */}
-          <div className="flex-1 min-w-0">
-            {activeTab === "content" && (
-              <div>
-                <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {FILTERS.map((f) => (
-                      <button
-                        key={f.key}
-                        onClick={() => setFilter(f.key)}
-                        className={`px-3.5 py-1.5 text-sm font-medium rounded-full transition-colors cursor-pointer ${
-                          filter === f.key ? "bg-tx-1 text-panel" : "border border-line text-tx-2 hover:bg-panel-2"
-                        }`}
-                      >
-                        {f.label}
-                      </button>
-                    ))}
-                  </div>
-                  <Link
-                    href={`/${locale}/create?projectId=${projectId}`}
-                    className="flex items-center gap-1.5 px-3.5 py-2 bg-tx-1 text-panel text-sm font-medium rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap"
-                  >
-                    + Создать пост
-                  </Link>
+      {/* ── Tab content ── */}
+      <div className="flex-1 overflow-auto p-4">
+
+        {/* ──── OVERVIEW ──── */}
+        {activeTab === "overview" && (
+          <div className="space-y-3 max-w-2xl">
+
+            {/* Чеклист настройки — показываем пока не завершено */}
+            {!isSetupDone && (
+              <div className="border border-amber-500/30 bg-amber-500/5 rounded-xl p-3">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <AlertCircle size={13} className="text-amber-500 flex-shrink-0" strokeWidth={2} />
+                  <p className="text-xs font-semibold text-tx-1">Завершите настройку проекта</p>
+                  <span className="ml-auto text-[10px] text-tx-3">{doneCount}/{setupSteps.length}</span>
                 </div>
-
-                {filteredContents.length === 0 ? (
-                  <div className="text-center py-20 bg-panel rounded-xl border border-line">
-                    <FileText size={32} className="text-tx-3 mx-auto mb-3" strokeWidth={1.5} />
-                    <p className="text-tx-3 text-sm mb-4">Нет материалов</p>
-                    <Link
-                      href={`/${locale}/create?projectId=${projectId}`}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-tx-1 text-panel text-sm font-medium rounded-lg hover:opacity-90 transition-opacity"
-                    >
-                      + Создать первый пост
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="bg-panel rounded-xl border border-line overflow-hidden">
-                    {filteredContents.map((c) => (
-                      <Link
-                        key={c.id}
-                        href={`/${locale}/history?id=${c.id}`}
-                        className="flex items-center gap-3 px-4 py-3 border-b border-line last:border-0 hover:bg-panel-2 transition-colors"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-chip flex items-center justify-center flex-shrink-0">
-                          {c.type === "video" ? (
-                            <Film size={16} className="text-tx-2" strokeWidth={1.8} />
-                          ) : c.type === "stories" ? (
-                            <ImageIcon size={16} className="text-tx-2" strokeWidth={1.8} />
-                          ) : (
-                            <FileText size={16} className="text-tx-2" strokeWidth={1.8} />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-tx-1 truncate">{c.title || "Без названия"}</p>
-                          <p className="text-xs text-tx-3">
-                            {c.platform} ·{" "}
-                            {new Date(c.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}
-                          </p>
-                        </div>
-                        <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                            STATUS_STYLES[c.status] || "bg-chip text-tx-2"
-                          }`}
-                        >
-                          {STATUS_LABELS[c.status] || c.status}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === "campaigns" && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-sm font-semibold text-tx-1">Кампании проекта</p>
-                  <Link
-                    href={`/${locale}/campaigns/new?projectId=${projectId}`}
-                    className="flex items-center gap-1.5 px-3.5 py-2 bg-tx-1 text-panel text-sm font-medium rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap"
-                  >
-                    + Новая кампания
-                  </Link>
+                {/* Прогресс-бар */}
+                <div className="h-1 bg-panel-2 rounded-full mb-3 overflow-hidden">
+                  <div
+                    className="h-full bg-amber-500 rounded-full transition-all"
+                    style={{ width: `${setupPct}%` }}
+                  />
                 </div>
-                {campaigns.length === 0 ? (
-                  <div className="text-center py-20 bg-panel rounded-xl border border-line">
-                    <Megaphone size={32} className="text-tx-3 mx-auto mb-3" strokeWidth={1.5} />
-                    <p className="text-tx-3 text-sm mb-4">Нет кампаний</p>
-                    <Link
-                      href={`/${locale}/campaigns/new?projectId=${projectId}`}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-tx-1 text-panel text-sm font-medium rounded-lg hover:opacity-90 transition-opacity"
+                <div className="space-y-1.5">
+                  {setupSteps.map((step) => (
+                    <button
+                      key={step.key}
+                      onClick={step.action}
+                      className="w-full flex items-center gap-2 text-left group"
                     >
-                      + Создать кампанию
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="bg-panel rounded-xl border border-line overflow-hidden">
-                    {(campaigns as any[]).map((c) => (
-                      <div key={c.id} className="flex items-center gap-3 px-4 py-3 border-b border-line last:border-0">
-                        <div className="w-8 h-8 rounded-lg bg-chip flex items-center justify-center flex-shrink-0">
-                          <Megaphone size={16} className="text-tx-2" strokeWidth={1.8} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-tx-1 truncate">{c.name || "Без названия"}</p>
-                          <p className="text-xs text-tx-3">
-                            {new Date(c.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}
-                          </p>
-                        </div>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-chip text-tx-2">
-                          {c.status || "—"}
+                      {step.done
+                        ? <CheckCircle2 size={14} className="text-green-500 flex-shrink-0" strokeWidth={2} />
+                        : <Circle       size={14} className="text-tx-3 flex-shrink-0 group-hover:text-amber-500 transition-colors" strokeWidth={2} />
+                      }
+                      <span className={`text-xs ${step.done ? "text-tx-3 line-through" : "text-tx-2 group-hover:text-tx-1 transition-colors"}`}>
+                        {step.label}
+                      </span>
+                      {!step.done && (
+                        <span className="ml-auto text-[10px] text-accent opacity-0 group-hover:opacity-100 transition-opacity">
+                          Заполнить →
                         </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === "analytics" && (
-              <div className="space-y-5">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {[
-                    { label: "Всего постов", value: stats?.total || 0, color: "text-tx-1" },
-                    { label: "Опубликовано", value: stats?.published || 0, color: "text-c-2" },
-                    { label: "Запланировано", value: stats?.scheduled || 0, color: "text-c-3" },
-                    { label: "За эту неделю", value: stats?.thisWeek || 0, color: "text-tx-1" },
-                  ].map((s) => (
-                    <div key={s.label} className="bg-panel border border-line rounded-xl p-4">
-                      <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-                      <p className="text-xs text-tx-3 mt-0.5">{s.label}</p>
-                    </div>
+                      )}
+                    </button>
                   ))}
                 </div>
-
-                <div className="bg-panel border border-line rounded-xl p-4">
-                  <p className="text-xs font-semibold text-tx-1 mb-3">Активность за 30 дней</p>
-                  <div className="flex items-end gap-1 h-12">
-                    {days30.map((d) => (
-                      <div
-                        key={d.key}
-                        title={`${d.key}: ${d.count} постов`}
-                        className="flex-1 rounded-sm transition-all cursor-default"
-                        style={{
-                          height: `${Math.max((d.count / maxCount) * 100, d.count > 0 ? 15 : 4)}%`,
-                          background: d.count > 0 ? color : "var(--track)",
-                          opacity: d.count > 0 ? 0.5 + (d.count / maxCount) * 0.5 : 1,
-                        }}
-                      />
-                    ))}
-                  </div>
-                  <div className="flex justify-between mt-1">
-                    <span className="text-[9px] text-tx-3">30 дней назад</span>
-                    <span className="text-[9px] text-tx-3">Сегодня</span>
-                  </div>
-                </div>
               </div>
             )}
 
-            {activeTab === "files" && (
-              <div>
-                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                  <p className="text-sm font-semibold text-tx-1">Файлы проекта</p>
-                  <div className="flex gap-2">
-                    <select
-                      value={uploadType}
-                      onChange={(e) => setUploadType(e.target.value)}
-                      className="px-2.5 py-1.5 text-xs border border-line rounded-lg bg-panel outline-none cursor-pointer"
-                    >
-                      <option value="image">Изображение</option>
-                      <option value="video">Видео</option>
-                      <option value="document">Документ</option>
-                      <option value="brandbook">Брендбук</option>
-                    </select>
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={uploadMutation.isPending}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-tx-1 text-panel text-xs font-medium rounded-lg hover:opacity-90 cursor-pointer disabled:opacity-60"
-                    >
-                      {uploadMutation.isPending ? "Загрузка..." : "+ Загрузить"}
-                    </button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (!f) return;
-                        const ftype = uploadType;
-                        if (ftype === "image" || ftype === "video") {
-                          const reader = new FileReader();
-                          reader.onload = (ev) => {
-                            setPendingFiles((prev) => [
-                              { id: "pending-" + Date.now(), name: f.name, url: ev.target?.result as string, type: ftype, size: f.size },
-                              ...prev,
-                            ]);
-                          };
-                          reader.readAsDataURL(f);
-                        } else {
-                          setPendingFiles((prev) => [
-                            { id: "pending-" + Date.now(), name: f.name, url: "", type: ftype, size: f.size },
-                            ...prev,
-                          ]);
-                        }
-                        uploadMutation.mutate(f);
-                        e.target.value = "";
-                      }}
-                    />
+            <div className="grid grid-cols-2 gap-3">
+              {/* Основное */}
+              <div className="border border-line rounded-xl p-3">
+                <p className="text-[10px] text-tx-3 mb-2">Основное</p>
+                {[
+                  { label: "Ниша",    value: project.niche || "—" },
+                  { label: "Создан",  value: new Date(project.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" }) },
+                  { label: "Язык",    value: project.language?.toUpperCase() || "—" },
+                ].map((row, i, arr) => (
+                  <div key={row.label} className={`flex justify-between text-xs py-1.5 ${i < arr.length - 1 ? "border-b border-line" : ""}`}>
+                    <span className="text-tx-3">{row.label}</span>
+                    <span className="text-tx-1 font-medium">{row.value}</span>
                   </div>
-                </div>
+                ))}
+              </div>
 
-                {files.length === 0 && pendingFiles.length === 0 ? (
-                  <div
-                    className="border-2 border-dashed border-line-strong rounded-xl py-16 text-center cursor-pointer hover:border-accent transition-colors"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <div className="w-12 h-12 rounded-2xl bg-accent-dim flex items-center justify-center mb-3 mx-auto">
-                      <FolderOpen size={22} className="text-accent" strokeWidth={1.6} />
-                    </div>
-                    <p className="text-sm text-tx-3">Нажми чтобы загрузить файл</p>
-                    <p className="text-xs text-tx-3 mt-1">Изображения, видео, документы, брендбук</p>
-                  </div>
+              {/* Интеграции */}
+              <div className="border border-line rounded-xl p-3">
+                <p className="text-[10px] text-tx-3 mb-2">Интеграции</p>
+                {(integrations as any[]).length === 0 ? (
+                  <p className="text-xs text-tx-3 py-2">Нет подключений</p>
                 ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {/* Optimistic preview — shown immediately after selecting */}
-                    {pendingFiles.map((pf) => (
-                      <div
-                        key={pf.id}
-                        className="bg-panel border border-accent/40 rounded-xl p-3 opacity-70 animate-pulse"
-                      >
-                        {pf.type === "image" && pf.url ? (
-                          <img src={pf.url} alt={pf.name} className="w-full h-24 object-cover rounded-lg mb-2" />
-                        ) : pf.type === "video" && pf.url ? (
-                          <video src={pf.url} className="w-full h-24 object-cover rounded-lg mb-2" muted />
-                        ) : (
-                          <div className="w-full h-24 bg-panel-2 rounded-lg mb-2 flex items-center justify-center">
-                            {(() => { const I = FILE_ICONS[pf.type] || FileText; return <I size={28} className="text-tx-3" strokeWidth={1.5} />; })()}
-                          </div>
-                        )}
-                        <p className="text-xs font-medium text-tx-1 truncate">{pf.name}</p>
-                        <p className="text-[9px] text-accent mt-0.5">Загрузка...</p>
-                      </div>
-                    ))}
-
-                    {/* Real uploaded files */}
-                    {(files as any[]).map((f) => (
-                      <div
-                        key={f.id}
-                        className="bg-panel border border-line rounded-xl p-3 hover:border-line-strong transition-colors group"
-                      >
-                        {fileKind(f.name) === "image" && f.url ? (
-                          <img
-                            src={f.url}
-                            alt={f.name}
-                            className="w-full h-24 object-cover rounded-lg mb-2"
-                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                          />
-                        ) : fileKind(f.name) === "video" && f.url ? (
-                          <video
-                            src={f.url}
-                            className="w-full h-24 object-cover rounded-lg mb-2"
-                            muted
-                            onMouseEnter={(e) => (e.currentTarget as HTMLVideoElement).play()}
-                            onMouseLeave={(e) => (e.currentTarget as HTMLVideoElement).pause()}
-                          />
-                        ) : (
-                          <div className="w-full h-24 bg-panel-2 rounded-lg mb-2 flex items-center justify-center">
-                            {(() => { const I = FILE_ICONS[fileKind(f.name)] || FileText; return <I size={28} className="text-tx-3" strokeWidth={1.5} />; })()}
-                          </div>
-                        )}
-                        <p className="text-xs font-medium text-tx-1 truncate">{f.name}</p>
-                        <div className="flex items-center justify-between mt-1">
-                          <span className="text-[9px] text-tx-3">
-                            {f.size ? `${(f.size / 1024).toFixed(0)} KB` : "—"}
-                          </span>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <a
-                              href={f.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[9px] px-2 py-0.5 bg-accent-dim text-accent rounded font-medium"
-                            >
-                              Открыть
-                            </a>
-                            <button
-                              onClick={() => deleteFileMutation.mutate(f.id)}
-                              className="text-[9px] px-2 py-0.5 bg-chip text-neg rounded font-medium cursor-pointer"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  (integrations as any[]).map((intg: any, i: number, arr: any[]) => (
+                    <div key={intg.id} className={`flex items-center gap-2 text-xs py-1.5 ${i < arr.length - 1 ? "border-b border-line" : ""}`}>
+                      <i className={`${PLATFORM_ICONS[intg.platform] || "ti ti-plug"} text-tx-3`} style={{ fontSize: 13 }} />
+                      <span className="flex-1 text-tx-1 capitalize">{intg.channel_name || intg.platform}</span>
+                      <span className={`text-[10px] ${intg.is_active ? "text-green-500" : "text-tx-3"}`}>
+                        {intg.is_active ? "подключен" : "отключен"}
+                      </span>
+                    </div>
+                  ))
                 )}
+              </div>
+            </div>
+
+            {/* Активность */}
+            <div className="border border-line rounded-xl p-3">
+              <p className="text-[10px] text-tx-3 mb-2">Активность за 30 дней</p>
+              <div className="flex items-end gap-0.5 h-10">
+                {days30.map((d) => (
+                  <div
+                    key={d.key}
+                    title={`${d.key}: ${d.count} постов`}
+                    className="flex-1 rounded-sm cursor-default transition-all"
+                    style={{
+                      height: `${Math.max((d.count / maxCount) * 100, d.count > 0 ? 15 : 4)}%`,
+                      background: d.count > 0 ? "var(--accent)" : "var(--track)",
+                      opacity:    d.count > 0 ? 0.5 + (d.count / maxCount) * 0.5 : 1,
+                    }}
+                  />
+                ))}
+              </div>
+              <div className="flex justify-between mt-1">
+                <span className="text-[9px] text-tx-3">30 дней назад</span>
+                <span className="text-[9px] text-tx-3">Сегодня</span>
+              </div>
+            </div>
+
+            {/* О проекте */}
+            {(project.description || project.audience || project.tone) && (
+              <div className="border border-line rounded-xl p-3">
+                <p className="text-[10px] text-tx-3 mb-2">О проекте</p>
+                <div className="space-y-1 text-xs">
+                  {project.description && <p className="text-tx-2">{project.description}</p>}
+                  {project.audience   && <p className="text-tx-3">Аудитория: {project.audience}</p>}
+                  {project.tone       && <p className="text-tx-3">Тон: {project.tone}</p>}
+                </div>
               </div>
             )}
           </div>
+        )}
 
-          {/* Sidebar */}
-          <div className="w-full lg:w-80 flex-shrink-0 space-y-4">
-            <div className="bg-panel border border-line rounded-xl p-4 relative">
-              {!editingProject ? (
-                <>
-                  <button
-                    onClick={startEditProject}
-                    className="absolute top-4 right-4 text-tx-3 hover:text-tx-1 transition-colors cursor-pointer"
-                    title="Редактировать проект"
-                  >
-                    <Pencil size={15} strokeWidth={1.8} />
-                  </button>
-                  <div className="flex items-start gap-3">
-                    {project.logo_url ? (
-                      <img
-                        src={project.logo_url}
-                        alt={project.name}
-                        className="w-12 h-12 rounded-2xl object-cover flex-shrink-0"
-                      />
-                    ) : (
-                      <div
-                        className="w-12 h-12 rounded-2xl flex items-center justify-center text-white font-semibold text-lg flex-shrink-0"
-                        style={{ background: color }}
-                      >
-                        {project.name?.[0]?.toUpperCase() || "?"}
-                      </div>
-                    )}
-                    <div className="min-w-0 pt-0.5">
-                      <h2 className="text-[15px] font-semibold text-tx-1">{project.name}</h2>
-                      <p className="text-xs text-tx-3 mt-0.5">{(project as any).niche || "Без ниши"}</p>
-                    </div>
-                  </div>
-                  {project.description && (
-                    <p className="text-[13px] text-tx-2 leading-relaxed mt-3">{project.description}</p>
-                  )}
-                </>
-              ) : (
-                <div className="space-y-3">
-                  <p className="text-sm font-semibold text-tx-1 mb-1">Редактировать проект</p>
-
-                  {/* Logo upload */}
-                  <input ref={logoEditRef} type="file" accept="image/*" className="hidden" onChange={handleEditLogoFile} />
-                  {editLogoPreview || editLogoUrl ? (
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={editLogoPreview || editLogoUrl}
-                        alt=""
-                        className="w-12 h-12 rounded-xl object-cover flex-shrink-0"
-                      />
-                      <div>
-                        <p className="text-xs text-tx-1 mb-1">Логотип</p>
-                        <button
-                          onClick={() => { setEditLogoFile(null); setEditLogoPreview(null); setEditLogoUrl(""); }}
-                          className="text-[11px] text-neg cursor-pointer"
-                        >
-                          Удалить
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => logoEditRef.current?.click()}
-                      className="w-full py-3 border border-dashed border-line hover:border-accent rounded-lg flex flex-col items-center gap-1 cursor-pointer transition-colors"
-                    >
-                      <span className="text-lg">📷</span>
-                      <span className="text-[11px] text-tx-3">Загрузить логотип</span>
-                    </button>
-                  )}
-
-                  <div>
-                    <label className="text-xs font-medium text-tx-2 block mb-1">Название *</label>
-                    <input
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-line rounded-lg outline-none focus:border-accent bg-panel text-tx-1"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-tx-2 block mb-1">Ниша</label>
-                    <input
-                      value={editNiche}
-                      onChange={(e) => setEditNiche(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-line rounded-lg outline-none focus:border-accent bg-panel text-tx-1"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-tx-2 block mb-1">Описание</label>
-                    <textarea
-                      value={editDescription}
-                      onChange={(e) => setEditDescription(e.target.value)}
-                      rows={3}
-                      className="w-full px-3 py-2 text-sm border border-line rounded-lg outline-none focus:border-accent bg-panel text-tx-1 resize-none"
-                    />
-                  </div>
-                  <div className="flex gap-2 pt-1">
-                    <button
-                      onClick={saveEditProject}
-                      disabled={!editName.trim() || editSaving}
-                      className="flex-1 py-2 bg-tx-1 text-panel text-xs font-medium rounded-lg hover:opacity-90 disabled:opacity-50 cursor-pointer"
-                    >
-                      {editSaving ? "Сохранение..." : "Сохранить"}
-                    </button>
-                    <button
-                      onClick={() => setEditingProject(false)}
-                      className="px-4 py-2 border border-line text-tx-2 text-xs rounded-lg hover:bg-panel-2 cursor-pointer"
-                    >
-                      Отмена
-                    </button>
-                  </div>
-                </div>
-              )}
+        {/* ──── CONTENT ──── */}
+        {activeTab === "content" && (
+          <div className="max-w-2xl">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-tx-1">Весь контент</p>
+              <Link href={`/${locale}/create?projectId=${projectId}`} className="text-xs text-accent hover:underline font-medium">
+                + Новый пост
+              </Link>
             </div>
-
-            <div className="bg-panel border border-line rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold text-tx-1">Голос бренда</p>
-                {!voiceEditing && (
-                  <button
-                    onClick={startEditVoice}
-                    className="text-xs text-tx-3 hover:text-tx-1 transition-colors cursor-pointer"
-                  >
-                    Изменить
-                  </button>
-                )}
+            {(contents as any[]).length === 0 ? (
+              <div className="text-center py-10 border border-line rounded-xl">
+                <p className="text-tx-3 text-xs mb-3">Нет контента</p>
+                <Link href={`/${locale}/create?projectId=${projectId}`} className="text-accent text-xs font-medium hover:underline">
+                  Создать первый пост →
+                </Link>
               </div>
-              {voiceEditing ? (
-                <div className="space-y-2">
-                  <input
-                    autoFocus
-                    value={voiceDraft}
-                    onChange={(e) => setVoiceDraft(e.target.value)}
-                    placeholder="Дружелюбный, Продающий..."
-                    className="w-full px-3 py-2 text-xs border border-line rounded-lg outline-none focus:border-accent"
-                    onKeyDown={(e) => e.key === "Enter" && saveVoice()}
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={saveVoice}
-                      className="px-3 py-1.5 bg-tx-1 text-panel text-xs font-medium rounded-lg hover:opacity-90 cursor-pointer"
-                    >
-                      Сохранить
-                    </button>
-                    <button
-                      onClick={() => setVoiceEditing(false)}
-                      className="px-3 py-1.5 border border-line text-tx-2 text-xs rounded-lg hover:bg-panel-2 cursor-pointer"
-                    >
-                      Отмена
-                    </button>
-                  </div>
-                </div>
-              ) : brandVoice.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {brandVoice.map((tag) => (
-                    <span key={tag} className="text-xs px-2.5 py-1 bg-panel-2 text-tx-1 rounded-full">
-                      {tag}
+            ) : (
+              <div className="border border-line rounded-xl overflow-hidden">
+                {(contents as any[]).map((c: any) => (
+                  <Link
+                    key={c.id}
+                    href={`/${locale}/history?id=${c.id}`}
+                    className="flex items-center gap-3 px-3 py-2.5 border-b border-line last:border-0 hover:bg-hover transition-colors"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-chip flex items-center justify-center flex-shrink-0">
+                      {c.type === "video"   ? <Film      size={13} className="text-tx-2" strokeWidth={1.8} />
+                       : c.type === "stories" ? <ImageIcon size={13} className="text-tx-2" strokeWidth={1.8} />
+                       :                        <FileText  size={13} className="text-tx-2" strokeWidth={1.8} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-tx-1 truncate">{c.title || "Без названия"}</p>
+                      <p className="text-[10px] text-tx-3">
+                        {c.platform} · {new Date(c.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}
+                      </p>
+                    </div>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATUS_STYLES[c.status] || "bg-chip text-tx-2"}`}>
+                      {c.status}
                     </span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ──── CAMPAIGNS ──── */}
+        {activeTab === "campaigns" && (
+          <div className="max-w-2xl">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-tx-1">Кампании</p>
+              <Link href={`/${locale}/campaigns?projectId=${projectId}`} className="text-xs text-accent hover:underline font-medium">
+                + Новая кампания
+              </Link>
+            </div>
+            {(campaigns as any[]).length === 0 ? (
+              <div className="text-center py-10 border border-line rounded-xl">
+                <p className="text-tx-3 text-xs mb-3">Нет кампаний</p>
+                <Link href={`/${locale}/campaigns?projectId=${projectId}`} className="text-accent text-xs font-medium hover:underline">
+                  Создать кампанию →
+                </Link>
+              </div>
+            ) : (
+              <div className="border border-line rounded-xl overflow-hidden">
+                {(campaigns as any[]).map((c: any) => (
+                  <Link
+                    key={c.id}
+                    href={`/${locale}/campaigns/${c.id}`}
+                    className="flex items-center gap-3 px-3 py-2.5 border-b border-line last:border-0 hover:bg-hover transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-tx-1 truncate">{c.name || "Без названия"}</p>
+                      <p className="text-[10px] text-tx-3">
+                        {c.total_posts} постов · {new Date(c.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}
+                      </p>
+                    </div>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                      c.status === "ready"      ? "bg-chip text-c-2"
+                      : c.status === "running"  ? "bg-accent-dim text-accent"
+                      : c.status === "completed"? "bg-chip text-tx-2"
+                      :                           "bg-chip text-tx-3"
+                    }`}>
+                      {c.status === "generating" ? "⏳ генерация" : c.status}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ──── INTEGRATIONS ──── */}
+        {activeTab === "integrations" && (
+          <div className="max-w-2xl">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-tx-1">Подключённые каналы</p>
+              <Link href={`/${locale}/integrations`} className="text-xs text-accent hover:underline font-medium">
+                Управление →
+              </Link>
+            </div>
+            {(integrations as any[]).length === 0 ? (
+              <div className="text-center py-10 border border-line rounded-xl">
+                <p className="text-tx-3 text-xs mb-3">Нет подключений</p>
+                <Link href={`/${locale}/integrations`} className="text-accent text-xs font-medium hover:underline">
+                  Подключить канал →
+                </Link>
+              </div>
+            ) : (
+              <div className="border border-line rounded-xl overflow-hidden">
+                {(integrations as any[]).map((intg: any) => (
+                  <div key={intg.id} className="flex items-center gap-3 px-3 py-2.5 border-b border-line last:border-0">
+                    <i className={`${PLATFORM_ICONS[intg.platform] || "ti ti-plug"} text-tx-2`} style={{ fontSize: 16 }} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-tx-1">{intg.channel_name || intg.channel_id || intg.platform}</p>
+                      <p className="text-[10px] text-tx-3 capitalize">{intg.platform}</p>
+                    </div>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${intg.is_active ? "bg-green-500/10 text-green-600 dark:text-green-400" : "bg-chip text-tx-3"}`}>
+                      {intg.is_active ? "подключен" : "отключен"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ──── TASKS ──── */}
+        {activeTab === "tasks" && (() => {
+          const todoTasks  = tasks.filter((t) => t.status === "todo");
+          const inProgTasks= tasks.filter((t) => t.status === "in_progress" || t.status === "review");
+          const doneTasks  = tasks.filter((t) => t.status === "done");
+          const visible    = taskFilter === "todo" ? [...todoTasks, ...inProgTasks]
+                           : taskFilter === "done" ? doneTasks
+                           : tasks;
+
+          return (
+            <div className="max-w-2xl">
+              {/* Toolbar */}
+              <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                <div className="flex gap-1.5">
+                  {([
+                    { key: "all",  label: `Все (${tasks.length})` },
+                    { key: "todo", label: `В работе (${todoTasks.length + inProgTasks.length})` },
+                    { key: "done", label: `Готово (${doneTasks.length})` },
+                  ] as const).map((f) => (
+                    <button
+                      key={f.key}
+                      onClick={() => setTaskFilter(f.key)}
+                      className={`px-2.5 py-1 text-[11px] rounded-full border transition-colors cursor-pointer ${
+                        taskFilter === f.key
+                          ? "bg-tx-1 text-panel border-tx-1"
+                          : "border-line text-tx-3 hover:text-tx-2"
+                      }`}
+                    >
+                      {f.label}
+                    </button>
                   ))}
                 </div>
-              ) : (
-                <p className="text-xs text-tx-3">Тон голоса бренда ещё не задан</p>
-              )}
-            </div>
+                <button
+                  onClick={() => { setTaskError(""); setShowTaskModal(true); }}
+                  className="flex items-center gap-1 text-xs h-7 px-2.5 bg-accent text-on-accent rounded-lg hover:opacity-90 cursor-pointer font-medium"
+                >
+                  + Задача
+                </button>
+              </div>
 
-            <div className="bg-panel border border-line rounded-xl p-4">
-              <p className="text-sm font-semibold text-tx-1 mb-3">Платформы</p>
-              {integrations.length > 0 ? (
-                <div className="space-y-1">
-                  {(integrations as any[]).map((row) => {
-                    const meta = platformMeta(row.platform);
-                    const connected = row.is_active === true || row.status === "active" || row.status === "connected";
+              {/* Stats mini */}
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {[
+                  { label: "Создано",   value: todoTasks.length,   color: "text-tx-1" },
+                  { label: "В работе",  value: inProgTasks.length, color: "text-accent" },
+                  { label: "Выполнено", value: doneTasks.length,   color: "text-green-500" },
+                ].map((s) => (
+                  <div key={s.label} className="bg-panel-2 rounded-lg px-3 py-2 text-center">
+                    <p className={`text-base font-semibold ${s.color}`}>{s.value}</p>
+                    <p className="text-[10px] text-tx-3">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Task list */}
+              {visible.length === 0 ? (
+                <div className="text-center py-10 border border-line rounded-xl">
+                  <p className="text-2xl mb-2">📋</p>
+                  <p className="text-tx-3 text-xs">
+                    {taskFilter === "done" ? "Выполненных задач нет"
+                     : taskFilter === "todo" ? "Все задачи выполнены! 🎉"
+                     : "Задач нет — создай первую"}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {visible.map((task) => {
+                    const isDone = task.status === "done";
+                    const pm     = PRIORITY_META[task.priority];
                     return (
-                      <div key={row.id} className="flex items-center justify-between py-1.5">
-                        <div className="flex items-center gap-2.5">
-                          <div
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0"
-                            style={{ background: meta.color }}
-                          >
-                            {meta.badge}
-                          </div>
-                          <span className="text-sm text-tx-1">{meta.label}</span>
-                        </div>
-                        <span
-                          className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                            connected ? "bg-emerald-50 text-emerald-700" : "bg-chip text-tx-3"
-                          }`}
+                      <div
+                        key={task.id}
+                        className={`flex items-start gap-3 border border-line rounded-xl px-3 py-2.5 bg-panel transition-opacity ${isDone ? "opacity-50" : ""}`}
+                      >
+                        {/* Чекбокс */}
+                        <button
+                          onClick={() => toggleTaskMutation.mutate({
+                            id: task.id,
+                            status: isDone ? "todo" : "done",
+                          })}
+                          className="mt-0.5 w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 cursor-pointer transition-all"
+                          style={{
+                            border:     isDone ? "none"                       : "1.5px solid var(--line-strong)",
+                            background: isDone ? "var(--accent)"              : "transparent",
+                          }}
                         >
-                          {connected ? "Активен" : "Отключен"}
-                        </span>
+                          {isDone && (
+                            <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                              <path d="M1 4L3.5 6.5L9 1" stroke="var(--on-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          )}
+                        </button>
+
+                        {/* Контент */}
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-medium ${isDone ? "line-through text-tx-3" : "text-tx-1"}`}>
+                            {task.title}
+                          </p>
+                          {task.description && (
+                            <p className="text-[11px] text-tx-3 mt-0.5 leading-relaxed">{task.description}</p>
+                          )}
+                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                            <span
+                              className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                              style={{ color: pm.color, background: pm.bg }}
+                            >
+                              {pm.label}
+                            </span>
+                            <span className="text-[10px] text-tx-3">
+                              {new Date(task.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Удалить */}
+                        <button
+                          onClick={() => deleteTaskMutation.mutate(task.id)}
+                          className="w-6 h-6 flex items-center justify-center rounded-md text-tx-3 hover:text-neg hover:bg-neg/10 cursor-pointer transition-colors flex-shrink-0"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                            <path d="M1.5 3h9M4.5 3V2a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v1m1.5 0-.5 7a.5.5 0 0 1-.5.5h-5a.5.5 0 0 1-.5-.5L3 3"/>
+                          </svg>
+                        </button>
                       </div>
                     );
                   })}
                 </div>
-              ) : (
-                <p className="text-xs text-tx-3 mb-2">Платформы пока не подключены</p>
               )}
-              <Link
-                href={`/${locale}/integrations?projectId=${projectId}`}
-                className="text-xs text-tx-3 hover:text-tx-1 transition-colors inline-block mt-2"
+            </div>
+          );
+        })()}
+
+        {/* ──── HISTORY ──── */}
+        {activeTab === "history" && (
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold text-tx-1 mb-3">История публикаций</p>
+            {(contents as any[]).filter((c: any) => c.status === "published").length === 0 ? (
+              <div className="text-center py-10 border border-line rounded-xl">
+                <p className="text-tx-3 text-xs">Нет опубликованных постов</p>
+              </div>
+            ) : (
+              <div className="border border-line rounded-xl overflow-hidden">
+                {(contents as any[]).filter((c: any) => c.status === "published").map((c: any) => (
+                  <Link
+                    key={c.id}
+                    href={`/${locale}/history?id=${c.id}`}
+                    className="flex items-center gap-3 px-3 py-2.5 border-b border-line last:border-0 hover:bg-hover transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-tx-1 truncate">{c.title || "Без названия"}</p>
+                      <p className="text-[10px] text-tx-3">
+                        {c.platform} · {new Date(c.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}
+                      </p>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-chip text-c-2">опубликовано</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ──── STORAGE ──── */}
+        {activeTab === "storage" && (
+          <div className="max-w-3xl">
+            {/* Toolbar */}
+            <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+              {/* Фильтр по типу */}
+              <div className="flex gap-1.5">
+                {(["all", "image", "video", "document", "other"] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setFileFilter(t)}
+                    className={`px-2.5 py-1 text-[11px] rounded-lg border transition-colors cursor-pointer ${
+                      fileFilter === t ? "bg-accent text-on-accent border-accent" : "border-line text-tx-2 hover:bg-hover"
+                    }`}
+                  >
+                    {t === "all" ? "Все" : FILE_TYPE_LABELS[t]}
+                  </button>
+                ))}
+              </div>
+
+              {/* Загрузить */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadMutation.isPending}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-on-accent text-xs font-medium rounded-lg hover:opacity-90 cursor-pointer disabled:opacity-60 transition-opacity"
               >
-                + Добавить платформу
-              </Link>
+                <Upload size={13} strokeWidth={2} />
+                {uploadMutation.isPending ? "Загрузка..." : "Загрузить файл"}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                className="hidden"
+                onChange={(e) => {
+                  Array.from(e.target.files || []).forEach((f) => uploadMutation.mutate(f));
+                  e.target.value = "";
+                }}
+              />
             </div>
 
-            <div className="bg-panel border border-line rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold text-tx-1">Участники</p>
-                <button className="text-xs text-tx-3 hover:text-tx-1 transition-colors cursor-pointer">
-                  + Добавить
-                </button>
+            {/* Drag-and-drop zone (пустое состояние) */}
+            {filteredFiles.length === 0 && (
+              <div
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  Array.from(e.dataTransfer.files).forEach((f) => uploadMutation.mutate(f));
+                }}
+                onClick={() => fileInputRef.current?.click()}
+                className={`border-2 border-dashed rounded-xl py-16 flex flex-col items-center justify-center cursor-pointer transition-colors ${
+                  isDragging ? "border-accent bg-accent/5" : "border-line hover:border-line-strong"
+                }`}
+              >
+                <FolderOpen size={36} className={isDragging ? "text-accent" : "text-tx-3"} strokeWidth={1.4} />
+                <p className="text-sm text-tx-3 mt-3 font-medium">
+                  {isDragging ? "Отпусти файлы" : "Перетащи или нажми для загрузки"}
+                </p>
+                <p className="text-xs text-tx-3 mt-1">Изображения, видео, PDF, документы</p>
               </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-full bg-tx-1 text-panel flex items-center justify-center text-[11px] font-semibold flex-shrink-0">
-                    {getInitials(ownerName)}
+            )}
+
+            {/* Drag overlay когда файлы уже есть */}
+            {filteredFiles.length > 0 && (
+              <div
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  Array.from(e.dataTransfer.files).forEach((f) => uploadMutation.mutate(f));
+                }}
+                className="relative"
+              >
+                {isDragging && (
+                  <div className="absolute inset-0 z-10 border-2 border-accent border-dashed rounded-xl bg-accent/5 flex items-center justify-center pointer-events-none">
+                    <p className="text-sm font-medium text-accent">Отпусти для загрузки</p>
                   </div>
-                  <span className="text-sm text-tx-1">{ownerName}</span>
+                )}
+
+                {/* File grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {filteredFiles.map((f: any) => (
+                    <div
+                      key={f.id}
+                      className="group border border-line rounded-xl overflow-hidden hover:border-line-strong transition-colors bg-panel"
+                    >
+                      {/* Превью */}
+                      {f.file_type === "image" && f.file_url ? (
+                        <div className="relative">
+                          <img src={f.file_url} alt={f.name} className="w-full h-28 object-cover" />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                        </div>
+                      ) : f.file_type === "video" ? (
+                        <div className="w-full h-28 bg-panel-2 flex items-center justify-center">
+                          <Film size={28} className="text-tx-3" strokeWidth={1.4} />
+                        </div>
+                      ) : (
+                        <div className="w-full h-28 bg-panel-2 flex items-center justify-center">
+                          <FileText size={28} className="text-tx-3" strokeWidth={1.4} />
+                        </div>
+                      )}
+
+                      {/* Мета */}
+                      <div className="p-2">
+                        <p className="text-[11px] font-medium text-tx-1 truncate" title={f.name}>{f.name}</p>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-[9px] text-tx-3">{formatBytes(f.size_bytes)}</span>
+                          <span className="text-[9px] text-tx-3 capitalize">{FILE_TYPE_LABELS[f.file_type] || f.file_type}</span>
+                        </div>
+                        {/* Действия */}
+                        <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <a
+                            href={f.file_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 text-center text-[10px] py-1 bg-accent/10 text-accent rounded-md font-medium hover:bg-accent/20 transition-colors"
+                          >
+                            Открыть
+                          </a>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Удалить «${f.name}»?`)) {
+                                deleteFileMutation.mutate({ id: f.id, file_url: f.file_url });
+                              }
+                            }}
+                            disabled={deleteFileMutation.isPending}
+                            className="w-7 flex items-center justify-center bg-chip hover:bg-neg/10 text-tx-3 hover:text-neg rounded-md transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            <Trash2 size={11} strokeWidth={2} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Add more tile */}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-line hover:border-accent rounded-xl h-full min-h-[160px] flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors group"
+                  >
+                    <Upload size={20} className="text-tx-3 group-hover:text-accent transition-colors" strokeWidth={1.5} />
+                    <span className="text-[11px] text-tx-3 group-hover:text-accent transition-colors">Добавить</span>
+                  </button>
                 </div>
-                <span className="text-xs px-2 py-0.5 bg-panel-2 text-tx-2 rounded-full">Владелец</span>
+              </div>
+            )}
+
+            {/* Ошибка загрузки */}
+            {uploadMutation.isError && (
+              <p className="text-xs text-neg mt-3">Ошибка загрузки: {(uploadMutation.error as any)?.message}</p>
+            )}
+          </div>
+        )}
+
+      </div>
+
+      {/* ── Task modal ── */}
+      {showTaskModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowTaskModal(false); }}
+        >
+          <div className="bg-panel border border-line rounded-xl w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-line">
+              <p className="text-sm font-semibold text-tx-1">Новая задача</p>
+              <button onClick={() => setShowTaskModal(false)} className="text-tx-3 hover:text-tx-1 cursor-pointer">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              <div>
+                <label className="text-[10px] font-medium text-tx-3 block mb-1">Название задачи</label>
+                <input
+                  autoFocus
+                  value={newTaskTitle}
+                  onChange={(e) => { setNewTaskTitle(e.target.value); setTaskError(""); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleCreateTask(); }}
+                  placeholder="Например: Написать пост для Instagram"
+                  className="w-full px-3 py-2 border border-line-strong rounded-lg text-xs outline-none focus:border-accent"
+                />
+                {taskError && <p className="text-[10px] text-neg mt-1">{taskError}</p>}
+              </div>
+              <div>
+                <label className="text-[10px] font-medium text-tx-3 block mb-1">Описание <span className="opacity-50">(необязательно)</span></label>
+                <textarea
+                  value={newTaskDesc}
+                  onChange={(e) => setNewTaskDesc(e.target.value)}
+                  placeholder="Детали, что именно нужно сделать..."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-line-strong rounded-lg text-xs outline-none focus:border-accent resize-none"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-medium text-tx-3 block mb-2">Приоритет</label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {(["low", "medium", "high", "urgent"] as TaskPriority[]).map((p) => {
+                    const pm     = PRIORITY_META[p];
+                    const active = newTaskPriority === p;
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => setNewTaskPriority(p)}
+                        className="py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer transition-all text-center border"
+                        style={{
+                          border:     active ? `1.5px solid ${pm.color}` : "0.5px solid var(--line)",
+                          background: active ? pm.bg                      : "transparent",
+                          color:      active ? pm.color                   : "var(--tx-3)",
+                        }}
+                      >
+                        {pm.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-
-            <Link
-              href={`/${locale}/create?projectId=${projectId}`}
-              className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-tx-1 text-panel text-sm font-medium rounded-lg hover:opacity-90 transition-opacity"
-            >
-              <SquarePen size={15} strokeWidth={1.8} />
-              Создать контент
-            </Link>
-            <Link
-              href={`/${locale}/campaigns/new?projectId=${projectId}`}
-              className="flex items-center justify-center gap-1.5 px-4 py-2.5 border border-line text-tx-2 text-sm font-medium rounded-lg hover:bg-panel-2 transition-colors"
-            >
-              <Megaphone size={15} strokeWidth={1.8} />
-              Новая кампания
-            </Link>
+            <div className="flex justify-end gap-2 px-4 py-3 border-t border-line">
+              <button onClick={() => setShowTaskModal(false)} className="px-3 py-1.5 text-xs border border-line rounded-lg hover:bg-hover cursor-pointer text-tx-2">
+                Отмена
+              </button>
+              <button
+                onClick={handleCreateTask}
+                disabled={createTaskMutation.isPending || !newTaskTitle.trim()}
+                className="px-3 py-1.5 text-xs bg-accent text-on-accent rounded-lg hover:opacity-90 disabled:opacity-50 cursor-pointer font-medium"
+              >
+                {createTaskMutation.isPending ? "Создаём..." : "Создать задачу"}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ── Edit modal ── */}
+      {isEditOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-panel border border-line rounded-xl w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-line">
+              <p className="text-sm font-semibold text-tx-1">Редактировать проект</p>
+              <button onClick={() => setIsEditOpen(false)} className="text-tx-3 hover:text-tx-1 cursor-pointer">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto">
+              {[
+                { label: "Название",   value: editName,        set: setEditName,        placeholder: "" },
+                { label: "Ниша",       value: editNiche,       set: setEditNiche,       placeholder: "например: Кофейня" },
+                { label: "Аудитория",  value: editAudience,    set: setEditAudience,    placeholder: "возраст, интересы, география..." },
+                { label: "Стоп-слова", value: editStopWords,   set: setEditStopWords,   placeholder: "скидка, акция — через запятую" },
+              ].map(({ label, value, set, placeholder }) => (
+                <div key={label}>
+                  <label className="text-[10px] font-medium text-tx-3 block mb-1">{label}</label>
+                  <input
+                    value={value}
+                    onChange={(e) => set(e.target.value)}
+                    placeholder={placeholder}
+                    className="w-full px-3 py-2 border border-line-strong rounded-lg text-xs outline-none focus:border-accent"
+                  />
+                </div>
+              ))}
+              <div>
+                <label className="text-[10px] font-medium text-tx-3 block mb-1">Описание</label>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows={3}
+                  placeholder="чем занимается компания, что продаёт..."
+                  className="w-full px-3 py-2 border border-line-strong rounded-lg text-xs outline-none focus:border-accent resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-4 py-3 border-t border-line">
+              <button onClick={() => setIsEditOpen(false)} className="px-3 py-1.5 text-xs border border-line rounded-lg hover:bg-hover cursor-pointer text-tx-2">
+                Отмена
+              </button>
+              <button
+                onClick={() => updateProjectMutation.mutate({
+                  name:        editName,
+                  niche:       editNiche,
+                  description: editDescription,
+                  audience:    editAudience,
+                  stop_words:  editStopWords,
+                })}
+                disabled={updateProjectMutation.isPending || !editName}
+                className="px-3 py-1.5 text-xs bg-accent text-on-accent rounded-lg hover:opacity-90 disabled:opacity-50 cursor-pointer font-medium"
+              >
+                {updateProjectMutation.isPending ? "Сохраняем..." : "Сохранить"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

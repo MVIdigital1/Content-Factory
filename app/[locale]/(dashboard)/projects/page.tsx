@@ -35,23 +35,56 @@ function saveActiveId(id: string) {
   } catch {}
 }
 
-const NICHES = [
-  "Товары для дома",
-  "Одежда и мода",
-  "Еда и напитки",
-  "Строительство",
-  "IT / Технологии",
-  "Красота и уход",
-  "Спорт",
-  "Образование",
-  "Услуги",
-  "Другое",
+const NICHE_TREE = [
+  { icon: "☕", label: "Еда и напитки",      subs: ["Кофейня", "Ресторан", "Доставка еды", "Кондитерская", "Бар", "Фастфуд", "Кейтеринг"] },
+  { icon: "👗", label: "Одежда и мода",       subs: ["Женская одежда", "Мужская одежда", "Детская одежда", "Обувь", "Аксессуары", "Спортивная одежда"] },
+  { icon: "💄", label: "Красота и уход",      subs: ["Салон красоты", "Косметика", "Маникюр", "СПА", "Парфюм", "Уход за кожей"] },
+  { icon: "💻", label: "IT / Технологии",     subs: ["SaaS", "Мобильное приложение", "Веб-разработка", "Геймдев", "Кибербезопасность", "AI / ML"] },
+  { icon: "📚", label: "Образование",         subs: ["Онлайн-курсы", "Репетиторство", "Языковая школа", "Детское образование", "Бизнес-обучение"] },
+  { icon: "🏋️", label: "Спорт и здоровье",  subs: ["Фитнес-клуб", "Йога / Пилатес", "Единоборства", "Спортпит", "Тренажёры", "Медицина"] },
+  { icon: "🏗️", label: "Строительство",      subs: ["Ремонт и отделка", "Дизайн интерьера", "Стройматериалы", "Архитектура", "Инженерные системы"] },
+  { icon: "🏠", label: "Товары для дома",     subs: ["Мебель", "Декор", "Кухонные товары", "Бытовая техника", "Текстиль"] },
+  { icon: "⚙️", label: "Услуги",             subs: ["Юридические", "Финансовые", "Маркетинг и реклама", "Клининг", "Логистика", "HR"] },
+  { icon: "✦",  label: "Другое",             subs: [] },
 ];
-const TONES = [
-  { value: "friendly", label: "Дружелюбный" },
-  { value: "professional", label: "Профессиональный" },
-  { value: "humorous", label: "Юмористический" },
-  { value: "formal", label: "Официальный" },
+
+const TONE_TREE = [
+  {
+    value: "friendly", label: "Дружелюбный", desc: "Тёплый, близкий, человечный",
+    subs: [
+      { label: "Разговорный",  desc: "Как диалог с другом" },
+      { label: "Тёплый",       desc: "С заботой и поддержкой" },
+      { label: "Неформальный", desc: "Без официоза, просто" },
+      { label: "Молодёжный",   desc: "Актуально и по-свежему" },
+    ],
+  },
+  {
+    value: "professional", label: "Профессиональный", desc: "Экспертный, вызывающий доверие",
+    subs: [
+      { label: "Экспертный",      desc: "Опираюсь на знания и опыт" },
+      { label: "Деловой",         desc: "Чётко и по делу" },
+      { label: "Консультативный", desc: "Помогаю разобраться" },
+      { label: "Авторитетный",    desc: "Лидер мнений в нише" },
+    ],
+  },
+  {
+    value: "humorous", label: "Юмористический", desc: "Игривый, с долей юмора",
+    subs: [
+      { label: "Игривый",     desc: "Лёгкий, с улыбкой" },
+      { label: "Ироничный",   desc: "Тонкая ирония без обид" },
+      { label: "Мемный",      desc: "Интернет-культура и тренды" },
+      { label: "Саркастичный",desc: "Острый, но в тему" },
+    ],
+  },
+  {
+    value: "formal", label: "Официальный", desc: "Строгий, корпоративный стиль",
+    subs: [
+      { label: "Строгий",      desc: "Без лишних слов" },
+      { label: "Нейтральный",  desc: "Без эмоций, только факты" },
+      { label: "Корпоративный",desc: "B2B, официальные коммуникации" },
+      { label: "Академический",desc: "Научный, методичный" },
+    ],
+  },
 ];
 const LANGS = [
   { value: "ru", label: "Русский" },
@@ -82,43 +115,23 @@ function ProjectForm({
 }) {
   const supabase = createClient();
   const qc = useQueryClient();
-  const [form, setForm] = useState(() => {
-    if (typeof window === "undefined")
-      return { name: "", niche: "", description: "", audience: "", tone: "friendly", language: "ru", logo_url: "" };
-    try {
-      const saved = localStorage.getItem(`project-draft-${tabId}`);
-      if (saved) {
-        const d = JSON.parse(saved);
-        return { name: d.name || "", niche: d.niche || "", description: d.description || "", audience: d.audience || "", tone: d.tone || "friendly", language: d.language || "ru", logo_url: d.logo_url || "" };
-      }
-    } catch {}
-    return { name: "", niche: "", description: "", audience: "", tone: "friendly", language: "ru", logo_url: "" };
+  const [form, setForm] = useState({
+    name: "",
+    niche: "",
+    description: "",
+    audience: "",
+    tone: "friendly",
+    language: "ru",
+    logo_url: "",
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [nameError, setNameError] = useState("");
-  const [logoPreview, setLogoPreview] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const saved = localStorage.getItem(`project-draft-${tabId}`);
-      if (saved) return JSON.parse(saved).logoPreview || null;
-    } catch {}
-    return null;
-  });
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoFileName, setLogoFileName] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const saved = localStorage.getItem(`project-draft-${tabId}`);
-      if (saved) return JSON.parse(saved).logoFileName || null;
-    } catch {}
-    return null;
-  });
   const logoRef = useRef<HTMLInputElement>(null);
-  const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
-  const [chatInput, setChatInput] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const [nicheCategory, setNicheCategory] = useState("");
+  const [toneSub, setToneSub] = useState("");
 
   // Fetch existing names for duplicate check
   const { data: existingNames = [] } = useQuery({
@@ -143,31 +156,6 @@ function ProjectForm({
     onNameChangeRef.current?.(form.name);
   }, [form.name]);
 
-  // Reconstruct logo File from saved base64 on mount
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(`project-draft-${tabId}`);
-      if (!saved) return;
-      const d = JSON.parse(saved);
-      if (d.logoPreview && d.logoFileName) {
-        fetch(d.logoPreview)
-          .then((r) => r.blob())
-          .then((blob) => setLogoFile(new File([blob], d.logoFileName, { type: blob.type })))
-          .catch(() => {});
-      }
-    } catch {}
-  }, []);
-
-  // Auto-save draft on every change
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        `project-draft-${tabId}`,
-        JSON.stringify({ ...form, logoPreview: logoPreview || null, logoFileName: logoFileName || null })
-      );
-    } catch {}
-  }, [form, logoPreview, logoFileName, tabId]);
-
   const handleNameChange = (val: string) => {
     setForm((p) => ({ ...p, name: val }));
     onDirtyChange?.(true);
@@ -182,7 +170,6 @@ function ProjectForm({
     const f = e.target.files?.[0];
     if (!f) return;
     setLogoFile(f);
-    setLogoFileName(f.name);
     onDirtyChange?.(true);
     const r = new FileReader();
     r.onload = (ev) => setLogoPreview(ev.target?.result as string);
@@ -232,7 +219,6 @@ function ProjectForm({
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["project_names"] });
       qc.invalidateQueries({ queryKey: ["projects_selector"] });
-      localStorage.removeItem(`project-draft-${tabId}`);
       onDirtyChange?.(false);
       setSaved(true);
       setTimeout(() => {
@@ -251,61 +237,6 @@ function ProjectForm({
   const f = (key: keyof typeof form, val: string) => {
     setForm((p) => ({ ...p, [key]: val }));
     onDirtyChange?.(true);
-  };
-
-  const sendChat = async () => {
-    const msg = chatInput.trim();
-    if (!msg || chatLoading) return;
-    const newMessages: { role: "user" | "assistant"; content: string }[] = [
-      ...chatMessages,
-      { role: "user", content: msg },
-    ];
-    setChatMessages(newMessages);
-    setChatInput("");
-    setChatLoading(true);
-    try {
-      const ctx = [
-        `Ты AI-ассистент для создания маркетинговых проектов.`,
-        `Текущий проект — Название: "${form.name || "не указано"}", Ниша: "${form.niche || "не указана"}".`,
-        `Текущее описание: "${form.description || "пусто"}". Текущая аудитория: "${form.audience || "пусто"}".`,
-        `Когда пользователь просит написать описание, аудиторию или упоминает ключевые слова — сгенерируй тексты для обоих полей.`,
-        `Отвечай ТОЛЬКО в JSON формате: {"description": "текст или null", "audience": "текст или null", "message": "краткий комментарий"}`,
-        `Если вопрос без просьбы заполнить поля — верни description: null, audience: null, message: "ответ на вопрос".`,
-      ].join(" ");
-      const history = newMessages
-        .map((m) => `${m.role === "user" ? "Пользователь" : "AI"}: ${m.content}`)
-        .join("\n");
-      const prompt = `${ctx}\n\nЧат:\n${history}`;
-      const res = await fetch("/api/ai/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, max_tokens: 700 }),
-      });
-      const { text } = await res.json();
-      let description: string | null = null;
-      let audience: string | null = null;
-      let message = text;
-      try {
-        const matched = text.match(/\{[\s\S]*\}/);
-        if (matched) {
-          const parsed = JSON.parse(matched[0]);
-          description = parsed.description || null;
-          audience = parsed.audience || null;
-          message = parsed.message || text;
-        }
-      } catch {}
-      if (description) f("description", description);
-      if (audience) f("audience", audience);
-      setChatMessages((prev) => [...prev, { role: "assistant", content: message }]);
-      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-    } catch {
-      setChatMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "Ошибка соединения. Попробуй ещё раз." },
-      ]);
-    } finally {
-      setChatLoading(false);
-    }
   };
 
   return (
@@ -340,7 +271,6 @@ function ProjectForm({
                   onClick={() => {
                     setLogoFile(null);
                     setLogoPreview(null);
-                    setLogoFileName(null);
                   }}
                   className="text-[11px] text-neg cursor-pointer"
                   style={{ background: "none", border: "none" }}
@@ -371,33 +301,125 @@ function ProjectForm({
             <p className="text-[10px] text-neg mt-1">{nameError}</p>
           )}
         </div>
+        {/* Ниша — 2 уровня */}
         <div>
           <label className="block ui-label mb-2">Ниша</label>
-          <div className="flex gap-2 flex-wrap">
-            {NICHES.map((n) => (
-              <button
-                key={n}
-                onClick={() => f("niche", n)}
-                className={`px-3 py-1.5 rounded-[7px] text-[11px] border cursor-pointer transition-colors ${form.niche === n ? "bg-accent text-on-accent border-accent" : "border-line text-tx-2 hover:bg-hover"}`}
-              >
-                {n}
-              </button>
-            ))}
+          <div className="flex gap-1.5 flex-wrap mb-2">
+            {NICHE_TREE.map((n) => {
+              const isActive = nicheCategory === n.label;
+              return (
+                <button
+                  key={n.label}
+                  onClick={() => {
+                    if (isActive) {
+                      setNicheCategory("");
+                      f("niche", "");
+                    } else {
+                      setNicheCategory(n.label);
+                      f("niche", n.subs.length === 0 ? n.label : "");
+                    }
+                  }}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-[7px] text-[11px] border cursor-pointer transition-colors ${
+                    isActive
+                      ? "bg-accent text-on-accent border-accent"
+                      : "border-line text-tx-2 hover:bg-hover"
+                  }`}
+                >
+                  <span>{n.icon}</span>
+                  <span>{n.label}</span>
+                </button>
+              );
+            })}
           </div>
+
+          {/* Подкатегории ниши */}
+          {nicheCategory && (() => {
+            const parent = NICHE_TREE.find((n) => n.label === nicheCategory);
+            if (!parent || parent.subs.length === 0) return null;
+            return (
+              <div className="pl-2 border-l-2 border-accent/30 ml-1">
+                <p className="text-[10px] text-tx-3 mb-1.5">
+                  Уточни подкатегорию · <span className="text-accent">{nicheCategory}</span>
+                </p>
+                <div className="flex gap-1.5 flex-wrap">
+                  {parent.subs.map((sub) => (
+                    <button
+                      key={sub}
+                      onClick={() => f("niche", form.niche === sub ? "" : sub)}
+                      className={`px-2.5 py-1 rounded-[6px] text-[11px] border cursor-pointer transition-colors ${
+                        form.niche === sub
+                          ? "bg-accent text-on-accent border-accent"
+                          : "border-line text-tx-2 hover:bg-hover"
+                      }`}
+                    >
+                      {sub}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
+
+        {/* Тон — 2 уровня */}
         <div>
           <label className="block ui-label mb-2">Тон коммуникации</label>
-          <div className="flex gap-2 flex-wrap">
-            {TONES.map((t) => (
-              <button
-                key={t.value}
-                onClick={() => f("tone", t.value)}
-                className={`px-3 py-1.5 rounded-[7px] text-[11px] border cursor-pointer transition-colors ${form.tone === t.value ? "bg-accent text-on-accent border-accent" : "border-line text-tx-2 hover:bg-hover"}`}
-              >
-                {t.label}
-              </button>
-            ))}
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            {TONE_TREE.map((t) => {
+              const isActive = form.tone === t.value;
+              return (
+                <button
+                  key={t.value}
+                  onClick={() => {
+                    f("tone", t.value);
+                    setToneSub("");
+                  }}
+                  className={`flex flex-col items-start px-3 py-2 rounded-[8px] border cursor-pointer transition-colors text-left ${
+                    isActive
+                      ? "bg-accent text-on-accent border-accent"
+                      : "border-line hover:bg-hover"
+                  }`}
+                >
+                  <span className={`text-[12px] font-medium ${isActive ? "text-on-accent" : "text-tx-1"}`}>
+                    {t.label}
+                  </span>
+                  <span className={`text-[10px] mt-0.5 ${isActive ? "text-on-accent/70" : "text-tx-3"}`}>
+                    {t.desc}
+                  </span>
+                </button>
+              );
+            })}
           </div>
+
+          {/* Стиль тона */}
+          {form.tone && (() => {
+            const parent = TONE_TREE.find((t) => t.value === form.tone);
+            if (!parent) return null;
+            return (
+              <div className="pl-2 border-l-2 border-accent/30 ml-1">
+                <p className="text-[10px] text-tx-3 mb-1.5">
+                  Уточни стиль · <span className="text-accent">{parent.label}</span>
+                </p>
+                <div className="flex gap-1.5 flex-wrap">
+                  {parent.subs.map((sub) => (
+                    <button
+                      key={sub.label}
+                      onClick={() => setToneSub(toneSub === sub.label ? "" : sub.label)}
+                      title={sub.desc}
+                      className={`flex flex-col px-2.5 py-1.5 rounded-[7px] border cursor-pointer transition-colors text-left ${
+                        toneSub === sub.label
+                          ? "bg-accent/10 border-accent text-accent"
+                          : "border-line text-tx-2 hover:bg-hover"
+                      }`}
+                    >
+                      <span className="text-[11px] font-medium">{sub.label}</span>
+                      <span className="text-[9px] text-tx-3 mt-0.5">{sub.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
         <div>
           <label className="block ui-label mb-2">Язык</label>
@@ -432,58 +454,6 @@ function ProjectForm({
             placeholder="Возраст, интересы, география, боли и желания..."
             className={`${inp} resize-none h-20`}
           />
-        </div>
-        <div className="border border-line rounded-[12px] overflow-hidden">
-          <div className="px-3 py-2 border-b border-line flex items-center gap-2 bg-panel-2">
-            <span style={{ fontSize: 12 }}>✦</span>
-            <span className="text-[11px] font-semibold text-tx-1">AI Ассистент</span>
-            <span className="text-[10px] text-tx-3 ml-1">— напиши ключевые слова</span>
-          </div>
-          <div className="px-3 py-2 space-y-2 max-h-40 overflow-y-auto bg-panel">
-            {chatMessages.length === 0 && (
-              <p className="text-[10px] text-tx-3 text-center py-3">
-                Например: «IT-технологии, landing страницы — напиши описание»
-              </p>
-            )}
-            {chatMessages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`max-w-[85%] px-2.5 py-1.5 rounded-[7px] text-[10px] leading-relaxed ${
-                    m.role === "user"
-                      ? "bg-accent text-on-accent"
-                      : "bg-chip/40 text-tx-1 border border-line"
-                  }`}
-                >
-                  {m.content}
-                </div>
-              </div>
-            ))}
-            {chatLoading && (
-              <div className="flex justify-start">
-                <div className="bg-chip/40 border border-line px-2.5 py-1.5 rounded-[7px] text-[10px] text-tx-3">
-                  Генерирую...
-                </div>
-              </div>
-            )}
-            <div ref={chatEndRef} />
-          </div>
-          <div className="px-3 py-2 border-t border-line bg-panel-2 flex gap-2">
-            <input
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendChat()}
-              placeholder="Ключевые слова или запрос..."
-              className={`${inp} flex-1 !py-1.5 !text-[11px]`}
-              disabled={chatLoading}
-            />
-            <button
-              onClick={sendChat}
-              disabled={!chatInput.trim() || chatLoading}
-              className="px-3 py-1.5 bg-accent text-on-accent text-[10px] font-semibold rounded-[7px] cursor-pointer hover:opacity-90 disabled:opacity-50 transition-opacity whitespace-nowrap"
-            >
-              {chatLoading ? "⟳" : "→"}
-            </button>
-          </div>
         </div>
         <div className="p-4 bg-chip/30 rounded-[10px] border border-line">
           <div className="flex items-start gap-2">
@@ -625,7 +595,6 @@ function ProjectsPageInner() {
 
   const forceCloseTab = (id: string) => {
     if (id === "all") return;
-    localStorage.removeItem(`project-draft-${id}`);
     setTabs((prev) => {
       const next = prev.filter((t) => t.id !== id);
       if (activeId === id) {
@@ -1070,9 +1039,26 @@ function ProjectsPageInner() {
                           </div>
                         )}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <p className="text-[14px] font-semibold text-tx-1 truncate">
-                            {p.name}
-                          </p>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <p className="text-[14px] font-semibold text-tx-1 truncate">
+                              {p.name}
+                            </p>
+                            {/* В процессе — если не заполнены ключевые поля */}
+                            {(!p.niche || !p.description || !p.audience || (stats?.contents ?? 0) === 0) && (
+                              <span style={{
+                                fontSize: 9,
+                                fontWeight: 600,
+                                padding: "2px 6px",
+                                borderRadius: 99,
+                                background: "rgba(245,158,11,0.12)",
+                                color: "#d97706",
+                                whiteSpace: "nowrap",
+                                flexShrink: 0,
+                              }}>
+                                ⏳ В процессе
+                              </span>
+                            )}
+                          </div>
                           {p.niche && (
                             <p className="text-[11px] text-tx-3 mt-0.5">
                               {p.niche}
@@ -1291,15 +1277,21 @@ function ProjectsPageInner() {
                             {p.name.slice(0, 1).toUpperCase()}
                           </div>
                         )}
-                        <p
-                          style={{
-                            fontSize: 13,
-                            fontWeight: 500,
-                            color: "var(--tx-1)",
-                          }}
-                        >
-                          {p.name}
-                        </p>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <p style={{ fontSize: 13, fontWeight: 500, color: "var(--tx-1)" }}>
+                            {p.name}
+                          </p>
+                          {(!p.niche || !p.description || !p.audience || (stats?.contents ?? 0) === 0) && (
+                            <span style={{
+                              fontSize: 9, fontWeight: 600,
+                              padding: "2px 5px", borderRadius: 99,
+                              background: "rgba(245,158,11,0.12)", color: "#d97706",
+                              whiteSpace: "nowrap",
+                            }}>
+                              ⏳ В процессе
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <p style={{ fontSize: 13, color: "var(--tx-2)" }}>
                         {stats.campaigns}

@@ -48,14 +48,10 @@ export default function CampaignDetailPage() {
   const qc = useQueryClient();
   const supabase = createClient();
   const [activeTab, setActiveTab] = useState<TabKey>("info");
-  const [creativeModal, setCreativeModal] = useState<any>(null);
+  const [scheduleModal, setScheduleModal] = useState<any>(null);
   const [scheduleTime, setScheduleTime] = useState("");
   const [scheduling, setScheduling] = useState(false);
   const [cloning, setCloning] = useState(false);
-  const [editingCreative, setEditingCreative] = useState(false);
-  const [editTitle, setEditTitle] = useState("");
-  const [editCaption, setEditCaption] = useState("");
-  const [publishingNow, setPublishingNow] = useState(false);
 
   const { data: campaign, isLoading } = useQuery({
     queryKey: ["ad_campaign", id],
@@ -134,21 +130,13 @@ export default function CampaignDetailPage() {
     }
   };
 
-  const openCreativeModal = (c: any) => {
-    setCreativeModal(c);
-    setEditingCreative(false);
-    setEditTitle(c.title ?? "");
-    setEditCaption(c.caption ?? "");
-    setScheduleTime("");
-  };
-
   const handleSchedule = async () => {
-    if (!creativeModal || !scheduleTime) return;
+    if (!scheduleModal || !scheduleTime) return;
     setScheduling(true);
     try {
       await supabase.from("scheduled_posts").insert({
-        content_id: creativeModal.id,
-        platform: creativeModal.platform,
+        content_id: scheduleModal.id,
+        platform: scheduleModal.platform,
         scheduled_at: new Date(scheduleTime).toISOString(),
         status: "pending",
         retry_count: 0,
@@ -156,58 +144,14 @@ export default function CampaignDetailPage() {
       await supabase
         .from("ad_creatives")
         .update({ status: "active" })
-        .eq("id", creativeModal.id);
+        .eq("id", scheduleModal.id);
       qc.invalidateQueries({ queryKey: ["ad_creatives_campaign", id] });
-      setCreativeModal(null);
+      setScheduleModal(null);
       setScheduleTime("");
     } catch (e: any) {
       alert("Ошибка: " + e.message);
     } finally {
       setScheduling(false);
-    }
-  };
-
-  const handleSaveEdit = async () => {
-    if (!creativeModal) return;
-    await supabase
-      .from("ad_creatives")
-      .update({ title: editTitle, caption: editCaption })
-      .eq("id", creativeModal.id);
-    qc.invalidateQueries({ queryKey: ["ad_creatives_campaign", id] });
-    setEditingCreative(false);
-    setCreativeModal({ ...creativeModal, title: editTitle, caption: editCaption });
-  };
-
-  const handleDeleteCreative = async () => {
-    if (!creativeModal || !confirm("Удалить этот креатив?")) return;
-    await supabase.from("ad_creatives").delete().eq("id", creativeModal.id);
-    qc.invalidateQueries({ queryKey: ["ad_creatives_campaign", id] });
-    setCreativeModal(null);
-  };
-
-  const handleTogglePause = async () => {
-    if (!creativeModal) return;
-    const newStatus = creativeModal.status === "paused" ? "draft" : "paused";
-    await supabase.from("ad_creatives").update({ status: newStatus }).eq("id", creativeModal.id);
-    qc.invalidateQueries({ queryKey: ["ad_creatives_campaign", id] });
-    setCreativeModal({ ...creativeModal, status: newStatus });
-  };
-
-  const handlePublishNow = async () => {
-    if (!creativeModal) return;
-    setPublishingNow(true);
-    try {
-      await fetch("/api/content/publish-now", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contentId: creativeModal.id, platform: creativeModal.platform }),
-      });
-      qc.invalidateQueries({ queryKey: ["ad_creatives_campaign", id] });
-      setCreativeModal(null);
-    } catch (e: any) {
-      alert("Ошибка: " + e.message);
-    } finally {
-      setPublishingNow(false);
     }
   };
 
@@ -430,77 +374,64 @@ export default function CampaignDetailPage() {
         )}
 
         {/* Creatives */}
-        {activeTab === "creatives" && (
-          <>
-            {/* Stats + actions row */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex gap-4">
-                {[
-                  { l: "Всего", v: creatives.length },
-                  { l: "Активных", v: creatives.filter((c: any) => c.status === "active").length, accent: true },
-                  { l: "Черновиков", v: creatives.filter((c: any) => c.status === "draft").length },
-                  { l: "На паузе", v: creatives.filter((c: any) => c.status === "paused").length },
-                ].map((s) => (
-                  <div key={s.l} className="text-center">
-                    <p className={`text-[16px] font-semibold ${s.accent ? "text-pos" : "text-tx-1"}`}>{s.v}</p>
-                    <p className="text-[10px] text-tx-3">{s.l}</p>
-                  </div>
-                ))}
-              </div>
-              <button
-                onClick={() => router.push(`/${locale}/campaigns?tab=wizard`)}
-                className="inline-flex items-center gap-1.5 bg-accent text-on-accent rounded-[7px] px-3 py-1.5 text-[11px] font-medium hover:opacity-90 cursor-pointer"
-              >
-                + Создать новый
-              </button>
+        {activeTab === "creatives" &&
+          (creatives.length === 0 ? (
+            <div className="ui-surface flex flex-col items-center py-14 text-center">
+              <p className="text-[32px] mb-3">⬡</p>
+              <p className="text-[13px] font-medium text-tx-1 mb-1">
+                Нет креативов
+              </p>
+              <p className="text-[11px] text-tx-3">
+                Выберите креативы при создании кампании
+              </p>
             </div>
-
-            {creatives.length === 0 ? (
-              <div className="ui-surface flex flex-col items-center py-14 text-center">
-                <p className="text-[32px] mb-3">⬡</p>
-                <p className="text-[13px] font-medium text-tx-1 mb-1">Нет креативов</p>
-                <p className="text-[11px] text-tx-3 mb-4">Создайте кампанию с AI-генерацией</p>
-                <button
-                  onClick={() => router.push(`/${locale}/campaigns?tab=wizard`)}
-                  className="inline-flex items-center gap-1.5 bg-accent text-on-accent rounded-[7px] px-4 py-2 text-[12px] font-medium cursor-pointer hover:opacity-90"
+          ) : (
+            <div className="grid grid-cols-4 gap-3">
+              {creatives.map((c: any) => (
+                <div
+                  key={c.id}
+                  onClick={() => setScheduleModal(c)}
+                  className="ui-surface p-3 cursor-pointer hover:border-line-strong transition-colors"
                 >
-                  + Создать кампанию
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-4 gap-3">
-                {creatives.map((c: any) => (
-                  <div
-                    key={c.id}
-                    onClick={() => openCreativeModal(c)}
-                    className="ui-surface p-3 cursor-pointer hover:border-line-strong transition-colors group"
-                  >
-                    {c.image_url ? (
-                      <img src={c.image_url} alt="" className="w-full h-24 object-cover rounded-[6px] mb-2" />
-                    ) : (
-                      <div
-                        className="w-full h-24 rounded-[6px] mb-2 flex items-center justify-center text-[22px]"
-                        style={{ background: `linear-gradient(135deg, ${PLATFORM_META[c.platform]?.color ?? "#333"}, #111)` }}
-                      >
-                        {c.platform?.slice(0, 2).toUpperCase()}
-                      </div>
-                    )}
-                    <p className="text-[11px] font-medium text-tx-1 truncate mb-0.5">{c.title ?? "Без названия"}</p>
-                    <p className="text-[9px] text-tx-3 mb-2">{c.platform} · {c.format}</p>
-                    <div className="flex items-center justify-between">
-                      <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-chip ${c.status === "active" ? "text-pos" : c.status === "paused" ? "text-warn" : "text-tx-3"}`}>
-                        {({ active: "Активен", draft: "Черновик", paused: "Пауза", winner: "Победитель", failed: "Ошибка" } as Record<string, string>)[c.status] ?? c.status}
-                      </span>
-                      <span className="text-[9px] text-tx-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                        Нажмите →
-                      </span>
+                  {c.image_url ? (
+                    <img
+                      src={c.image_url}
+                      alt=""
+                      className="w-full h-24 object-cover rounded-[6px] mb-2"
+                    />
+                  ) : (
+                    <div
+                      className="w-full h-24 rounded-[6px] mb-2 flex items-center justify-center text-[22px]"
+                      style={{
+                        background: `linear-gradient(135deg, ${PLATFORM_META[c.platform]?.color ?? "#333"}, #111)`,
+                      }}
+                    >
+                      {c.platform?.slice(0, 2).toUpperCase()}
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
+                  )}
+                  <p className="text-[11px] font-medium text-tx-1 truncate mb-0.5">
+                    {c.title ?? "Без названия"}
+                  </p>
+                  <p className="text-[9px] text-tx-3 mb-2">
+                    {c.platform} · {c.format}
+                  </p>
+                  <span
+                    className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-chip ${c.status === "active" ? "text-pos" : "text-tx-3"}`}
+                  >
+                    {(
+                      {
+                        active: "Активен",
+                        draft: "Черновик",
+                        paused: "Пауза",
+                        winner: "Победитель",
+                        failed: "Ошибка",
+                      } as Record<string, string>
+                    )[c.status] ?? c.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ))}
 
         {/* Schedule */}
         {activeTab === "schedule" && (
@@ -521,7 +452,7 @@ export default function CampaignDetailPage() {
                   .map((c: any) => (
                     <div
                       key={c.id}
-                      onClick={() => openCreativeModal(c)}
+                      onClick={() => setScheduleModal(c)}
                       className="ui-surface px-4 py-3 flex items-center gap-3 cursor-pointer hover:border-line-strong"
                     >
                       <div
@@ -571,141 +502,50 @@ export default function CampaignDetailPage() {
         )}
       </div>
 
-      {/* Creative action modal */}
-      {creativeModal && (
+      {/* Schedule modal */}
+      {scheduleModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-[3px]" onClick={() => setCreativeModal(null)} />
-          <div className="relative w-full max-w-[500px] bg-panel border border-line rounded-[14px] max-h-[85vh] overflow-y-auto shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
-            {/* Header */}
-            <div className="px-5 py-4 border-b border-line flex items-center justify-between sticky top-0 bg-panel z-10">
-              <div>
-                <p className="text-[13px] font-semibold text-tx-1">
-                  {creativeModal.title ?? "Без названия"}
-                </p>
-                <p className="text-[10px] text-tx-3 mt-0.5">
-                  {creativeModal.platform} · {creativeModal.format} ·{" "}
-                  {({ active: "Активен", draft: "Черновик", paused: "Пауза" } as Record<string, string>)[creativeModal.status] ?? creativeModal.status}
-                </p>
-              </div>
+          <div
+            className="absolute inset-0 bg-black/30 backdrop-blur-[3px]"
+            onClick={() => setScheduleModal(null)}
+          />
+          <div className="relative w-full max-w-[380px] bg-panel border border-line rounded-[14px] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[14px] font-semibold text-tx-1">
+                Запланировать
+              </h2>
               <button
-                onClick={() => setCreativeModal(null)}
+                onClick={() => setScheduleModal(null)}
                 className="w-7 h-7 flex items-center justify-center rounded-[7px] border border-line hover:bg-hover cursor-pointer text-tx-3 text-[14px]"
               >
                 ✕
               </button>
             </div>
-
-            <div className="p-5 space-y-4">
-              {creativeModal.image_url && (
-                <img src={creativeModal.image_url} alt="" className="w-full h-44 object-cover rounded-[9px]" />
-              )}
-
-              {/* Quick actions */}
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={handlePublishNow}
-                  disabled={publishingNow}
-                  className="py-2.5 bg-accent text-on-accent text-[12px] font-medium rounded-[8px] hover:opacity-90 cursor-pointer disabled:opacity-60"
-                >
-                  {publishingNow ? "⟳ Публикую..." : "🚀 Опубликовать сейчас"}
-                </button>
-                <button
-                  onClick={handleTogglePause}
-                  className="py-2.5 border border-line text-[12px] text-tx-2 rounded-[8px] hover:bg-hover cursor-pointer"
-                >
-                  {creativeModal.status === "paused" ? "▶ Возобновить" : "⏸ Пауза"}
-                </button>
-              </div>
-
-              {/* Schedule */}
-              <div>
-                <p className="ui-label mb-2">Запланировать</p>
-                <div className="flex gap-2">
-                  <input
-                    type="datetime-local"
-                    value={scheduleTime}
-                    onChange={(e) => setScheduleTime(e.target.value)}
-                    className="flex-1 px-3 py-2 rounded-[8px] border border-line text-[12px] outline-none bg-panel text-tx-1"
-                  />
-                  <button
-                    onClick={handleSchedule}
-                    disabled={!scheduleTime || scheduling}
-                    className="px-4 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[8px] hover:opacity-90 cursor-pointer disabled:opacity-50"
-                  >
-                    {scheduling ? "..." : "📅"}
-                  </button>
-                </div>
-              </div>
-
-              {/* Edit */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="ui-label">Редактировать</p>
-                  <button
-                    onClick={() => setEditingCreative(!editingCreative)}
-                    className="text-[11px] text-accent cursor-pointer hover:opacity-80"
-                  >
-                    {editingCreative ? "Скрыть" : "✎ Изменить"}
-                  </button>
-                </div>
-                {editingCreative && (
-                  <div className="space-y-2">
-                    <div>
-                      <label className="block ui-label mb-1">Заголовок</label>
-                      <input
-                        value={editTitle}
-                        onChange={(e) => setEditTitle(e.target.value)}
-                        className={inp}
-                      />
-                    </div>
-                    <div>
-                      <label className="block ui-label mb-1">Текст</label>
-                      <textarea
-                        value={editCaption}
-                        onChange={(e) => setEditCaption(e.target.value)}
-                        className={`${inp} resize-none h-20`}
-                      />
-                    </div>
-                    <button
-                      onClick={handleSaveEdit}
-                      className="w-full py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[8px] hover:opacity-90 cursor-pointer"
-                    >
-                      Сохранить
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Caption preview */}
-              {!editingCreative && creativeModal.caption && (
-                <div className="bg-panel-2 border border-line rounded-[8px] p-3">
-                  <p className="ui-label mb-2">Текст</p>
-                  <p className="text-[11px] text-tx-2 leading-relaxed whitespace-pre-wrap">
-                    {creativeModal.caption}
-                  </p>
-                </div>
-              )}
-
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  ["CTR", creativeModal.ctr > 0 ? `${creativeModal.ctr.toFixed(1)}%` : "—"],
-                  ["Показов", creativeModal.impressions > 0 ? creativeModal.impressions.toLocaleString("ru") : "—"],
-                  ["Кликов", creativeModal.clicks > 0 ? creativeModal.clicks.toLocaleString("ru") : "—"],
-                ].map(([l, v]) => (
-                  <div key={l} className="bg-panel-2 border border-line rounded-[7px] px-3 py-2">
-                    <p className="ui-label mb-1">{l}</p>
-                    <p className="text-[13px] font-medium text-tx-1">{v}</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Delete */}
+            <p className="text-[11px] text-tx-3 mb-4">
+              {scheduleModal.title ?? "Без названия"} · {scheduleModal.platform}
+            </p>
+            <div className="mb-4">
+              <label className="block ui-label mb-1">Дата и время</label>
+              <input
+                type="datetime-local"
+                value={scheduleTime}
+                onChange={(e) => setScheduleTime(e.target.value)}
+                className={inp}
+              />
+            </div>
+            <div className="flex gap-2">
               <button
-                onClick={handleDeleteCreative}
-                className="w-full py-2 border border-neg/30 text-neg text-[12px] rounded-[8px] hover:bg-neg/5 cursor-pointer transition-colors"
+                onClick={() => setScheduleModal(null)}
+                className="flex-1 py-2.5 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
               >
-                🗑 Удалить креатив
+                Отмена
+              </button>
+              <button
+                onClick={handleSchedule}
+                disabled={!scheduleTime || scheduling}
+                className="flex-1 py-2.5 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-50"
+              >
+                {scheduling ? "..." : "📅 Запланировать"}
               </button>
             </div>
           </div>

@@ -29,17 +29,14 @@ import {
   ChevronDown,
   Gauge,
   Zap,
-  Image,
-  Coins,
   type LucideIcon,
 } from "lucide-react";
 
 type NavItem = { key: string; href: string; Icon: LucideIcon };
 
 const MARKETING: NavItem[] = [
-  { key: "projects", href: "/projects", Icon: FolderOpen },
   { key: "campaigns", href: "/campaigns", Icon: Megaphone },
-  { key: "infographics", href: "/infographics", Icon: Image },
+  { key: "projects", href: "/projects", Icon: FolderOpen },
   { key: "create", href: "/create", Icon: SquarePen },
   { key: "aiWorkers", href: "/ai-workers", Icon: Bot },
 ];
@@ -66,7 +63,6 @@ const AGENCY: NavItem[] = [
 ];
 
 const ACCOUNT: NavItem[] = [
-  { key: "tokens", href: "/tokens", Icon: Coins },
   { key: "billing", href: "/billing", Icon: CreditCard },
   { key: "referral", href: "/referral", Icon: Gift },
   { key: "settings", href: "/settings", Icon: Settings },

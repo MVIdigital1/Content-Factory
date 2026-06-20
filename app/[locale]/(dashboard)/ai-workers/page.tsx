@@ -610,7 +610,7 @@ function AgentForm({
 function AIWorkersPageInner() {
   const supabase = createClient();
   const qc = useQueryClient();
-  const pendingTabId = useRef<string | null>(null);
+  const pendingTabId = { current: null as string | null };
   const [tabs, setTabs] = useState<AgentTab[]>(() => {
     if (typeof window === "undefined")
       return [{ id: "all", title: "Все агенты" }];

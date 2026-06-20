@@ -541,11 +541,6 @@ export function WizardView({
   const [generating, setGenerating] = useState(false);
   const [creativePlatformFilter, setCreativePlatformFilter] = useState("all");
 
-  // AI agent assignment: platform key → agent id
-  const [selectedAgents, setSelectedAgents] = useState<Record<string, string>>(
-    draft?.selectedAgents ?? {},
-  );
-
   // Connect platform inline
   const [connectModal, setConnectModal] = useState<string | null>(null);
   const [tokenInput, setTokenInput] = useState("");
@@ -710,6 +705,20 @@ export function WizardView({
     },
   });
 
+  // Agent assigned to the selected project
+  const { data: projectAgent } = useQuery({
+    queryKey: ["project_agent", projectId],
+    enabled: !!projectId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("projects")
+        .select("ai_agent_id, ai_agents(id, name, type)")
+        .eq("id", projectId)
+        .single();
+      return (data as any)?.ai_agents ?? null;
+    },
+  });
+
   // Autosave draft to localStorage + create draft in DB
   useEffect(() => {
     const subtypesSer = Object.fromEntries(
@@ -728,7 +737,6 @@ export function WizardView({
         projectId,
         platforms: [...selectedPlatforms],
         subtypes: subtypesSer,
-        selectedAgents,
         draftId,
         step,
         maxStep,
@@ -752,7 +760,6 @@ export function WizardView({
     projectId,
     selectedPlatforms,
     selectedSubtypes,
-    selectedAgents,
     step,
     maxStep,
   ]);
@@ -1573,239 +1580,133 @@ export function WizardView({
       )}
 
       {/* ══ STEP 1: Platforms ══ */}
-      {step === 1 && (
-        <div className="space-y-3">
-          <p className="text-[12px] text-tx-2 mb-3">
-            Выберите платформы. AI создаст по 1-2 реальных креатива для каждого
-            типа.
-          </p>
+      {step === 1 && (() => {
+        const tgChannels = (connectedIntegrations as any[]).filter((i) => i.platform === "telegram");
+        const igChannels = (connectedIntegrations as any[]).filter((i) => i.platform === "instagram");
 
-          {/* Connected platforms */}
-          {realPlatforms.length > 0 && (
-            <>
-              <p className="ui-label">Подключённые платформы</p>
-              {realPlatforms.map((rp) => {
-                const sel = selectedPlatforms.has(rp.key);
-                const subtypes = PLATFORM_SUBTYPES[rp.key] ?? [];
-                const selSubs = selectedSubtypes[rp.key] ?? new Set();
-                return (
-                  <div
-                    key={rp.key}
-                    className={`border rounded-[9px] overflow-hidden transition-colors ${sel ? "border-pos/40" : "border-line"}`}
-                  >
-                    <div
-                      className="flex items-center gap-3 p-3 cursor-pointer hover:bg-hover"
-                      onClick={() => togglePlatform(rp.key)}
-                    >
-                      <div
-                        className={`w-4 h-4 rounded-[4px] border flex items-center justify-center text-[9px] flex-shrink-0 ${sel ? "bg-accent border-accent text-on-accent" : "border-line-strong"}`}
-                      >
-                        {sel && "✓"}
-                      </div>
-                      <PlatformLogo
-                        abbr={rp.abbr}
-                        color={rp.color}
-                        textColor={rp.textColor}
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="text-[12px] font-medium text-tx-1">
-                            {rp.name}
-                          </p>
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-chip text-pos">
-                            Подключён
-                          </span>
-                        </div>
-                        <p className="text-[10px] text-tx-3">
-                          {rp.accountInfo}
-                          {rp.channels.length > 0
-                            ? ` · ${rp.channels.join(", ")}`
-                            : ""}
-                        </p>
-                        {sel && (
-                          <p className="text-[10px] text-pos mt-0.5">
-                            {selSubs.size} типов ·{" "}
-                            {[...selSubs].reduce(
-                              (s, st) =>
-                                s +
-                                (PLATFORM_SUBTYPES[rp.key]?.find(
-                                  (p) => p.value === st,
-                                )
-                                  ? st === "post" ||
-                                    st === "video" ||
-                                    st === "ad" ||
-                                    st === "reels" ||
-                                    st === "stories" ||
-                                    st === "feed" ||
-                                    st === "search" ||
-                                    st === "rsya" ||
-                                    st === "display" ||
-                                    st === "banner"
-                                    ? 2
-                                    : 1
-                                  : 0),
-                              0,
-                            )}{" "}
-                            креативов
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    {/* AI agent assignment */}
-                    {sel && (
-                      <div
-                        className="px-3 pb-3 pt-2 border-t border-line bg-panel-2 flex items-center gap-2"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <span className="text-[10px] text-tx-3 flex-shrink-0">🤖 AI агент:</span>
-                        {(aiAgents as any[]).length > 0 ? (
-                          <select
-                            value={selectedAgents[rp.key] ?? ""}
-                            onChange={(e) =>
-                              setSelectedAgents((prev) => ({ ...prev, [rp.key]: e.target.value }))
-                            }
-                            style={{
-                              flex: 1,
-                              padding: "4px 8px",
-                              fontSize: 11,
-                              fontFamily: "inherit",
-                              border: "0.5px solid var(--line)",
-                              borderRadius: 6,
-                              background: "var(--bg)",
-                              color: "var(--tx-1)",
-                              outline: "none",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <option value="">— Без агента —</option>
-                            {(aiAgents as any[]).map((a: any) => (
-                              <option key={a.id} value={a.id}>
-                                {a.name}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className="text-[10px] text-tx-3">
-                            Нет агентов — создайте в разделе «Сотрудники»
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </>
-          )}
+        // Social network rows
+        const SOCIAL_NETS = [
+          { key: "telegram",  label: "Telegram",  sub: "Публикация в каналы",  color: "#0088CC", abbr: "TG", connectKey: "telegram" },
+          { key: "instagram", label: "Instagram", sub: "Публикация постов и Stories", color: "#E1306C", abbr: "IG", connectKey: "instagram" },
+          { key: "tiktok",    label: "TikTok",    sub: "Публикация видео",     color: "#010101", abbr: "TT", connectKey: "tiktok" },
+          { key: "vk",        label: "ВКонтакте", sub: "Публикация в сообщества", color: "#0077FF", abbr: "VK", connectKey: "vk" },
+        ];
 
-          {/* ── Telegram каналы ── */}
-          <div className="mt-4">
-            <div className="flex items-center justify-between mb-2">
-              <p className="ui-label">Telegram каналы</p>
-              <button
-                onClick={() => setConnectModal("telegram")}
-                className="flex items-center gap-1.5 text-[11px] text-accent hover:opacity-75 cursor-pointer"
-              >
-                <span className="text-[13px]">+</span> Подключить канал
-              </button>
-            </div>
-            {connectedIntegrations.filter((i: any) => i.platform === "telegram").length === 0 ? (
-              <button
-                onClick={() => setConnectModal("telegram")}
-                className="w-full flex items-center gap-3 p-3 border border-dashed border-line rounded-[9px] hover:border-accent hover:bg-hover cursor-pointer transition-colors text-left"
-              >
-                <div className="w-8 h-8 rounded-[8px] flex items-center justify-center text-white text-[13px] font-bold flex-shrink-0" style={{ background: "#0088CC" }}>✈️</div>
-                <div>
-                  <p className="text-[12px] font-medium text-tx-1">Подключить Telegram канал</p>
-                  <p className="text-[10px] text-tx-3">Добавь бота как администратора и введи @username</p>
+        // Ad platform keys (from PLATFORM_META in data.ts — only ad networks)
+        const AD_KEYS = ["yandex", "google", "meta", "vk", "mytarget", "tiktok", "kaspi"];
+
+        const renderPlatformRow = (key: string, label: string, color: string, abbr: string, sub: string, connected: boolean, connectKey: string) => {
+          const sel = selectedPlatforms.has(key);
+          return (
+            <div key={key} className={`border rounded-[9px] overflow-hidden transition-colors ${sel ? "border-accent/50" : "border-line"}`}>
+              <div className="flex items-center gap-3 p-3 cursor-pointer hover:bg-hover" onClick={() => connected ? togglePlatform(key) : setConnectModal(connectKey)}>
+                <div className={`w-4 h-4 rounded-[4px] border flex items-center justify-center text-[9px] flex-shrink-0 ${sel && connected ? "bg-accent border-accent text-on-accent" : "border-line-strong"}`}>
+                  {sel && connected && "✓"}
                 </div>
-              </button>
-            ) : (
+                <PlatformLogo abbr={abbr} color={color} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-[12px] font-medium text-tx-1">{label}</p>
+                    {connected
+                      ? <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-chip text-pos">Подключён</span>
+                      : <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-chip text-accent">+ Подключить</span>}
+                  </div>
+                  <p className="text-[10px] text-tx-3">{sub}</p>
+                </div>
+              </div>
+              {sel && connected && projectAgent && (
+                <div className="px-3 pb-2 pt-1.5 border-t border-line bg-panel-2 flex items-center gap-2">
+                  <span className="text-[10px] text-tx-3">🤖 Агент проекта:</span>
+                  <span className="text-[10px] font-medium text-accent">{projectAgent.name}</span>
+                </div>
+              )}
+            </div>
+          );
+        };
+
+        return (
+          <div className="space-y-5">
+            {/* ── Социальные сети ── */}
+            <div>
+              <p className="ui-label mb-2">Социальные сети</p>
               <div className="space-y-2">
-                {connectedIntegrations
-                  .filter((i: any) => i.platform === "telegram")
-                  .map((ch: any) => {
-                    const chKey = `telegram_${ch.channel_id}`;
-                    const isSel = selectedPlatforms.has(chKey) || selectedPlatforms.has("telegram");
+                {SOCIAL_NETS.map(({ key, label, sub, color, abbr, connectKey }) => {
+                  const isConnected =
+                    key === "telegram" ? tgChannels.length > 0 :
+                    key === "instagram" ? igChannels.length > 0 :
+                    connectedKeys.has(key);
+
+                  // Telegram: show each channel separately
+                  if (key === "telegram" && tgChannels.length > 0) {
                     return (
-                      <div
-                        key={ch.channel_id}
-                        onClick={() => togglePlatform("telegram")}
-                        className={`flex items-center gap-3 p-3 border rounded-[9px] cursor-pointer hover:bg-hover transition-colors ${isSel ? "border-pos/40" : "border-line"}`}
-                      >
-                        <div className={`w-4 h-4 rounded-[4px] border flex items-center justify-center text-[9px] flex-shrink-0 ${isSel ? "bg-accent border-accent text-on-accent" : "border-line-strong"}`}>
-                          {isSel && "✓"}
-                        </div>
-                        <div className="w-7 h-7 rounded-[7px] flex items-center justify-center text-[12px]" style={{ background: "#0088CC" }}>✈️</div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[12px] font-medium text-tx-1">@{ch.channel_name}</p>
-                          <p className="text-[10px] text-tx-3">Telegram канал · {isSel ? "Выбран" : "Не выбран"}</p>
-                        </div>
-                        {isSel && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-chip text-pos">Активен</span>}
+                      <div key="telegram-group" className="space-y-1.5">
+                        {tgChannels.map((ch: any) => {
+                          const chKey = `telegram__${ch.channel_id}`;
+                          const isSel = selectedPlatforms.has(chKey);
+                          return (
+                            <div key={ch.channel_id} className={`border rounded-[9px] overflow-hidden transition-colors ${isSel ? "border-accent/50" : "border-line"}`}>
+                              <div className="flex items-center gap-3 p-3 cursor-pointer hover:bg-hover" onClick={() => togglePlatform(chKey)}>
+                                <div className={`w-4 h-4 rounded-[4px] border flex items-center justify-center text-[9px] flex-shrink-0 ${isSel ? "bg-accent border-accent text-on-accent" : "border-line-strong"}`}>
+                                  {isSel && "✓"}
+                                </div>
+                                <PlatformLogo abbr="TG" color="#0088CC" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-[12px] font-medium text-tx-1">@{ch.channel_name}</p>
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-chip text-pos">Telegram</span>
+                                  </div>
+                                  <p className="text-[10px] text-tx-3">Канал подключён</p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <button onClick={() => setConnectModal("telegram")} className="w-full text-[11px] text-accent hover:opacity-70 cursor-pointer py-1 text-center">
+                          + Добавить ещё Telegram канал
+                        </button>
                       </div>
                     );
-                  })}
-                <button
-                  onClick={() => setConnectModal("telegram")}
-                  className="w-full text-[11px] text-accent hover:opacity-75 cursor-pointer py-1.5 text-center"
-                >
-                  + Добавить ещё канал
-                </button>
-              </div>
-            )}
-          </div>
+                  }
 
-          {/* Other platforms - add button */}
-          <div>
-            <p className="ui-label mt-4 mb-2">Добавить рекламную платформу</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {Object.entries(PLATFORM_META)
-                .filter(([key]) => !connectedKeys.has(key) && key !== "telegram")
-                .map(([key, meta]) => (
-                  <button
-                    key={key}
-                    onClick={() => setConnectModal(key)}
-                    className="flex items-center gap-2 p-3 border border-line rounded-[9px] hover:border-line-strong cursor-pointer transition-colors hover:bg-hover text-left"
-                  >
-                    <PlatformLogo
-                      abbr={meta.abbr}
-                      color={meta.color}
-                      textColor={(meta as any).textColor}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-tx-1 truncate">
-                        {meta.name}
-                      </p>
-                      <p className="text-[9px] text-accent">+ Подключить</p>
-                    </div>
-                  </button>
-                ))}
+                  return renderPlatformRow(key, label, color, abbr, sub, isConnected, connectKey);
+                })}
+              </div>
+            </div>
+
+            {/* ── Рекламные кабинеты ── */}
+            <div>
+              <p className="ui-label mb-2">Рекламные кабинеты</p>
+              <div className="space-y-2">
+                {AD_KEYS.map((key) => {
+                  const meta = PLATFORM_META[key];
+                  if (!meta) return null;
+                  const isConnected = connectedKeys.has(key);
+                  const rp = realPlatforms.find((p) => p.key === key);
+                  const sub = rp?.accountInfo ?? (isConnected ? "Подключён" : "Запустить рекламу");
+                  return renderPlatformRow(key, meta.name, meta.color, meta.abbr, sub, isConnected, key);
+                })}
+              </div>
+            </div>
+
+            <div className="flex justify-between pt-2">
+              <button onClick={() => setStep(0)} className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer">
+                ← Назад
+              </button>
+              <button
+                onClick={() => {
+                  if (selectedPlatforms.size === 0) { setError("Выберите платформу"); return; }
+                  setError("");
+                  setStep(2);
+                  setMaxStep((prev: number) => Math.max(prev, 2));
+                }}
+                className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
+              >
+                Далее: Создать →
+              </button>
             </div>
           </div>
-
-          <div className="flex justify-between pt-3">
-            <button
-              onClick={() => setStep(0)}
-              className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
-            >
-              ← Назад
-            </button>
-            <button
-              onClick={() => {
-                if (selectedPlatforms.size === 0) {
-                  setError("Выберите платформу");
-                  return;
-                }
-                setError("");
-                setStep(2);
-                setMaxStep((prev: number) => Math.max(prev, 2));
-              }}
-              className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
-            >
-              Далее: Создать →
-            </button>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ══ STEP 2: Создать ══ */}
       {step === 2 && (
@@ -2242,17 +2143,8 @@ export function WizardView({
                 v: budget ? `₽${Number(budget).toLocaleString("ru")}` : "—",
               },
               { l: "Креативов", v: `${generatedCreatives.length} штук готово` },
-              ...(Object.keys(selectedAgents).length > 0
-                ? [{
-                    l: "AI агенты",
-                    v: Object.entries(selectedAgents)
-                      .filter(([, id]) => id)
-                      .map(([platform, id]) => {
-                        const agent = (aiAgents as any[]).find((a: any) => a.id === id);
-                        return `${platform}: ${agent?.name ?? id}`;
-                      })
-                      .join(", ") || "—",
-                  }]
+              ...(projectAgent
+                ? [{ l: "AI агент", v: `${projectAgent.name} (${projectAgent.type ?? "агент"})` }]
                 : []),
             ].map((row) => (
               <div
