@@ -2,7 +2,6 @@
 import { Suspense, useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import Link from "next/link";
 import { LayoutGrid, List, Search } from "lucide-react";
@@ -13,7 +12,13 @@ const ACTIVE_KEY = "project_active_v2";
 function loadTabs(): ProjectTab[] {
   try {
     const d = localStorage.getItem(TABS_KEY);
-    if (d) return JSON.parse(d);
+    if (d) {
+      const parsed = JSON.parse(d);
+      // Don't restore edit/draft tabs — they require in-memory config
+      return parsed.filter(
+        (t: ProjectTab) => !t.id.startsWith("edit_") && !t.id.startsWith("draft_"),
+      );
+    }
   } catch {}
   return [{ id: "all", title: "Все проекты" }];
 }
@@ -24,7 +29,9 @@ function saveTabs(t: ProjectTab[]) {
 }
 function loadActiveId() {
   try {
-    return localStorage.getItem(ACTIVE_KEY) ?? "all";
+    const id = localStorage.getItem(ACTIVE_KEY) ?? "all";
+    if (id.startsWith("edit_") || id.startsWith("draft_")) return "all";
+    return id;
   } catch {
     return "all";
   }
@@ -91,62 +98,110 @@ const LANGS = [
   { value: "uz", label: "Узбекский" },
   { value: "en", label: "English" },
 ];
-const COLORS = [
-  "#4ABA74",
-  "#3B82F6",
-  "#8B5CF6",
-  "#F59E0B",
-  "#EF4444",
-  "#0088CC",
-  "#E1306C",
-];
+const COLORS = ["#4ABA74", "#3B82F6", "#8B5CF6", "#F59E0B", "#EF4444", "#0088CC", "#E1306C"];
 const colorFor = (id: string) => COLORS[id.charCodeAt(0) % COLORS.length];
+
+// ── Draft types & storage ───────────────────────────────────────────────────
+
+type FormState = {
+  name: string; niche: string; description: string;
+  audience: string; tone: string; language: string; logo_url: string;
+};
+type FormSnapshot = { form: FormState; nicheCategory: string; toneSub: string };
+type Draft = { id: string; name: string; snapshot: FormSnapshot; savedAt: string };
+
+const DRAFTS_KEY = "project_drafts_v1";
+function loadDrafts(): Draft[] {
+  try {
+    const d = localStorage.getItem(DRAFTS_KEY);
+    if (d) return JSON.parse(d);
+  } catch {}
+  return [];
+}
+function saveDraftsStorage(drafts: Draft[]) {
+  try {
+    localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts));
+  } catch {}
+}
+
+function getNicheCategory(niche: string): string {
+  if (!niche) return "";
+  if (NICHE_TREE.find((n) => n.label === niche)) return niche;
+  const parent = NICHE_TREE.find((n) => n.subs.includes(niche));
+  return parent?.label ?? "";
+}
+
+// ── Tab config ──────────────────────────────────────────────────────────────
+
+type TabMode = "create" | "edit" | "draft";
+type TabConfig = { mode: TabMode; project?: any; draftId?: string };
+
+// ── ProjectForm ─────────────────────────────────────────────────────────────
 
 function ProjectForm({
   tabId,
   onSaved,
   onNameChange,
   onDirtyChange,
+  onFormChange,
+  initialSnapshot,
+  projectId,
 }: {
   tabId: string;
   onSaved?: () => void;
   onNameChange?: (n: string) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  onFormChange?: (snap: FormSnapshot) => void;
+  initialSnapshot?: FormSnapshot;
+  projectId?: string;
 }) {
   const supabase = createClient();
   const qc = useQueryClient();
-  const [form, setForm] = useState({
-    name: "",
-    niche: "",
-    description: "",
-    audience: "",
-    tone: "friendly",
-    language: "ru",
-    logo_url: "",
-  });
+
+  const defaultForm: FormState = {
+    name: "", niche: "", description: "", audience: "",
+    tone: "friendly", language: "ru", logo_url: "",
+  };
+
+  const [form, setForm] = useState<FormState>(
+    initialSnapshot ? initialSnapshot.form : defaultForm,
+  );
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [nameError, setNameError] = useState("");
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(
+    initialSnapshot?.form.logo_url || null,
+  );
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const logoRef = useRef<HTMLInputElement>(null);
-  const [nicheCategory, setNicheCategory] = useState("");
-  const [toneSub, setToneSub] = useState("");
+  const [nicheCategory, setNicheCategory] = useState(
+    initialSnapshot ? initialSnapshot.nicheCategory : "",
+  );
+  const [toneSub, setToneSub] = useState(
+    initialSnapshot ? initialSnapshot.toneSub : "",
+  );
 
-  // Fetch existing names for duplicate check
+  // Notify parent of form snapshot for draft saving
+  const onFormChangeRef = useRef(onFormChange);
+  useEffect(() => { onFormChangeRef.current = onFormChange; });
+  useEffect(() => {
+    onFormChangeRef.current?.({ form, nicheCategory, toneSub });
+  }, [form, nicheCategory, toneSub]);
+
+  // Fetch existing names for duplicate check (exclude self in edit mode)
   const { data: existingNames = [] } = useQuery({
-    queryKey: ["project_names"],
+    queryKey: ["project_names", projectId],
     queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
       const { data } = await supabase
         .from("projects")
-        .select("name")
+        .select("id, name")
         .eq("user_id", user.id)
         .eq("is_active", true);
-      return (data ?? []).map((p: any) => p.name.toLowerCase().trim());
+      return (data ?? [])
+        .filter((p: any) => p.id !== projectId)
+        .map((p: any) => p.name.toLowerCase().trim());
     },
   });
 
@@ -180,11 +235,10 @@ function ProjectForm({
     if (!form.name.trim() || nameError) return;
     setSaving(true);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Не авторизован");
-      let logo_url = "";
+
+      let logo_url = form.logo_url;
       if (logoFile) {
         const ext = logoFile.name.split(".").pop();
         const path = `logos/${user.id}/${Date.now()}.${ext}`;
@@ -203,19 +257,36 @@ function ProjectForm({
           logo_url = urlD.publicUrl;
         }
       }
-      const { error: insertError } = await supabase.from("projects").insert({
-        user_id: user.id,
-        name: form.name.trim(),
-        niche: form.niche || null,
-        description: form.description || null,
-        audience: form.audience || null,
-        tone: form.tone,
-        language: form.language,
-        logo_url: logo_url || null,
-        is_active: true,
-        products: [],
-      });
-      if (insertError) throw new Error(insertError.message);
+
+      if (projectId) {
+        // Edit mode — UPDATE
+        const { error } = await supabase.from("projects").update({
+          name: form.name.trim(),
+          niche: form.niche || null,
+          description: form.description || null,
+          audience: form.audience || null,
+          tone: form.tone,
+          language: form.language,
+          logo_url: logo_url || null,
+        }).eq("id", projectId);
+        if (error) throw new Error(error.message);
+      } else {
+        // Create mode — INSERT
+        const { error } = await supabase.from("projects").insert({
+          user_id: user.id,
+          name: form.name.trim(),
+          niche: form.niche || null,
+          description: form.description || null,
+          audience: form.audience || null,
+          tone: form.tone,
+          language: form.language,
+          logo_url: logo_url || null,
+          is_active: true,
+          products: [],
+        });
+        if (error) throw new Error(error.message);
+      }
+
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["project_names"] });
       qc.invalidateQueries({ queryKey: ["projects_selector"] });
@@ -234,7 +305,7 @@ function ProjectForm({
 
   const inp =
     "w-full px-3 py-2.5 rounded-[8px] border border-line text-[12px] outline-none focus:border-line-strong bg-panel text-tx-1 placeholder:text-tx-3";
-  const f = (key: keyof typeof form, val: string) => {
+  const f = (key: keyof FormState, val: string) => {
     setForm((p) => ({ ...p, [key]: val }));
     onDirtyChange?.(true);
   };
@@ -256,21 +327,15 @@ function ProjectForm({
               <img
                 src={logoPreview}
                 alt=""
-                style={{
-                  width: 52,
-                  height: 52,
-                  borderRadius: 10,
-                  objectFit: "cover",
-                }}
+                style={{ width: 52, height: 52, borderRadius: 10, objectFit: "cover" }}
               />
               <div>
-                <p className="text-[12px] font-medium text-tx-1 mb-1">
-                  Логотип загружен
-                </p>
+                <p className="text-[12px] font-medium text-tx-1 mb-1">Логотип загружен</p>
                 <button
                   onClick={() => {
                     setLogoFile(null);
                     setLogoPreview(null);
+                    setForm((p) => ({ ...p, logo_url: "" }));
                   }}
                   className="text-[11px] text-neg cursor-pointer"
                   style={{ background: "none", border: "none" }}
@@ -297,10 +362,9 @@ function ProjectForm({
             placeholder="Например: Пятый Элемент"
             className={`${inp} ${nameError ? "border-neg" : ""}`}
           />
-          {nameError && (
-            <p className="text-[10px] text-neg mt-1">{nameError}</p>
-          )}
+          {nameError && <p className="text-[10px] text-neg mt-1">{nameError}</p>}
         </div>
+
         {/* Ниша — 2 уровня */}
         <div>
           <label className="block ui-label mb-2">Ниша</label>
@@ -331,8 +395,6 @@ function ProjectForm({
               );
             })}
           </div>
-
-          {/* Подкатегории ниши */}
           {nicheCategory && (() => {
             const parent = NICHE_TREE.find((n) => n.label === nicheCategory);
             if (!parent || parent.subs.length === 0) return null;
@@ -370,10 +432,7 @@ function ProjectForm({
               return (
                 <button
                   key={t.value}
-                  onClick={() => {
-                    f("tone", t.value);
-                    setToneSub("");
-                  }}
+                  onClick={() => { f("tone", t.value); setToneSub(""); }}
                   className={`flex flex-col items-start px-3 py-2 rounded-[8px] border cursor-pointer transition-colors text-left ${
                     isActive
                       ? "bg-accent text-on-accent border-accent"
@@ -390,8 +449,6 @@ function ProjectForm({
               );
             })}
           </div>
-
-          {/* Стиль тона */}
           {form.tone && (() => {
             const parent = TONE_TREE.find((t) => t.value === form.tone);
             if (!parent) return null;
@@ -421,6 +478,7 @@ function ProjectForm({
             );
           })()}
         </div>
+
         <div>
           <label className="block ui-label mb-2">Язык</label>
           <div className="flex gap-2">
@@ -428,7 +486,11 @@ function ProjectForm({
               <button
                 key={l.value}
                 onClick={() => f("language", l.value)}
-                className={`px-4 py-1.5 rounded-[7px] text-[11px] border cursor-pointer transition-colors ${form.language === l.value ? "bg-accent text-on-accent border-accent" : "border-line text-tx-2 hover:bg-hover"}`}
+                className={`px-4 py-1.5 rounded-[7px] text-[11px] border cursor-pointer transition-colors ${
+                  form.language === l.value
+                    ? "bg-accent text-on-accent border-accent"
+                    : "border-line text-tx-2 hover:bg-hover"
+                }`}
               >
                 {l.label}
               </button>
@@ -436,6 +498,7 @@ function ProjectForm({
           </div>
         </div>
       </div>
+
       <div className="space-y-4">
         <div>
           <label className="block ui-label mb-1">Описание бренда</label>
@@ -477,23 +540,25 @@ function ProjectForm({
           {saving
             ? "⟳ Сохранение..."
             : saved
-              ? "✓ Проект создан!"
-              : "📁 Создать проект"}
+              ? "✓ Сохранено!"
+              : projectId
+                ? "✏️ Сохранить изменения"
+                : "📁 Создать проект"}
         </button>
       </div>
     </div>
   );
 }
 
+// ── Main page ───────────────────────────────────────────────────────────────
+
 function ProjectsPageInner() {
   const supabase = createClient();
   const qc = useQueryClient();
   const locale = useLocale();
 
-  // Persistent tabs - first tab is always "all"
   const [tabs, setTabs] = useState<ProjectTab[]>(() => {
-    if (typeof window === "undefined")
-      return [{ id: "all", title: "Все проекты" }];
+    if (typeof window === "undefined") return [{ id: "all", title: "Все проекты" }];
     const loaded = loadTabs();
     if (!loaded.find((t) => t.id === "all"))
       return [{ id: "all", title: "Все проекты" }, ...loaded];
@@ -504,25 +569,25 @@ function ProjectsPageInner() {
   );
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [search, setSearch] = useState("");
-  const [closeConfirm, setCloseConfirm] = useState<{
-    id: string;
-    title: string;
-  } | null>(null);
+  const [closeConfirm, setCloseConfirm] = useState<{ id: string; title: string } | null>(null);
   const [dirtyTabs, setDirtyTabs] = useState<Set<string>>(new Set());
+  const [tabConfigs, setTabConfigs] = useState<Record<string, TabConfig>>({});
+  const [drafts, setDrafts] = useState<Draft[]>([]);
+
+  // Stores latest form snapshot per tab for draft saving
+  const tabFormDataRef = useRef<Record<string, FormSnapshot>>({});
 
   useEffect(() => {
-    saveTabs(tabs);
-  }, [tabs]);
-  useEffect(() => {
-    saveActiveId(activeId);
-  }, [activeId]);
+    setDrafts(loadDrafts());
+  }, []);
+
+  useEffect(() => { saveTabs(tabs); }, [tabs]);
+  useEffect(() => { saveActiveId(activeId); }, [activeId]);
 
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
       const { data } = await supabase
         .from("projects")
@@ -534,43 +599,27 @@ function ProjectsPageInner() {
     },
   });
 
-  // Stats per project
   const { data: projectStats = {} } = useQuery({
     queryKey: ["project_stats"],
     queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return {};
       const [camps, contents, agents] = await Promise.all([
-        supabase
-          .from("ad_campaigns")
-          .select("project_id")
-          .eq("user_id", user.id),
+        supabase.from("ad_campaigns").select("project_id").eq("user_id", user.id),
         supabase.from("contents").select("project_id").eq("user_id", user.id),
-        supabase
-          .from("ai_agents")
-          .select("project_id")
-          .eq("user_id", user.id)
-          .eq("is_active", true),
+        supabase.from("ai_agents").select("project_id").eq("user_id", user.id).eq("is_active", true),
       ]);
-      const stats: Record<
-        string,
-        { campaigns: number; contents: number; agents: number }
-      > = {};
+      const stats: Record<string, { campaigns: number; contents: number; agents: number }> = {};
       (camps.data ?? []).forEach((r: any) => {
-        if (!stats[r.project_id])
-          stats[r.project_id] = { campaigns: 0, contents: 0, agents: 0 };
+        if (!stats[r.project_id]) stats[r.project_id] = { campaigns: 0, contents: 0, agents: 0 };
         stats[r.project_id].campaigns++;
       });
       (contents.data ?? []).forEach((r: any) => {
-        if (!stats[r.project_id])
-          stats[r.project_id] = { campaigns: 0, contents: 0, agents: 0 };
+        if (!stats[r.project_id]) stats[r.project_id] = { campaigns: 0, contents: 0, agents: 0 };
         stats[r.project_id].contents++;
       });
       (agents.data ?? []).forEach((r: any) => {
-        if (!stats[r.project_id])
-          stats[r.project_id] = { campaigns: 0, contents: 0, agents: 0 };
+        if (!stats[r.project_id]) stats[r.project_id] = { campaigns: 0, contents: 0, agents: 0 };
         stats[r.project_id].agents++;
       });
       return stats;
@@ -590,7 +639,53 @@ function ProjectsPageInner() {
   const addTab = () => {
     const id = String(Date.now());
     setTabs((prev) => [...prev, { id, title: "Новый проект" }]);
+    setTabConfigs((prev) => ({ ...prev, [id]: { mode: "create" } }));
     setActiveId(id);
+  };
+
+  const openEditTab = (project: any) => {
+    const tabId = `edit_${project.id}`;
+    if (!tabs.find((t) => t.id === tabId)) {
+      setTabs((prev) => [...prev, { id: tabId, title: project.name }]);
+      setTabConfigs((prev) => ({ ...prev, [tabId]: { mode: "edit", project } }));
+    }
+    setActiveId(tabId);
+    saveActiveId(tabId);
+  };
+
+  const openDraftTab = (draft: Draft) => {
+    const tabId = `draft_${draft.id}`;
+    if (!tabs.find((t) => t.id === tabId)) {
+      setTabs((prev) => [...prev, { id: tabId, title: draft.name || "Черновик" }]);
+      setTabConfigs((prev) => ({ ...prev, [tabId]: { mode: "draft", draftId: draft.id } }));
+    }
+    setActiveId(tabId);
+    saveActiveId(tabId);
+  };
+
+  const handleSaveDraft = (tabId: string) => {
+    const snap = tabFormDataRef.current[tabId];
+    if (!snap) return;
+    const draftId = String(Date.now());
+    const draft: Draft = {
+      id: draftId,
+      name: snap.form.name || "Черновик",
+      snapshot: snap,
+      savedAt: new Date().toISOString(),
+    };
+    setDrafts((prev) => {
+      const updated = [...prev, draft];
+      saveDraftsStorage(updated);
+      return updated;
+    });
+  };
+
+  const deleteDraft = (draftId: string) => {
+    setDrafts((prev) => {
+      const updated = prev.filter((d) => d.id !== draftId);
+      saveDraftsStorage(updated);
+      return updated;
+    });
   };
 
   const forceCloseTab = (id: string) => {
@@ -608,6 +703,12 @@ function ProjectsPageInner() {
       next.delete(id);
       return next;
     });
+    setTabConfigs((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    delete tabFormDataRef.current[id];
   };
 
   const tryCloseTab = (id: string) => {
@@ -620,13 +721,9 @@ function ProjectsPageInner() {
     }
   };
 
-  const closeTab = tryCloseTab;
-
   const updateTitle = (id: string, title: string) =>
     setTabs((prev) =>
-      prev.map((t) =>
-        t.id === id ? { ...t, title: title || "Новый проект" } : t,
-      ),
+      prev.map((t) => (t.id === id ? { ...t, title: title || "Новый проект" } : t)),
     );
 
   const filtered = projects.filter(
@@ -635,29 +732,45 @@ function ProjectsPageInner() {
       (p.niche ?? "").toLowerCase().includes(search.toLowerCase()),
   );
 
+  const getTabConfig = (tabId: string): TabConfig =>
+    tabConfigs[tabId] ?? { mode: "create" };
+
+  const getInitialSnapshot = (tabId: string): FormSnapshot | undefined => {
+    const config = getTabConfig(tabId);
+    if (config.mode === "edit" && config.project) {
+      const p = config.project;
+      return {
+        form: {
+          name: p.name ?? "",
+          niche: p.niche ?? "",
+          description: p.description ?? "",
+          audience: p.audience ?? "",
+          tone: p.tone ?? "friendly",
+          language: p.language ?? "ru",
+          logo_url: p.logo_url ?? "",
+        },
+        nicheCategory: getNicheCategory(p.niche ?? ""),
+        toneSub: "",
+      };
+    }
+    if (config.mode === "draft" && config.draftId) {
+      const draft = drafts.find((d) => d.id === config.draftId);
+      if (draft) return draft.snapshot;
+    }
+    return undefined;
+  };
+
   const inp =
     "w-full px-3 py-2.5 rounded-[8px] border border-line text-[12px] outline-none focus:border-line-strong bg-panel text-tx-1 placeholder:text-tx-3";
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        height: "100%",
-        overflow: "hidden",
-      }}
-    >
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       {/* Header */}
       <div
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 14px",
-          height: 44,
-          borderBottom: "0.5px solid var(--line)",
-          background: "var(--panel)",
-          flexShrink: 0,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "0 14px", height: 44,
+          borderBottom: "0.5px solid var(--line)", background: "var(--panel)", flexShrink: 0,
         }}
       >
         <p style={{ fontSize: 11, color: "var(--tx-3)" }}>
@@ -667,61 +780,36 @@ function ProjectsPageInner() {
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           {activeId === "all" && (
             <>
-              {/* Search */}
               <div
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "6px 10px",
-                  border: "0.5px solid var(--line)",
-                  borderRadius: 8,
-                  background: "var(--panel)",
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "6px 10px", border: "0.5px solid var(--line)",
+                  borderRadius: 8, background: "var(--panel)",
                 }}
               >
-                <Search
-                  size={13}
-                  style={{ color: "var(--tx-3)", flexShrink: 0 }}
-                />
+                <Search size={13} style={{ color: "var(--tx-3)", flexShrink: 0 }} />
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Поиск проектов..."
                   style={{
-                    background: "none",
-                    border: "none",
-                    outline: "none",
-                    fontSize: 12,
-                    color: "var(--tx-1)",
-                    width: 160,
-                    fontFamily: "inherit",
+                    background: "none", border: "none", outline: "none",
+                    fontSize: 12, color: "var(--tx-1)", width: 160, fontFamily: "inherit",
                   }}
                 />
               </div>
-              {/* View toggle */}
               <div
                 style={{
-                  display: "flex",
-                  gap: 2,
-                  padding: 2,
-                  background: "var(--panel-2)",
-                  border: "0.5px solid var(--line)",
-                  borderRadius: 8,
+                  display: "flex", gap: 2, padding: 2,
+                  background: "var(--panel-2)", border: "0.5px solid var(--line)", borderRadius: 8,
                 }}
               >
                 <button
                   onClick={() => setViewMode("grid")}
                   style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 6,
-                    border: "none",
-                    cursor: "pointer",
-                    background:
-                      viewMode === "grid" ? "var(--panel)" : "transparent",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
+                    width: 28, height: 28, borderRadius: 6, border: "none", cursor: "pointer",
+                    background: viewMode === "grid" ? "var(--panel)" : "transparent",
+                    display: "flex", alignItems: "center", justifyContent: "center",
                     color: viewMode === "grid" ? "var(--tx-1)" : "var(--tx-3)",
                   }}
                 >
@@ -730,16 +818,9 @@ function ProjectsPageInner() {
                 <button
                   onClick={() => setViewMode("list")}
                   style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 6,
-                    border: "none",
-                    cursor: "pointer",
-                    background:
-                      viewMode === "list" ? "var(--panel)" : "transparent",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
+                    width: 28, height: 28, borderRadius: 6, border: "none", cursor: "pointer",
+                    background: viewMode === "list" ? "var(--panel)" : "transparent",
+                    display: "flex", alignItems: "center", justifyContent: "center",
                     color: viewMode === "list" ? "var(--tx-1)" : "var(--tx-3)",
                   }}
                 >
@@ -751,15 +832,9 @@ function ProjectsPageInner() {
           <button
             onClick={addTab}
             style={{
-              padding: "6px 14px",
-              borderRadius: 8,
-              border: "none",
-              background: "var(--accent)",
-              color: "var(--on-accent)",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "inherit",
+              padding: "6px 14px", borderRadius: 8, border: "none",
+              background: "var(--accent)", color: "var(--on-accent)",
+              fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
             }}
           >
             + Новый проект
@@ -767,76 +842,51 @@ function ProjectsPageInner() {
         </div>
       </div>
 
-      {/* Browser tabs - always visible */}
+      {/* Browser tabs */}
       <div
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 2,
-          padding: "6px 14px 0",
-          borderBottom: "0.5px solid var(--line)",
-          background: "var(--panel)",
-          overflowX: "auto",
-          flexShrink: 0,
+          display: "flex", alignItems: "center", gap: 2, padding: "6px 14px 0",
+          borderBottom: "0.5px solid var(--line)", background: "var(--panel)",
+          overflowX: "auto", flexShrink: 0,
         }}
       >
         {tabs.map((tab) => {
           const active = tab.id === activeId;
+          const cfg = getTabConfig(tab.id);
+          const tabIcon = cfg.mode === "edit" ? "✏️" : cfg.mode === "draft" ? "📝" : null;
           return (
             <div
               key={tab.id}
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 12px 7px",
-                borderRadius: "8px 8px 0 0",
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "6px 12px 7px", borderRadius: "8px 8px 0 0",
                 background: active ? "var(--bg)" : "var(--panel-2)",
                 border: `0.5px solid ${active ? "var(--line)" : "transparent"}`,
                 borderBottom: active ? "1px solid var(--bg)" : "none",
-                cursor: "pointer",
-                flexShrink: 0,
-                marginBottom: active ? -1 : 0,
+                cursor: "pointer", flexShrink: 0, marginBottom: active ? -1 : 0,
               }}
-              onClick={() => {
-                setActiveId(tab.id);
-                saveActiveId(tab.id);
-              }}
+              onClick={() => { setActiveId(tab.id); saveActiveId(tab.id); }}
             >
               {tab.id === "all" && <span style={{ fontSize: 10 }}>📁</span>}
+              {tabIcon && <span style={{ fontSize: 10 }}>{tabIcon}</span>}
               <span
                 style={{
-                  fontSize: 11,
-                  fontWeight: active ? 500 : 400,
+                  fontSize: 11, fontWeight: active ? 500 : 400,
                   color: active ? "var(--tx-1)" : "var(--tx-3)",
-                  whiteSpace: "nowrap",
-                  maxWidth: 160,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis",
                 }}
               >
                 {tab.title}
               </span>
               {tab.id !== "all" && (
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    closeTab(tab.id);
-                  }}
+                  onClick={(e) => { e.stopPropagation(); tryCloseTab(tab.id); }}
                   style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    color: "var(--tx-3)",
-                    fontSize: 13,
-                    padding: "0 2px",
+                    background: "none", border: "none", cursor: "pointer",
+                    color: "var(--tx-3)", fontSize: 13, padding: "0 2px",
                   }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.color = "var(--tx-1)")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.color = "var(--tx-3)")
-                  }
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "var(--tx-1)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "var(--tx-3)")}
                 >
                   ✕
                 </button>
@@ -847,19 +897,10 @@ function ProjectsPageInner() {
         <button
           onClick={addTab}
           style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 26,
-            height: 26,
-            borderRadius: 7,
-            border: "0.5px solid var(--line)",
-            background: "transparent",
-            cursor: "pointer",
-            color: "var(--tx-3)",
-            fontSize: 16,
-            flexShrink: 0,
-            marginLeft: 2,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: 26, height: 26, borderRadius: 7, border: "0.5px solid var(--line)",
+            background: "transparent", cursor: "pointer", color: "var(--tx-3)",
+            fontSize: 16, flexShrink: 0, marginLeft: 2,
           }}
           onMouseEnter={(e) => {
             (e.currentTarget as HTMLElement).style.background = "var(--hover)";
@@ -880,50 +921,27 @@ function ProjectsPageInner() {
         {activeId === "all" && (
           <div>
             {/* Stats bar */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(4,1fr)",
-                gap: 12,
-                marginBottom: 20,
-              }}
-            >
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
               {[
                 { l: "Всего проектов", v: projects.length, icon: "📁" },
                 {
                   l: "Активных кампаний",
-                  v: Object.values(projectStats as any).reduce(
-                    (s: number, st: any) => s + (st.campaigns ?? 0),
-                    0,
-                  ),
+                  v: Object.values(projectStats as any).reduce((s: number, st: any) => s + (st.campaigns ?? 0), 0),
                   icon: "📡",
                 },
                 {
                   l: "Контент материалов",
-                  v: Object.values(projectStats as any).reduce(
-                    (s: number, st: any) => s + (st.contents ?? 0),
-                    0,
-                  ),
+                  v: Object.values(projectStats as any).reduce((s: number, st: any) => s + (st.contents ?? 0), 0),
                   icon: "📝",
                 },
                 {
                   l: "AI-агентов",
-                  v: Object.values(projectStats as any).reduce(
-                    (s: number, st: any) => s + (st.agents ?? 0),
-                    0,
-                  ),
+                  v: Object.values(projectStats as any).reduce((s: number, st: any) => s + (st.agents ?? 0), 0),
                   icon: "🤖",
                 },
               ].map((k) => (
                 <div key={k.l} className="ui-surface px-4 py-3">
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      marginBottom: 6,
-                    }}
-                  >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                     <span style={{ fontSize: 16 }}>{k.icon}</span>
                     <p className="ui-label">{k.l}</p>
                   </div>
@@ -932,49 +950,117 @@ function ProjectsPageInner() {
               ))}
             </div>
 
+            {/* Drafts section */}
+            {drafts.length > 0 && (
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                  <span style={{ fontSize: 14 }}>📝</span>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)" }}>Черновики</p>
+                  <span
+                    style={{
+                      fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 99,
+                      background: "rgba(245,158,11,0.12)", color: "#d97706",
+                    }}
+                  >
+                    {drafts.length}
+                  </span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
+                  {drafts.map((draft) => (
+                    <div
+                      key={draft.id}
+                      className="ui-surface p-3"
+                      style={{ borderStyle: "dashed", opacity: 0.9 }}
+                    >
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+                        <div
+                          style={{
+                            width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+                            background: "rgba(245,158,11,0.12)",
+                            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18,
+                          }}
+                        >
+                          📝
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p
+                            style={{
+                              fontSize: 12, fontWeight: 600, color: "var(--tx-1)",
+                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                            }}
+                          >
+                            {draft.name || "Без названия"}
+                          </p>
+                          <p style={{ fontSize: 10, color: "var(--tx-3)", marginTop: 2 }}>
+                            {new Date(draft.savedAt).toLocaleDateString("ru", {
+                              day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                      {draft.snapshot.form.niche && (
+                        <p style={{ fontSize: 10, color: "var(--tx-3)", marginBottom: 8 }}>
+                          {draft.snapshot.form.niche}
+                        </p>
+                      )}
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button
+                          onClick={() => openDraftTab(draft)}
+                          style={{
+                            flex: 1, padding: "6px 8px", borderRadius: 7,
+                            border: "0.5px solid var(--accent)",
+                            background: "rgba(var(--accent-rgb, 74,186,116),0.08)",
+                            color: "var(--accent)", fontSize: 11, fontWeight: 500,
+                            cursor: "pointer", fontFamily: "inherit",
+                          }}
+                        >
+                          ✏️ Продолжить
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm("Удалить черновик?")) deleteDraft(draft.id);
+                          }}
+                          style={{
+                            padding: "6px 8px", borderRadius: 7,
+                            border: "0.5px solid var(--line)", background: "transparent",
+                            color: "var(--neg)", fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+                          }}
+                        >
+                          🗑
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {isLoading && (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: 40,
-                  color: "var(--tx-3)",
-                  fontSize: 12,
-                }}
-              >
+              <div style={{ textAlign: "center", padding: 40, color: "var(--tx-3)", fontSize: 12 }}>
                 Загрузка...
               </div>
             )}
 
             {!isLoading && filtered.length === 0 && search && (
               <div className="ui-surface flex flex-col items-center py-10 text-center">
-                <p className="text-[13px] text-tx-2">
-                  Нет проектов по запросу «{search}»
-                </p>
+                <p className="text-[13px] text-tx-2">Нет проектов по запросу «{search}»</p>
               </div>
             )}
 
             {!isLoading && projects.length === 0 && (
               <div className="ui-surface flex flex-col items-center py-16 text-center">
                 <div style={{ fontSize: 48, marginBottom: 14 }}>📁</div>
-                <p className="text-[16px] font-semibold text-tx-1 mb-2">
-                  Нет проектов
-                </p>
+                <p className="text-[16px] font-semibold text-tx-1 mb-2">Нет проектов</p>
                 <p className="text-[12px] text-tx-3 mb-5 max-w-[280px] leading-relaxed">
-                  Создайте первый проект — он станет основой для кампаний и
-                  контента
+                  Создайте первый проект — он станет основой для кампаний и контента
                 </p>
                 <button
                   onClick={addTab}
                   style={{
-                    padding: "10px 24px",
-                    borderRadius: 9,
-                    background: "var(--accent)",
-                    color: "var(--on-accent)",
-                    border: "none",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
+                    padding: "10px 24px", borderRadius: 9,
+                    background: "var(--accent)", color: "var(--on-accent)",
+                    border: "none", fontSize: 13, fontWeight: 600,
+                    cursor: "pointer", fontFamily: "inherit",
                   }}
                 >
                   + Создать проект
@@ -984,55 +1070,24 @@ function ProjectsPageInner() {
 
             {/* Grid view */}
             {viewMode === "grid" && (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(3,1fr)",
-                  gap: 14,
-                }}
-              >
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14 }}>
                 {filtered.map((p: any) => {
-                  const stats = (projectStats as any)[p.id] ?? {
-                    campaigns: 0,
-                    contents: 0,
-                    agents: 0,
-                  };
+                  const stats = (projectStats as any)[p.id] ?? { campaigns: 0, contents: 0, agents: 0 };
                   return (
                     <div key={p.id} className="ui-surface p-4">
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                          marginBottom: 12,
-                        }}
-                      >
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                         {p.logo_url ? (
                           <img
-                            src={p.logo_url}
-                            alt=""
-                            style={{
-                              width: 44,
-                              height: 44,
-                              borderRadius: 10,
-                              objectFit: "cover",
-                              flexShrink: 0,
-                            }}
+                            src={p.logo_url} alt=""
+                            style={{ width: 44, height: 44, borderRadius: 10, objectFit: "cover", flexShrink: 0 }}
                           />
                         ) : (
                           <div
                             style={{
-                              width: 44,
-                              height: 44,
-                              borderRadius: 10,
+                              width: 44, height: 44, borderRadius: 10,
                               background: colorFor(p.id),
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              color: "#fff",
-                              fontSize: 18,
-                              fontWeight: 700,
-                              flexShrink: 0,
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              color: "#fff", fontSize: 18, fontWeight: 700, flexShrink: 0,
                             }}
                           >
                             {p.name.slice(0, 1).toUpperCase()}
@@ -1040,29 +1095,19 @@ function ProjectsPageInner() {
                         )}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <p className="text-[14px] font-semibold text-tx-1 truncate">
-                              {p.name}
-                            </p>
-                            {/* В процессе — если не заполнены ключевые поля */}
+                            <p className="text-[14px] font-semibold text-tx-1 truncate">{p.name}</p>
                             {(!p.niche || !p.description || !p.audience || (stats?.contents ?? 0) === 0) && (
                               <span style={{
-                                fontSize: 9,
-                                fontWeight: 600,
-                                padding: "2px 6px",
-                                borderRadius: 99,
-                                background: "rgba(245,158,11,0.12)",
-                                color: "#d97706",
-                                whiteSpace: "nowrap",
-                                flexShrink: 0,
+                                fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 99,
+                                background: "rgba(245,158,11,0.12)", color: "#d97706",
+                                whiteSpace: "nowrap", flexShrink: 0,
                               }}>
                                 ⏳ В процессе
                               </span>
                             )}
                           </div>
                           {p.niche && (
-                            <p className="text-[11px] text-tx-3 mt-0.5">
-                              {p.niche}
-                            </p>
+                            <p className="text-[11px] text-tx-3 mt-0.5">{p.niche}</p>
                           )}
                         </div>
                       </div>
@@ -1071,86 +1116,58 @@ function ProjectsPageInner() {
                           {p.description}
                         </p>
                       )}
-
-                      {/* Stats */}
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(3,1fr)",
-                          gap: 6,
-                          marginBottom: 12,
-                        }}
-                      >
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: 12 }}>
                         {[
                           { l: "Кампаний", v: stats.campaigns, icon: "📡" },
                           { l: "Материалов", v: stats.contents, icon: "📝" },
                           { l: "Агентов", v: stats.agents, icon: "🤖" },
                         ].map((s) => (
-                          <div
-                            key={s.l}
-                            style={{
-                              padding: "6px 8px",
-                              background: "var(--panel-2)",
-                              borderRadius: 7,
-                              textAlign: "center",
-                            }}
-                          >
-                            <p style={{ fontSize: 16, marginBottom: 2 }}>
-                              {s.icon}
-                            </p>
-                            <p
-                              style={{
-                                fontSize: 14,
-                                fontWeight: 600,
-                                color: "var(--tx-1)",
-                              }}
-                            >
-                              {s.v}
-                            </p>
-                            <p style={{ fontSize: 9, color: "var(--tx-3)" }}>
-                              {s.l}
-                            </p>
+                          <div key={s.l} style={{ padding: "6px 8px", background: "var(--panel-2)", borderRadius: 7, textAlign: "center" }}>
+                            <p style={{ fontSize: 16, marginBottom: 2 }}>{s.icon}</p>
+                            <p style={{ fontSize: 14, fontWeight: 600, color: "var(--tx-1)" }}>{s.v}</p>
+                            <p style={{ fontSize: 9, color: "var(--tx-3)" }}>{s.l}</p>
                           </div>
                         ))}
                       </div>
-
                       <div style={{ display: "flex", gap: 6 }}>
                         <Link
                           href={`/${locale}/projects/${p.id}`}
                           style={{
-                            flex: 1,
-                            padding: "7px",
-                            borderRadius: 7,
-                            border: "0.5px solid var(--line)",
-                            background: "transparent",
-                            color: "var(--tx-2)",
-                            fontSize: 11,
-                            fontWeight: 500,
-                            cursor: "pointer",
-                            fontFamily: "inherit",
-                            textAlign: "center",
-                            textDecoration: "none",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
+                            flex: 1, padding: "7px", borderRadius: 7,
+                            border: "0.5px solid var(--line)", background: "transparent",
+                            color: "var(--tx-2)", fontSize: 11, fontWeight: 500,
+                            cursor: "pointer", fontFamily: "inherit",
+                            textAlign: "center", textDecoration: "none",
+                            display: "flex", alignItems: "center", justifyContent: "center",
                           }}
                         >
                           Открыть
                         </Link>
                         <button
-                          onClick={() => {
-                            if (confirm(`Удалить «${p.name}»?`))
-                              deleteProject.mutate(p.id);
-                          }}
+                          onClick={() => openEditTab(p)}
+                          title="Редактировать"
                           style={{
-                            padding: "7px 10px",
-                            borderRadius: 7,
-                            border: "0.5px solid var(--line)",
-                            background: "transparent",
-                            color: "var(--neg)",
-                            fontSize: 11,
-                            cursor: "pointer",
-                            fontFamily: "inherit",
+                            padding: "7px 10px", borderRadius: 7,
+                            border: "0.5px solid var(--line)", background: "transparent",
+                            color: "var(--tx-2)", fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+                          }}
+                          onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.borderColor = "var(--accent)";
+                            (e.currentTarget as HTMLElement).style.color = "var(--accent)";
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.borderColor = "var(--line)";
+                            (e.currentTarget as HTMLElement).style.color = "var(--tx-2)";
+                          }}
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => { if (confirm(`Удалить «${p.name}»?`)) deleteProject.mutate(p.id); }}
+                          style={{
+                            padding: "7px 10px", borderRadius: 7,
+                            border: "0.5px solid var(--line)", background: "transparent",
+                            color: "var(--neg)", fontSize: 11, cursor: "pointer", fontFamily: "inherit",
                           }}
                         >
                           🗑
@@ -1162,22 +1179,10 @@ function ProjectsPageInner() {
                 <div
                   onClick={addTab}
                   className="border border-dashed border-line hover:border-line-strong rounded-[10px] flex flex-col items-center justify-center cursor-pointer transition-colors min-h-[200px]"
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.borderColor = "var(--accent)")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.borderColor = "var(--line)")
-                  }
+                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--line)")}
                 >
-                  <span
-                    style={{
-                      fontSize: 28,
-                      color: "var(--tx-3)",
-                      marginBottom: 8,
-                    }}
-                  >
-                    +
-                  </span>
+                  <span style={{ fontSize: 28, color: "var(--tx-3)", marginBottom: 8 }}>+</span>
                   <p className="text-[11px] text-tx-3">Новый проект</p>
                 </div>
               </div>
@@ -1188,154 +1193,100 @@ function ProjectsPageInner() {
               <div className="ui-surface overflow-hidden">
                 <div
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 120px",
-                    gap: 0,
-                    padding: "8px 16px",
-                    borderBottom: "0.5px solid var(--line)",
-                    background: "var(--panel-2)",
+                    display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 150px",
+                    gap: 0, padding: "8px 16px",
+                    borderBottom: "0.5px solid var(--line)", background: "var(--panel-2)",
                   }}
                 >
-                  {[
-                    "Проект",
-                    "Кампаний",
-                    "Материалов",
-                    "Агентов",
-                    "Ниша",
-                    "",
-                  ].map((h) => (
+                  {["Проект", "Кампаний", "Материалов", "Агентов", "Ниша", ""].map((h) => (
                     <span
                       key={h}
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 600,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.06em",
-                        color: "var(--tx-3)",
-                      }}
+                      style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tx-3)" }}
                     >
                       {h}
                     </span>
                   ))}
                 </div>
                 {filtered.map((p: any, i: number) => {
-                  const stats = (projectStats as any)[p.id] ?? {
-                    campaigns: 0,
-                    contents: 0,
-                    agents: 0,
-                  };
+                  const stats = (projectStats as any)[p.id] ?? { campaigns: 0, contents: 0, agents: 0 };
                   return (
                     <div
                       key={p.id}
                       style={{
-                        display: "grid",
-                        gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 120px",
-                        gap: 0,
-                        padding: "12px 16px",
-                        borderBottom:
-                          i < filtered.length - 1
-                            ? "0.5px solid var(--line)"
-                            : "none",
+                        display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 150px",
+                        gap: 0, padding: "12px 16px",
+                        borderBottom: i < filtered.length - 1 ? "0.5px solid var(--line)" : "none",
                         alignItems: "center",
                       }}
                     >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                        }}
-                      >
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         {p.logo_url ? (
-                          <img
-                            src={p.logo_url}
-                            alt=""
-                            style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: 8,
-                              objectFit: "cover",
-                              flexShrink: 0,
-                            }}
-                          />
+                          <img src={p.logo_url} alt="" style={{ width: 32, height: 32, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
                         ) : (
                           <div
                             style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: 8,
+                              width: 32, height: 32, borderRadius: 8,
                               background: colorFor(p.id),
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              color: "#fff",
-                              fontSize: 13,
-                              fontWeight: 700,
-                              flexShrink: 0,
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              color: "#fff", fontSize: 13, fontWeight: 700, flexShrink: 0,
                             }}
                           >
                             {p.name.slice(0, 1).toUpperCase()}
                           </div>
                         )}
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <p style={{ fontSize: 13, fontWeight: 500, color: "var(--tx-1)" }}>
-                            {p.name}
-                          </p>
+                          <p style={{ fontSize: 13, fontWeight: 500, color: "var(--tx-1)" }}>{p.name}</p>
                           {(!p.niche || !p.description || !p.audience || (stats?.contents ?? 0) === 0) && (
                             <span style={{
-                              fontSize: 9, fontWeight: 600,
-                              padding: "2px 5px", borderRadius: 99,
-                              background: "rgba(245,158,11,0.12)", color: "#d97706",
-                              whiteSpace: "nowrap",
+                              fontSize: 9, fontWeight: 600, padding: "2px 5px", borderRadius: 99,
+                              background: "rgba(245,158,11,0.12)", color: "#d97706", whiteSpace: "nowrap",
                             }}>
                               ⏳ В процессе
                             </span>
                           )}
                         </div>
                       </div>
-                      <p style={{ fontSize: 13, color: "var(--tx-2)" }}>
-                        {stats.campaigns}
-                      </p>
-                      <p style={{ fontSize: 13, color: "var(--tx-2)" }}>
-                        {stats.contents}
-                      </p>
-                      <p style={{ fontSize: 13, color: "var(--tx-2)" }}>
-                        {stats.agents}
-                      </p>
-                      <p style={{ fontSize: 11, color: "var(--tx-3)" }}>
-                        {p.niche ?? "—"}
-                      </p>
+                      <p style={{ fontSize: 13, color: "var(--tx-2)" }}>{stats.campaigns}</p>
+                      <p style={{ fontSize: 13, color: "var(--tx-2)" }}>{stats.contents}</p>
+                      <p style={{ fontSize: 13, color: "var(--tx-2)" }}>{stats.agents}</p>
+                      <p style={{ fontSize: 11, color: "var(--tx-3)" }}>{p.niche ?? "—"}</p>
                       <div style={{ display: "flex", gap: 6 }}>
                         <Link
                           href={`/${locale}/projects/${p.id}`}
                           style={{
-                            padding: "5px 10px",
-                            borderRadius: 6,
-                            border: "0.5px solid var(--line)",
-                            background: "transparent",
-                            color: "var(--tx-2)",
-                            fontSize: 11,
-                            fontWeight: 500,
-                            cursor: "pointer",
-                            textDecoration: "none",
+                            padding: "5px 10px", borderRadius: 6,
+                            border: "0.5px solid var(--line)", background: "transparent",
+                            color: "var(--tx-2)", fontSize: 11, fontWeight: 500,
+                            cursor: "pointer", textDecoration: "none",
                           }}
                         >
                           Открыть
                         </Link>
                         <button
-                          onClick={() => {
-                            if (confirm(`Удалить «${p.name}»?`))
-                              deleteProject.mutate(p.id);
-                          }}
+                          onClick={() => openEditTab(p)}
+                          title="Редактировать"
                           style={{
-                            padding: "5px 8px",
-                            borderRadius: 6,
-                            border: "0.5px solid var(--line)",
-                            background: "transparent",
-                            color: "var(--neg)",
-                            fontSize: 11,
-                            cursor: "pointer",
-                            fontFamily: "inherit",
+                            padding: "5px 8px", borderRadius: 6,
+                            border: "0.5px solid var(--line)", background: "transparent",
+                            color: "var(--tx-2)", fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+                          }}
+                          onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.borderColor = "var(--accent)";
+                            (e.currentTarget as HTMLElement).style.color = "var(--accent)";
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.borderColor = "var(--line)";
+                            (e.currentTarget as HTMLElement).style.color = "var(--tx-2)";
+                          }}
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => { if (confirm(`Удалить «${p.name}»?`)) deleteProject.mutate(p.id); }}
+                          style={{
+                            padding: "5px 8px", borderRadius: 6,
+                            border: "0.5px solid var(--line)", background: "transparent",
+                            color: "var(--neg)", fontSize: 11, cursor: "pointer", fontFamily: "inherit",
                           }}
                         >
                           🗑
@@ -1349,105 +1300,120 @@ function ProjectsPageInner() {
           </div>
         )}
 
-        {/* Create project tabs */}
+        {/* Create / Edit / Draft tabs */}
         {activeId !== "all" && (
           <div>
             {tabs
               .filter((t) => t.id !== "all" && t.id === activeId)
-              .map((tab) => (
-                <ProjectForm
-                  key={tab.id}
-                  tabId={tab.id}
-                  onNameChange={(n) => updateTitle(tab.id, n)}
-                  onDirtyChange={(dirty) =>
-                    setDirtyTabs((prev) => {
-                      const next = new Set(prev);
-                      if (dirty) next.add(tab.id);
-                      else next.delete(tab.id);
-                      return next;
-                    })
-                  }
-                  onSaved={() => {
-                    setActiveId("all");
-                    saveActiveId("all");
-                    forceCloseTab(tab.id);
-                  }}
-                />
-              ))}
+              .map((tab) => {
+                const config = getTabConfig(tab.id);
+                const isEdit = config.mode === "edit";
+                const isDraft = config.mode === "draft";
+                return (
+                  <div key={tab.id}>
+                    {(isEdit || isDraft) && (
+                      <div
+                        style={{
+                          display: "flex", alignItems: "center", gap: 8,
+                          marginBottom: 20, paddingBottom: 16,
+                          borderBottom: "0.5px solid var(--line)",
+                        }}
+                      >
+                        <span style={{ fontSize: 16 }}>{isEdit ? "✏️" : "📝"}</span>
+                        <div>
+                          <p style={{ fontSize: 14, fontWeight: 600, color: "var(--tx-1)" }}>
+                            {isEdit ? `Редактирование: ${config.project?.name}` : "Черновик"}
+                          </p>
+                          <p style={{ fontSize: 11, color: "var(--tx-3)", marginTop: 2 }}>
+                            {isEdit
+                              ? "Измените нужные поля и нажмите «Сохранить изменения»"
+                              : "Продолжите заполнение и создайте проект"}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    <ProjectForm
+                      key={tab.id}
+                      tabId={tab.id}
+                      initialSnapshot={getInitialSnapshot(tab.id)}
+                      projectId={isEdit ? config.project?.id : undefined}
+                      onNameChange={(n) => updateTitle(tab.id, n)}
+                      onDirtyChange={(dirty) =>
+                        setDirtyTabs((prev) => {
+                          const next = new Set(prev);
+                          if (dirty) next.add(tab.id);
+                          else next.delete(tab.id);
+                          return next;
+                        })
+                      }
+                      onFormChange={(snap) => {
+                        tabFormDataRef.current[tab.id] = snap;
+                      }}
+                      onSaved={() => {
+                        // If this was a draft tab, remove the draft from storage
+                        if (isDraft && config.draftId) {
+                          deleteDraft(config.draftId);
+                        }
+                        setActiveId("all");
+                        saveActiveId("all");
+                        forceCloseTab(tab.id);
+                      }}
+                    />
+                  </div>
+                );
+              })}
           </div>
         )}
       </div>
 
+      {/* Close confirm modal */}
       {closeConfirm && (
         <div
           style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 200,
-            background: "rgba(0,0,0,0.4)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 20,
+            position: "fixed", inset: 0, zIndex: 200,
+            background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
           }}
         >
           <div
             style={{
-              background: "var(--panel)",
-              border: "0.5px solid var(--line)",
-              borderRadius: 16,
-              width: "100%",
-              maxWidth: 380,
-              padding: 24,
+              background: "var(--panel)", border: "0.5px solid var(--line)",
+              borderRadius: 16, width: "100%", maxWidth: 380, padding: 24,
               boxShadow: "0 24px 60px rgba(0,0,0,0.25)",
             }}
           >
-            <div
-              style={{ fontSize: 36, textAlign: "center", marginBottom: 12 }}
-            >
-              💾
-            </div>
-            <p
-              style={{
-                fontSize: 15,
-                fontWeight: 700,
-                color: "var(--tx-1)",
-                textAlign: "center",
-                marginBottom: 6,
-              }}
-            >
-              Сохранить проект?
+            <div style={{ fontSize: 36, textAlign: "center", marginBottom: 12 }}>⚠️</div>
+            <p style={{ fontSize: 15, fontWeight: 700, color: "var(--tx-1)", textAlign: "center", marginBottom: 6 }}>
+              Несохранённые изменения
             </p>
-            <p
-              style={{
-                fontSize: 12,
-                color: "var(--tx-3)",
-                textAlign: "center",
-                marginBottom: 24,
-                lineHeight: 1.5,
-              }}
-            >
-              «{closeConfirm.title}» не был сохранён. Продолжить создание или
-              закрыть?
+            <p style={{ fontSize: 12, color: "var(--tx-3)", textAlign: "center", marginBottom: 24, lineHeight: 1.5 }}>
+              «{closeConfirm.title}» содержит незаполненные данные. Что сделать?
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <button
                 onClick={() => setCloseConfirm(null)}
                 style={{
-                  width: "100%",
-                  padding: "12px",
-                  borderRadius: 10,
-                  border: "none",
-                  background: "var(--accent)",
-                  color: "var(--on-accent)",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
+                  width: "100%", padding: "12px", borderRadius: 10, border: "none",
+                  background: "var(--accent)", color: "var(--on-accent)",
+                  fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
                 }}
               >
-                ← Вернуться к созданию
+                ← Продолжить редактирование
+              </button>
+              <button
+                onClick={() => {
+                  handleSaveDraft(closeConfirm.id);
+                  setCloseConfirm(null);
+                  forceCloseTab(closeConfirm.id);
+                }}
+                style={{
+                  width: "100%", padding: "12px", borderRadius: 10,
+                  border: "0.5px solid var(--line)", background: "var(--panel-2)",
+                  color: "var(--tx-1)", fontSize: 13, fontWeight: 500,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                📝 Добавить в черновик
               </button>
               <button
                 onClick={() => {
@@ -1455,19 +1421,13 @@ function ProjectsPageInner() {
                   forceCloseTab(closeConfirm.id);
                 }}
                 style={{
-                  width: "100%",
-                  padding: "12px",
-                  borderRadius: 10,
-                  border: "0.5px solid var(--line)",
-                  background: "transparent",
-                  color: "var(--neg)",
-                  fontSize: 13,
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
+                  width: "100%", padding: "12px", borderRadius: 10,
+                  border: "0.5px solid var(--line)", background: "transparent",
+                  color: "var(--neg)", fontSize: 13, fontWeight: 500,
+                  cursor: "pointer", fontFamily: "inherit",
                 }}
               >
-                🗑 Закрыть без сохранения
+                🗑 Удалить без сохранения
               </button>
             </div>
           </div>
