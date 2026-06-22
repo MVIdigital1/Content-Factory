@@ -61,17 +61,6 @@ const PLATFORM_SUBTYPES: Record<
   ],
 };
 
-const PRESET_GOALS = [
-  "Продажи / заявки",
-  "Трафик на сайт",
-  "Охват",
-  "Подписчики",
-  "Узнаваемость бренда",
-  "Вовлечённость",
-  "Установки приложения",
-  "Просмотры видео",
-];
-
 const BASE_STORAGE_KEY = "wizard_draft_v5";
 function loadDraft(tabId?: string) {
   try {
@@ -1432,7 +1421,12 @@ export function WizardView({
             <div>
               <label className="block ui-label mb-2">Цель</label>
               <div className="flex gap-2 flex-wrap">
-                {PRESET_GOALS.map((g) => (
+                {[
+                  "Продажи / заявки",
+                  "Трафик на сайт",
+                  "Охват",
+                  "Подписчики",
+                ].map((g) => (
                   <button
                     key={g}
                     onClick={() => setGoal(g)}
@@ -1441,22 +1435,7 @@ export function WizardView({
                     {g}
                   </button>
                 ))}
-                <button
-                  onClick={() => { if (PRESET_GOALS.includes(goal)) setGoal(""); }}
-                  className={`px-3 py-1.5 rounded-[7px] text-[11px] border cursor-pointer transition-colors ${!PRESET_GOALS.includes(goal) ? "bg-accent text-on-accent border-accent" : "border-line text-tx-2 hover:bg-hover"}`}
-                >
-                  ✏️ Своя
-                </button>
               </div>
-              {!PRESET_GOALS.includes(goal) && (
-                <input
-                  value={goal}
-                  onChange={(e) => setGoal(e.target.value)}
-                  placeholder="Введите свою цель..."
-                  autoFocus
-                  className={`${inp} mt-2`}
-                />
-              )}
             </div>
 
             {/* Product */}

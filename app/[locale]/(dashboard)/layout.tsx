@@ -2,9 +2,12 @@
 import { useState, useEffect } from "react";
 import Sidebar from "@/components/features/Sidebar";
 import { TopNavbar } from "@/components/features/TopNavbar";
+import RolePickerModal from "@/components/features/RolePickerModal";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 const SIDEBAR_KEY = "sidebar_collapsed";
+const ROLE_CTX_KEY = "role_context_v1";
+const ROLE_CTX_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 export default function DashboardLayout({
   children,
@@ -12,12 +15,30 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [showRolePicker, setShowRolePicker] = useState(false);
 
   useEffect(() => {
+    // Restore sidebar state
     try {
       const saved = localStorage.getItem(SIDEBAR_KEY);
       if (saved !== null) setCollapsed(saved === "true");
     } catch {}
+
+    // Check role context: show picker if not set or expired
+    try {
+      const raw = localStorage.getItem(ROLE_CTX_KEY);
+      if (!raw) {
+        setShowRolePicker(true);
+        return;
+      }
+      const stored = JSON.parse(raw) as { savedAt: number };
+      if (Date.now() - stored.savedAt >= ROLE_CTX_TTL) {
+        localStorage.removeItem(ROLE_CTX_KEY);
+        setShowRolePicker(true);
+      }
+    } catch {
+      setShowRolePicker(true);
+    }
   }, []);
 
   const toggle = () => {
@@ -32,6 +53,11 @@ export default function DashboardLayout({
 
   return (
     <div className="flex h-screen bg-bg overflow-hidden">
+      {/* Role picker modal — shown on first visit or after context expires */}
+      {showRolePicker && (
+        <RolePickerModal onSelect={() => setShowRolePicker(false)} />
+      )}
+
       {/* Sidebar with collapse animation */}
       <div
         style={{
