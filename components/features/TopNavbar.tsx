@@ -43,7 +43,15 @@ function TokenWidget() {
 
   const fetchBalance = async () => {
     const res = await fetch("/api/tokens/balance");
-    if (res.ok) setTokens(await res.json());
+    if (res.ok) {
+      const json = await res.json();
+      setTokens({
+        plan: json.plan ?? "free",
+        tokens_total: Number(json.tokens_total) || 0,
+        tokens_used: Number(json.tokens_used) || 0,
+        tokens_remaining: Number(json.tokens_remaining) || 0,
+      });
+    }
   };
 
   useEffect(() => {
@@ -67,11 +75,13 @@ function TokenWidget() {
           },
           (payload) => {
             const row = payload.new as any;
+            const t = Number(row.tokens_total) || 0;
+            const u = Number(row.tokens_used) || 0;
             setTokens({
-              plan: row.plan,
-              tokens_total: row.tokens_total,
-              tokens_used: row.tokens_used,
-              tokens_remaining: Math.max(0, row.tokens_total - row.tokens_used),
+              plan: row.plan ?? "free",
+              tokens_total: t,
+              tokens_used: u,
+              tokens_remaining: Math.max(0, t - u),
             });
           }
         )
