@@ -18,6 +18,7 @@ import {
   FlaskConical,
   FolderOpen,
   Plug,
+  Globe,
   Contact,
   Users,
   MessagesSquare,
@@ -39,6 +40,7 @@ const MARKETING: NavItem[] = [
   { key: "campaigns", href: "/campaigns", Icon: Megaphone },
   { key: "create", href: "/create", Icon: SquarePen },
   { key: "aiWorkers", href: "/ai-workers", Icon: Bot },
+  { key: "landings", href: "/landings", Icon: Globe },
 ];
 
 const BUSINESS: NavItem[] = [

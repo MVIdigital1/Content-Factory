@@ -84,8 +84,11 @@ function TokenWidget() {
 
   if (!tokens) return null;
 
-  const pct = Math.min(100, Math.round((tokens.tokens_used / tokens.tokens_total) * 100));
-  const low = tokens.tokens_remaining <= tokens.tokens_total * 0.15;
+  const total = tokens.tokens_total ?? 0;
+  const used = tokens.tokens_used ?? 0;
+  const remaining = tokens.tokens_remaining ?? 0;
+  const pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
+  const low = remaining <= total * 0.15;
 
   return (
     <button
@@ -114,10 +117,10 @@ function TokenWidget() {
           <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
             <span style={{ fontSize: 10, color: "var(--tx-3)" }}>Токены:</span>
             <span style={{ fontSize: 11, fontWeight: 600, color: low ? "var(--neg)" : "var(--tx-1)" }}>
-              {tokens.tokens_remaining.toLocaleString()}
+              {remaining.toLocaleString()}
             </span>
             <span style={{ fontSize: 10, color: "var(--tx-3)" }}>
-              / {tokens.tokens_total.toLocaleString()}
+              / {total.toLocaleString()}
             </span>
           </div>
           <span style={{ fontSize: 9, color: "var(--tx-3)", background: "var(--chip)", padding: "1px 5px", borderRadius: 4 }}>

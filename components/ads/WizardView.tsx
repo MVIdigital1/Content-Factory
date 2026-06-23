@@ -13,7 +13,7 @@ import { useLocale } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
 
-const STEPS = ["Цель", "Платформы", "Создать", "Landing", "Креативы", "Запуск"];
+const STEPS = ["Цель", "Лендинг", "Платформы", "Создать", "Креативы", "Запуск"];
 
 const PLATFORM_SUBTYPES: Record<
   string,
@@ -518,6 +518,7 @@ export function WizardView({
       ]),
     ),
   );
+  const [landingId, setLandingId] = useState<string | null>(draft?.landingId ?? null);
   const [autoSaved, setAutoSaved] = useState(false);
   const [draftId, setDraftId] = useState<string | null>(draft?.draftId ?? null);
 
@@ -719,6 +720,21 @@ export function WizardView({
     },
   });
 
+  const { data: landingPages = [] } = useQuery({
+    queryKey: ["landing_pages_wizard"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      const { data } = await supabase
+        .from("landing_pages")
+        .select("id, name, slug")
+        .eq("user_id", user.id)
+        .eq("published", true)
+        .order("created_at", { ascending: false });
+      return data ?? [];
+    },
+  });
+
   // Autosave draft to localStorage + create draft in DB
   useEffect(() => {
     const subtypesSer = Object.fromEntries(
@@ -738,6 +754,7 @@ export function WizardView({
         platforms: [...selectedPlatforms],
         subtypes: subtypesSer,
         draftId,
+        landingId,
         step,
         maxStep,
       },
@@ -760,6 +777,7 @@ export function WizardView({
     projectId,
     selectedPlatforms,
     selectedSubtypes,
+    landingId,
     step,
     maxStep,
   ]);
@@ -814,12 +832,13 @@ export function WizardView({
           platforms: [...selectedPlatforms],
           budget_total: budget ? Number(budget) : null,
           project_id: projectId || null,
+          landing_id: landingId ?? null,
         })
         .eq("id", draftId);
       qc.invalidateQueries({ queryKey: ["ad_campaigns"] });
     }, 800);
     return () => clearTimeout(timer);
-  }, [name, goal, product, budget, projectId, selectedPlatforms, draftId]);
+  }, [name, goal, product, budget, projectId, selectedPlatforms, draftId, landingId]);
 
   const activeProject = projects.find((p: any) => p.id === projectId) as any;
 
@@ -1012,6 +1031,52 @@ export function WizardView({
     });
   };
 
+  const generateAllCreatives = async () => {
+    setGenerating(true);
+    const days = dateFrom && dateTo
+      ? Math.max(1, Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000))
+      : 0;
+    const perType = days > 0 ? (days < 7 ? 1 : days < 30 ? 2 : 3) : 2;
+    const creatives: any[] = [];
+    let globalVariationIndex = 0;
+    for (const platformKey of selectedPlatforms) {
+      const rp = realPlatforms.find((p) => p.key === platformKey);
+      const subs = selectedSubtypes[platformKey] ?? new Set();
+      for (const subtype of subs) {
+        for (let i = 0; i < perType; i++) {
+          try {
+            const content = await generateCreativeContent({
+              platform: platformKey,
+              subtype,
+              product: product || (activeProject as any)?.description || "",
+              goal,
+              audience,
+              projectName: (activeProject as any)?.name ?? name,
+              niche: (activeProject as any)?.niche ?? "",
+              variationIndex: globalVariationIndex,
+            });
+            creatives.push({
+              id: `${platformKey}__${subtype}__${Date.now()}__${i}`,
+              platform: platformKey,
+              subtype,
+              ...content,
+              rp,
+            });
+          } catch {}
+          globalVariationIndex++;
+        }
+      }
+    }
+    setGeneratedCreatives(creatives);
+    setGenerating(false);
+  };
+
+  const handleGoToCreatives = () => {
+    setStep(4);
+    setMaxStep((prev: number) => Math.max(prev, 4));
+    generateAllCreatives();
+  };
+
   // Generate ALL creatives via Claude API then save to DB
   const handleLaunch = async () => {
     if (!name.trim()) {
@@ -1044,6 +1109,7 @@ export function WizardView({
             status: "active",
             budget_total: budget ? Number(budget) : null,
             project_id: projectId || null,
+            landing_id: landingId ?? null,
           })
           .eq("id", campaignId);
       } else {
@@ -1064,6 +1130,7 @@ export function WizardView({
           cpl: 0,
           roas: 0,
           project_id: projectId || undefined,
+          landing_id: landingId ?? undefined,
         });
         campaignId = campaign.id;
       }
@@ -1573,14 +1640,14 @@ export function WizardView({
               }}
               className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
             >
-              Далее: Платформы →
+              Далее: Лендинг →
             </button>
           </div>
         </div>
       )}
 
-      {/* ══ STEP 1: Platforms ══ */}
-      {step === 1 && (() => {
+      {/* ══ STEP 2: Platforms ══ */}
+      {step === 2 && (() => {
         const tgChannels = (connectedIntegrations as any[]).filter((i) => i.platform === "telegram");
         const igChannels = (connectedIntegrations as any[]).filter((i) => i.platform === "instagram");
 
@@ -1689,15 +1756,15 @@ export function WizardView({
             </div>
 
             <div className="flex justify-between pt-2">
-              <button onClick={() => setStep(0)} className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer">
+              <button onClick={() => setStep(1)} className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer">
                 ← Назад
               </button>
               <button
                 onClick={() => {
                   if (selectedPlatforms.size === 0) { setError("Выберите платформу"); return; }
                   setError("");
-                  setStep(2);
-                  setMaxStep((prev: number) => Math.max(prev, 2));
+                  setStep(3);
+                  setMaxStep((prev: number) => Math.max(prev, 3));
                 }}
                 className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
               >
@@ -1708,79 +1775,95 @@ export function WizardView({
         );
       })()}
 
-      {/* ══ STEP 2: Создать ══ */}
-      {step === 2 && (
+      {/* ══ STEP 3: Создать ══ */}
+      {step === 3 && (
         <CreateCreativesStep
           projectId={projectId}
           campaignId={draftId ?? ""}
           selectedPlatforms={[...selectedPlatforms]}
-          onBack={() => setStep(1)}
-          onNext={() => { setStep(3); setMaxStep((prev: number) => Math.max(prev, 3)); }}
+          onBack={() => setStep(2)}
+          onNext={handleGoToCreatives}
         />
       )}
 
-      {/* ══ STEP 3: Landing ══ */}
-      {step === 3 && (
-        <div className="space-y-6">
-          <div className="text-center py-16 border border-dashed border-line rounded-[12px]" style={{ background: "var(--panel-2)" }}>
-            <div className="text-4xl mb-3">🌐</div>
-            <p className="text-[14px] font-semibold text-tx-1 mb-1">Landing страница</p>
-            <p className="text-[12px] text-tx-3">Логика этого шага будет добавлена позже</p>
+      {/* ══ STEP 1: Лендинг ══ */}
+      {step === 1 && (
+        <div className="space-y-5">
+          <div>
+            <p className="text-[13px] font-semibold text-tx-1 mb-1">Посадочная страница</p>
+            <p className="text-[11px] text-tx-3 mb-4">Выберите лендинг, на который будет вести реклама (необязательно)</p>
+
+            {(landingPages as any[]).length === 0 ? (
+              <div
+                className="flex flex-col items-center py-14 border border-dashed border-line rounded-[12px]"
+                style={{ background: "var(--panel-2)" }}
+              >
+                <div style={{ fontSize: 36, marginBottom: 10 }}>🌐</div>
+                <p className="text-[13px] font-semibold text-tx-1 mb-1">Нет опубликованных лендингов</p>
+                <p className="text-[11px] text-tx-3 mb-4">Создайте лендинг и он появится здесь</p>
+                <button
+                  onClick={() => router.push(`/${locale}/landings/create`)}
+                  className="px-4 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] cursor-pointer hover:opacity-90"
+                >
+                  + Создать лендинг
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setLandingId(null)}
+                  className={`flex flex-col items-center p-4 border rounded-[10px] cursor-pointer transition-colors text-center ${landingId === null ? "border-accent bg-chip" : "border-line hover:border-line-strong hover:bg-hover"}`}
+                >
+                  <div style={{ fontSize: 22, marginBottom: 6 }}>🚫</div>
+                  <p className="text-[12px] font-semibold text-tx-1">Без лендинга</p>
+                  <p className="text-[10px] text-tx-3 mt-1">Трафик без посадочной страницы</p>
+                  {landingId === null && (
+                    <span
+                      className="mt-2 text-[9px] font-semibold px-2 py-0.5 rounded-full"
+                      style={{ background: "var(--accent)", color: "var(--on-accent)" }}
+                    >
+                      ✓ Выбрано
+                    </span>
+                  )}
+                </button>
+                {(landingPages as any[]).map((lp: any) => (
+                  <button
+                    key={lp.id}
+                    onClick={() => setLandingId(lp.id)}
+                    className={`flex flex-col items-start p-4 border rounded-[10px] cursor-pointer transition-colors text-left ${landingId === lp.id ? "border-accent bg-chip" : "border-line hover:border-line-strong hover:bg-hover"}`}
+                  >
+                    <div style={{ fontSize: 20, marginBottom: 6 }}>🌐</div>
+                    <p className="text-[12px] font-semibold text-tx-1 leading-tight mb-1">{lp.name}</p>
+                    <p className="text-[10px] text-tx-3">/{lp.slug}</p>
+                    {landingId === lp.id && (
+                      <span
+                        className="mt-2 text-[9px] font-semibold px-2 py-0.5 rounded-full"
+                        style={{ background: "var(--accent)", color: "var(--on-accent)" }}
+                      >
+                        ✓ Выбран
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          <div className="flex justify-between pt-2">
+
+          <div className="flex justify-between pt-2 border-t border-line">
             <button
-              onClick={() => setStep(2)}
+              onClick={() => setStep(0)}
               className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
             >
               ← Назад
             </button>
             <button
-              onClick={async () => {
-                setStep(4);
-                setMaxStep((prev: number) => Math.max(prev, 4));
-                // Auto-generate creatives
-                setGenerating(true);
-                const days = dateFrom && dateTo
-                  ? Math.max(1, Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000))
-                  : 0;
-                const postsPerType = days < 7 ? 1 : days < 30 ? 2 : 3;
-                const perType = days > 0 ? postsPerType : 2;
-                const creatives: any[] = [];
-                let globalVariationIndex = 0;
-                for (const platformKey of selectedPlatforms) {
-                  const rp = realPlatforms.find((p) => p.key === platformKey);
-                  const subs = selectedSubtypes[platformKey] ?? new Set();
-                  for (const subtype of subs) {
-                    for (let i = 0; i < perType; i++) {
-                      try {
-                        const content = await generateCreativeContent({
-                          platform: platformKey,
-                          subtype,
-                          product: product || (activeProject as any)?.description || "",
-                          goal,
-                          audience,
-                          projectName: (activeProject as any)?.name ?? name,
-                          niche: (activeProject as any)?.niche ?? "",
-                          variationIndex: globalVariationIndex,
-                        });
-                        creatives.push({
-                          id: `${platformKey}__${subtype}__${Date.now()}__${i}`,
-                          platform: platformKey,
-                          subtype,
-                          ...content,
-                          rp,
-                        });
-                      } catch {}
-                      globalVariationIndex++;
-                    }
-                  }
-                }
-                setGeneratedCreatives(creatives);
-                setGenerating(false);
+              onClick={() => {
+                setStep(2);
+                setMaxStep((prev: number) => Math.max(prev, 2));
               }}
               className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
             >
-              Далее: Креативы →
+              Далее: Платформы →
             </button>
           </div>
         </div>
@@ -1831,45 +1914,7 @@ export function WizardView({
               </div>
             </div>
             <button
-              onClick={async () => {
-                setGenerating(true);
-                const days = dateFrom && dateTo
-                  ? Math.max(1, Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000))
-                  : 0;
-                const perType = days > 0 ? (days < 7 ? 1 : days < 30 ? 2 : 3) : 2;
-                const creatives: any[] = [];
-                let globalVariationIndex = 0;
-                for (const platformKey of selectedPlatforms) {
-                  const rp = realPlatforms.find((p) => p.key === platformKey);
-                  const subs = selectedSubtypes[platformKey] ?? new Set();
-                  for (const subtype of subs) {
-                    for (let i = 0; i < perType; i++) {
-                      try {
-                        const content = await generateCreativeContent({
-                          platform: platformKey,
-                          subtype,
-                          product: product || (activeProject as any)?.description || "",
-                          goal,
-                          audience,
-                          projectName: (activeProject as any)?.name ?? name,
-                          niche: (activeProject as any)?.niche ?? "",
-                          variationIndex: globalVariationIndex,
-                        });
-                        creatives.push({
-                          id: `${platformKey}__${subtype}__${Date.now()}__${i}`,
-                          platform: platformKey,
-                          subtype,
-                          ...content,
-                          rp,
-                        });
-                      } catch {}
-                      globalVariationIndex++;
-                    }
-                  }
-                }
-                setGeneratedCreatives(creatives);
-                setGenerating(false);
-              }}
+              onClick={generateAllCreatives}
               disabled={generating}
               className="px-4 py-2.5 bg-accent text-on-accent text-[11px] font-medium rounded-[8px] hover:opacity-90 cursor-pointer disabled:opacity-60 flex items-center gap-2 flex-shrink-0"
             >
@@ -2142,6 +2187,7 @@ export function WizardView({
                 l: "Бюджет",
                 v: budget ? `₽${Number(budget).toLocaleString("ru")}` : "—",
               },
+              { l: "Лендинг", v: (() => { const lp = (landingPages as any[]).find((l: any) => l.id === landingId); return lp ? `${lp.name} (/${lp.slug})` : "—"; })() },
               { l: "Креативов", v: `${generatedCreatives.length} штук готово` },
               ...(projectAgent
                 ? [{ l: "AI агент", v: `${projectAgent.name} (${projectAgent.type ?? "агент"})` }]

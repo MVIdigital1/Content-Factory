@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -827,111 +828,104 @@ function AddTelegramModal({
 }
 
 // ── Add Ad Platform modal ─────────────────────────────────────────────────
-function AddAdPlatformModal({
+function AdPlatformDrawer({
   platform,
+  record,
   onClose,
-  onSuccess,
+  onDisconnect,
+  onRefresh,
 }: {
   platform: (typeof AD_PLATFORMS)[0];
+  record: any;
   onClose: () => void;
-  onSuccess: () => void;
+  onDisconnect: () => void;
+  onRefresh: () => void;
 }) {
-  const supabase = createClient();
-  const [token, setToken] = useState("");
-  const [accountId, setAccountId] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const locale = useLocale();
+  const router = useRouter();
 
-  const inp = {
-    width: "100%",
-    padding: "8px 12px",
-    borderRadius: 8,
-    border: "0.5px solid var(--line)",
-    background: "var(--panel)",
-    color: "var(--tx-1)",
-    fontSize: 12,
-    outline: "none",
-    fontFamily: "inherit",
-    boxSizing: "border-box" as const,
-  };
-
-  const handleSave = async () => {
-    if (!token.trim()) {
-      setError("Введите токен");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Не авторизован");
-      const { error: err } = await supabase.from("ad_platforms").upsert({
-        user_id: user.id,
-        platform_key: platform.key,
-        name: platform.name,
-        color: platform.color,
-        abbr: platform.abbr,
-        access_token: token,
-        account_id: accountId || null,
-        is_active: true,
-        status: "active",
-        updated_at: new Date().toISOString(),
-      });
-      if (err) throw err;
-      onSuccess();
-      onClose();
-    } catch (e: any) {
-      setError(e.message);
-    }
-    setLoading(false);
-  };
+  const connectedDate = record.updated_at
+    ? new Date(record.updated_at).toLocaleDateString("ru", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : "—";
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 200,
-        background: "rgba(0,0,0,0.45)",
-        backdropFilter: "blur(4px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-      }}
-    >
+    <>
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 150,
+          background: "rgba(0,0,0,0.18)",
+        }}
+      />
       <div
         style={{
+          position: "fixed",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 151,
+          width: 320,
           background: "var(--panel)",
-          border: "0.5px solid var(--line)",
-          borderRadius: 16,
-          width: "100%",
-          maxWidth: 440,
-          boxShadow: "0 24px 60px rgba(0,0,0,0.25)",
+          borderLeft: "0.5px solid var(--line)",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "-8px 0 32px rgba(0,0,0,0.14)",
         }}
       >
+        {/* Header */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            justifyContent: "space-between",
+            gap: 12,
             padding: "16px 20px",
             borderBottom: "0.5px solid var(--line)",
+            flexShrink: 0,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <PlatformIcon
-              color={platform.color}
-              abbr={platform.abbr}
-              textColor={(platform as any).textColor}
-              size={32}
-            />
-            <p style={{ fontSize: 14, fontWeight: 600, color: "var(--tx-1)" }}>
-              Подключить {platform.name}
+          <PlatformIcon
+            color={platform.color}
+            abbr={platform.abbr}
+            textColor={(platform as any).textColor}
+            size={40}
+          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "var(--tx-1)", margin: 0 }}>
+              {platform.name}
+            </p>
+            <p
+              style={{
+                fontSize: 11,
+                color: "var(--tx-3)",
+                margin: 0,
+                marginTop: 2,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {record.ad_account_id ?? record.account_name ?? "Подключён"}
             </p>
           </div>
+          <span
+            style={{
+              fontSize: 9,
+              padding: "3px 8px",
+              borderRadius: 8,
+              background: "var(--pos-dim)",
+              color: "var(--pos)",
+              fontWeight: 700,
+              flexShrink: 0,
+            }}
+          >
+            Активен
+          </span>
           <button
             onClick={onClose}
             style={{
@@ -945,114 +939,163 @@ function AddAdPlatformModal({
               alignItems: "center",
               justifyContent: "center",
               color: "var(--tx-3)",
+              flexShrink: 0,
             }}
           >
             <X size={14} />
           </button>
         </div>
+
+        {/* Metrics 2×2 */}
+        <div
+          style={{
+            padding: "16px 20px",
+            borderBottom: "0.5px solid var(--line)",
+          }}
+        >
+          <p
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              color: "var(--tx-3)",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              marginBottom: 10,
+            }}
+          >
+            Метрики за месяц
+          </p>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 8,
+            }}
+          >
+            {[
+              { label: "Расход", value: "₽0" },
+              { label: "Клики", value: "0" },
+              { label: "Лиды", value: "0" },
+              { label: "CTR", value: "0%" },
+            ].map((m) => (
+              <div
+                key={m.label}
+                style={{
+                  padding: "10px 12px",
+                  background: "var(--panel-2)",
+                  border: "0.5px solid var(--line)",
+                  borderRadius: 9,
+                }}
+              >
+                <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0, marginBottom: 4 }}>
+                  {m.label}
+                </p>
+                <p style={{ fontSize: 18, fontWeight: 700, color: "var(--tx-1)", margin: 0 }}>
+                  {m.value}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Details */}
+        <div
+          style={{
+            padding: "14px 20px",
+            borderBottom: "0.5px solid var(--line)",
+          }}
+        >
+          {[
+            { label: "Статус", value: record.status ?? "active" },
+            { label: "ID кабинета", value: record.ad_account_id ?? "—" },
+            { label: "Подключён", value: connectedDate },
+          ].map((row) => (
+            <div
+              key={row.label}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "7px 0",
+                borderBottom: "0.5px solid var(--line)",
+              }}
+            >
+              <span style={{ fontSize: 11, color: "var(--tx-3)" }}>{row.label}</span>
+              <span style={{ fontSize: 11, fontWeight: 500, color: "var(--tx-1)" }}>
+                {row.value}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Actions */}
         <div
           style={{
             padding: "16px 20px",
             display: "flex",
             flexDirection: "column",
-            gap: 12,
+            gap: 8,
+            marginTop: "auto",
           }}
         >
-          <div
+          <button
+            onClick={() => {
+              onClose();
+              router.push(`/${locale}/campaigns`);
+            }}
             style={{
-              padding: "10px 12px",
-              background: "var(--panel-2)",
-              border: "0.5px solid var(--line)",
+              width: "100%",
+              padding: "10px",
               borderRadius: 9,
-              fontSize: 11,
-              color: "var(--tx-2)",
-              lineHeight: 1.6,
+              border: "none",
+              background: "var(--accent)",
+              color: "var(--on-accent)",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+              fontFamily: "inherit",
             }}
           >
-            Получи Access Token в настройках API {platform.name} и вставь ниже
-          </div>
-          <div>
-            <p
-              style={{
-                fontSize: 10,
-                fontWeight: 600,
-                color: "var(--tx-3)",
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                marginBottom: 6,
-              }}
-            >
-              Access Token *
-            </p>
-            <input
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="Вставьте токен..."
-              style={inp}
-            />
-          </div>
-          <div>
-            <p
-              style={{
-                fontSize: 10,
-                fontWeight: 600,
-                color: "var(--tx-3)",
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                marginBottom: 6,
-              }}
-            >
-              ID кабинета (необязательно)
-            </p>
-            <input
-              value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
-              placeholder="account_12345"
-              style={inp}
-            />
-          </div>
-          {error && (
-            <p style={{ fontSize: 11, color: "var(--neg)" }}>{error}</p>
-          )}
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              onClick={handleSave}
-              disabled={loading || !token.trim()}
-              style={{
-                flex: 1,
-                padding: "10px",
-                borderRadius: 9,
-                border: "none",
-                background: "var(--accent)",
-                color: "var(--on-accent)",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                fontFamily: "inherit",
-                opacity: loading || !token.trim() ? 0.6 : 1,
-              }}
-            >
-              {loading ? "Подключаем..." : "Подключить"}
-            </button>
-            <button
-              onClick={onClose}
-              style={{
-                padding: "10px 16px",
-                borderRadius: 9,
-                border: "0.5px solid var(--line)",
-                background: "transparent",
-                color: "var(--tx-2)",
-                fontSize: 12,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              Отмена
-            </button>
-          </div>
+            → Кампании
+          </button>
+          <button
+            onClick={() => {
+              onRefresh();
+              onClose();
+            }}
+            style={{
+              width: "100%",
+              padding: "10px",
+              borderRadius: 9,
+              border: "0.5px solid var(--line)",
+              background: "transparent",
+              color: "var(--tx-2)",
+              fontSize: 12,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            ↻ Обновить данные
+          </button>
+          <button
+            onClick={onDisconnect}
+            style={{
+              width: "100%",
+              padding: "10px",
+              borderRadius: 9,
+              border: "0.5px solid var(--neg)",
+              background: "transparent",
+              color: "var(--neg)",
+              fontSize: 12,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            Отключить
+          </button>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -1265,11 +1308,16 @@ function IntegrationsPageInner() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [activeTab, setActiveTab] = useState<"social" | "ads">("social");
 
-  // Modals
+  // Modals / drawers
   const [addTgModal, setAddTgModal] = useState(false);
-  const [addAdModal, setAddAdModal] = useState<(typeof AD_PLATFORMS)[0] | null>(
-    null,
-  );
+  const [adDrawer, setAdDrawer] = useState<{
+    platform: (typeof AD_PLATFORMS)[0];
+    record: any;
+  } | null>(null);
+  const [selectedPlatform, setSelectedPlatform] = useState<{
+    platform: (typeof AD_PLATFORMS)[0];
+    record: any;
+  } | null>(null);
   const [channelModal, setChannelModal] = useState<{
     integration: Integration;
     platform: any;
@@ -1286,6 +1334,15 @@ function IntegrationsPageInner() {
     if (s === "instagram") {
       showToast("✓ Instagram успешно подключён!");
       qc.invalidateQueries({ queryKey: ["integrations"] });
+    } else if (s === "meta") {
+      showToast("✓ Meta Ads подключён!");
+      qc.invalidateQueries({ queryKey: ["ad_platforms_real"] });
+    } else if (s === "google") {
+      showToast("✓ Google Ads подключён!");
+      qc.invalidateQueries({ queryKey: ["ad_platforms_real"] });
+    } else if (s === "yandex") {
+      showToast("✓ Яндекс Директ подключён!");
+      qc.invalidateQueries({ queryKey: ["ad_platforms_real"] });
     } else if (e) showToast(`Ошибка: ${decodeURIComponent(e)}`, false);
   }, [searchParams]);
 
@@ -1381,6 +1438,38 @@ function IntegrationsPageInner() {
       response_type: "code",
     });
     window.location.href = `https://www.instagram.com/oauth/authorize?${params}`;
+  };
+
+  const connectMetaAds = () => {
+    const params = new URLSearchParams({
+      client_id: process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID ?? "",
+      redirect_uri: process.env.NEXT_PUBLIC_META_REDIRECT_URI ?? "",
+      scope: "ads_read,ads_management,leads_retrieval,business_management,instagram_business_basic,instagram_business_content_publish",
+      response_type: "code",
+      state: "meta_ads",
+    });
+    window.location.href = `https://www.facebook.com/v18.0/dialog/oauth?${params}`;
+  };
+
+  const connectGoogleAds = () => {
+    const params = new URLSearchParams({
+      client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "",
+      redirect_uri: process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI ?? "",
+      scope: "https://www.googleapis.com/auth/adwords",
+      response_type: "code",
+      access_type: "offline",
+      prompt: "consent",
+    });
+    window.location.href = `https://accounts.google.com/o/oauth2/auth?${params}`;
+  };
+
+  const connectYandexAds = () => {
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: process.env.NEXT_PUBLIC_YANDEX_CLIENT_ID ?? "",
+      redirect_uri: process.env.NEXT_PUBLIC_YANDEX_REDIRECT_URI ?? "",
+    });
+    window.location.href = `https://oauth.yandex.ru/authorize?${params}`;
   };
 
   const totalConnected = integrations.length + adPlatforms.length;
@@ -1518,30 +1607,350 @@ function IntegrationsPageInner() {
 
         {/* Ad platforms */}
         {activeTab === "ads" && (
-          <div
-            style={{
-              maxWidth: 680,
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-            }}
-          >
-            {AD_PLATFORMS.map((p) => (
-              <PlatformRow
-                key={p.key}
-                platformConfig={p}
-                integrations={adPlatforms.map((a) => ({
-                  ...a,
-                  platform: (a as any).platform_key ?? p.key,
-                }))}
-                onAdd={() => {
-                  if (p.canConnect) setAddAdModal(p);
+          <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+
+            {/* ── Left column ── */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {/* Три метрики вверху */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, 1fr)",
+                  gap: 10,
+                  marginBottom: 20,
                 }}
-                onChannelClick={(ch) =>
-                  setChannelModal({ integration: ch, platform: p })
-                }
-              />
-            ))}
+              >
+                {[
+                  { label: "Подключено", value: adPlatforms.length, unit: "кабинетов" },
+                  { label: "Расход за месяц", value: "₽0", unit: "" },
+                  { label: "Лидов за месяц", value: "0", unit: "" },
+                ].map((m) => (
+                  <div
+                    key={m.label}
+                    style={{
+                      padding: "14px 16px",
+                      background: "var(--panel)",
+                      border: "0.5px solid var(--line)",
+                      borderRadius: 12,
+                    }}
+                  >
+                    <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0, marginBottom: 6 }}>
+                      {m.label}
+                    </p>
+                    <p style={{ fontSize: 22, fontWeight: 700, color: "var(--tx-1)", margin: 0 }}>
+                      {m.value}
+                    </p>
+                    {m.unit && (
+                      <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0, marginTop: 2 }}>
+                        {m.unit}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Карточки платформ */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {AD_PLATFORMS.map((p) => {
+                  const record = (adPlatforms as any[]).find(
+                    (a) => (a.platform_key ?? a.platform) === p.key,
+                  );
+                  const isConnected = !!record;
+                  const isSelected = selectedPlatform?.platform.key === p.key;
+
+                  return (
+                    <div
+                      key={p.key}
+                      onClick={() => {
+                        if (isConnected) setSelectedPlatform({ platform: p, record });
+                      }}
+                      style={{
+                        background: isSelected ? "var(--hover)" : "var(--panel)",
+                        border: `0.5px solid ${
+                          isSelected
+                            ? "var(--accent)"
+                            : isConnected
+                            ? "color-mix(in srgb, var(--pos) 30%, transparent)"
+                            : "var(--line)"
+                        }`,
+                        borderRadius: 12,
+                        padding: "14px 16px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 14,
+                        cursor: isConnected ? "pointer" : "default",
+                        transition: "border-color 0.15s, background 0.15s",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (isConnected && !isSelected)
+                          (e.currentTarget as HTMLElement).style.background = "var(--hover)";
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected)
+                          (e.currentTarget as HTMLElement).style.background = "var(--panel)";
+                      }}
+                    >
+                      <PlatformIcon
+                        color={p.color}
+                        abbr={p.abbr}
+                        textColor={(p as any).textColor}
+                        size={44}
+                      />
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>
+                            {p.name}
+                          </p>
+                          {isConnected && (
+                            <span
+                              style={{
+                                fontSize: 9,
+                                padding: "2px 7px",
+                                borderRadius: 7,
+                                background: "var(--pos-dim)",
+                                color: "var(--pos)",
+                                fontWeight: 700,
+                              }}
+                            >
+                              Активен
+                            </span>
+                          )}
+                          {(p as any).soon && !isConnected && (
+                            <span
+                              style={{
+                                fontSize: 9,
+                                padding: "2px 7px",
+                                borderRadius: 7,
+                                background: "var(--chip)",
+                                color: "var(--tx-3)",
+                                fontWeight: 600,
+                              }}
+                            >
+                              Скоро
+                            </span>
+                          )}
+                        </div>
+                        <p style={{ fontSize: 11, color: "var(--tx-3)", margin: 0 }}>
+                          {isConnected
+                            ? record.ad_account_id ?? record.account_name ?? p.desc
+                            : p.desc}
+                        </p>
+                      </div>
+
+                      {isConnected ? (
+                        <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+                          <div style={{ textAlign: "right" }}>
+                            <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0 }}>Расход</p>
+                            <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>
+                              ₽0
+                            </p>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0 }}>Лиды</p>
+                            <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>
+                              0
+                            </p>
+                          </div>
+                          <div
+                            style={{
+                              width: 7,
+                              height: 7,
+                              borderRadius: "50%",
+                              background: "var(--pos)",
+                              flexShrink: 0,
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if ((p as any).soon) return;
+                            if (p.key === "meta") connectMetaAds();
+                            else if (p.key === "google") connectGoogleAds();
+                            else if (p.key === "yandex") connectYandexAds();
+                          }}
+                          disabled={!!(p as any).soon}
+                          style={{
+                            padding: "7px 16px",
+                            borderRadius: 8,
+                            border: "0.5px solid var(--accent)",
+                            background: "transparent",
+                            color: "var(--accent)",
+                            fontSize: 11,
+                            fontWeight: 600,
+                            cursor: (p as any).soon ? "default" : "pointer",
+                            fontFamily: "inherit",
+                            opacity: (p as any).soon ? 0.35 : 1,
+                            flexShrink: 0,
+                            transition: "opacity 0.15s",
+                          }}
+                        >
+                          {(p as any).soon ? "Скоро" : "Подключить"}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── Right panel ── */}
+            {selectedPlatform && (
+              <div
+                style={{
+                  width: 280,
+                  flexShrink: 0,
+                  background: "var(--panel)",
+                  border: "0.5px solid var(--line)",
+                  borderRadius: 14,
+                  padding: "20px 18px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 16,
+                  position: "sticky",
+                  top: 16,
+                }}
+              >
+                {/* Header */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <PlatformIcon
+                    color={selectedPlatform.platform.color}
+                    abbr={selectedPlatform.platform.abbr}
+                    textColor={(selectedPlatform.platform as any).textColor}
+                    size={40}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "var(--tx-1)" }}>
+                      {selectedPlatform.platform.name}
+                    </p>
+                    <p style={{ margin: 0, fontSize: 11, color: "var(--tx-3)", marginTop: 2 }}>
+                      {selectedPlatform.record.ad_account_id ?? "—"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedPlatform(null)}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "var(--tx-3)",
+                      padding: 4,
+                      lineHeight: 1,
+                      fontSize: 16,
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Status */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "7px 10px",
+                    borderRadius: 8,
+                    background: "color-mix(in srgb, var(--pos) 12%, transparent)",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: "50%",
+                      background: "var(--pos)",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span style={{ fontSize: 12, color: "var(--pos)", fontWeight: 600 }}>
+                    Активен
+                  </span>
+                </div>
+
+                {/* Metrics */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {[
+                    { label: "Расход", value: "₽0" },
+                    { label: "Клики", value: "0" },
+                    { label: "Лиды", value: "0" },
+                    { label: "CTR", value: "0%" },
+                  ].map((m) => (
+                    <div
+                      key={m.label}
+                      style={{
+                        padding: "10px 12px",
+                        background: "var(--panel-2)",
+                        borderRadius: 10,
+                        border: "0.5px solid var(--line)",
+                      }}
+                    >
+                      <p style={{ margin: 0, fontSize: 10, color: "var(--tx-3)" }}>{m.label}</p>
+                      <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--tx-1)", marginTop: 3 }}>
+                        {m.value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Connected date */}
+                {selectedPlatform.record.updated_at && (
+                  <p style={{ margin: 0, fontSize: 11, color: "var(--tx-3)" }}>
+                    Подключён:{" "}
+                    {new Date(selectedPlatform.record.updated_at).toLocaleDateString("ru-RU")}
+                  </p>
+                )}
+
+                {/* Actions */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+                  <button
+                    onClick={() =>
+                      router.push(`/${locale}/integrations/${selectedPlatform.platform.key}`)
+                    }
+                    style={{
+                      padding: "9px 0",
+                      borderRadius: 9,
+                      background: "var(--accent)",
+                      color: "var(--on-accent)",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      fontFamily: "inherit",
+                      width: "100%",
+                    }}
+                  >
+                    Подробная статистика →
+                  </button>
+                  <button
+                    onClick={() => {
+                      deleteMutation.mutate({
+                        id: selectedPlatform.record.id,
+                        table: "ad_platforms",
+                      });
+                      setSelectedPlatform(null);
+                      showToast(`${selectedPlatform.platform.name} отключён`);
+                    }}
+                    style={{
+                      padding: "9px 0",
+                      borderRadius: 9,
+                      background: "transparent",
+                      color: "var(--neg)",
+                      border: "0.5px solid color-mix(in srgb, var(--neg) 40%, transparent)",
+                      cursor: "pointer",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      fontFamily: "inherit",
+                      width: "100%",
+                    }}
+                  >
+                    Отключить
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1557,14 +1966,20 @@ function IntegrationsPageInner() {
         />
       )}
 
-      {/* Add Ad Platform modal */}
-      {addAdModal && (
-        <AddAdPlatformModal
-          platform={addAdModal}
-          onClose={() => setAddAdModal(null)}
-          onSuccess={() => {
+      {/* Ad platform drawer */}
+      {adDrawer && (
+        <AdPlatformDrawer
+          platform={adDrawer.platform}
+          record={adDrawer.record}
+          onClose={() => setAdDrawer(null)}
+          onDisconnect={() => {
+            deleteMutation.mutate({ id: adDrawer.record.id, table: "ad_platforms" });
+            setAdDrawer(null);
+            showToast(`${adDrawer.platform.name} отключён`);
+          }}
+          onRefresh={() => {
             qc.invalidateQueries({ queryKey: ["ad_platforms_real"] });
-            showToast(`✓ ${addAdModal.name} подключён!`);
+            showToast("Данные обновлены");
           }}
         />
       )}
