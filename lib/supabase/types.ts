@@ -116,6 +116,7 @@ export interface AdCampaign {
   id: string
   user_id: string
   project_id?: string
+  landing_id?: string
   name: string
   description?: string
   goal?: string

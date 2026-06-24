@@ -401,6 +401,8 @@ function InviteModal({
         workspace = ws;
       }
 
+      if (!workspace) throw new Error("Не удалось получить воркспейс");
+
       for (const email of validEmails) {
         await supabase.from("workspace_members").insert({
           workspace_id: workspace.id,
