@@ -1305,6 +1305,7 @@ function IntegrationsPageInner() {
   const supabase = createClient();
   const qc = useQueryClient();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [activeTab, setActiveTab] = useState<"social" | "ads">("social");
 
