@@ -31,7 +31,6 @@ const PLAN_LABELS: Record<string, string> = {
 };
 
 function TokenWidget() {
-  return null; // TODO: re-enable after user_tokens table is set up
   const supabase = createClient();
   const locale = useLocale();
   const router = useRouter();

@@ -392,9 +392,10 @@ function InviteModal({
       if (!user) throw new Error("Не авторизован");
 
       let workspace: { id: string } | null = null;
-      const { data: ws } = await supabase.from("workspaces").select("id").eq("owner_id", user.id).single();
+      const { data: ws, error: wsErr } = await supabase.from("workspaces").select("id").eq("owner_id", user.id).single();
       if (!ws) {
-        const { data: newWs } = await supabase.from("workspaces").insert({ name: "Мой воркспейс", owner_id: user.id }).select().single();
+        const { data: newWs, error: createErr } = await supabase.from("workspaces").insert({ name: "Мой воркспейс", owner_id: user.id }).select().single();
+        if (!newWs) throw new Error(createErr?.message ?? "Не удалось создать воркспейс");
         workspace = newWs;
       } else {
         workspace = ws;
@@ -402,12 +403,18 @@ function InviteModal({
 
       for (const email of validEmails) {
         await supabase.from("workspace_members").insert({
-          workspace_id: workspace!.id,
+          workspace_id: workspace.id,
           email,
           role: selectedRole,
           invited_by: user.id,
           status: "pending",
           project_ids: allProjects ? null : selectedProjects,
+        });
+
+        await fetch("/api/team/invite", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, role: selectedRole }),
         });
       }
     },
