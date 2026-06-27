@@ -152,7 +152,7 @@ export default function TicketsPage() {
             </button>
           </div>
         ) : (
-          tickets.map((t) => (
+          tickets.map((t: any) => (
             <div
               key={t.id}
               className="ui-surface p-4 hover:border-line-strong transition-colors"
@@ -161,7 +161,7 @@ export default function TicketsPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span
-                      className={`text-[10px] ${PRIORITY_CONFIG[t.priority].color}`}
+                      className={`text-[10px] ${(PRIORITY_CONFIG as any)[t.priority].color}`}
                     >
                       ●
                     </span>
@@ -184,7 +184,7 @@ export default function TicketsPage() {
                       status: e.target.value as any,
                     })
                   }
-                  className={`text-[10.5px] px-2 py-1 rounded-full font-medium border-0 outline-none cursor-pointer ${STATUS_CONFIG[t.status].color}`}
+                  className={`text-[10.5px] px-2 py-1 rounded-full font-medium border-0 outline-none cursor-pointer ${(STATUS_CONFIG as any)[t.status].color}`}
                 >
                   {Object.entries(STATUS_CONFIG).map(([k, v]) => (
                     <option key={k} value={k}>

@@ -7,7 +7,7 @@ import { useLocale } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 
 export default function ProfilePage() {
-  const { user, isLoading: userLoading } = useUser();
+  const { user, loading: userLoading } = useUser();
   const router = useRouter();
   const locale = useLocale();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -121,7 +121,7 @@ export default function ProfilePage() {
   }
 
   const initials = name ? name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) : user?.email?.[0]?.toUpperCase() || "U";
-  const joinedDate = user?.created_at ? new Date(user.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : "—";
+  const joinedDate = (user as any)?.created_at ? new Date((user as any).created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : "—";
   const inputClass = "w-full px-3 py-2.5 rounded-lg border border-line-strong text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors bg-panel";
 
   return (

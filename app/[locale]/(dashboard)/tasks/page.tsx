@@ -96,11 +96,11 @@ export default function TasksPage() {
     });
   };
 
-  const todo = tasks.filter((t) => t.status === "todo");
+  const todo = tasks.filter((t: any) => t.status === "todo");
   const inProg = tasks.filter(
-    (t) => t.status === "in_progress" || t.status === "review",
+    (t: any) => t.status === "in_progress" || t.status === "review",
   );
-  const done = tasks.filter((t) => t.status === "done");
+  const done = tasks.filter((t: any) => t.status === "done");
 
   // #1 = самая первая созданная задача (самая старая)
   const sortedAscIds = [...tasks]
@@ -440,7 +440,7 @@ export default function TasksPage() {
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {visibleTasks.map((t) => (
+            {visibleTasks.map((t: any) => (
               <TaskCard key={t.id} task={t} />
             ))}
           </div>

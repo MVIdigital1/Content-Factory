@@ -128,7 +128,7 @@ export default function CrmPage() {
               <p className="text-[12px] text-tx-3">Нет клиентов</p>
             </div>
           ) : (
-            filtered.map((c) => (
+            filtered.map((c: any) => (
               <button
                 key={c.id}
                 onClick={() => setSelected(c)}
@@ -139,9 +139,9 @@ export default function CrmPage() {
                     {c.name}
                   </p>
                   <span
-                    className={`text-[8.5px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${STATUS_CONFIG[c.status].color}`}
+                    className={`text-[8.5px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${(STATUS_CONFIG as any)[c.status].color}`}
                   >
-                    {STATUS_CONFIG[c.status].label}
+                    {(STATUS_CONFIG as any)[c.status].label}
                   </span>
                 </div>
                 {c.company && (
