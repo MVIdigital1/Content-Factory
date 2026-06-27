@@ -2,10 +2,10 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { useTranslations, useLocale } from "next-intl";
 import LangSwitcher from "@/components/features/LangSwitcher";
 import ThemeToggle from "@/components/features/ThemeToggle";
+import { useUser, clearUserCache } from "@/lib/hooks/useUser";
 import {
   LayoutDashboard,
   SquarePen,
@@ -73,27 +73,20 @@ const ACCOUNT: NavItem[] = [
 function NavContent({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
-  const supabase = createClient();
   const [isPending, startTransition] = useTransition();
   const [activeHref, setActiveHref] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [user, setUser] = useState<any>(null);
   const [agencyOpen, setAgencyOpen] = useState(false);
   const [marketingOpen, setMarketingOpen] = useState(true);
   const t = useTranslations("nav");
   const locale = useLocale();
+  const { user } = useUser();
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      setUser(user);
-      if (
-        process.env.NEXT_PUBLIC_ADMIN_EMAIL &&
-        user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL
-      )
-        setIsAdmin(true);
-    });
-  }, []);
+    if (user && process.env.NEXT_PUBLIC_ADMIN_EMAIL && user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL) {
+      setIsAdmin(true);
+    }
+  }, [user]);
 
   useEffect(() => {
     const mPaths = ["/campaigns", "/projects", "/create", "/ai-workers"];
@@ -101,7 +94,8 @@ function NavContent({ onClose }: { onClose?: () => void }) {
   }, [pathname]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await fetch("/api/auth/logout", { method: "POST" });
+    clearUserCache();
     router.push(`/${locale}/auth/login`);
     router.refresh();
   };
@@ -122,13 +116,8 @@ function NavContent({ onClose }: { onClose?: () => void }) {
     );
   };
 
-  const initials = user?.user_metadata?.full_name
-    ? user.user_metadata.full_name
-        .split(" ")
-        .map((n: string) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
+  const initials = user?.full_name
+    ? user.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)
     : user?.email?.[0]?.toUpperCase() || "U";
 
   const NavButton = ({ item }: { item: NavItem }) => {
@@ -353,7 +342,7 @@ function NavContent({ onClose }: { onClose?: () => void }) {
                 className="text-[12px] font-medium truncate"
                 style={{ color: "var(--sb-tx-1)" }}
               >
-                {user?.user_metadata?.full_name ||
+                {user?.full_name ||
                   user?.email?.split("@")[0] ||
                   "Пользователь"}
               </div>

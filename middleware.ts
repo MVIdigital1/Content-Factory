@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import createIntlMiddleware from "next-intl/middleware";
+import { verifyToken, COOKIE_NAME } from "@/lib/auth";
 
 const locales = ["ru", "uz", "en"];
 const defaultLocale = "ru";
@@ -14,11 +14,10 @@ const handleI18n = createIntlMiddleware({
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // ── 1. Пропускаем API, статику и auth callback ──────────────────────────────
+  // ── 1. Пропускаем API, статику ──────────────────────────────────────────────
   if (
     pathname.startsWith("/api") ||
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/auth/callback") ||
     pathname.match(/\.(ico|png|jpg|svg|css|js)$/)
   ) {
     return NextResponse.next();
@@ -38,91 +37,38 @@ export async function middleware(request: NextRequest) {
   }
   if (isAdminLogin) return handleI18n(request);
 
-  // ── 3. Лендинг — /(ru|uz|en) без подпути ───────────────────────────────────
-  // Неавторизованный → показываем лендинг
-  // Авторизованный  → редиректим сразу на дашборд (не нужно видеть лендинг)
-  const isLanding = /^\/(ru|uz|en)$/.test(pathname);
+  // ── 3. Получаем пользователя из JWT cookie ──────────────────────────────────
+  const token = request.cookies.get(COOKIE_NAME)?.value;
+  const user = token ? verifyToken(token) : null;
 
-  // ── 4. Инициализируем Supabase и получаем пользователя ──────────────────────
   const response = handleI18n(request);
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll: (cookiesToSet) =>
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
-          ),
-      },
-    },
-  );
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  // ── 5. Лендинг-логика ───────────────────────────────────────────────────────
+  // ── 4. Лендинг ──────────────────────────────────────────────────────────────
+  const isLanding = /^\/(ru|uz|en)$/.test(pathname);
   if (isLanding) {
     if (user) {
-      // Авторизован → сразу в кабинет, лендинг ему не нужен
       const locale = pathname.split("/")[1] || defaultLocale;
-
-      let dest = "/dashboard";
-      try {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", user.id)
-          .single();
-        if (profile?.role === "cmo" || profile?.role === "manager") {
-          dest = "/summary";
-        }
-      } catch {
-        // роль не прочиталась — остаёмся на дефолте
-      }
-
-      return NextResponse.redirect(new URL(`/${locale}${dest}`, request.url));
+      return NextResponse.redirect(new URL(`/${locale}/dashboard`, request.url));
     }
-    // Не авторизован → показываем лендинг (page.tsx)
     return response;
   }
 
-  // ── 6. Защищённые маршруты — требуют авторизации ────────────────────────────
+  // ── 5. Защищённые маршруты ──────────────────────────────────────────────────
   const protectedPattern =
-    /^\/(ru|uz|en)\/(dashboard|summary|projects|create|calendar|campaigns|integrations|history|analytics|team|tasks|pipeline|ai-workers|ab-tests|billing|profile|settings|crm|chat|tickets|referral)/;
+    /^\/(ru|uz|en)\/(dashboard|summary|projects|create|calendar|campaigns|integrations|history|analytics|team|tasks|pipeline|ai-workers|ab-tests|billing|profile|settings|crm|chat|tickets|referral|landings|infographics|tokens)/;
 
   if (protectedPattern.test(pathname) && !user) {
     const locale = pathname.split("/")[1] || defaultLocale;
     return NextResponse.redirect(new URL(`/${locale}/auth/login`, request.url));
   }
 
-  // ── 7. Auth страницы — если уже авторизован, редирект в кабинет ─────────────
+  // ── 6. Auth страницы — если уже авторизован ─────────────────────────────────
   const authPattern = /^\/(ru|uz|en)\/auth/;
-
   if (authPattern.test(pathname) && user) {
     const locale = pathname.split("/")[1] || defaultLocale;
-
-    let dest = "/dashboard";
-    try {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-      if (profile?.role === "cmo" || profile?.role === "manager") {
-        dest = "/summary";
-      }
-    } catch {
-      // роль не прочиталась — остаёмся на дефолте
-    }
-
-    return NextResponse.redirect(new URL(`/${locale}${dest}`, request.url));
+    return NextResponse.redirect(new URL(`/${locale}/dashboard`, request.url));
   }
 
-  // ── 8. Всё остальное — пропускаем ───────────────────────────────────────────
   return response;
 }
 

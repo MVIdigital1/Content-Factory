@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useLocale } from "next-intl";
-import { createClient } from "@/lib/supabase/client";
+import { useUser, clearUserCache } from "@/lib/hooks/useUser";
 import {
   Search,
   Bell,
@@ -31,7 +31,6 @@ const PLAN_LABELS: Record<string, string> = {
 };
 
 function TokenWidget() {
-  const supabase = createClient();
   const locale = useLocale();
   const router = useRouter();
   const [tokens, setTokens] = useState<{
@@ -41,55 +40,18 @@ function TokenWidget() {
     tokens_remaining: number;
   } | null>(null);
 
-  const fetchBalance = async () => {
-    const res = await fetch("/api/tokens/balance");
-    if (res.ok) {
-      const json = await res.json();
-      setTokens({
-        plan: json.plan ?? "free",
-        tokens_total: Number(json.tokens_total) || 0,
-        tokens_used: Number(json.tokens_used) || 0,
-        tokens_remaining: Number(json.tokens_remaining) || 0,
+  useEffect(() => {
+    fetch("/api/tokens/balance")
+      .then((r) => r.ok ? r.json() : null)
+      .then((json) => {
+        if (!json) return;
+        setTokens({
+          plan: json.plan ?? "free",
+          tokens_total: Number(json.tokens_total) || 0,
+          tokens_used: Number(json.tokens_used) || 0,
+          tokens_remaining: Number(json.tokens_remaining) || 0,
+        });
       });
-    }
-  };
-
-  useEffect(() => {
-    fetchBalance();
-  }, []);
-
-  // Realtime subscription — updates widget instantly when tokens_used changes
-  useEffect(() => {
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      channel = supabase
-        .channel("user_tokens_rt")
-        .on(
-          "postgres_changes",
-          {
-            event: "UPDATE",
-            schema: "public",
-            table: "user_tokens",
-            filter: `user_id=eq.${user.id}`,
-          },
-          (payload) => {
-            const row = payload.new as any;
-            const t = Number(row.tokens_total) || 0;
-            const u = Number(row.tokens_used) || 0;
-            setTokens({
-              plan: row.plan ?? "free",
-              tokens_total: t,
-              tokens_used: u,
-              tokens_remaining: Math.max(0, t - u),
-            });
-          }
-        )
-        .subscribe();
-    });
-    return () => {
-      channel?.unsubscribe();
-    };
   }, []);
 
   if (!tokens) return null;
@@ -157,20 +119,14 @@ export function TopNavbar() {
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
-  const supabase = createClient();
-
+  const { user } = useUser();
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
-  const [notifications] = useState(3); // mock
+  const [notifications] = useState(3);
 
   const profileRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
-  }, []);
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
@@ -183,17 +139,13 @@ export function TopNavbar() {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const initials = user?.user_metadata?.full_name
-    ? user.user_metadata.full_name
-        .split(" ")
-        .map((n: string) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
+  const initials = user?.full_name
+    ? user.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)
     : user?.email?.[0]?.toUpperCase() || "U";
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await fetch("/api/auth/logout", { method: "POST" });
+    clearUserCache();
     router.push(`/${locale}/auth/login`);
   };
 
@@ -425,7 +377,7 @@ export function TopNavbar() {
                     color: "var(--tx-1)",
                   }}
                 >
-                  {user?.user_metadata?.full_name ||
+                  {user?.full_name ||
                     user?.email?.split("@")[0] ||
                     "Пользователь"}
                 </div>
