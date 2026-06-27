@@ -1,7 +1,7 @@
 "use client";
 import { Suspense, useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+
 import { useLocale } from "next-intl";
 import Link from "next/link";
 import { LayoutGrid, List, Search, X } from "lucide-react";
@@ -134,7 +134,7 @@ function ProjectForm({
   initialSnapshot?: FormSnapshot;
   projectId?: string;
 }) {
-  const supabase = createClient();
+
   const qc = useQueryClient();
 
   const defaultForm: FormState = {
@@ -169,11 +169,9 @@ function ProjectForm({
   const { data: existingNames = [] } = useQuery({
     queryKey: ["project_names", projectId],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("projects").select("id, name")
-        .eq("user_id", user.id).eq("is_active", true);
+      const res = await fetch("/api/projects");
+      if (!res.ok) return [];
+      const data = await res.json();
       return (data ?? [])
         .filter((p: any) => p.id !== projectId)
         .map((p: any) => p.name.toLowerCase().trim());
@@ -208,48 +206,31 @@ function ProjectForm({
     if (!form.name.trim() || nameError) return;
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Не авторизован");
-
       let logo_url = form.logo_url;
       if (logoFile) {
-        const ext = logoFile.name.split(".").pop();
-        const path = `logos/${user.id}/${Date.now()}.${ext}`;
-        const { data: ud, error: ue } = await supabase.storage
-          .from("content-images").upload(path, logoFile, { contentType: logoFile.type });
-        if (ue) { alert("Ошибка загрузки логотипа: " + ue.message); setSaving(false); return; }
-        if (ud) {
-          const { data: urlD } = supabase.storage.from("content-images").getPublicUrl(path);
-          logo_url = urlD.publicUrl;
-        }
+        const fd = new FormData();
+        fd.append("file", logoFile);
+        const upRes = await fetch("/api/upload/logo", { method: "POST", body: fd });
+        if (!upRes.ok) { alert("Ошибка загрузки логотипа"); setSaving(false); return; }
+        const { url } = await upRes.json();
+        logo_url = url;
       }
 
-      if (projectId) {
-        const { error } = await supabase.from("projects").update({
-          name: form.name.trim(),
-          niche: form.niche || null,
-          description: form.description || null,
-          audience: form.audience || null,
-          tone: form.tone,
-          language: form.language,
-          logo_url: logo_url || null,
-        }).eq("id", projectId);
-        if (error) throw new Error(error.message);
-      } else {
-        const { error } = await supabase.from("projects").insert({
-          user_id: user.id,
-          name: form.name.trim(),
-          niche: form.niche || null,
-          description: form.description || null,
-          audience: form.audience || null,
-          tone: form.tone,
-          language: form.language,
-          logo_url: logo_url || null,
-          is_active: true,
-          products: [],
-        });
-        if (error) throw new Error(error.message);
-      }
+      const payload = {
+        name: form.name.trim(),
+        niche: form.niche || null,
+        description: form.description || null,
+        audience: form.audience || null,
+        tone: form.tone,
+        language: form.language,
+        logo_url: logo_url || null,
+      };
+
+      const res = projectId
+        ? await fetch(`/api/projects/${projectId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+        : await fetch("/api/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Ошибка сохранения"); }
 
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["project_names"] });
@@ -654,7 +635,6 @@ function EditProjectModal({
 // ── Main page ────────────────────────────────────────────────────────────────
 
 function ProjectsPageInner() {
-  const supabase = createClient();
   const qc = useQueryClient();
   const locale = useLocale();
 
@@ -683,46 +663,24 @@ function ProjectsPageInner() {
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("projects").select("*")
-        .eq("user_id", user.id).eq("is_active", true)
-        .order("created_at", { ascending: false });
-      return data ?? [];
+      const res = await fetch("/api/projects");
+      if (!res.ok) return [];
+      return res.json();
     },
   });
 
   const { data: projectStats = {} } = useQuery({
     queryKey: ["project_stats"],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return {};
-      const [camps, contents, agents] = await Promise.all([
-        supabase.from("ad_campaigns").select("project_id").eq("user_id", user.id),
-        supabase.from("contents").select("project_id").eq("user_id", user.id),
-        supabase.from("ai_agents").select("project_id").eq("user_id", user.id).eq("is_active", true),
-      ]);
-      const stats: Record<string, { campaigns: number; contents: number; agents: number }> = {};
-      (camps.data ?? []).forEach((r: any) => {
-        if (!stats[r.project_id]) stats[r.project_id] = { campaigns: 0, contents: 0, agents: 0 };
-        stats[r.project_id].campaigns++;
-      });
-      (contents.data ?? []).forEach((r: any) => {
-        if (!stats[r.project_id]) stats[r.project_id] = { campaigns: 0, contents: 0, agents: 0 };
-        stats[r.project_id].contents++;
-      });
-      (agents.data ?? []).forEach((r: any) => {
-        if (!stats[r.project_id]) stats[r.project_id] = { campaigns: 0, contents: 0, agents: 0 };
-        stats[r.project_id].agents++;
-      });
-      return stats;
+      const res = await fetch("/api/projects/stats");
+      if (!res.ok) return {};
+      return res.json();
     },
   });
 
   const deleteProject = useMutation({
     mutationFn: async (id: string) => {
-      await supabase.from("projects").update({ is_active: false }).eq("id", id);
+      await fetch(`/api/projects/${id}`, { method: "DELETE" });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["projects"] });

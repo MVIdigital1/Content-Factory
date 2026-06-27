@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
-import { createClient } from "@/lib/supabase/client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface GeneratedPost {
@@ -699,8 +698,6 @@ function PostPreview({
 export default function LandingPage() {
   const locale = useLocale();
   const router = useRouter();
-  const supabase = createClient();
-
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wireSvgRef = useRef<SVGSVGElement>(null);
   const wzoneRef = useRef<HTMLDivElement>(null);
@@ -804,14 +801,9 @@ export default function LandingPage() {
     }
   };
 
-  const handleGoogle = async () => {
+  const handleGoogle = () => {
     setGoogleLoading(true);
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/${locale}/auth/callback`,
-      },
-    });
+    router.push(`/${locale}/auth/register`);
   };
 
   const nicheObj = NICHES.find((n) => n.id === selectedNiche);

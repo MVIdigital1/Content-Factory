@@ -10,7 +10,6 @@ import {
 } from "@/lib/hooks/useAdsData";
 import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
-import { createClient } from "@/lib/supabase/client";
 import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
 
 const STEPS = ["Цель", "Лендинг", "Платформы", "Создать", "Креативы", "Запуск"];
@@ -149,7 +148,6 @@ async function generateCreativeContent(params: {
 
 // ── Project images panel ──────────────────────────────────────────────────
 function ProjectImagesPanel({ projectId }: { projectId?: string }) {
-  const supabase = createClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [localPreviews, setLocalPreviews] = useState<string[]>([]);
@@ -158,12 +156,9 @@ function ProjectImagesPanel({ projectId }: { projectId?: string }) {
     queryKey: ["project-files-wizard", projectId],
     enabled: !!projectId,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("project_files")
-        .select("id, name, file_url, file_type")
-        .eq("project_id", projectId!)
-        .order("created_at", { ascending: false })
-        .limit(12);
+      const res = await fetch(`/api/project-files?project_id=${projectId}`);
+      if (!res.ok) return [];
+      const data = await res.json();
       return (data ?? []).filter(
         (f: any) =>
           f.file_type === "image" ||
@@ -279,7 +274,6 @@ export function BulkScheduleModal({
   onClose: () => void;
   onScheduled: () => void;
 }) {
-  const supabase = createClient();
   const [mode, setMode] = useState<"2days" | "week" | "month" | "custom">(
     "week",
   );
@@ -331,17 +325,22 @@ export function BulkScheduleModal({
         const c = creatives[i];
         const scheduledAt = new Date(start.getTime() + interval * i);
         if (c.id) {
-          await supabase.from("scheduled_posts").insert({
-            content_id: c.id,
-            platform: c.platform,
-            scheduled_at: scheduledAt.toISOString(),
-            status: "pending",
-            retry_count: 0,
+          await fetch("/api/scheduled-posts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              content_id: c.id,
+              platform: c.platform,
+              scheduled_at: scheduledAt.toISOString(),
+              status: "pending",
+              retry_count: 0,
+            }),
           });
-          await supabase
-            .from("ad_creatives")
-            .update({ status: "active" })
-            .eq("id", c.id);
+          await fetch(`/api/ad-creatives/${c.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "active" }),
+          });
         }
       }
       onScheduled();
@@ -478,7 +477,6 @@ export function WizardView({
 }) {
   const locale = useLocale();
   const router = useRouter();
-  const supabase = createClient();
   const qc = useQueryClient();
   const createCampaign = useCreateAdCampaign();
   const createCreative = useCreateAdCreative();
@@ -566,33 +564,16 @@ export function WizardView({
   const { data: projects = [], refetch: refetchProjects } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("projects")
-        .select("id,name,niche,description,audience")
-        .eq("user_id", user.id)
-        .eq("is_active", true);
-      return data ?? [];
+      const res = await fetch("/api/projects");
+      return res.ok ? res.json() : [];
     },
   });
 
   const { data: existingCampaigns = [] } = useQuery({
     queryKey: ["ad_campaigns_clone"],
     queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("ad_campaigns")
-        .select("id,name,goal,description,platforms,budget_total")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(20);
-      return data ?? [];
+      const res = await fetch("/api/campaigns?limit=20");
+      return res.ok ? res.json() : [];
     },
   });
 
@@ -600,16 +581,10 @@ export function WizardView({
     useQuery({
       queryKey: ["ad_platforms_real"],
       queryFn: async () => {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) return [];
-        const { data } = await supabase
-          .from("ad_platforms")
-          .select("platform_key,name,account_name,account_id,color,abbr")
-          .eq("user_id", user.id)
-          .eq("is_active", true);
-        return data ?? [];
+        const res = await fetch("/api/ad-platforms");
+        if (!res.ok) return [];
+        const data = await res.json();
+        return (data ?? []).filter((p: any) => p.is_active);
       },
     });
 
@@ -617,16 +592,10 @@ export function WizardView({
     useQuery({
       queryKey: ["integrations_real"],
       queryFn: async () => {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) return [];
-        const { data } = await supabase
-          .from("integrations")
-          .select("platform,channel_name,channel_id")
-          .eq("user_id", user.id)
-          .eq("is_active", true);
-        return data ?? [];
+        const res = await fetch("/api/integrations");
+        if (!res.ok) return [];
+        const data = await res.json();
+        return (data ?? []).filter((i: any) => i.is_active);
       },
     });
 
@@ -695,43 +664,28 @@ export function WizardView({
   const { data: aiAgents = [] } = useQuery({
     queryKey: ["ai_agents_wizard"],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("ai_agents")
-        .select("id, name, type, is_active")
-        .eq("user_id", user.id)
-        .eq("is_active", true);
-      return data ?? [];
+      const res = await fetch("/api/ai-agents");
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data ?? []).filter((a: any) => a.is_active);
     },
   });
 
-  // Agent assigned to the selected project
-  const { data: projectAgent } = useQuery({
-    queryKey: ["project_agent", projectId],
-    enabled: !!projectId,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("projects")
-        .select("ai_agent_id, ai_agents(id, name, type)")
-        .eq("id", projectId)
-        .single();
-      return (data as any)?.ai_agents ?? null;
-    },
-  });
+  // Derived from projects + aiAgents (no extra query needed)
+  const projectAgent = (() => {
+    if (!projectId) return null;
+    const proj = (projects as any[]).find((p: any) => p.id === projectId);
+    if (!proj?.ai_agent_id) return null;
+    return (aiAgents as any[]).find((a: any) => a.id === proj.ai_agent_id) ?? null;
+  })();
 
   const { data: landingPages = [] } = useQuery({
-    queryKey: ["landing_pages_wizard"],
+    queryKey: ["landings_wizard"],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("landing_pages")
-        .select("id, name, slug")
-        .eq("user_id", user.id)
-        .eq("published", true)
-        .order("created_at", { ascending: false });
-      return data ?? [];
+      const res = await fetch("/api/landings");
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data ?? []).filter((l: any) => l.published);
     },
   });
 
@@ -787,14 +741,10 @@ export function WizardView({
     if (!name.trim() || draftId) return;
     const timer = setTimeout(async () => {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) return;
-        const { data } = await supabase
-          .from("ad_campaigns")
-          .insert({
-            user_id: user.id,
+        const res = await fetch("/api/campaigns", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             name: name.trim(),
             goal,
             status: "draft",
@@ -807,10 +757,10 @@ export function WizardView({
             ctr: 0,
             cpl: 0,
             roas: 0,
-          })
-          .select("id")
-          .single();
-        if (data) {
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
           setDraftId(data.id);
           qc.invalidateQueries({ queryKey: ["ad_campaigns"] });
         }
@@ -823,9 +773,10 @@ export function WizardView({
   useEffect(() => {
     if (!draftId) return;
     const timer = setTimeout(async () => {
-      await supabase
-        .from("ad_campaigns")
-        .update({
+      await fetch(`/api/campaigns/${draftId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           name: name || "Черновик",
           goal,
           description: product,
@@ -833,8 +784,8 @@ export function WizardView({
           budget_total: budget ? Number(budget) : null,
           project_id: projectId || null,
           landing_id: landingId ?? null,
-        })
-        .eq("id", draftId);
+        }),
+      });
       qc.invalidateQueries({ queryKey: ["ad_campaigns"] });
     }, 800);
     return () => clearTimeout(timer);
@@ -937,30 +888,23 @@ export function WizardView({
     if (!newProjectName.trim()) return;
     setCreatingProject(true);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Не авторизован");
-      const { data } = await supabase
-        .from("projects")
-        .insert({
-          user_id: user.id,
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           name: newProjectName.trim(),
           niche: newProjectNiche.trim() || null,
-          is_active: true,
           language: "ru",
           tone: "friendly",
-          products: [],
-        })
-        .select()
-        .single();
-      if (data) {
-        await refetchProjects();
-        setProjectId(data.id);
-        setShowCreateProject(false);
-        setNewProjectName("");
-        setNewProjectNiche("");
-      }
+        }),
+      });
+      if (!res.ok) throw new Error("Ошибка создания проекта");
+      const data = await res.json();
+      await refetchProjects();
+      setProjectId(data.id);
+      setShowCreateProject(false);
+      setNewProjectName("");
+      setNewProjectNiche("");
     } catch (e: any) {
       alert("Ошибка: " + e.message);
     } finally {
@@ -972,23 +916,20 @@ export function WizardView({
     if (!connectModal) return;
     setConnectingPlatform(true);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Не авторизован");
       const meta = PLATFORM_META[connectModal];
-      await supabase.from("ad_platforms").upsert({
-        user_id: user.id,
-        platform_key: connectModal,
-        name: meta?.name ?? connectModal,
-        color: meta?.color ?? "#888",
-        abbr: meta?.abbr ?? "?",
-        access_token: tokenInput || null,
-        account_id: accountIdInput || null,
-        is_active: true,
-        status: "active",
-        updated_at: new Date().toISOString(),
+      const res = await fetch("/api/ad-platforms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platform_key: connectModal,
+          name: meta?.name ?? connectModal,
+          color: meta?.color ?? "#888",
+          abbr: meta?.abbr ?? "?",
+          token: tokenInput || null,
+          ad_account_id: accountIdInput || null,
+        }),
       });
+      if (!res.ok) throw new Error("Ошибка подключения платформы");
       await refetchPlatforms();
       setConnectModal(null);
       setTokenInput("");
@@ -1091,17 +1032,13 @@ export function WizardView({
     setError("");
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Не авторизован");
-
       // Update or create campaign
       let campaignId = draftId;
       if (campaignId) {
-        await supabase
-          .from("ad_campaigns")
-          .update({
+        await fetch(`/api/campaigns/${campaignId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             name,
             goal,
             description: product,
@@ -1110,8 +1047,8 @@ export function WizardView({
             budget_total: budget ? Number(budget) : null,
             project_id: projectId || null,
             landing_id: landingId ?? null,
-          })
-          .eq("id", campaignId);
+          }),
+        });
       } else {
         const campaign = await createCampaign.mutateAsync({
           name,
@@ -1142,10 +1079,10 @@ export function WizardView({
       setLaunchProgress(`Сохраняю ${generatedCreatives.length} креативов...`);
       for (const c of generatedCreatives) {
         try {
-          const { data: creative } = await supabase
-            .from("ad_creatives")
-            .insert({
-              user_id: user.id,
+          const res = await fetch("/api/ad-creatives", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
               campaign_id: campaignId,
               project_id: projectId || null,
               platform: c.platform,
@@ -1158,10 +1095,9 @@ export function WizardView({
               impressions: 0,
               clicks: 0,
               is_winner: false,
-            })
-            .select()
-            .single();
-          if (creative) allCreatives.push(creative);
+            }),
+          });
+          if (res.ok) allCreatives.push(await res.json());
         } catch (e) {
           console.error("Save creative error:", e);
         }
@@ -1187,17 +1123,22 @@ export function WizardView({
     if (!scheduleModal || !scheduleTime) return;
     setScheduling(true);
     try {
-      await supabase.from("scheduled_posts").insert({
-        content_id: scheduleModal.creativeId,
-        platform: scheduleModal.platform,
-        scheduled_at: new Date(scheduleTime).toISOString(),
-        status: "pending",
-        retry_count: 0,
+      await fetch("/api/scheduled-posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content_id: scheduleModal.creativeId,
+          platform: scheduleModal.platform,
+          scheduled_at: new Date(scheduleTime).toISOString(),
+          status: "pending",
+          retry_count: 0,
+        }),
       });
-      await supabase
-        .from("ad_creatives")
-        .update({ status: "active" })
-        .eq("id", scheduleModal.creativeId);
+      await fetch(`/api/ad-creatives/${scheduleModal.creativeId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "active" }),
+      });
       setScheduleModal(null);
       setScheduleTime("");
       alert("Запланировано!");

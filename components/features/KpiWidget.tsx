@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import { Target, X } from "lucide-react";
 
 type KpiGoal = {
@@ -19,71 +18,36 @@ const METRIC_LABELS: Record<string, string> = {
 };
 
 export default function KpiWidget() {
-  const supabase = createClient();
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [newMetric, setNewMetric] =
     useState<KpiGoal["metric"]>("posts_per_week");
   const [newTarget, setNewTarget] = useState(3);
 
-  const now = new Date();
-  const weekAgo = new Date(
-    now.getTime() - 7 * 24 * 60 * 60 * 1000,
-  ).toISOString();
-  const monthAgo = new Date(
-    now.getTime() - 30 * 24 * 60 * 60 * 1000,
-  ).toISOString();
-
   const { data: goals } = useQuery({
     queryKey: ["kpi-goals"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("kpi_goals")
-        .select("*")
-        .order("created_at");
-      return (data || []) as KpiGoal[];
+      const res = await fetch("/api/kpi-goals");
+      return res.ok ? (res.json() as Promise<KpiGoal[]>) : [];
     },
   });
 
   const { data: actuals } = useQuery({
     queryKey: ["kpi-actuals"],
     queryFn: async () => {
-      const [{ count: thisWeek }, { count: thisMonth }, { count: published }] =
-        await Promise.all([
-          supabase
-            .from("contents")
-            .select("*", { count: "exact", head: true })
-            .gte("created_at", weekAgo),
-          supabase
-            .from("contents")
-            .select("*", { count: "exact", head: true })
-            .gte("created_at", monthAgo),
-          supabase
-            .from("contents")
-            .select("*", { count: "exact", head: true })
-            .eq("status", "published")
-            .gte("created_at", weekAgo),
-        ]);
-      return {
-        posts_per_week: thisWeek ?? 0,
-        posts_per_month: thisMonth ?? 0,
-        published: published ?? 0,
-      };
+      const res = await fetch("/api/kpi-actuals");
+      return res.ok ? res.json() : { posts_per_week: 0, posts_per_month: 0, published: 0 };
     },
   });
 
   const addGoal = useMutation({
     mutationFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-      const { error } = await supabase.from("kpi_goals").insert({
-        user_id: user.id,
-        metric: newMetric,
-        target: newTarget,
+      const res = await fetch("/api/kpi-goals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ metric: newMetric, target: newTarget }),
       });
-      if (error) throw error;
+      if (!res.ok) throw new Error("Ошибка");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["kpi-goals"] });
@@ -93,7 +57,7 @@ export default function KpiWidget() {
 
   const deleteGoal = useMutation({
     mutationFn: async (id: string) => {
-      await supabase.from("kpi_goals").delete().eq("id", id);
+      await fetch(`/api/kpi-goals/${id}`, { method: "DELETE" });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["kpi-goals"] }),
   });

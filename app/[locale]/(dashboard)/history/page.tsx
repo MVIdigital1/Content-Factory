@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useTranslations, useLocale } from "next-intl";
@@ -64,7 +64,6 @@ const STATUS_META: Record<
 };
 
 function HistoryPageInner() {
-  const supabase = createClient();
   const queryClient = useQueryClient();
   const t = useTranslations("history");
   const locale = useLocale();
@@ -96,23 +95,18 @@ function HistoryPageInner() {
   const { data: contents = [], isLoading } = useQuery({
     queryKey: ["history"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("contents")
-        .select("*, projects(name)")
-        .order("created_at", { ascending: false })
-        .limit(200);
-      return data || [];
+      const res = await fetch("/api/contents");
+      if (!res.ok) return [];
+      return res.json();
     },
   });
 
   const { data: integrations = [] } = useQuery({
     queryKey: ["integrations"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("integrations")
-        .select("id, platform, channel_id, channel_name, is_active")
-        .order("created_at", { ascending: false });
-      return data || [];
+      const res = await fetch("/api/integrations");
+      if (!res.ok) return [];
+      return res.json();
     },
   });
 
@@ -127,8 +121,8 @@ function HistoryPageInner() {
   // Mutations
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("contents").delete().eq("id", id);
-      if (error) throw error;
+      const res = await fetch(`/api/contents/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Delete failed");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["history"] });
@@ -138,11 +132,12 @@ function HistoryPageInner() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, caption }: { id: string; caption: string }) => {
-      const { error } = await supabase
-        .from("contents")
-        .update({ caption })
-        .eq("id", id);
-      if (error) throw error;
+      const res = await fetch(`/api/contents/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caption }),
+      });
+      if (!res.ok) throw new Error("Update failed");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["history"] });
@@ -152,26 +147,28 @@ function HistoryPageInner() {
 
   const duplicateMutation = useMutation({
     mutationFn: async (item: any) => {
-      const { error } = await supabase.from("contents").insert({
-        project_id: item.project_id,
-        type: item.type,
-        platform: item.platform,
-        goal: item.goal,
-        title: `${item.title} (копия)`,
-        idea: item.idea,
-        hook: item.hook,
-        script: item.script || [],
-        voiceover: item.voiceover || "",
-        screen_text: item.screen_text || "",
-        caption: item.caption,
-        hashtags: item.hashtags || [],
-        cta: item.cta,
-        source_image_url: item.source_image_url || null,
-        status: "draft",
-        ai_model: item.ai_model,
-        ai_tokens: item.ai_tokens,
+      const res = await fetch("/api/contents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project_id: item.project_id,
+          type: item.type,
+          platform: item.platform,
+          goal: item.goal,
+          title: `${item.title} (копия)`,
+          idea: item.idea,
+          hook: item.hook,
+          script: item.script || [],
+          voiceover: item.voiceover || "",
+          screen_text: item.screen_text || "",
+          caption: item.caption,
+          hashtags: item.hashtags || [],
+          cta: item.cta,
+          source_image_url: item.source_image_url || null,
+          status: "draft",
+        }),
       });
-      if (error) throw error;
+      if (!res.ok) throw new Error("Duplicate failed");
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["history"] }),
   });
@@ -210,17 +207,16 @@ function HistoryPageInner() {
       const scheduledAt = new Date(
         scheduleDate + "T" + scheduleTime,
       ).toISOString();
-      const { error } = await supabase.from("scheduled_posts").insert({
-        content_id: selected.id,
-        platform: selectedPlatform || selected.platform,
-        scheduled_at: scheduledAt,
-        status: "pending",
+      const res = await fetch("/api/scheduled-posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content_id: selected.id,
+          platform: selectedPlatform || selected.platform,
+          scheduled_at: scheduledAt,
+        }),
       });
-      if (error) throw error;
-      await supabase
-        .from("contents")
-        .update({ status: "scheduled" })
-        .eq("id", selected.id);
+      if (!res.ok) throw new Error("Ошибка планирования");
       setPublishSuccess("Запланировано!");
       queryClient.invalidateQueries({ queryKey: ["history"] });
       setSelected((p: any) => (p ? { ...p, status: "scheduled" } : p));

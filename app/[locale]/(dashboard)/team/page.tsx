@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import {
   Plus,
   Users,
@@ -372,7 +371,6 @@ function InviteModal({
   customRoles: CustomRole[];
   projects: { id: string; name: string }[];
 }) {
-  const supabase = createClient();
   const qc = useQueryClient();
 
   const [step, setStep] = useState(1);
@@ -388,36 +386,18 @@ function InviteModal({
 
   const inviteMutation = useMutation({
     mutationFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Не авторизован");
-
-      let workspace: { id: string } | null = null;
-      const { data: ws, error: wsErr } = await supabase.from("workspaces").select("id").eq("owner_id", user.id).single();
-      if (!ws) {
-        const { data: newWs, error: createErr } = await supabase.from("workspaces").insert({ name: "Мой воркспейс", owner_id: user.id }).select().single();
-        if (!newWs) throw new Error(createErr?.message ?? "Не удалось создать воркспейс");
-        workspace = newWs;
-      } else {
-        workspace = ws;
-      }
-
-      if (!workspace) throw new Error("Не удалось получить воркспейс");
-
       for (const email of validEmails) {
-        await supabase.from("workspace_members").insert({
-          workspace_id: workspace.id,
-          email,
-          role: selectedRole,
-          invited_by: user.id,
-          status: "pending",
-          project_ids: allProjects ? null : selectedProjects,
-        });
-
-        await fetch("/api/team/invite", {
+        const res = await fetch("/api/team/members", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, role: selectedRole }),
+          body: JSON.stringify({
+            email,
+            role: selectedRole,
+            all_projects: allProjects,
+            project_ids: allProjects ? null : selectedProjects,
+          }),
         });
+        if (!res.ok) throw new Error("Ошибка при отправке приглашения");
       }
     },
     onSuccess: () => {
@@ -630,7 +610,6 @@ function RoleEditorModal({
   role: CustomRole | null;
   onClose: () => void;
 }) {
-  const supabase = createClient();
   const qc = useQueryClient();
 
   const [name, setName] = useState(role?.name || "");
@@ -645,32 +624,22 @@ function RoleEditorModal({
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Не авторизован");
-
-      let workspace: { id: string } | null = null;
-      const { data: ws } = await supabase.from("workspaces").select("id").eq("owner_id", user.id).single();
-      if (!ws) {
-        const { data: newWs } = await supabase.from("workspaces").insert({ name: "Мой воркспейс", owner_id: user.id }).select().single();
-        workspace = newWs;
-      } else {
-        workspace = ws;
-      }
-
+      const payload = { name, description, color, icon, permissions };
+      let res: Response;
       if (role) {
-        const { error: err } = await supabase.from("workspace_roles").update({
-          name, description, color, icon, permissions, updated_at: new Date().toISOString(),
-        }).eq("id", role.id);
-        if (err) throw err;
-      } else {
-        const { error: err } = await supabase.from("workspace_roles").insert({
-          workspace_id: workspace!.id,
-          name, description, color, icon, permissions,
-          is_system: false,
-          created_by: user.id,
+        res = await fetch(`/api/team/roles/${role.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
         });
-        if (err) throw err;
+      } else {
+        res = await fetch("/api/team/roles", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
       }
+      if (!res.ok) throw new Error("Ошибка сохранения роли");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["custom-roles"] });
@@ -822,7 +791,6 @@ function MembersTab({
   customRoles: CustomRole[];
   onInvite: () => void;
 }) {
-  const supabase = createClient();
   const qc = useQueryClient();
 
   const [search, setSearch] = useState("");
@@ -849,37 +817,45 @@ function MembersTab({
 
   const blockMutation = useMutation({
     mutationFn: async ({ id, blocked }: { id: string; blocked: boolean }) => {
-      const { error } = await supabase.from("workspace_members").update({
-        status: blocked ? "blocked" : "active",
-        blocked_at: blocked ? new Date().toISOString() : null,
-      }).eq("id", id);
-      if (error) throw error;
+      const res = await fetch(`/api/team/members/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: blocked ? "blocked" : "active",
+          blocked_at: blocked ? new Date().toISOString() : null,
+        }),
+      });
+      if (!res.ok) throw new Error("Ошибка");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["team-members"] }),
   });
 
   const removeMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("workspace_members").delete().eq("id", id);
-      if (error) throw error;
+      const res = await fetch(`/api/team/members/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Ошибка");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["team-members"] }),
   });
 
   const bulkUpdateRole = async () => {
     if (!bulkRole) return;
-    for (const id of selected) {
-      await supabase.from("workspace_members").update({ role: bulkRole }).eq("id", id);
-    }
+    await Promise.all(selected.map(id =>
+      fetch(`/api/team/members/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: bulkRole }),
+      })
+    ));
     qc.invalidateQueries({ queryKey: ["team-members"] });
     setSelected([]);
     setBulkRole("");
   };
 
   const bulkRemove = async () => {
-    for (const id of selected) {
-      await supabase.from("workspace_members").delete().eq("id", id);
-    }
+    await Promise.all(selected.map(id =>
+      fetch(`/api/team/members/${id}`, { method: "DELETE" })
+    ));
     qc.invalidateQueries({ queryKey: ["team-members"] });
     setSelected([]);
   };
@@ -1015,35 +991,37 @@ function InvitationsTab({
   customRoles: CustomRole[];
   onInvite: () => void;
 }) {
-  const supabase = createClient();
   const qc = useQueryClient();
 
   const { data: invitations = [], isLoading } = useQuery({
     queryKey: ["workspace-invitations"],
     queryFn: async () => {
-      try {
-        const { data, error } = await supabase.from("workspace_invitations").select("*").order("created_at", { ascending: false });
-        if (error) return [] as Invitation[];
-        return (data || []) as Invitation[];
-      } catch {
-        return [] as Invitation[];
-      }
+      const res = await fetch("/api/team/invitations");
+      return res.ok ? (res.json() as Promise<Invitation[]>) : [];
     },
   });
 
   const revokeMutation = useMutation({
     mutationFn: async (id: string) => {
-      await supabase.from("workspace_invitations").update({ status: "revoked" }).eq("id", id);
+      await fetch(`/api/team/invitations/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "revoked" }),
+      });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["workspace-invitations"] }),
   });
 
   const resendMutation = useMutation({
     mutationFn: async (id: string) => {
-      await supabase.from("workspace_invitations").update({
-        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        status: "pending",
-      }).eq("id", id);
+      await fetch(`/api/team/invitations/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          status: "pending",
+        }),
+      });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["workspace-invitations"] }),
   });
@@ -1142,14 +1120,13 @@ function RolesTab({
   onCreateRole: () => void;
   onEditRole: (role: CustomRole) => void;
 }) {
-  const supabase = createClient();
   const qc = useQueryClient();
   const [viewPerms, setViewPerms] = useState<string | null>(null);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("workspace_roles").delete().eq("id", id);
-      if (error) throw error;
+      const res = await fetch(`/api/team/roles/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Ошибка удаления");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["custom-roles"] }),
   });
@@ -1304,15 +1281,18 @@ function RolesTab({
 // ─────────────────────────────────────────────────────────────────────────────
 
 function PermissionsTab({ customRoles }: { customRoles: CustomRole[] }) {
-  const supabase = createClient();
   const qc = useQueryClient();
   const allRoles: AnyRole[] = [...SYSTEM_ROLES, ...customRoles];
 
   const toggleCustomPerm = useMutation({
     mutationFn: async ({ roleId, permKey, current }: { roleId: string; permKey: string; current: string[] }) => {
       const next = current.includes(permKey) ? current.filter(k => k !== permKey) : [...current, permKey];
-      const { error } = await supabase.from("workspace_roles").update({ permissions: next, updated_at: new Date().toISOString() }).eq("id", roleId);
-      if (error) throw error;
+      const res = await fetch(`/api/team/roles/${roleId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ permissions: next }),
+      });
+      if (!res.ok) throw new Error("Ошибка");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["custom-roles"] }),
   });
@@ -1423,8 +1403,6 @@ function PermissionsTab({ customRoles }: { customRoles: CustomRole[] }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function AuditTab() {
-  const supabase = createClient();
-
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [actionFilter, setActionFilter] = useState("all");
@@ -1432,13 +1410,8 @@ function AuditTab() {
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ["team-audit-log"],
     queryFn: async () => {
-      try {
-        const { data, error } = await supabase.from("team_audit_log").select("*").order("created_at", { ascending: false }).limit(100);
-        if (error) return [] as AuditEntry[];
-        return (data || []) as AuditEntry[];
-      } catch {
-        return [] as AuditEntry[];
-      }
+      const res = await fetch("/api/team/audit");
+      return res.ok ? (res.json() as Promise<AuditEntry[]>) : [];
     },
   });
 
@@ -1526,8 +1499,6 @@ function AuditTab() {
 type Tab = "members" | "invitations" | "roles" | "permissions" | "audit";
 
 export default function TeamPage() {
-  const supabase = createClient();
-
   const [activeTab, setActiveTab] = useState<Tab>("members");
   const [showInvite, setShowInvite] = useState(false);
   const [showRoleEditor, setShowRoleEditor] = useState(false);
@@ -1542,37 +1513,26 @@ export default function TeamPage() {
   const { data: members = [], isLoading: membersLoading } = useQuery({
     queryKey: ["team-members"],
     queryFn: async () => {
-      try {
-        const { data } = await supabase.from("workspace_members").select("*").order("created_at", { ascending: false });
-        return (data || []) as Member[];
-      } catch {
-        return [] as Member[];
-      }
+      const res = await fetch("/api/team/members");
+      return res.ok ? (res.json() as Promise<Member[]>) : [];
     },
   });
 
   const { data: customRoles = [], isLoading: rolesLoading } = useQuery({
     queryKey: ["custom-roles"],
     queryFn: async () => {
-      try {
-        const { data, error } = await supabase.from("workspace_roles").select("*").eq("is_system", false);
-        if (error) return [] as CustomRole[];
-        return (data || []).map(r => ({ ...r, isSystem: false as const })) as CustomRole[];
-      } catch {
-        return [] as CustomRole[];
-      }
+      const res = await fetch("/api/team/roles");
+      if (!res.ok) return [] as CustomRole[];
+      const data = await res.json();
+      return (data as any[]).map(r => ({ ...r, isSystem: false as const })) as CustomRole[];
     },
   });
 
   const { data: projects = [] } = useQuery({
     queryKey: ["projects-list"],
     queryFn: async () => {
-      try {
-        const { data } = await supabase.from("projects").select("id, name").eq("is_active", true);
-        return (data || []) as { id: string; name: string }[];
-      } catch {
-        return [] as { id: string; name: string }[];
-      }
+      const res = await fetch("/api/projects");
+      return res.ok ? (res.json() as Promise<{ id: string; name: string }[]>) : [];
     },
   });
 

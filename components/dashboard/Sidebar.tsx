@@ -1,7 +1,6 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "next-intl";
 
 const NAV = [
@@ -16,8 +15,7 @@ export function Sidebar() {
   const locale = useLocale();
 
   const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    await fetch("/api/auth/logout", { method: "POST" });
     router.push(`/${locale}/auth/login`);
   };
 

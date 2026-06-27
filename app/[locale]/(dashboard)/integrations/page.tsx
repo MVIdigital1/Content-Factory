@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import {
   X,
   Plus,
@@ -180,7 +179,6 @@ function ChannelModal({
   onToggle: () => void;
   onRename: (name: string) => void;
 }) {
-  const supabase = createClient();
   const [editName, setEditName] = useState(integration.channel_name);
   const [editing, setEditing] = useState(false);
   const [stats, setStats] = useState<any>(null);
@@ -1302,7 +1300,6 @@ function PlatformRow({
 
 // ── Main page ──────────────────────────────────────────────────────────────
 function IntegrationsPageInner() {
-  const supabase = createClient();
   const qc = useQueryClient();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -1351,27 +1348,16 @@ function IntegrationsPageInner() {
   const { data: integrations = [] } = useQuery({
     queryKey: ["integrations"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("integrations")
-        .select("*")
-        .order("created_at", { ascending: false });
-      return (data || []) as Integration[];
+      const res = await fetch("/api/integrations");
+      return res.ok ? (res.json() as Promise<Integration[]>) : [];
     },
   });
 
   const { data: adPlatforms = [] } = useQuery({
     queryKey: ["ad_platforms_real"],
     queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("ad_platforms")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("is_active", true);
-      return (data || []) as Integration[];
+      const res = await fetch("/api/ad-platforms");
+      return res.ok ? (res.json() as Promise<Integration[]>) : [];
     },
   });
 
@@ -1385,7 +1371,12 @@ function IntegrationsPageInner() {
       is_active: boolean;
       table: "integrations" | "ad_platforms";
     }) => {
-      await supabase.from(table).update({ is_active }).eq("id", id);
+      const endpoint = table === "integrations" ? `/api/integrations/${id}` : `/api/ad-platforms/${id}`;
+      await fetch(endpoint, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active }),
+      });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["integrations"] });
@@ -1401,7 +1392,8 @@ function IntegrationsPageInner() {
       id: string;
       table: "integrations" | "ad_platforms";
     }) => {
-      await supabase.from(table).delete().eq("id", id);
+      const endpoint = table === "integrations" ? `/api/integrations/${id}` : `/api/ad-platforms/${id}`;
+      await fetch(endpoint, { method: "DELETE" });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["integrations"] });

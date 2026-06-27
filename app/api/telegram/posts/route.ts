@@ -1,67 +1,37 @@
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
+import { queryOne, query } from "@/lib/db";
 import { NextResponse } from "next/server";
 
 const BOT_TOKEN = process.env.BOT_TOKEN!;
 
-// GET /api/telegram/posts?limit=30
-// Reads published posts from contents + publish_logs tables
-// Then fetches real view stats from Telegram for each post
 export async function GET(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const url = new URL(request.url);
   const limit = Math.min(Number(url.searchParams.get("limit") ?? "30"), 50);
 
-  // Get connected Telegram channel
-  const { data: integration } = await supabase
-    .from("integrations")
-    .select("channel_id, channel_name")
-    .eq("user_id", user.id)
-    .eq("platform", "telegram")
-    .eq("is_active", true)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
+  const integration = await queryOne<{ channel_id: string; channel_name: string }>(
+    "SELECT channel_id, channel_name FROM integrations WHERE user_id = $1 AND platform = 'telegram' AND is_active = true ORDER BY created_at DESC LIMIT 1",
+    [user.id]
+  );
 
-  if (!integration) {
-    return NextResponse.json({ messages: [] });
-  }
+  if (!integration) return NextResponse.json({ messages: [] });
 
-  // Get posts we published via PostCentro (from publish_logs + contents)
-  const { data: logs } = await supabase
-    .from("publish_logs")
-    .select(
-      `
-      id,
-      created_at,
-      telegram_message_id,
-      platform,
-      status,
-      content_id,
-      contents (
-        id, title, body, caption, image_url, platform, content_type
-      )
-    `,
-    )
-    .eq("platform", "telegram")
-    .eq("status", "published")
-    .not("content_id", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(limit);
+  const logs = await query<any>(
+    `SELECT pl.id, pl.created_at, pl.telegram_message_id, pl.platform, pl.status, pl.content_id,
+            c.id as c_id, c.title, c.body, c.caption, c.source_image_url, c.platform as c_platform, c.type as content_type
+     FROM publish_logs pl
+     LEFT JOIN contents c ON pl.content_id = c.id
+     WHERE pl.platform = 'telegram' AND pl.status = 'published' AND pl.content_id IS NOT NULL
+     ORDER BY pl.created_at DESC LIMIT $1`,
+    [limit]
+  );
 
-  if (!logs?.length) {
-    return NextResponse.json({ messages: [], note: "no_posts_yet" });
-  }
+  if (!logs.length) return NextResponse.json({ messages: [], note: "no_posts_yet" });
 
-  const channelId = integration.channel_id;
-  const channelName = integration.channel_name;
+  const { channel_id: channelId, channel_name: channelName } = integration;
 
-  // Fetch real view stats for each post that has a telegram_message_id
   const messages = await Promise.all(
     logs.map(async (log: any) => {
       let views = 0;
@@ -70,36 +40,22 @@ export async function GET(request: Request) {
 
       if (log.telegram_message_id) {
         try {
-          // getMessageStatistics only works for channels via Bot API
-          const statsRes = await fetch(
-            `https://api.telegram.org/bot${BOT_TOKEN}/getMessageStatistics`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                chat_id: channelId,
-                message_id: log.telegram_message_id,
-              }),
-            },
-          );
+          const statsRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getMessageStatistics`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: channelId, message_id: log.telegram_message_id }),
+          });
           const stats = await statsRes.json();
           if (stats.ok) {
             views = stats.result?.views ?? 0;
             forwards = stats.result?.forwards ?? 0;
           }
 
-          // Get reactions
-          const reactRes = await fetch(
-            `https://api.telegram.org/bot${BOT_TOKEN}/getMessageReactionCount`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                chat_id: channelId,
-                message_id: log.telegram_message_id,
-              }),
-            },
-          );
+          const reactRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getMessageReactionCount`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: channelId, message_id: log.telegram_message_id }),
+          });
           const reactData = await reactRes.json();
           if (reactData.ok && reactData.result?.reactions) {
             for (const r of reactData.result.reactions) {
@@ -110,29 +66,25 @@ export async function GET(request: Request) {
         } catch {}
       }
 
-      const content = log.contents as any;
-      const text = content?.body ?? content?.caption ?? content?.title ?? "";
-      const imageUrl = content?.image_url ?? null;
-
+      const text = log.body ?? log.caption ?? log.title ?? "";
       return {
         id: log.id,
         content_id: log.content_id,
         message_id: log.telegram_message_id,
         platform: "telegram",
         text,
-        image_url: imageUrl,
+        image_url: log.source_image_url ?? null,
         date: log.created_at,
         views,
         shares: forwards,
         reactions,
-        url:
-          log.telegram_message_id && channelName
-            ? `https://t.me/${channelName.replace("@", "")}/${log.telegram_message_id}`
-            : null,
+        url: log.telegram_message_id && channelName
+          ? `https://t.me/${channelName.replace("@", "")}/${log.telegram_message_id}`
+          : null,
         channel_name: channelName,
-        type: content?.content_type ?? "post",
+        type: log.content_type ?? "post",
       };
-    }),
+    })
   );
 
   return NextResponse.json({ messages });

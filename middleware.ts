@@ -1,15 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import createIntlMiddleware from "next-intl/middleware";
-import { verifyToken, COOKIE_NAME } from "@/lib/auth";
+import { jwtVerify } from "jose";
 
 const locales = ["ru", "uz", "en"];
 const defaultLocale = "ru";
+const COOKIE_NAME = "auth_token";
 
 const handleI18n = createIntlMiddleware({
   locales,
   defaultLocale,
   localePrefix: "always",
 });
+
+async function verifyEdgeToken(token: string): Promise<{ userId: string; email: string } | null> {
+  try {
+    const secret = new TextEncoder().encode(
+      process.env.JWT_SECRET || "change-me-in-production"
+    );
+    const { payload } = await jwtVerify(token, secret);
+    if (!payload.userId || !payload.email) return null;
+    return { userId: payload.userId as string, email: payload.email as string };
+  } catch {
+    return null;
+  }
+}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -37,9 +51,9 @@ export async function middleware(request: NextRequest) {
   }
   if (isAdminLogin) return handleI18n(request);
 
-  // ── 3. Получаем пользователя из JWT cookie ──────────────────────────────────
+  // ── 3. Получаем пользователя из JWT cookie (Edge-совместимо) ────────────────
   const token = request.cookies.get(COOKIE_NAME)?.value;
-  const user = token ? verifyToken(token) : null;
+  const user = token ? await verifyEdgeToken(token) : null;
 
   const response = handleI18n(request);
 

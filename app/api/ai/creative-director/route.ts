@@ -1,43 +1,29 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
+import { queryOne } from "@/lib/db";
 import { NextResponse } from "next/server";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { projectId, goal, duration = "month" } = await request.json();
 
-  const { data: project } = await supabase
-    .from("projects")
-    .select("*")
-    .eq("id", projectId)
-    .eq("user_id", user.id)
-    .single();
-  if (!project)
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const project = await queryOne<any>(
+    "SELECT * FROM projects WHERE id = $1 AND user_id = $2",
+    [projectId, user.id]
+  );
+  if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const { count: postsCount } = await supabase
-    .from("contents")
-    .select("*", { count: "exact", head: true })
-    .eq("project_id", projectId);
+  const postsCount = await queryOne<{ count: string }>(
+    "SELECT COUNT(*) as count FROM contents WHERE project_id = $1",
+    [projectId]
+  );
 
-  const period =
-    duration === "week"
-      ? "неделю"
-      : duration === "quarter"
-        ? "квартал"
-        : "месяц";
-  const today = new Date().toLocaleDateString("ru-RU", {
-    month: "long",
-    year: "numeric",
-  });
+  const period = duration === "week" ? "неделю" : duration === "quarter" ? "квартал" : "месяц";
+  const today = new Date().toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
 
   const prompt = `Ты AI Creative Director — генеришь стратегию контент-кампаний.
 
@@ -47,7 +33,7 @@ export async function POST(request: Request) {
 ТОН: ${project.tone}
 ЦЕЛЬ КАМПАНИИ: ${goal || "рост аудитории и вовлечённость"}
 ПЕРИОД: ${period} (${today})
-УЖЕ СОЗДАНО ПОСТОВ: ${postsCount ?? 0}
+УЖЕ СОЗДАНО ПОСТОВ: ${postsCount?.count ?? 0}
 
 Разработай полную концепцию контент-кампании.
 
@@ -79,10 +65,7 @@ export async function POST(request: Request) {
   });
 
   const raw = (message.content[0] as { text: string }).text;
-  const clean = raw
-    .replace(/```json\s*/gi, "")
-    .replace(/```/g, "")
-    .trim();
+  const clean = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
   const campaign = JSON.parse(clean);
 
   return NextResponse.json({ campaign });

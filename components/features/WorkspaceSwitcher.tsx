@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 
 type Workspace = {
   id: string;
@@ -12,13 +11,11 @@ type Workspace = {
 };
 
 export default function WorkspaceSwitcher() {
-  const supabase = createClient();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
 
-  // ✅ ФИКС: useState вместо useQuery для localStorage
   const [currentId, setCurrentId] = useState<string | null>(() =>
     typeof window !== "undefined"
       ? localStorage.getItem("current_workspace_id")
@@ -28,11 +25,8 @@ export default function WorkspaceSwitcher() {
   const { data: workspaces = [], isLoading } = useQuery({
     queryKey: ["workspaces"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("workspaces")
-        .select("*")
-        .order("created_at");
-      return (data || []) as Workspace[];
+      const res = await fetch("/api/workspaces");
+      return res.ok ? (res.json() as Promise<Workspace[]>) : [];
     },
   });
 
@@ -43,7 +37,6 @@ export default function WorkspaceSwitcher() {
       localStorage.setItem("current_workspace_id", workspaceId);
       return workspaceId;
     },
-    // ✅ ФИКС: убран window.location.reload() — просто обновляем state и инвалидируем queries
     onSuccess: (workspaceId) => {
       setCurrentId(workspaceId);
       setOpen(false);
@@ -53,14 +46,12 @@ export default function WorkspaceSwitcher() {
 
   const createMutation = useMutation({
     mutationFn: async (name: string) => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-      const { error } = await supabase
-        .from("workspaces")
-        .insert({ name, owner_id: user.id });
-      if (error) throw error;
+      const res = await fetch("/api/workspaces", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error("Ошибка создания воркспейса");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workspaces"] });

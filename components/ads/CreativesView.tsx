@@ -1,7 +1,6 @@
 "use client";
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import { useAdCreatives, useCreateAdCreative } from "@/lib/hooks/useAdsData";
 import type { AdCreative } from "@/lib/supabase/types";
 
@@ -72,7 +71,6 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function CreativesView({ projectId }: { projectId?: string }) {
-  const supabase = createClient();
   const qc = useQueryClient();
   const {
     data: creatives = [],
@@ -101,15 +99,8 @@ export function CreativesView({ projectId }: { projectId?: string }) {
   const { data: campaigns = [] } = useQuery({
     queryKey: ["campaigns_for_filter"],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("ad_campaigns")
-        .select("id, name")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(30);
-      return data ?? [];
+      const res = await fetch("/api/campaigns");
+      return res.ok ? res.json() : [];
     },
   });
 
@@ -162,17 +153,21 @@ export function CreativesView({ projectId }: { projectId?: string }) {
     if (!actionModal || !scheduleTime) return;
     setScheduling(true);
     try {
-      await supabase.from("scheduled_posts").insert({
-        content_id: actionModal.id,
-        platform: actionModal.platform,
-        scheduled_at: new Date(scheduleTime).toISOString(),
-        status: "pending",
-        retry_count: 0,
+      await fetch("/api/scheduled-posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content_id: actionModal.id,
+          platform: actionModal.platform,
+          scheduled_at: new Date(scheduleTime).toISOString(),
+          status: "pending",
+        }),
       });
-      await supabase
-        .from("ad_creatives")
-        .update({ status: "active" })
-        .eq("id", actionModal.id);
+      await fetch(`/api/ad-creatives/${actionModal.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "active" }),
+      });
       refetch();
       setActionModal(null);
       setScheduleTime("");
@@ -203,30 +198,33 @@ export function CreativesView({ projectId }: { projectId?: string }) {
 
   const handleDelete = async () => {
     if (!actionModal || !confirm("Удалить креатив?")) return;
-    await supabase
-      .from("ad_creatives")
-      .update({ status: "failed" })
-      .eq("id", actionModal.id);
+    await fetch(`/api/ad-creatives/${actionModal.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "failed" }),
+    });
     refetch();
     setActionModal(null);
   };
 
   const handleToDraft = async () => {
     if (!actionModal) return;
-    await supabase
-      .from("ad_creatives")
-      .update({ status: "draft" })
-      .eq("id", actionModal.id);
+    await fetch(`/api/ad-creatives/${actionModal.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "draft" }),
+    });
     refetch();
     setActionModal(null);
   };
 
   const handleSaveEdit = async () => {
     if (!actionModal) return;
-    await supabase
-      .from("ad_creatives")
-      .update({ title: editTitle, caption: editCaption })
-      .eq("id", actionModal.id);
+    await fetch(`/api/ad-creatives/${actionModal.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: editTitle, caption: editCaption }),
+    });
     refetch();
     setEditing(false);
     setActionModal({ ...actionModal, title: editTitle, caption: editCaption });
@@ -236,22 +234,12 @@ export function CreativesView({ projectId }: { projectId?: string }) {
     if (!uploadFile) return;
     setUploading(true);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Не авторизован");
-      const ext = uploadFile.name.split(".").pop();
-      const path = `creatives/${user.id}/${Date.now()}.${ext}`;
       let imageUrl: string | undefined;
-      const { data: ud, error: ue } = await supabase.storage
-        .from("content-images")
-        .upload(path, uploadFile, { contentType: uploadFile.type });
-      if (!ue && ud) {
-        const { data: urlD } = supabase.storage
-          .from("content-images")
-          .getPublicUrl(path);
-        imageUrl = urlD.publicUrl;
-      }
+      const fd = new FormData();
+      fd.append("file", uploadFile);
+      fd.append("folder", "uploads/creatives");
+      const upRes = await fetch("/api/upload", { method: "POST", body: fd });
+      if (upRes.ok) { const d = await upRes.json(); imageUrl = d.url; }
       await createCreative.mutateAsync({
         platform: uploadPlatform,
         format: "image",

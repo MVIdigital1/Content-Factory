@@ -1,7 +1,6 @@
 "use client";
 import { Suspense, useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 
@@ -110,22 +109,13 @@ function ProjectSelector({
   onSelect: (id: string, name: string) => void;
   onClose: () => void;
 }) {
-  const supabase = createClient();
   const locale = useLocale();
   const router = useRouter();
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ["projects_agent"],
     queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("projects")
-        .select("id,name,niche,logo_url")
-        .eq("user_id", user.id)
-        .eq("is_active", true);
-      return data ?? [];
+      const res = await fetch("/api/projects");
+      return res.ok ? res.json() : [];
     },
   });
   const colors = [
@@ -343,7 +333,6 @@ function AgentForm({
   projectId?: string;
   onNameChange?: (n: string) => void;
 }) {
-  const supabase = createClient();
   const qc = useQueryClient();
   const [agentName, setAgentName] = useState("");
   const [agentType, setAgentType] = useState("smm");
@@ -359,15 +348,10 @@ function AgentForm({
   const { data: existingNames = [] } = useQuery({
     queryKey: ["agent_names"],
     queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("ai_agents")
-        .select("name")
-        .eq("user_id", user.id);
-      return (data ?? []).map((a: any) => a.name.toLowerCase().trim());
+      const res = await fetch("/api/ai-agents");
+      if (!res.ok) return [];
+      const agents = await res.json();
+      return agents.map((a: any) => a.name.toLowerCase().trim());
     },
   });
 
@@ -395,20 +379,15 @@ function AgentForm({
     if (!agentName.trim() || nameError) return;
     setSaving(true);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Не авторизован");
-      await supabase.from("ai_agents").insert({
-        user_id: user.id,
-        name: agentName,
-        type: agentType,
-        description,
-        commands,
-        is_active: autoMode,
-        project_id: projectId ?? null,
-        created_at: new Date().toISOString(),
+      const res = await fetch("/api/ai-agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: agentName, type: agentType, description,
+          commands, is_active: autoMode, project_id: projectId ?? null,
+        }),
       });
+      if (!res.ok) throw new Error("Ошибка сохранения");
       qc.invalidateQueries({ queryKey: ["ai_agents"] });
       qc.invalidateQueries({ queryKey: ["agent_names"] });
       setSaved(true);
@@ -608,7 +587,6 @@ function AgentForm({
 }
 
 function AIWorkersPageInner() {
-  const supabase = createClient();
   const qc = useQueryClient();
   const pendingTabId = { current: null as string | null };
   const [tabs, setTabs] = useState<AgentTab[]>(() => {
@@ -638,25 +616,18 @@ function AIWorkersPageInner() {
   const { data: agents = [] } = useQuery({
     queryKey: ["ai_agents"],
     queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("ai_agents")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-      return data ?? [];
+      const res = await fetch("/api/ai-agents");
+      return res.ok ? res.json() : [];
     },
   });
 
   const deleteAgent = useMutation({
     mutationFn: async (id: string) => {
-      await supabase
-        .from("ai_agents")
-        .update({ is_active: false })
-        .eq("id", id);
+      await fetch(`/api/ai-agents/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: false }),
+      });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ai_agents"] }),
   });

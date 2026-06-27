@@ -1,86 +1,50 @@
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
+import { queryOne } from "@/lib/db";
 import { NextResponse } from "next/server";
 
 const BOT_TOKEN = process.env.BOT_TOKEN!;
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { contentId } = await request.json();
 
-  // Получить message_id и channel_id
-  const { data: scheduledPost } = await supabase
-    .from("scheduled_posts")
-    .select("telegram_message_id, contents!inner(*, projects!inner(user_id))")
-    .eq("content_id", contentId)
-    .eq("contents.projects.user_id", user.id)
-    .not("telegram_message_id", "is", null)
-    .single();
+  const scheduledPost = await queryOne<{ telegram_message_id: number }>(
+    `SELECT sp.telegram_message_id FROM scheduled_posts sp
+     JOIN contents c ON sp.content_id = c.id
+     WHERE sp.content_id = $1 AND c.user_id = $2 AND sp.telegram_message_id IS NOT NULL LIMIT 1`,
+    [contentId, user.id]
+  );
 
   if (!scheduledPost?.telegram_message_id) {
-    return NextResponse.json(
-      { error: "Нет message_id для этого поста" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Нет message_id для этого поста" }, { status: 400 });
   }
 
-  const { data: integration } = await supabase
-    .from("integrations")
-    .select("channel_id")
-    .eq("platform", "telegram")
-    .eq("is_active", true)
-    .eq("user_id", user.id)
-    .single();
-
-  if (!integration)
-    return NextResponse.json({ error: "Нет канала" }, { status: 400 });
-
-  // Получить статистику поста
-  const res = await fetch(
-    `https://api.telegram.org/bot${BOT_TOKEN}/getMessageStatistics`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: integration.channel_id,
-        message_id: scheduledPost.telegram_message_id,
-      }),
-    },
+  const integration = await queryOne<{ channel_id: string }>(
+    "SELECT channel_id FROM integrations WHERE platform = 'telegram' AND is_active = true AND user_id = $1 LIMIT 1",
+    [user.id]
   );
+
+  if (!integration) return NextResponse.json({ error: "Нет канала" }, { status: 400 });
+
+  const [res, reactRes] = await Promise.all([
+    fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getMessageStatistics`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: integration.channel_id, message_id: scheduledPost.telegram_message_id }),
+    }),
+    fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getMessageReactionCount`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: integration.channel_id, message_id: scheduledPost.telegram_message_id }),
+    }),
+  ]);
 
   const data = await res.json();
-
-  // Получить реакции
-  const reactRes = await fetch(
-    `https://api.telegram.org/bot${BOT_TOKEN}/getMessageReactionCount`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: integration.channel_id,
-        message_id: scheduledPost.telegram_message_id,
-      }),
-    },
-  );
   const reactData = await reactRes.json();
 
   const views = data.result?.views || 0;
   const forwards = data.result?.forwards || 0;
-  const reactions =
-    reactData.result?.reactions?.reduce(
-      (sum: number, r: any) => sum + (r.count || 0),
-      0,
-    ) || 0;
+  const reactions = reactData.result?.reactions?.reduce((sum: number, r: any) => sum + (r.count || 0), 0) || 0;
 
-  return NextResponse.json({
-    views,
-    forwards,
-    reactions,
-    message_id: scheduledPost.telegram_message_id,
-  });
+  return NextResponse.json({ views, forwards, reactions, message_id: scheduledPost.telegram_message_id });
 }

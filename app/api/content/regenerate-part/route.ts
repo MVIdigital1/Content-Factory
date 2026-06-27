@@ -1,9 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
+import { queryOne, query } from "@/lib/db";
 import { NextResponse } from "next/server";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
-
 const SYSTEM_PROMPT = `Ты — профессиональный SMM-копирайтер. Отвечай ТОЛЬКО валидным JSON без markdown.`;
 
 type Field = "hook" | "caption" | "hashtags" | "cta";
@@ -32,40 +32,28 @@ Caption: ${ctx.caption}
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await getCurrentUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { contentId, field } = (await request.json()) as {
-      contentId: string;
-      field: Field;
-    };
+    const { contentId, field } = (await request.json()) as { contentId: string; field: Field };
 
     if (!contentId || !field || !FIELD_PROMPTS[field])
-      return NextResponse.json(
-        { error: "Missing contentId or invalid field" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "Missing contentId or invalid field" }, { status: 400 });
 
-    // Получить контент + проект
-    const { data: content } = await supabase
-      .from("contents")
-      .select("*, projects!inner(name, niche, tone, user_id)")
-      .eq("id", contentId)
-      .eq("projects.user_id", user.id)
-      .single();
+    const content = await queryOne<any>(
+      `SELECT c.*, p.name as project_name, p.niche as project_niche, p.tone as project_tone
+       FROM contents c
+       LEFT JOIN projects p ON c.project_id = p.id
+       WHERE c.id = $1 AND (c.user_id = $2 OR p.user_id = $2)`,
+      [contentId, user.id]
+    );
 
-    if (!content)
-      return NextResponse.json({ error: "Content not found" }, { status: 404 });
+    if (!content) return NextResponse.json({ error: "Content not found" }, { status: 404 });
 
-    const project = content.projects as any;
     const ctx = {
-      projectName: project.name,
-      niche: project.niche || "",
-      tone: project.tone || "friendly",
+      projectName: content.project_name,
+      niche: content.project_niche || "",
+      tone: content.project_tone || "friendly",
       topic: content.goal || "",
       goal: content.goal || "",
       platform: content.platform || "telegram",
@@ -81,17 +69,13 @@ export async function POST(request: Request) {
     });
 
     const raw = (message.content[0] as { text: string }).text;
-    const clean = raw
-      .replace(/```json\s*/gi, "")
-      .replace(/```/g, "")
-      .trim();
+    const clean = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
     const parsed = JSON.parse(clean);
 
-    // Обновить поле в БД
-    await supabase
-      .from("contents")
-      .update({ [field]: parsed[field] })
-      .eq("id", contentId);
+    await query(
+      `UPDATE contents SET ${field} = $1, updated_at = NOW() WHERE id = $2`,
+      [parsed[field], contentId]
+    );
 
     return NextResponse.json({ ok: true, field, value: parsed[field] });
   } catch (error: unknown) {

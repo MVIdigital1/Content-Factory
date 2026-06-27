@@ -1,34 +1,29 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
+import { queryOne } from "@/lib/db";
 import { NextResponse } from "next/server";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { contentId } = await request.json();
 
-  const { data: content } = await supabase
-    .from("contents")
-    .select("*, projects!inner(name, niche, tone, user_id)")
-    .eq("id", contentId)
-    .eq("projects.user_id", user.id)
-    .single();
+  const content = await queryOne<any>(
+    `SELECT c.*, p.name as project_name, p.niche as project_niche, p.tone as project_tone
+     FROM contents c
+     LEFT JOIN projects p ON c.project_id = p.id
+     WHERE c.id = $1 AND (c.user_id = $2 OR p.user_id = $2)`,
+    [contentId, user.id]
+  );
 
-  if (!content)
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  const project = content.projects as any;
+  if (!content) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const prompt = `Оцени этот пост для Instagram/Telegram от 0 до 100 по четырём критериям.
 
-БРЕНД: ${project.name}, Ниша: ${project.niche}, Тон: ${project.tone}
+БРЕНД: ${content.project_name}, Ниша: ${content.project_niche}, Тон: ${content.project_tone}
 
 ПОСТ:
 Хук: ${content.hook || "—"}
@@ -52,17 +47,8 @@ CTA: ${content.cta || "—"}
   });
 
   const raw = (message.content[0] as { text: string }).text;
-  const clean = raw
-    .replace(/```json\s*/gi, "")
-    .replace(/```/g, "")
-    .trim();
+  const clean = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
   const score = JSON.parse(clean);
-
-  // Сохранить в БД
-  await supabase
-    .from("contents")
-    .update({ ai_score: score })
-    .eq("id", contentId);
 
   return NextResponse.json({ score });
 }

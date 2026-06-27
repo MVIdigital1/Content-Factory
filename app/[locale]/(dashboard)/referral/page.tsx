@@ -2,11 +2,9 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import { Gift, Copy, Check } from "lucide-react";
 
 export default function ReferralPage() {
-  const supabase = createClient();
   const [copied, setCopied] = useState(false);
 
   const { data, isLoading } = useQuery({

@@ -6,7 +6,6 @@ import { Modal } from "@/components/ui/Modal";
 import { useProjects } from "@/lib/hooks/useAdsData";
 import Link from "next/link";
 import { useLocale } from "next-intl";
-import { createClient } from "@/lib/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface TopBarProps {
@@ -42,7 +41,6 @@ export function TopBar({
   const [editNiche, setEditNiche] = useState("");
   const [stopping, setStopping] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
-  const supabase = createClient();
 
   const activeProject =
     projects.find((p: any) => p.id === projectId) ?? projects[0];
@@ -74,23 +72,18 @@ export function TopBar({
     if (!newProjectName.trim()) return;
     setCreating(true);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase
-        .from("projects")
-        .insert({
-          user_id: user.id,
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           name: newProjectName.trim(),
           niche: newProjectNiche.trim() || null,
           is_active: true,
           language: "ru",
           tone: "friendly",
-          products: [],
-        })
-        .select()
-        .single();
+        }),
+      });
+      const data = res.ok ? await res.json() : null;
       qc.invalidateQueries({ queryKey: ["projects"] });
       if (data) onProjectChange?.(data.id);
       setCreateProjectModal(false);
@@ -103,10 +96,11 @@ export function TopBar({
 
   const saveProject = async () => {
     if (!projectModal) return;
-    await supabase
-      .from("projects")
-      .update({ name: editName, niche: editNiche })
-      .eq("id", projectModal.id);
+    await fetch(`/api/projects/${projectModal.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: editName, niche: editNiche }),
+    });
     qc.invalidateQueries({ queryKey: ["projects"] });
     setProjectModal(null);
   };
@@ -114,10 +108,11 @@ export function TopBar({
   const deleteProject = async () => {
     if (!projectModal || !confirm("Удалить проект? Все данные будут потеряны."))
       return;
-    await supabase
-      .from("projects")
-      .update({ is_active: false })
-      .eq("id", projectModal.id);
+    await fetch(`/api/projects/${projectModal.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: false }),
+    });
     qc.invalidateQueries({ queryKey: ["projects"] });
     setProjectModal(null);
   };
@@ -125,14 +120,18 @@ export function TopBar({
   const stopProject = async () => {
     if (!projectModal || !confirm("Остановить все кампании проекта?")) return;
     setStopping(true);
-    await supabase
-      .from("ad_campaigns")
-      .update({ status: "paused" })
-      .eq("project_id", projectModal.id);
-    await supabase
-      .from("scheduled_posts")
-      .update({ status: "failed" })
-      .eq("project_id", projectModal.id);
+    await Promise.all([
+      fetch(`/api/campaigns?project_id=${projectModal.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "paused" }),
+      }),
+      fetch(`/api/scheduled-posts?project_id=${projectModal.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "failed" }),
+      }),
+    ]);
     qc.invalidateQueries({ queryKey: ["ad_campaigns"] });
     setStopping(false);
     setProjectModal(null);

@@ -1,4 +1,4 @@
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { query, queryOne } from "@/lib/db";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getLocale } from "next-intl/server";
@@ -12,117 +12,58 @@ export default async function AdminDashboardPage() {
     redirect(`/${locale}/admin`);
   }
 
-  const supabase = await createClient(); // for auth cookie check only
-  const admin = createAdminClient(); // bypasses RLS — sees all users' data
-
   const [
-    { count: totalUsers },
-    { count: totalContents },
-    { count: totalPublished },
-    { count: totalScheduled },
-    { data: users },
-    { data: contents },
-    { data: scheduledPosts },
-    { data: integrations },
+    totalUsersRow, totalContentsRow, totalPublishedRow, totalScheduledRow,
+    users, contents, scheduledPosts, integrations,
   ] = await Promise.all([
-    admin.from("users").select("*", { count: "exact", head: true }),
-    admin.from("contents").select("*", { count: "exact", head: true }),
-    admin
-      .from("contents")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "published"),
-    admin
-      .from("scheduled_posts")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "pending"),
-    admin
-      .from("users")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(100),
-    admin
-      .from("contents")
-      .select("*, projects(user_id, name)")
-      .order("created_at", { ascending: false })
-      .limit(200),
-    admin
-      .from("scheduled_posts")
-      .select("*, contents(title, platform, project_id)")
-      .order("scheduled_at", { ascending: true })
-      .limit(100),
-    admin
-      .from("integrations")
-      .select("*")
-      .order("created_at", { ascending: false }),
+    queryOne<{ count: string }>("SELECT COUNT(*) FROM users"),
+    queryOne<{ count: string }>("SELECT COUNT(*) FROM contents"),
+    queryOne<{ count: string }>("SELECT COUNT(*) FROM contents WHERE status = 'published'"),
+    queryOne<{ count: string }>("SELECT COUNT(*) FROM scheduled_posts WHERE status = 'pending'"),
+    query("SELECT id, email, full_name, role, created_at FROM users ORDER BY created_at DESC LIMIT 100"),
+    query("SELECT c.*, p.user_id AS project_user_id, p.name AS project_name FROM contents c LEFT JOIN projects p ON c.project_id = p.id ORDER BY c.created_at DESC LIMIT 200"),
+    query("SELECT sp.*, c.title AS content_title, c.platform AS content_platform FROM scheduled_posts sp LEFT JOIN contents c ON sp.content_id = c.id ORDER BY sp.scheduled_at ASC LIMIT 100"),
+    query("SELECT * FROM integrations ORDER BY created_at DESC"),
   ]);
 
-  // Get emails from auth
-  const { data: authData } = await admin.auth.admin.listUsers();
-  const authUsers = authData?.users || [];
-
-  // Build user map
-  const userMap: Record<string, any> = {};
-  authUsers.forEach((au) => {
-    userMap[au.id] = au;
-  });
-
-  // Count contents per user
   const contentCountMap: Record<string, number> = {};
   const publishedCountMap: Record<string, number> = {};
-  (contents || []).forEach((c: any) => {
-    const uid = c.projects?.user_id;
+  (contents as any[]).forEach((c) => {
+    const uid = c.project_user_id;
     if (uid) {
       contentCountMap[uid] = (contentCountMap[uid] || 0) + 1;
-      if (c.status === "published")
-        publishedCountMap[uid] = (publishedCountMap[uid] || 0) + 1;
+      if (c.status === "published") publishedCountMap[uid] = (publishedCountMap[uid] || 0) + 1;
     }
   });
 
-  const usersWithData = (users || []).map((u: any) => ({
+  const usersWithData = (users as any[]).map((u) => ({
     ...u,
-    email: userMap[u.id]?.email || u.email || "—",
-    last_sign_in_at: userMap[u.id]?.last_sign_in_at || null,
     contents_count: contentCountMap[u.id] || 0,
     published_count: publishedCountMap[u.id] || 0,
   }));
 
-  // Enrich contents with user info
-  const enrichedContents = (contents || []).map((c: any) => {
-    const uid = c.projects?.user_id;
-    const user = uid ? usersWithData.find((u: any) => u.id === uid) : null;
-    return {
-      ...c,
-      user_id: uid,
-      user_name: user?.full_name || "—",
-      user_email: user?.email || "—",
-    };
+  const enrichedContents = (contents as any[]).map((c) => {
+    const user = usersWithData.find((u: any) => u.id === c.project_user_id);
+    return { ...c, user_id: c.project_user_id, user_name: user?.full_name || "—", user_email: user?.email || "—" };
   });
 
-  // Enrich scheduled posts
-  const enrichedScheduled = (scheduledPosts || []).map((p: any) => {
-    const uid = p.contents?.project_id;
-    const user = usersWithData.find((u: any) => u.id === uid);
-    return {
-      ...p,
-      content_title: p.contents?.title || "—",
-      platform: p.contents?.platform || p.platform || "—",
-      user_name: user?.full_name || "—",
-      user_email: user?.email || "—",
-    };
-  });
+  const enrichedScheduled = (scheduledPosts as any[]).map((p) => ({
+    ...p,
+    platform: p.content_platform || p.platform || "—",
+  }));
 
   return (
     <AdminDashboardClient
       stats={{
-        totalUsers: totalUsers ?? 0,
-        totalContents: totalContents ?? 0,
-        totalPublished: totalPublished ?? 0,
-        totalScheduled: totalScheduled ?? 0,
+        totalUsers: Number(totalUsersRow?.count ?? 0),
+        totalContents: Number(totalContentsRow?.count ?? 0),
+        totalPublished: Number(totalPublishedRow?.count ?? 0),
+        totalScheduled: Number(totalScheduledRow?.count ?? 0),
       }}
       users={usersWithData}
       contents={enrichedContents}
       scheduledPosts={enrichedScheduled}
-      integrations={integrations || []}
+      integrations={integrations as any[]}
     />
   );
 }

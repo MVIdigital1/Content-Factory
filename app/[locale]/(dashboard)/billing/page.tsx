@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import { Check, CreditCard, Smartphone } from "lucide-react";
 
 const PLANS = [
@@ -63,7 +62,6 @@ const formatPrice = (price: number) =>
   price === 0 ? "Бесплатно" : `${price.toLocaleString("ru-RU")} сум`;
 
 export default function BillingPage() {
-  const supabase = createClient();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"payme" | "click">(
     "payme",
@@ -73,16 +71,8 @@ export default function BillingPage() {
   const { data: profile } = useQuery({
     queryKey: ["user-plan"],
     queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return null;
-      const { data } = await supabase
-        .from("profiles")
-        .select("plan, plan_expires_at")
-        .eq("id", user.id)
-        .single();
-      return data;
+      const res = await fetch("/api/auth/user-plan");
+      return res.ok ? res.json() : null;
     },
   });
 

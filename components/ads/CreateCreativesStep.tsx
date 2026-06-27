@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect, useCallback, useRef, type CSSProperties } from "react";
-import { createClient } from "@/lib/supabase/client";
 
 type CreativeKind = "post" | "ad";
 type CreativeStatus = "idle" | "generating" | "done" | "error";
@@ -455,8 +454,6 @@ function AdEditorModal({ creative, libraryImages, onSave, onClose, onRegenerateT
 
 // ── Главный компонент ───────────────────────────────────────────────────────
 export default function CreateCreativesStep({ projectId, campaignId, selectedPlatforms, onBack, onNext }: Props) {
-  const supabase = createClient();
-
   const [creatives, setCreatives] = useState<Creative[]>([]);
   const [plan, setPlan] = useState<ContentPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
@@ -468,15 +465,15 @@ export default function CreateCreativesStep({ projectId, campaignId, selectedPla
   useEffect(() => {
     if (!projectId) return;
     let cancelled = false;
-    supabase
-      .from("project_files")
-      .select("id, url")
-      .eq("project_id", projectId)
-      .eq("type", "image")
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        if (!cancelled && data) {
-          setLibraryImages(data.map((f: { id: string; url: string }, i: number) => ({ id: f.id, url: f.url, order: i })));
+    fetch(`/api/project-files?project_id=${projectId}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: any[]) => {
+        if (!cancelled) {
+          setLibraryImages(
+            data
+              .filter((f) => f.file_type === "image" || f.file_url?.match(/\.(jpg|jpeg|png|webp|gif)/i))
+              .map((f, i) => ({ id: f.id, url: f.file_url, order: i })),
+          );
         }
       });
     return () => { cancelled = true; };

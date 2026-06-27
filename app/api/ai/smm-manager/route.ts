@@ -1,40 +1,31 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
+import { queryOne, query } from "@/lib/db";
 import { NextResponse } from "next/server";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { projectId } = await request.json();
 
-  const { data: project } = await supabase
-    .from("projects")
-    .select("*")
-    .eq("id", projectId)
-    .eq("user_id", user.id)
-    .single();
-  if (!project)
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const project = await queryOne<any>(
+    "SELECT * FROM projects WHERE id = $1 AND user_id = $2",
+    [projectId, user.id]
+  );
+  if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const { data: recentContents } = await supabase
-    .from("contents")
-    .select("title, platform, status, created_at")
-    .eq("project_id", projectId)
-    .order("created_at", { ascending: false })
-    .limit(10);
+  const recentContents = await query<any>(
+    "SELECT title, platform, status, created_at FROM contents WHERE project_id = $1 ORDER BY created_at DESC LIMIT 10",
+    [projectId]
+  );
 
-  const { count: publishedCount } = await supabase
-    .from("contents")
-    .select("*", { count: "exact", head: true })
-    .eq("project_id", projectId)
-    .eq("status", "published");
+  const publishedCount = await queryOne<{ count: string }>(
+    "SELECT COUNT(*) as count FROM contents WHERE project_id = $1 AND status = 'published'",
+    [projectId]
+  );
 
   const today = new Date().toLocaleDateString("ru-RU", {
     weekday: "long",
@@ -49,13 +40,8 @@ export async function POST(request: Request) {
 АУДИТОРИЯ: ${project.audience || "не указана"}
 ТОН: ${project.tone}
 ЯЗЫК: ${project.language}
-ОПУБЛИКОВАНО ПОСТОВ: ${publishedCount ?? 0}
-ПОСЛЕДНИЕ ТЕМЫ: ${
-    recentContents
-      ?.map((c) => c.title)
-      .filter(Boolean)
-      .join(", ") || "нет"
-  }
+ОПУБЛИКОВАНО ПОСТОВ: ${publishedCount?.count ?? 0}
+ПОСЛЕДНИЕ ТЕМЫ: ${recentContents.map((c: any) => c.title).filter(Boolean).join(", ") || "нет"}
 СЕГОДНЯ: ${today}
 
 Составь контент-план на 7 дней. Для каждого дня предложи:
@@ -89,10 +75,7 @@ export async function POST(request: Request) {
   });
 
   const raw = (message.content[0] as { text: string }).text;
-  const clean = raw
-    .replace(/```json\s*/gi, "")
-    .replace(/```/g, "")
-    .trim();
+  const clean = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
   const plan = JSON.parse(clean);
 
   return NextResponse.json({ plan });

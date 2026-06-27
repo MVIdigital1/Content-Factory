@@ -11,7 +11,6 @@ import {
   useDisconnectPlatform,
 } from "@/lib/hooks/useAdsData";
 import { PLATFORM_META } from "./data";
-import { createClient } from "@/lib/supabase/client";
 
 const BOT_USERNAME = process.env.NEXT_PUBLIC_BOT_USERNAME || "postcentro_bot";
 
@@ -44,7 +43,6 @@ type Integration = {
 
 export function ConnectView({ projectId }: { projectId?: string }) {
   const qc = useQueryClient();
-  const supabase = createClient();
   const { data: adPlatforms = [], isLoading } = useAdPlatforms(projectId);
   const connect = useConnectPlatform();
   const disconnect = useDisconnectPlatform();
@@ -60,16 +58,8 @@ export function ConnectView({ projectId }: { projectId?: string }) {
   const { data: integrations = [] } = useQuery<Integration[]>({
     queryKey: ["integrations"],
     queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("integrations")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("is_active", true);
-      return data ?? [];
+      const res = await fetch("/api/integrations");
+      return res.ok ? res.json() : [];
     },
   });
 

@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
@@ -88,7 +87,6 @@ function formatBytes(bytes: number) {
 export default function ProjectDetailPage() {
   const params      = useParams();
   const router      = useRouter();
-  const supabase    = createClient();
   const queryClient = useQueryClient();
   const locale      = useLocale();
   const projectId   = params?.id as string;
@@ -116,8 +114,8 @@ export default function ProjectDetailPage() {
   const { data: project, isLoading } = useQuery({
     queryKey: ["project", projectId],
     queryFn: async () => {
-      const { data } = await supabase.from("projects").select("*").eq("id", projectId).single();
-      return data;
+      const res = await fetch(`/api/projects/${projectId}`);
+      return res.ok ? res.json() : null;
     },
     enabled: !!projectId,
   });
@@ -125,39 +123,28 @@ export default function ProjectDetailPage() {
   const { data: stats } = useQuery({
     queryKey: ["project-stats", projectId],
     queryFn: async () => {
-      const [{ count: published }, { count: scheduled }, { count: total }] = await Promise.all([
-        supabase.from("contents").select("*", { count: "exact", head: true }).eq("project_id", projectId).eq("status", "published"),
-        supabase.from("contents").select("*", { count: "exact", head: true }).eq("project_id", projectId).eq("status", "scheduled"),
-        supabase.from("contents").select("*", { count: "exact", head: true }).eq("project_id", projectId),
-      ]);
-      return { published: published ?? 0, scheduled: scheduled ?? 0, total: total ?? 0 };
+      const res = await fetch(`/api/projects/${projectId}/stats`);
+      return res.ok ? res.json() : { published: 0, scheduled: 0, total: 0, channels: 0 };
     },
     enabled: !!projectId,
   });
 
-  const { data: channelsCount = 0 } = useQuery({
-    queryKey: ["project-channels-count", projectId],
-    queryFn: async () => {
-      const { count } = await supabase.from("integrations").select("*", { count: "exact", head: true }).eq("project_id", projectId).eq("is_active", true);
-      return count ?? 0;
-    },
-    enabled: !!projectId,
-  });
+  const channelsCount: number = stats?.channels ?? 0;
 
   const { data: integrations = [] } = useQuery({
     queryKey: ["project-integrations", projectId],
     queryFn: async () => {
-      const { data } = await supabase.from("integrations").select("*").eq("project_id", projectId).order("created_at", { ascending: false });
-      return data || [];
+      const res = await fetch(`/api/integrations?project_id=${projectId}`);
+      return res.ok ? res.json() : [];
     },
-    enabled: activeTab === "integrations" || activeTab === "overview",
+    enabled: (activeTab === "integrations" || activeTab === "overview") && !!projectId,
   });
 
   const { data: contents = [] } = useQuery({
     queryKey: ["project-contents", projectId],
     queryFn: async () => {
-      const { data } = await supabase.from("contents").select("id, title, type, platform, status, created_at").eq("project_id", projectId).order("created_at", { ascending: false }).limit(50);
-      return data || [];
+      const res = await fetch(`/api/contents?project_id=${projectId}&limit=50`);
+      return res.ok ? res.json() : [];
     },
     enabled: (activeTab === "content" || activeTab === "history") && !!projectId,
   });
@@ -165,21 +152,17 @@ export default function ProjectDetailPage() {
   const { data: campaigns = [] } = useQuery({
     queryKey: ["project-campaigns", projectId],
     queryFn: async () => {
-      const { data } = await supabase.from("campaigns").select("*").eq("project_id", projectId).order("created_at", { ascending: false });
-      return data || [];
+      const res = await fetch(`/api/campaigns?project_id=${projectId}`);
+      return res.ok ? res.json() : [];
     },
     enabled: activeTab === "campaigns" && !!projectId,
   });
 
-  const { data: tasks = [] } = useQuery({
+  const { data: tasks = [] } = useQuery<Task[]>({
     queryKey: ["project-tasks", projectId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("tasks")
-        .select("*")
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: false });
-      return (data || []) as Task[];
+      const res = await fetch(`/api/tasks?project_id=${projectId}`);
+      return res.ok ? res.json() : [];
     },
     enabled: activeTab === "tasks" && !!projectId,
   });
@@ -188,8 +171,10 @@ export default function ProjectDetailPage() {
     queryKey: ["project-activity", projectId],
     queryFn: async () => {
       const ago30 = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000).toISOString();
-      const { data } = await supabase.from("contents").select("created_at").eq("project_id", projectId).gte("created_at", ago30);
-      return data || [];
+      const res = await fetch(`/api/contents?project_id=${projectId}&limit=200`);
+      if (!res.ok) return [];
+      const data: any[] = await res.json();
+      return data.filter((c) => c.created_at >= ago30);
     },
     enabled: activeTab === "overview" && !!projectId,
   });
@@ -197,8 +182,8 @@ export default function ProjectDetailPage() {
   const { data: files = [] } = useQuery({
     queryKey: ["project-files", projectId],
     queryFn: async () => {
-      const { data } = await supabase.from("project_files").select("*").eq("project_id", projectId).order("created_at", { ascending: false });
-      return data || [];
+      const res = await fetch(`/api/project-files?project_id=${projectId}`);
+      return res.ok ? res.json() : [];
     },
     enabled: activeTab === "storage" && !!projectId,
   });
@@ -207,8 +192,12 @@ export default function ProjectDetailPage() {
 
   const updateProjectMutation = useMutation({
     mutationFn: async (updates: Record<string, unknown>) => {
-      const { error } = await supabase.from("projects").update(updates).eq("id", projectId);
-      if (error) throw error;
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) throw new Error("Ошибка обновления проекта");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project", projectId] });
@@ -218,20 +207,21 @@ export default function ProjectDetailPage() {
 
   const duplicateProjectMutation = useMutation({
     mutationFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || !project) throw new Error("Not authenticated");
-      const { data, error } = await supabase.from("projects").insert({
-        user_id: user.id,
-        name: `${project.name} (копия)`,
-        niche: project.niche,
-        description: project.description,
-        audience: project.audience,
-        tone: project.tone,
-        language: project.language,
-        products: project.products,
-      }).select().single();
-      if (error) throw error;
-      return data;
+      if (!project) throw new Error("Проект не загружен");
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name:        `${project.name} (копия)`,
+          niche:       project.niche,
+          description: project.description,
+          audience:    project.audience,
+          tone:        project.tone,
+          language:    project.language,
+        }),
+      });
+      if (!res.ok) throw new Error("Ошибка дублирования");
+      return res.json();
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
@@ -241,8 +231,8 @@ export default function ProjectDetailPage() {
 
   const archiveProjectMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("projects").update({ is_active: false }).eq("id", projectId);
-      if (error) throw error;
+      const res = await fetch(`/api/projects/${projectId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Ошибка архивации");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
@@ -252,17 +242,18 @@ export default function ProjectDetailPage() {
 
   const createTaskMutation = useMutation({
     mutationFn: async ({ title, description, priority }: { title: string; description: string; priority: TaskPriority }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Не авторизован");
-      const { error } = await supabase.from("tasks").insert({
-        title:       title.trim(),
-        description: description.trim() || null,
-        status:      "todo",
-        priority,
-        project_id:  projectId,
-        created_by:  user.id,
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title:       title.trim(),
+          description: description.trim() || null,
+          status:      "todo",
+          priority,
+          project_id:  projectId,
+        }),
       });
-      if (error) throw error;
+      if (!res.ok) throw new Error("Ошибка создания задачи");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
@@ -277,57 +268,61 @@ export default function ProjectDetailPage() {
 
   const toggleTaskMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
-      const { error } = await supabase.from("tasks").update({ status }).eq("id", id);
-      if (error) throw error;
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("Ошибка обновления задачи");
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] }),
   });
 
   const deleteTaskMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("tasks").delete().eq("id", id);
-      if (error) throw error;
+      const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Ошибка удаления задачи");
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] }),
   });
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      // Upload file to local storage
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", `uploads/project-files/${projectId}`);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!uploadRes.ok) throw new Error("Ошибка загрузки файла");
+      const { url: fileUrl } = await uploadRes.json();
 
-      const ext  = file.name.split(".").pop();
-      const path = `${user.id}/${projectId}/${Date.now()}.${ext}`;
-
-      const { error: uploadError } = await supabase.storage.from("project-files").upload(path, file);
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage.from("project-files").getPublicUrl(path);
-
-      // Определяем тип автоматически если не выбран вручную
+      // Detect type
       let detectedType = uploadType;
       if (file.type.startsWith("image/"))  detectedType = "image";
       if (file.type.startsWith("video/"))  detectedType = "video";
       if (file.type.includes("pdf") || file.type.includes("document")) detectedType = "document";
 
-      const { error: dbError } = await supabase.from("project_files").insert({
-        project_id: projectId,
-        user_id:    user.id,
-        name:       file.name,
-        file_url:   publicUrl,
-        file_type:  detectedType,
-        size_bytes: file.size,
+      const dbRes = await fetch("/api/project-files", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project_id:  projectId,
+          name:        file.name,
+          file_url:    fileUrl,
+          file_type:   detectedType,
+          size_bytes:  file.size,
+          storage_key: fileUrl,
+        }),
       });
-      if (dbError) throw dbError;
+      if (!dbRes.ok) throw new Error("Ошибка сохранения файла");
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-files", projectId] }),
   });
 
   const deleteFileMutation = useMutation({
-    mutationFn: async ({ id, file_url }: { id: string; file_url: string }) => {
-      const storageKey = file_url.split("/project-files/")[1];
-      if (storageKey) await supabase.storage.from("project-files").remove([storageKey]);
-      await supabase.from("project_files").delete().eq("id", id);
+    mutationFn: async ({ id }: { id: string; file_url: string }) => {
+      const res = await fetch(`/api/project-files/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Ошибка удаления файла");
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-files", projectId] }),
   });

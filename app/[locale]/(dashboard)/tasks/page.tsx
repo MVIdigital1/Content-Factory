@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+
 import { Plus, X, Check, Trash2 } from "lucide-react";
 
 type Task = {
@@ -36,7 +36,6 @@ function formatDateTime(iso: string) {
 }
 
 export default function TasksPage() {
-  const supabase = createClient();
   const qc = useQueryClient();
 
   const [showModal, setShowModal] = useState(false);
@@ -49,68 +48,30 @@ export default function TasksPage() {
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["tasks"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data || []) as Task[];
+      const res = await fetch("/api/tasks");
+      return res.ok ? res.json() : [];
     },
   });
 
   const createMutation = useMutation({
-    mutationFn: async ({
-      title,
-      description,
-      priority,
-    }: {
-      title: string;
-      description: string;
-      priority: Task["priority"];
-    }) => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Не авторизован");
-      const { error } = await supabase.from("tasks").insert({
-        title: title.trim(),
-        description: description.trim() || null,
-        status: "todo",
-        priority,
-        due_date: null,
-        project_id: null,
-        created_by: user.id,
-      });
-      if (error) throw error;
+    mutationFn: async ({ title, description, priority }: { title: string; description: string; priority: Task["priority"] }) => {
+      const res = await fetch("/api/tasks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: title.trim(), description: description.trim() || null, priority, status: "todo" }) });
+      if (!res.ok) throw new Error("Ошибка создания");
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tasks"] });
-      resetModal();
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["tasks"] }); resetModal(); },
     onError: (e: Error) => setCreateError(e.message || "Ошибка создания"),
   });
 
   const doneMutation = useMutation({
-    mutationFn: async ({
-      id,
-      status,
-    }: {
-      id: string;
-      status: Task["status"];
-    }) => {
-      const { error } = await supabase
-        .from("tasks")
-        .update({ status })
-        .eq("id", id);
-      if (error) throw error;
+    mutationFn: async ({ id, status }: { id: string; status: Task["status"] }) => {
+      await fetch(`/api/tasks/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("tasks").delete().eq("id", id);
-      if (error) throw error;
+      await fetch(`/api/tasks/${id}`, { method: "DELETE" });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
   });

@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
+import { queryOne } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -11,39 +12,19 @@ function toSlug(name: string): string {
     у:"u",ф:"f",х:"kh",ц:"ts",ч:"ch",ш:"sh",щ:"shch",ъ:"",ы:"y",ь:"",
     э:"e",ю:"yu",я:"ya",
   };
-  const transliterated = name
-    .toLowerCase()
-    .split("")
-    .map((c) => map[c] ?? c)
-    .join("");
-  const base = transliterated
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
+  const transliterated = name.toLowerCase().split("").map((c) => map[c] ?? c).join("");
+  const base = transliterated.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
   const uid = Math.random().toString(36).slice(2, 8);
   return `${base}-${uid}`;
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
-    const {
-      businessName,
-      niche,
-      city,
-      offer,
-      audience,
-      pain,
-      advantages,
-      tone,
-      brandColor,
-      templateId,
-      bgImage,
-    } = body;
+    const { businessName, niche, city, offer, audience, pain, advantages, tone, brandColor, templateId, bgImage } = body;
 
     if (!businessName || !offer || !audience) {
       return NextResponse.json({ error: "Заполните обязательные поля" }, { status: 400 });
@@ -97,36 +78,18 @@ export async function POST(req: NextRequest) {
     });
 
     const raw = message.content[0].type === "text" ? message.content[0].text : "";
-
-    let parsed: { title: string; blocks: unknown[] };
-    try {
-      // Strip possible markdown fences
-      const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      parsed = JSON.parse(cleaned);
-    } catch {
-      return NextResponse.json({ error: "AI вернул некорректный JSON" }, { status: 500 });
-    }
+    const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const parsed = JSON.parse(cleaned);
 
     const slug = toSlug(businessName);
 
-    const { data: landing, error } = await supabase
-      .from("landing_pages")
-      .insert({
-        user_id: user.id,
-        title: parsed.title || businessName,
-        slug,
-        blocks: parsed.blocks || [],
-        template_id: templateId || "classic",
-        bg_image: bgImage || null,
-        settings: { brandColor: brandColor || "#6366f1", tone },
-        published: false,
-      })
-      .select("id")
-      .single();
+    const landing = await queryOne<{ id: string }>(
+      `INSERT INTO landings (user_id, title, slug, content, published)
+       VALUES ($1, $2, $3, $4, false) RETURNING id`,
+      [user.id, parsed.title || businessName, slug, JSON.stringify({ blocks: parsed.blocks || [], template_id: templateId || "classic", bg_image: bgImage || null, settings: { brandColor: brandColor || "#6366f1", tone } })]
+    );
 
-    if (error) throw error;
-
-    return NextResponse.json({ id: landing.id });
+    return NextResponse.json({ id: landing?.id });
   } catch (err: any) {
     console.error("[landings/generate]", err);
     return NextResponse.json({ error: err.message || "Внутренняя ошибка" }, { status: 500 });

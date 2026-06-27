@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import { Megaphone, FileText, X } from "lucide-react";
 
 type Props = {
@@ -10,19 +9,16 @@ type Props = {
 };
 
 export default function CampaignPicker({ onSelect }: Props) {
-  const supabase = createClient();
   const [choice, setChoice] = useState<"campaign" | "simple">("campaign");
   const [selectedId, setSelectedId] = useState("");
 
   const { data: campaigns = [], isLoading } = useQuery({
     queryKey: ["campaigns-picker"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("campaigns")
-        .select("id, name, status")
-        .in("status", ["ready", "running"])
-        .order("created_at", { ascending: false });
-      return data || [];
+      const res = await fetch("/api/campaigns");
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data as any[]).filter((c) => ["ready", "running"].includes(c.status));
     },
   });
 

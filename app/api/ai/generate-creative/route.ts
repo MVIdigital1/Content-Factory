@@ -1,75 +1,35 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 const platformNames: Record<string, string> = {
-  telegram: "Telegram",
-  instagram: "Instagram",
-  tiktok: "TikTok",
-  vk: "ВКонтакте",
-  yandex: "Яндекс Директ",
-  google: "Google Ads",
-  meta: "Meta Ads",
-  mytarget: "myTarget",
+  telegram: "Telegram", instagram: "Instagram", tiktok: "TikTok",
+  vk: "ВКонтакте", yandex: "Яндекс Директ", google: "Google Ads",
+  meta: "Meta Ads", mytarget: "myTarget",
 };
 
 const subtypeNames: Record<string, string> = {
-  post: "пост",
-  video: "видео-сценарий",
-  ad: "рекламное объявление",
-  reels: "Reels сценарий",
-  stories: "Stories",
-  feed: "пост в ленту",
-  search: "текстовое объявление",
-  rsya: "баннерный текст",
-  display: "медийный баннер",
-  banner: "баннер",
+  post: "пост", video: "видео-сценарий", ad: "рекламное объявление",
+  reels: "Reels сценарий", stories: "Stories", feed: "пост в ленту",
+  search: "текстовое объявление", rsya: "баннерный текст",
+  display: "медийный баннер", banner: "баннер",
 };
 
-// Each variation angle has a distinct creative approach
 const VARIATION_ANGLES = [
-  {
-    label: "боль/проблема",
-    instruction: "Начни с конкретной боли или проблемы аудитории — опиши ситуацию которую они узнают, потом предложи решение через продукт.",
-  },
-  {
-    label: "результат/трансформация",
-    instruction: "Покажи конкретный результат или трансформацию ПОСЛЕ использования продукта — цифры, факты, до/после. Не говори о проблеме — сразу о победе.",
-  },
-  {
-    label: "социальное доказательство/кейс",
-    instruction: "Напиши от имени клиента или расскажи мини-кейс с реальными деталями (имя/ситуация придумай, но реалистичные). Покажи как конкретный человек решил задачу.",
-  },
-  {
-    label: "срочность/оффер",
-    instruction: "Сделай упор на ограниченное предложение, дедлайн или уникальный оффер. Создай ощущение что нельзя упустить. Конкретные условия, цифры скидки или бонуса.",
-  },
-  {
-    label: "любопытство/вопрос",
-    instruction: "Начни с неожиданного вопроса или интригующего факта о нише который заставит остановиться. Потом раскрой связь с продуктом нестандартно.",
-  },
+  { label: "боль/проблема", instruction: "Начни с конкретной боли или проблемы аудитории — опиши ситуацию которую они узнают, потом предложи решение через продукт." },
+  { label: "результат/трансформация", instruction: "Покажи конкретный результат или трансформацию ПОСЛЕ использования продукта — цифры, факты, до/после. Не говори о проблеме — сразу о победе." },
+  { label: "социальное доказательство/кейс", instruction: "Напиши от имени клиента или расскажи мини-кейс с реальными деталями (имя/ситуация придумай, но реалистичные). Покажи как конкретный человек решил задачу." },
+  { label: "срочность/оффер", instruction: "Сделай упор на ограниченное предложение, дедлайн или уникальный оффер. Создай ощущение что нельзя упустить. Конкретные условия, цифры скидки или бонуса." },
+  { label: "любопытство/вопрос", instruction: "Начни с неожиданного вопроса или интригующего факта о нише который заставит остановиться. Потом раскрой связь с продуктом нестандартно." },
 ];
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const {
-    platform,
-    subtype,
-    product,
-    goal,
-    audience,
-    projectName,
-    niche,
-    variationIndex = 0,
-  } = await request.json();
+  const { platform, subtype, product, goal, audience, projectName, niche, variationIndex = 0 } = await request.json();
 
   const angle = VARIATION_ANGLES[variationIndex % VARIATION_ANGLES.length];
 

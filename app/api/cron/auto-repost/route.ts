@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { query } from "@/lib/db";
 import { NextResponse } from "next/server";
 
 const CRON_SECRET = process.env.CRON_SECRET!;
@@ -9,58 +9,34 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = await createClient();
+  const cutoff = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Найти посты помеченные для автоповтора (поле auto_repost_days > 0)
-  // и опубликованные N+ дней назад
-  const { data: postsToRepost } = await supabase
-    .from("contents")
-    .select("*, projects(user_id, is_active)")
-    .eq("status", "published")
-    .gt("auto_repost_days", 0)
-    .filter(
-      "updated_at",
-      "lte",
-      new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-    )
-    .limit(20);
+  const postsToRepost = await query<{ id: string; platform: string; auto_repost_days: number; updated_at: string }>(
+    `SELECT c.id, c.platform, c.auto_repost_days, c.updated_at
+     FROM contents c
+     JOIN projects p ON c.project_id = p.id
+     WHERE c.status = 'published' AND c.auto_repost_days > 0 AND c.updated_at <= $1 AND p.is_active = true
+     LIMIT 20`,
+    [cutoff]
+  );
 
-  if (!postsToRepost || postsToRepost.length === 0) {
-    return NextResponse.json({ ok: true, rescheduled: 0 });
-  }
+  if (!postsToRepost.length) return NextResponse.json({ ok: true, rescheduled: 0 });
 
   let rescheduled = 0;
-
   for (const post of postsToRepost) {
-    const project = post.projects as any;
-    if (!project?.is_active) continue;
-
-    const repostInDays = post.auto_repost_days;
     const lastPublished = new Date(post.updated_at);
-    const shouldRepostAt = new Date(
-      lastPublished.getTime() + repostInDays * 24 * 60 * 60 * 1000,
-    );
-
+    const shouldRepostAt = new Date(lastPublished.getTime() + post.auto_repost_days * 24 * 60 * 60 * 1000);
     if (shouldRepostAt > new Date()) continue;
 
-    // Создать новую запись в scheduled_posts
-    const scheduledAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // через час
-
-    const { error } = await supabase.from("scheduled_posts").insert({
-      content_id: post.id,
-      platform: post.platform,
-      scheduled_at: scheduledAt,
-      status: "pending",
-    });
-
-    if (!error) {
+    const scheduledAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    try {
+      await query(
+        "INSERT INTO scheduled_posts (content_id, platform, scheduled_at, status) VALUES ($1, $2, $3, 'pending')",
+        [post.id, post.platform, scheduledAt]
+      );
+      await query("UPDATE contents SET updated_at = NOW() WHERE id = $1", [post.id]);
       rescheduled++;
-      // Сбросить счётчик чтобы не повторять снова сразу
-      await supabase
-        .from("contents")
-        .update({ updated_at: new Date().toISOString() })
-        .eq("id", post.id);
-    }
+    } catch {}
   }
 
   return NextResponse.json({ ok: true, rescheduled });

@@ -1,5 +1,4 @@
 "use client";
-import { createClient } from "@/lib/supabase/client";
 import LandingRenderer, { Block } from "@/components/landing/LandingRenderer";
 
 type Props = {
@@ -10,13 +9,11 @@ type Props = {
 };
 
 export default function PublicLandingClient({ landingId, blocks, bgImage, brandColor }: Props) {
-  const supabase = createClient();
-
   const handleLeadSubmit = async (data: { name: string; phone: string }) => {
-    await supabase.from("leads").insert({
-      landing_id: landingId,
-      name: data.name,
-      phone: data.phone,
+    await fetch("/api/leads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ landing_id: landingId, name: data.name, phone: data.phone }),
     });
   };
 

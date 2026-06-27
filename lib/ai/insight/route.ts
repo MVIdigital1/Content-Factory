@@ -1,64 +1,44 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
+import { query } from "@/lib/db";
 import { NextResponse } from "next/server";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Получить данные для инсайта
-  const [{ data: projects }, { data: recentContents }] = await Promise.all([
-    supabase
-      .from("projects")
-      .select("name, niche, tone")
-      .eq("is_active", true)
-      .limit(3),
-    supabase
-      .from("contents")
-      .select("title, platform, created_at")
-      .order("created_at", { ascending: false })
-      .limit(10),
+  const [projects, recentContents] = await Promise.all([
+    query<{ name: string; niche: string; tone: string }>(
+      "SELECT name, niche, tone FROM projects WHERE user_id = $1 AND is_active = true LIMIT 3",
+      [user.id]
+    ),
+    query<{ title: string; platform: string; created_at: string }>(
+      "SELECT title, platform, created_at FROM contents WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10",
+      [user.id]
+    ),
   ]);
 
-  if (!projects || projects.length === 0) {
-    return NextResponse.json({
-      insight: "Создайте первый проект чтобы получать персональные советы 🚀",
-    });
+  if (!projects.length) {
+    return NextResponse.json({ insight: "Создайте первый проект чтобы получать персональные советы 🚀" });
   }
 
-  const today = new Date().toLocaleDateString("ru-RU", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-  const lastPostDays = recentContents?.[0]
-    ? Math.floor(
-        (Date.now() - new Date(recentContents[0].created_at).getTime()) /
-          86400000,
-      )
+  const today = new Date().toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long" });
+  const lastPostDays = recentContents[0]
+    ? Math.floor((Date.now() - new Date(recentContents[0].created_at).getTime()) / 86400000)
     : null;
 
   const prompt = `Ты SMM-советник. Дай ОДИН конкретный совет что создать сегодня.
 Сегодня: ${today}
 Проекты: ${projects.map((p) => `${p.name} (${p.niche || "без ниши"})`).join(", ")}
 Последний пост: ${lastPostDays !== null ? `${lastPostDays} дн. назад` : "нет постов"}
-Последние темы: ${
-    recentContents
-      ?.slice(0, 3)
-      .map((c) => c.title)
-      .join(", ") || "—"
-  }
+Последние темы: ${recentContents.slice(0, 3).map((c) => c.title).join(", ") || "—"}
 
 Ответь одним предложением (не более 15 слов), конкретно и по делу. Без приветствий.`;
 
   const message = await client.messages.create({
-    model: "claude-sonnet-4-5",
+    model: "claude-sonnet-4-6",
     max_tokens: 100,
     messages: [{ role: "user", content: prompt }],
   });

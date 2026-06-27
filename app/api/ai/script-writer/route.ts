@@ -1,32 +1,21 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
+import { queryOne } from "@/lib/db";
 import { NextResponse } from "next/server";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const {
-    projectId,
-    topic,
-    duration = 30,
-    platform = "instagram",
-  } = await request.json();
+  const { projectId, topic, duration = 30, platform = "instagram" } = await request.json();
 
-  const { data: project } = await supabase
-    .from("projects")
-    .select("*")
-    .eq("id", projectId)
-    .eq("user_id", user.id)
-    .single();
-  if (!project)
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const project = await queryOne<any>(
+    "SELECT * FROM projects WHERE id = $1 AND user_id = $2",
+    [projectId, user.id]
+  );
+  if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const prompt = `Ты AI Script Writer. Пишешь сценарии для коротких видео.
 
@@ -67,10 +56,7 @@ export async function POST(request: Request) {
   });
 
   const raw = (message.content[0] as { text: string }).text;
-  const clean = raw
-    .replace(/```json\s*/gi, "")
-    .replace(/```/g, "")
-    .trim();
+  const clean = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
   const script = JSON.parse(clean);
 
   return NextResponse.json({ script });

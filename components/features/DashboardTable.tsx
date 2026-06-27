@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 
 type Tab = "recent" | "scheduled" | "published";
@@ -14,17 +13,15 @@ type ContentRow = {
   platform: string | null;
   status: string | null;
   created_at: string;
-  projects: { name: string } | { name: string }[] | null;
+  project_name: string | null;
 };
 
 type ScheduledRow = {
   id: string;
   scheduled_at: string;
   status: string;
-  contents:
-    | { title: string | null; platform: string | null }
-    | { title: string | null; platform: string | null }[]
-    | null;
+  title: string | null;
+  platform: string | null;
 };
 
 const STATUS_STYLES: Record<string, string> = {
@@ -61,17 +58,12 @@ export default function DashboardTable({
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("recent");
   const [search, setSearch] = useState("");
-  const supabase = createClient();
 
   const { data: recentContents = [], isLoading: loadingRecent } = useQuery({
     queryKey: ["dashboard-recent"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("contents")
-        .select("id, title, type, platform, status, created_at, projects(name)")
-        .order("created_at", { ascending: false })
-        .limit(10);
-      return (data ?? []) as unknown as ContentRow[];
+      const res = await fetch("/api/contents?limit=10");
+      return res.ok ? (res.json() as Promise<ContentRow[]>) : [];
     },
   });
 
@@ -79,14 +71,8 @@ export default function DashboardTable({
     useQuery({
       queryKey: ["dashboard-scheduled"],
       queryFn: async () => {
-        const { data } = await supabase
-          .from("scheduled_posts")
-          .select("id, scheduled_at, status, contents(title, platform)")
-          .eq("status", "pending")
-          .gte("scheduled_at", new Date().toISOString())
-          .order("scheduled_at", { ascending: true })
-          .limit(10);
-        return (data ?? []) as unknown as ScheduledRow[];
+        const res = await fetch("/api/scheduled-posts?status=pending&limit=10");
+        return res.ok ? (res.json() as Promise<ScheduledRow[]>) : [];
       },
       enabled: activeTab === "scheduled",
     });
@@ -95,15 +81,8 @@ export default function DashboardTable({
     useQuery({
       queryKey: ["dashboard-published"],
       queryFn: async () => {
-        const { data } = await supabase
-          .from("contents")
-          .select(
-            "id, title, type, platform, status, created_at, projects(name)",
-          )
-          .eq("status", "published")
-          .order("created_at", { ascending: false })
-          .limit(10);
-        return (data ?? []) as unknown as ContentRow[];
+        const res = await fetch("/api/contents?status=published&limit=10");
+        return res.ok ? (res.json() as Promise<ContentRow[]>) : [];
       },
       enabled: activeTab === "published",
     });
@@ -138,12 +117,8 @@ export default function DashboardTable({
       ? items
       : items.filter(
           (s) =>
-            (s.contents as any)?.title
-              ?.toLowerCase()
-              .includes(search.toLowerCase()) ||
-            (s.contents as any)?.platform
-              ?.toLowerCase()
-              .includes(search.toLowerCase()),
+            s.title?.toLowerCase().includes(search.toLowerCase()) ||
+            s.platform?.toLowerCase().includes(search.toLowerCase()),
         );
 
   const TABS: { key: Tab; label: string }[] = [
@@ -317,7 +292,7 @@ export default function DashboardTable({
                 </div>
                 <div className="col-span-2 flex items-center">
                   <span className="text-xs text-gray-600 truncate">
-                    {(c.projects as any)?.name || "—"}
+                    {c.project_name || "—"}
                   </span>
                 </div>
                 <div className="col-span-2 flex items-center">
@@ -393,12 +368,12 @@ export default function DashboardTable({
                     📅
                   </div>
                   <p className="text-xs font-medium text-gray-900 truncate">
-                    {(s.contents as any)?.title || "—"}
+                    {s.title || "—"}
                   </p>
                 </div>
                 <div className="col-span-3 flex items-center">
                   <span className="text-xs text-gray-500 capitalize">
-                    {(s.contents as any)?.platform || "—"}
+                    {s.platform || "—"}
                   </span>
                 </div>
                 <div className="col-span-2 flex items-center">

@@ -1,63 +1,40 @@
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
+import { query, queryOne } from "@/lib/db";
 import { generateContent } from "@/lib/ai/claude";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await getCurrentUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await request.json();
     const { projectId, platform, contentType, goal, topic, imageUrl, campaignId } = body;
 
     if (!projectId || !platform || !contentType || !goal || !topic) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     // Rate limit: 20 генераций в час
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const { count: recentCount } = await supabase
-      .from("contents")
-      .select("*", { count: "exact", head: true })
-      .gte("created_at", oneHourAgo);
-
-    if ((recentCount ?? 0) >= 20) {
-      return NextResponse.json(
-        { error: "Rate limit exceeded. Max 20 generations per hour." },
-        { status: 429 },
-      );
+    const recentCount = await queryOne<{ count: string }>(
+      "SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '1 hour'",
+      [user.id]
+    );
+    if (parseInt(recentCount?.count ?? "0") >= 20) {
+      return NextResponse.json({ error: "Rate limit exceeded. Max 20 generations per hour." }, { status: 429 });
     }
 
-    // Проверка что проект принадлежит пользователю
-    const { data: project } = await supabase
-      .from("projects")
-      .select("*")
-      .eq("id", projectId)
-      .eq("user_id", user.id)
-      .single();
+    const project = await queryOne<any>(
+      "SELECT * FROM projects WHERE id = $1 AND user_id = $2",
+      [projectId, user.id]
+    );
+    if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
-    if (!project)
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
-
-    // Получить 3 последних поста для контекста стиля бренда
-    const { data: recentContents } = await supabase
-      .from("contents")
-      .select("caption")
-      .eq("project_id", projectId)
-      .eq("status", "published")
-      .order("created_at", { ascending: false })
-      .limit(3);
-
-    const recentPosts = recentContents
-      ?.map((c) => c.caption)
-      .filter(Boolean) as string[] | undefined;
+    const recentContents = await query<{ caption: string }>(
+      "SELECT caption FROM contents WHERE project_id = $1 AND status = 'published' ORDER BY created_at DESC LIMIT 3",
+      [projectId]
+    );
+    const recentPosts = recentContents.map((c) => c.caption).filter(Boolean) as string[];
 
     const generated = await generateContent({
       projectName: project.name,
@@ -71,40 +48,30 @@ export async function POST(request: Request) {
       goal,
       topic,
       imageUrl,
-      stopWords: (project as any).stop_words || null,
+      stopWords: project.stop_words || null,
       recentPosts,
     });
 
-    const { data: content, error: insertError } = await supabase
-      .from("contents")
-      .insert({
-        project_id: projectId,
-        campaign_id: campaignId || null,
-        type: contentType,
-        platform,
-        goal,
-        title: generated.title,
-        idea: generated.idea,
-        hook: generated.hook,
-        script: generated.script || [],
-        voiceover: generated.voiceover || "",
-        screen_text: generated.screen_text || "",
-        caption: generated.caption,
-        hashtags: generated.hashtags || [],
-        cta: generated.cta,
-        source_image_url: imageUrl || null,
-        status: "generated",
-        ai_model: "claude-sonnet-4-5",
-        ai_tokens: 3000,
-      })
-      .select()
-      .single();
+    const content = await queryOne<any>(
+      `INSERT INTO contents (user_id, project_id, campaign_id, type, platform, goal, title, idea, hook, script, voiceover, screen_text, caption, hashtags, cta, source_image_url, status, ai_model, ai_tokens)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'generated', 'claude-sonnet-4-5', 3000)
+       RETURNING *`,
+      [
+        user.id, projectId, campaignId || null, contentType, platform, goal,
+        generated.title, generated.idea, generated.hook,
+        JSON.stringify(generated.script || []),
+        generated.voiceover || "",
+        generated.screen_text || "",
+        generated.caption,
+        generated.hashtags || [],
+        generated.cta,
+        imageUrl || null,
+      ]
+    );
 
-    if (insertError) throw insertError;
     return NextResponse.json({ content });
   } catch (error: unknown) {
-    const message =
-      error instanceof Error ? error.message : "Generation failed";
+    const message = error instanceof Error ? error.message : "Generation failed";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

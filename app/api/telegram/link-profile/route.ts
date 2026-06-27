@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
+import { query } from "@/lib/db";
 import { NextResponse } from "next/server";
 
 function generateToken() {
@@ -6,22 +7,16 @@ function generateToken() {
 }
 
 export async function POST() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const token = generateToken();
-
-  await supabase
-    .from("profiles")
-    .upsert({ id: user.id, telegram_link_token: token })
-    .eq("id", user.id);
+  await query(
+    "INSERT INTO profiles (id, role) VALUES ($1, 'user') ON CONFLICT (id) DO NOTHING",
+    [user.id]
+  );
 
   const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || "postcentro_bot";
-
   return NextResponse.json({
     token,
     instruction: `Напишите боту @${botUsername} команду:\n/link ${token}`,
@@ -30,17 +25,7 @@ export async function POST() {
 }
 
 export async function DELETE() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  await supabase
-    .from("profiles")
-    .update({ telegram_chat_id: null, telegram_link_token: null })
-    .eq("id", user.id);
-
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   return NextResponse.json({ ok: true });
 }

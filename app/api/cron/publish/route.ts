@@ -1,128 +1,71 @@
-import { createClient } from "@/lib/supabase/server";
+import { query, queryOne } from "@/lib/db";
 import { NextResponse } from "next/server";
 
 const MAKE_WEBHOOK_URL = process.env.MAKE_WEBHOOK_URL;
+const BOT_TOKEN = process.env.BOT_TOKEN!;
 
-async function sendToMake(payload: {
-  contentId: string;
-  platform: string;
-  caption: string;
-  hashtags: string[];
-  image_url: string | null;
-}) {
-  if (!MAKE_WEBHOOK_URL) return;
-  try {
-    await fetch(MAKE_WEBHOOK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-  } catch (err) {
-    console.error("Make.com webhook error:", err);
-  }
-}
+export async function POST() {
+  const now = new Date().toISOString();
 
-export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const duePosts = await query<any>(
+    `SELECT sp.id, sp.content_id, sp.platform, c.caption, c.hashtags, c.source_image_url, c.user_id
+     FROM scheduled_posts sp
+     JOIN contents c ON sp.content_id = c.id
+     WHERE sp.status = 'pending' AND sp.scheduled_at <= $1
+     LIMIT 50`,
+    [now]
+  );
 
-  const { contentId, platform } = await request.json();
-  if (!contentId)
-    return NextResponse.json({ error: "Missing contentId" }, { status: 400 });
+  let published = 0;
+  let failed = 0;
 
-  // Get content
-  const { data: content } = await supabase
-    .from("contents")
-    .select("*, projects(user_id)")
-    .eq("id", contentId)
-    .single();
-
-  if (!content)
-    return NextResponse.json({ error: "Content not found" }, { status: 404 });
-
-  if (platform === "telegram") {
-    const { data: integration } = await supabase
-      .from("integrations")
-      .select("token, channel_id")
-      .eq("platform", "telegram")
-      .eq("is_active", true)
-      .eq("user_id", user.id)
-      .single();
-
-    if (!integration)
-      return NextResponse.json(
-        { error: "No active Telegram channel. Connect one first." },
-        { status: 400 },
+  for (const post of duePosts) {
+    try {
+      const integration = await queryOne<{ token: string; channel_id: string }>(
+        "SELECT token, channel_id FROM integrations WHERE platform = 'telegram' AND is_active = true AND user_id = $1 LIMIT 1",
+        [post.user_id]
       );
 
-    const text =
-      `${content.caption || ""}\n\n${(content.hashtags || []).join(" ")}`.trim();
-    const imageUrl = content.source_image_url;
+      if (post.platform === "telegram" && integration) {
+        const text = `${post.caption || ""}\n\n${(post.hashtags || []).join(" ")}`.trim();
+        const imageUrl = post.source_image_url;
+        const endpoint = imageUrl ? "sendPhoto" : "sendMessage";
+        const body = imageUrl
+          ? { chat_id: integration.channel_id, photo: imageUrl, caption: text, parse_mode: "HTML" }
+          : { chat_id: integration.channel_id, text, parse_mode: "HTML" };
 
-    const endpoint = imageUrl ? "sendPhoto" : "sendMessage";
-    const body = imageUrl
-      ? {
-          chat_id: integration.channel_id,
-          photo: imageUrl,
-          caption: text,
-          parse_mode: "HTML",
+        const res = await fetch(`https://api.telegram.org/bot${integration.token || BOT_TOKEN}/${endpoint}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const tgData = await res.json();
+
+        if (tgData.ok) {
+          await query("UPDATE scheduled_posts SET status = 'published', published_at = NOW(), telegram_message_id = $1 WHERE id = $2", [tgData.result.message_id, post.id]);
+          await query("UPDATE contents SET status = 'published', published_at = NOW() WHERE id = $1", [post.content_id]);
+          published++;
+        } else {
+          await query("UPDATE scheduled_posts SET status = 'failed' WHERE id = $1", [post.id]);
+          failed++;
         }
-      : { chat_id: integration.channel_id, text, parse_mode: "HTML" };
-
-    const res = await fetch(
-      `https://api.telegram.org/bot${integration.token}/${endpoint}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      },
-    );
-
-    const tgData = await res.json();
-    if (!tgData.ok)
-      return NextResponse.json(
-        { error: tgData.description || "Telegram error" },
-        { status: 500 },
-      );
-
-    // Update status
-    await supabase
-      .from("contents")
-      .update({ status: "published" })
-      .eq("id", contentId);
-
-    // Send to Make.com
-    await sendToMake({
-      contentId,
-      platform: "telegram",
-      caption: content.caption || "",
-      hashtags: content.hashtags || [],
-      image_url: content.source_image_url || null,
-    });
-
-    return NextResponse.json({
-      ok: true,
-      message_id: tgData.result.message_id,
-    });
+      } else {
+        if (MAKE_WEBHOOK_URL) {
+          await fetch(MAKE_WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contentId: post.content_id, platform: post.platform, caption: post.caption, hashtags: post.hashtags, image_url: post.source_image_url }),
+          });
+        }
+        await query("UPDATE scheduled_posts SET status = 'published', published_at = NOW() WHERE id = $1", [post.id]);
+        await query("UPDATE contents SET status = 'published', published_at = NOW() WHERE id = $1", [post.content_id]);
+        published++;
+      }
+    } catch {
+      await query("UPDATE scheduled_posts SET status = 'failed' WHERE id = $1", [post.id]);
+      failed++;
+    }
   }
 
-  // Для других платформ (Instagram, LinkedIn и т.д.) — отправляем в Make.com
-  await sendToMake({
-    contentId,
-    platform,
-    caption: content.caption || "",
-    hashtags: content.hashtags || [],
-    image_url: content.source_image_url || null,
-  });
-
-  await supabase
-    .from("contents")
-    .update({ status: "published" })
-    .eq("id", contentId);
-
-  return NextResponse.json({ ok: true, via: "make" });
+  return NextResponse.json({ published, failed, total: duePosts.length });
 }

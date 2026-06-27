@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { useLocale } from "next-intl";
 
@@ -23,61 +22,19 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 export default function TokensPage() {
-  const supabase = createClient();
   const locale = useLocale();
 
-  // Balance with realtime
   const [balance, setBalance] = useState<any>(null);
 
-  const fetchBalance = async () => {
-    const res = await fetch("/api/tokens/balance");
-    if (res.ok) setBalance(await res.json());
-  };
-
   useEffect(() => {
-    fetchBalance();
+    fetch("/api/tokens/balance").then(r => r.ok ? r.json() : null).then(d => d && setBalance(d));
   }, []);
 
-  useEffect(() => {
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      channel = supabase
-        .channel("tokens_page_rt")
-        .on(
-          "postgres_changes",
-          {
-            event: "UPDATE",
-            schema: "public",
-            table: "user_tokens",
-            filter: `user_id=eq.${user.id}`,
-          },
-          (payload) => {
-            const row = payload.new as any;
-            setBalance({
-              ...row,
-              tokens_remaining: Math.max(0, row.tokens_total - row.tokens_used),
-            });
-          }
-        )
-        .subscribe();
-    });
-    return () => { channel?.unsubscribe(); };
-  }, []);
-
-  // Transaction history
   const { data: transactions = [], isLoading } = useQuery({
     queryKey: ["token_transactions"],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("token_transactions")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(50);
-      return data ?? [];
+      const res = await fetch("/api/tokens/transactions");
+      return res.ok ? res.json() : [];
     },
   });
 

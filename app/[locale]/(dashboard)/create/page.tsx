@@ -1,7 +1,6 @@
 "use client";
 import { Suspense, useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "next-intl";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -1172,7 +1171,6 @@ function CreatePostModal({
   const [generating, setGenerating] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [topic, setTopic] = useState("");
-  const supabase = createClient();
 
   const tgChannels = integrations.filter(
     (i: any) => i.platform === "telegram" && i.is_active,
@@ -1232,16 +1230,11 @@ function CreatePostModal({
     if (!text.trim()) return;
     setPublishing(true);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Не авторизован");
-
       // Save content to DB
-      const { data: content } = await supabase
-        .from("contents")
-        .insert({
-          user_id: user.id,
+      const saveRes = await fetch("/api/contents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           project_id: projectId || null,
           platform: selectedPlatform,
           body: text,
@@ -1250,34 +1243,30 @@ function CreatePostModal({
           content_type: "post",
           status: publishMode === "now" ? "published" : "scheduled",
           language: "ru",
-        })
-        .select()
-        .single();
-
-      if (!content) throw new Error("Ошибка сохранения");
+        }),
+      });
+      const content = await saveRes.json();
+      if (!saveRes.ok || !content?.id) throw new Error("Ошибка сохранения");
 
       if (publishMode === "now") {
-        // Publish immediately
         const res = await fetch("/api/content/publish-now", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contentId: content.id,
-            platform: selectedPlatform,
-          }),
+          body: JSON.stringify({ contentId: content.id, platform: selectedPlatform }),
         });
         if (!res.ok) {
           const err = await res.json();
           throw new Error(err.error || "Ошибка публикации");
         }
       } else if (publishMode === "schedule" && scheduleTime) {
-        // Schedule
-        await supabase.from("scheduled_posts").insert({
-          content_id: content.id,
-          platform: selectedPlatform,
-          scheduled_at: new Date(scheduleTime).toISOString(),
-          status: "pending",
-          retry_count: 0,
+        await fetch("/api/scheduled-posts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content_id: content.id,
+            platform: selectedPlatform,
+            scheduled_at: new Date(scheduleTime).toISOString(),
+          }),
         });
       }
 
@@ -1647,7 +1636,6 @@ function CreatePostModal({
 
 // ── Main page ──────────────────────────────────────────────────────────────
 function CreateContentPageInner() {
-  const supabase = createClient();
   const locale = useLocale();
 
   const [platform, setPlatform] = useState<Platform>("all");
@@ -1664,16 +1652,8 @@ function CreateContentPageInner() {
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("projects")
-        .select("id,name,niche,description,audience,logo_url")
-        .eq("user_id", user.id)
-        .eq("is_active", true);
-      return data ?? [];
+      const res = await fetch("/api/projects");
+      return res.ok ? res.json() : [];
     },
   });
 
@@ -1681,16 +1661,8 @@ function CreateContentPageInner() {
   const { data: integrations = [] } = useQuery({
     queryKey: ["integrations"],
     queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("integrations")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("is_active", true);
-      return data ?? [];
+      const res = await fetch("/api/integrations");
+      return res.ok ? res.json() : [];
     },
   });
 

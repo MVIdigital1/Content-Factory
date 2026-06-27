@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocale } from "next-intl";
 
 const TOKEN_COST = 50;
@@ -17,7 +16,6 @@ type Infographic = {
 };
 
 export default function InfographicsPage() {
-  const supabase = createClient();
   const qc = useQueryClient();
   const locale = useLocale();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -33,15 +31,8 @@ export default function InfographicsPage() {
   const { data: projects = [] } = useQuery({
     queryKey: ["projects_selector"],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("projects")
-        .select("id, name")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .order("created_at", { ascending: false });
-      return data ?? [];
+      const res = await fetch("/api/projects");
+      return res.ok ? res.json() : [];
     },
   });
 
@@ -49,14 +40,8 @@ export default function InfographicsPage() {
   const { data: history = [], isLoading } = useQuery({
     queryKey: ["infographics"],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("infographics")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-      return (data ?? []) as Infographic[];
+      const res = await fetch("/api/infographics");
+      return res.ok ? (res.json() as Promise<Infographic[]>) : [];
     },
   });
 
@@ -93,19 +78,13 @@ export default function InfographicsPage() {
     setError("");
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Не авторизован");
-
-      // Upload source image
-      const ext = sourceFile.name.split(".").pop();
-      const path = `infographics/${user.id}/${Date.now()}.${ext}`;
-      const { error: uploadErr } = await supabase.storage
-        .from("content-images")
-        .upload(path, sourceFile, { contentType: sourceFile.type });
-      if (uploadErr) throw new Error("Ошибка загрузки: " + uploadErr.message);
-
-      const { data: urlData } = supabase.storage.from("content-images").getPublicUrl(path);
-      const sourceUrl = urlData.publicUrl;
+      // Upload source image via /api/upload
+      const formData = new FormData();
+      formData.append("file", sourceFile);
+      formData.append("folder", "uploads/infographics");
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!uploadRes.ok) throw new Error("Ошибка загрузки изображения");
+      const { url: sourceUrl } = await uploadRes.json();
 
       // Spend tokens
       const spendRes = await fetch("/api/tokens/spend", {
@@ -124,27 +103,27 @@ export default function InfographicsPage() {
           : "Ошибка списания токенов");
       }
 
-      // Save to DB with status=processing (placeholder — replace with real AI call)
-      const { data: record } = await supabase
-        .from("infographics")
-        .insert({
-          user_id: user.id,
+      // Save to DB with status=processing
+      const createRes = await fetch("/api/infographics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           project_id: projectId || null,
           source_url: sourceUrl,
           prompt: prompt.trim(),
           status: "processing",
-        })
-        .select()
-        .single();
+        }),
+      });
+      if (!createRes.ok) throw new Error("Ошибка сохранения");
+      const record = await createRes.json();
 
       // TODO: call real image-generation API here
       // For now — mark as done with source as placeholder result
-      if (record) {
-        await supabase
-          .from("infographics")
-          .update({ status: "done", result_url: sourceUrl })
-          .eq("id", record.id);
-      }
+      await fetch(`/api/infographics/${record.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "done", result_url: sourceUrl }),
+      });
 
       qc.invalidateQueries({ queryKey: ["infographics"] });
       qc.invalidateQueries({ queryKey: ["token_balance"] });

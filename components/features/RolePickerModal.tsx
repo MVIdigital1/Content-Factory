@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import { Check, X, Users, Clock } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -39,10 +38,6 @@ const SYSTEM_ROLE_META: Record<string, { label: string; color: string; icon: str
   analyst:      { label: "Аналитик",       color: "#5A4FBE", icon: "📊" },
   client:       { label: "Клиент",         color: "#6E6557", icon: "👤" },
 };
-
-function getRoleMeta(role: string): { label: string; color: string; icon: string } {
-  return SYSTEM_ROLE_META[role] || { label: role, color: "#888888", icon: "🔑" };
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HOOK: useRoleContext
@@ -87,68 +82,15 @@ type Props = {
 };
 
 export default function RolePickerModal({ onSelect }: Props) {
-  const supabase = createClient();
   const [selected, setSelected] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["role-picker-contexts"],
     queryFn: async (): Promise<{ contexts: RoleContext[]; isOwner: boolean }> => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return { contexts: [], isOwner: false };
-
-      // Check if user owns any workspace
-      const { data: ownedWs } = await supabase.from("workspaces").select("id, name").eq("owner_id", user.id);
-      const isOwner = (ownedWs || []).length > 0;
-
-      // Get workspace memberships
-      const { data: memberships } = await supabase
-        .from("workspace_members")
-        .select("workspace_id, role, status, project_ids")
-        .eq("user_id", user.id)
-        .eq("status", "active");
-
-      const contexts: RoleContext[] = [];
-
-      // Add owned workspaces as owner contexts
-      for (const ws of ownedWs || []) {
-        const { count } = await supabase.from("projects").select("*", { count: "exact", head: true }).eq("is_active", true);
-        const meta = getRoleMeta("owner");
-        contexts.push({
-          workspaceId: ws.id,
-          workspaceName: ws.name,
-          role: "owner",
-          roleLabel: meta.label,
-          roleColor: meta.color,
-          roleIcon: meta.icon,
-          projectCount: count || 0,
-        });
-      }
-
-      // Add member contexts
-      for (const m of memberships || []) {
-        // Skip if already added as owner
-        if (contexts.some(c => c.workspaceId === m.workspace_id)) continue;
-
-        const { data: ws } = await supabase.from("workspaces").select("name").eq("id", m.workspace_id).single();
-        if (!ws) continue;
-
-        const meta = getRoleMeta(m.role);
-        const projectIds = m.project_ids as string[] | null;
-        const projectCount = projectIds ? projectIds.length : 0;
-
-        contexts.push({
-          workspaceId: m.workspace_id,
-          workspaceName: ws.name,
-          role: m.role,
-          roleLabel: meta.label,
-          roleColor: meta.color,
-          roleIcon: meta.icon,
-          projectCount,
-        });
-      }
-
-      return { contexts, isOwner };
+      const res = await fetch("/api/team/role-contexts");
+      if (!res.ok) return { contexts: [], isOwner: false };
+      return res.json();
     },
   });
 

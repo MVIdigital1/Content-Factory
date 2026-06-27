@@ -2,7 +2,6 @@
 import { Suspense, useState, useEffect, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import { CampaignsView } from "@/components/ads/CampaignsView";
 import { WizardView } from "@/components/ads/WizardView";
 import { CreativesView } from "@/components/ads/CreativesView";
@@ -52,24 +51,14 @@ function ProjectSelector({
   onSelect: (projectId: string, projectName: string) => void;
   onClose: () => void;
 }) {
-  const supabase = createClient();
   const locale = useLocale();
   const router = useRouter();
 
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ["projects_selector"],
     queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase
-        .from("projects")
-        .select("id, name, niche, description, logo_url, created_at")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .order("created_at", { ascending: false });
-      return data ?? [];
+      const res = await fetch("/api/projects");
+      return res.ok ? res.json() : [];
     },
   });
 

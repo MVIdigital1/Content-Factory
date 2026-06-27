@@ -1,19 +1,15 @@
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
+import { query } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 
 const REDIRECT_BASE = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
-  if (!code) {
-    return NextResponse.redirect(`${REDIRECT_BASE}/ru/integrations?error=no_code`);
-  }
+  if (!code) return NextResponse.redirect(`${REDIRECT_BASE}/ru/integrations?error=no_code`);
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.redirect(`${REDIRECT_BASE}/ru/auth/login`);
-  }
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.redirect(`${REDIRECT_BASE}/ru/auth/login`);
 
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -29,33 +25,16 @@ export async function GET(req: NextRequest) {
 
   const tokens = await tokenRes.json();
   if (!tokens.access_token) {
-    console.error("[google/callback] token error:", tokens);
     return NextResponse.redirect(`${REDIRECT_BASE}/ru/integrations?error=google_failed`);
   }
 
-  const { error } = await supabase.from("ad_platforms").upsert(
-    {
-      user_id: user.id,
-      platform_key: "google",
-      name: "Google Ads",
-      color: "#34A853",
-      abbr: "G",
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token ?? null,
-      token_expires_at: tokens.expires_in
-        ? new Date(Date.now() + tokens.expires_in * 1000).toISOString()
-        : null,
-      is_active: true,
-      status: "active",
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id,platform_key" }
+  await query(
+    `INSERT INTO ad_platforms (user_id, platform_key, name, color, abbr, access_token, refresh_token, token_expires_at, is_active, status, updated_at)
+     VALUES ($1, 'google', 'Google Ads', '#34A853', 'G', $2, $3, $4, true, 'active', NOW())
+     ON CONFLICT (user_id, platform_key) DO UPDATE SET access_token = $2, refresh_token = $3, token_expires_at = $4, is_active = true, updated_at = NOW()`,
+    [user.id, tokens.access_token, tokens.refresh_token ?? null,
+      tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000).toISOString() : null]
   );
-
-  if (error) {
-    console.error("[google/callback] upsert error:", error);
-    return NextResponse.redirect(`${REDIRECT_BASE}/ru/integrations?error=google_save_failed`);
-  }
 
   return NextResponse.redirect(`${REDIRECT_BASE}/ru/integrations?tab=ads&success=google`);
 }

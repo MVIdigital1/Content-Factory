@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "next-intl";
 import { ChevronLeft, Copy, Clock } from "lucide-react";
 
@@ -46,7 +45,6 @@ export default function CampaignDetailPage() {
   const locale = useLocale();
   const router = useRouter();
   const qc = useQueryClient();
-  const supabase = createClient();
   const [activeTab, setActiveTab] = useState<TabKey>("info");
   const [scheduleModal, setScheduleModal] = useState<any>(null);
   const [scheduleTime, setScheduleTime] = useState("");
@@ -57,13 +55,8 @@ export default function CampaignDetailPage() {
     queryKey: ["ad_campaign", id],
     enabled: !!id,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ad_campaigns")
-        .select("*")
-        .eq("id", id)
-        .single();
-      if (error) return null;
-      return data;
+      const res = await fetch(`/api/campaigns/${id}`);
+      return res.ok ? res.json() : null;
     },
   });
 
@@ -71,22 +64,19 @@ export default function CampaignDetailPage() {
     queryKey: ["ad_creatives_campaign", id],
     enabled: !!id,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("ad_creatives")
-        .select("*")
-        .eq("campaign_id", id)
-        .order("created_at", { ascending: false });
-      return data ?? [];
+      const res = await fetch(`/api/campaigns/${id}/creatives`);
+      return res.ok ? res.json() : [];
     },
   });
 
   const updateCampaign = useMutation({
     mutationFn: async (payload: any) => {
-      const { error } = await supabase
-        .from("ad_campaigns")
-        .update(payload)
-        .eq("id", id);
-      if (error) throw error;
+      const res = await fetch(`/api/campaigns/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("Ошибка обновления");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ad_campaign", id] }),
   });
@@ -95,34 +85,21 @@ export default function CampaignDetailPage() {
     if (!campaign) return;
     setCloning(true);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Не авторизован");
-      const { data } = await supabase
-        .from("ad_campaigns")
-        .insert({
-          user_id: user.id,
+      const res = await fetch("/api/campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           name: `${campaign.name} — копия`,
           goal: campaign.goal,
           description: campaign.description,
           platforms: campaign.platforms,
           status: "draft",
-          budget_total: campaign.budget_total,
-          budget_spent: 0,
-          impressions: 0,
-          clicks: 0,
-          leads: 0,
-          sales: 0,
-          revenue: 0,
-          ctr: 0,
-          cpl: 0,
-          roas: 0,
+          budget: campaign.budget_total,
           project_id: campaign.project_id,
-        })
-        .select()
-        .single();
-      if (data) router.push(`/${locale}/campaigns/${data.id}`);
+        }),
+      });
+      const data = await res.json();
+      if (data?.id) router.push(`/${locale}/campaigns/${data.id}`);
     } catch (e: any) {
       alert("Ошибка: " + e.message);
     } finally {
@@ -134,17 +111,20 @@ export default function CampaignDetailPage() {
     if (!scheduleModal || !scheduleTime) return;
     setScheduling(true);
     try {
-      await supabase.from("scheduled_posts").insert({
-        content_id: scheduleModal.id,
-        platform: scheduleModal.platform,
-        scheduled_at: new Date(scheduleTime).toISOString(),
-        status: "pending",
-        retry_count: 0,
+      await fetch("/api/scheduled-posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content_id: scheduleModal.id,
+          platform: scheduleModal.platform,
+          scheduled_at: new Date(scheduleTime).toISOString(),
+        }),
       });
-      await supabase
-        .from("ad_creatives")
-        .update({ status: "active" })
-        .eq("id", scheduleModal.id);
+      await fetch(`/api/campaigns/${id}/creatives?creativeId=${scheduleModal.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "active" }),
+      });
       qc.invalidateQueries({ queryKey: ["ad_creatives_campaign", id] });
       setScheduleModal(null);
       setScheduleTime("");

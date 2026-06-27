@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import {
   Send, Plus, X, Hash, ChevronDown, ChevronRight,
   Search, MessageCircle, CornerUpLeft, Paperclip,
@@ -175,16 +174,18 @@ function CreateRoomModal({ projects, workspaceId, userId, onClose, onCreated }: 
   projects:Project[]; workspaceId:string|null; userId:string;
   onClose:()=>void; onCreated:(r:Room)=>void;
 }) {
-  const supabase = createClient();
   const [name, setName] = useState(""); const [projectId, setProjectId] = useState(""); const [saving, setSaving] = useState(false); const [err, setErr] = useState("");
   async function create() {
     if (!name.trim()) { setErr("Введите название"); return; }
     setSaving(true); setErr("");
     try {
-      const { data:room, error } = await supabase.from("chat_rooms").insert({ name:name.trim(),type:"group",project_id:projectId||null,workspace_id:workspaceId,created_by:userId }).select().single();
-      if (error) throw error;
-      await supabase.from("chat_room_members").insert({ room_id:room.id,user_id:userId,role:"admin" });
-      await supabase.from("chat_messages").insert({ room_id:room.id,user_id:userId,type:"system",content:`Группа «${room.name}» создана` });
+      const res = await fetch("/api/chat/rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), project_id: projectId || null, workspace_id: workspaceId }),
+      });
+      if (!res.ok) throw new Error("Ошибка создания группы");
+      const room = await res.json();
       onCreated(room);
     } catch(e:any) { setErr(e.message); }
     setSaving(false);
@@ -350,8 +351,6 @@ function MessageBubble({ msg, isMe, grouped, userId, onReply, onEdit, onDelete, 
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ChatPage() {
-  const supabase = createClient();
-
   const [user, setUser] = useState<any>(null);
   const [selectedRoom, setSelectedRoom] = useState<Room|null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -371,33 +370,34 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const channelRef = useRef<any>(null);
 
-  useEffect(() => { supabase.auth.getUser().then(({data:{user}})=>setUser(user)); }, []);
+  useEffect(() => {
+    fetch("/api/auth/me").then(r => r.ok ? r.json() : null).then(d => { if (d?.user) setUser(d.user); });
+  }, []);
 
   const { data: workspace } = useQuery({
     queryKey: ["chat_workspace", user?.id], enabled: !!user,
     queryFn: async () => {
-      const { data } = await supabase.from("workspaces").select("id").eq("owner_id", user.id).maybeSingle();
-      return data;
+      const res = await fetch("/api/workspaces");
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data?.[0] ?? null;
     },
   });
 
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ["chat_projects", user?.id], enabled: !!user,
     queryFn: async () => {
-      const { data } = await supabase.from("projects").select("id,name").eq("user_id", user.id).order("created_at");
-      return data||[];
+      const res = await fetch("/api/projects");
+      return res.ok ? res.json() : [];
     },
   });
 
   const { data: rooms=[], refetch: refetchRooms } = useQuery<Room[]>({
     queryKey: ["chat_rooms", user?.id], enabled: !!user,
     queryFn: async () => {
-      const { data:memberRows } = await supabase.from("chat_room_members").select("room_id").eq("user_id", user.id);
-      if (!memberRows?.length) return [];
-      const { data } = await supabase.from("chat_rooms").select("*").in("id", memberRows.map((r:any)=>r.room_id)).order("created_at");
-      return data||[];
+      const res = await fetch("/api/chat/rooms");
+      return res.ok ? res.json() : [];
     },
     staleTime: 30000,
   });
@@ -405,55 +405,54 @@ export default function ChatPage() {
   const { data: members=[] } = useQuery<Member[]>({
     queryKey: ["chat_members", selectedRoom?.id], enabled: !!selectedRoom,
     queryFn: async () => {
-      const { data } = await supabase.from("chat_room_members").select("*").eq("room_id", selectedRoom!.id);
-      return data||[];
+      const res = await fetch(`/api/chat/rooms/${selectedRoom!.id}/members`);
+      return res.ok ? res.json() : [];
     },
   });
 
-  // Load messages + subscribe
+  // Load messages + poll for new ones every 3 seconds
   useEffect(() => {
     if (!selectedRoom) return;
     setLoadingMsgs(true); setMessages([]); setReplyTo(null); setEditingMsg(null);
 
-    supabase.from("chat_messages")
-      .select("*, reply:reply_to(content, user_email, file_url)")
-      .eq("room_id", selectedRoom.id)
-      .order("created_at", { ascending: true }).limit(100)
-      .then(async ({ data }) => {
-        if (!data) { setLoadingMsgs(false); return; }
-        // Load reactions
-        const ids = data.map((m:any)=>m.id);
-        const { data: reactData } = await supabase.from("message_reactions").select("*").in("message_id", ids);
-        const reactMap: Record<string, Reaction[]> = {};
-        (reactData||[]).forEach((r:any)=>{
-          if (!reactMap[r.message_id]) reactMap[r.message_id]=[];
-          const ex = reactMap[r.message_id].find(x=>x.emoji===r.emoji);
-          if (ex) { ex.count++; if(r.user_id===user?.id) ex.mine=true; }
-          else reactMap[r.message_id].push({ emoji:r.emoji, count:1, mine:r.user_id===user?.id });
-        });
-        setMessages(data.map((m:any)=>({ ...m, reactions: reactMap[m.id]||[] })));
-        setLoadingMsgs(false);
-      });
+    const loadMessages = async (since?: string) => {
+      const url = since
+        ? `/api/chat/rooms/${selectedRoom.id}/messages?since=${encodeURIComponent(since)}`
+        : `/api/chat/rooms/${selectedRoom.id}/messages`;
+      const res = await fetch(url);
+      if (!res.ok) return;
+      return res.json() as Promise<Message[]>;
+    };
 
-    if (channelRef.current) supabase.removeChannel(channelRef.current);
-    channelRef.current = supabase.channel(`room_${selectedRoom.id}`)
-      .on("postgres_changes",{ event:"INSERT",schema:"public",table:"chat_messages",filter:`room_id=eq.${selectedRoom.id}` },
-        async (payload) => {
-          const msg = payload.new as Message;
-          if (msg.reply_to) {
-            const { data:reply } = await supabase.from("chat_messages").select("content,user_email,file_url").eq("id",msg.reply_to).single();
-            msg.reply = reply as any;
+    loadMessages().then(data => {
+      if (data) setMessages(data);
+      setLoadingMsgs(false);
+    });
+
+    fetch(`/api/chat/rooms/${selectedRoom.id}/members`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ last_read: new Date().toISOString() }),
+    });
+
+    // Poll for new messages every 3 seconds
+    const pollTimer = setInterval(async () => {
+      setMessages(prev => {
+        const lastMsg = prev[prev.length - 1];
+        const since = lastMsg?.created_at;
+        loadMessages(since).then(newMsgs => {
+          if (newMsgs && newMsgs.length > 0) {
+            setMessages(current => {
+              const existingIds = new Set(current.map(m => m.id));
+              return [...current, ...newMsgs.filter(m => !existingIds.has(m.id))];
+            });
           }
-          setMessages(prev=>[...prev,{ ...msg,reactions:[] }]);
-        })
-      .on("postgres_changes",{ event:"UPDATE",schema:"public",table:"chat_messages",filter:`room_id=eq.${selectedRoom.id}` },
-        (payload) => { setMessages(prev=>prev.map(m=>m.id===payload.new.id?{ ...m,...payload.new }:m)); })
-      .on("postgres_changes",{ event:"DELETE",schema:"public",table:"chat_messages" },
-        (payload) => { setMessages(prev=>prev.filter(m=>m.id!==payload.old.id)); })
-      .subscribe();
+        });
+        return prev;
+      });
+    }, 3000);
 
-    if (user) supabase.from("chat_room_members").update({ last_read: new Date().toISOString() }).eq("room_id",selectedRoom.id).eq("user_id",user.id).then(()=>{});
-    return () => { if(channelRef.current) supabase.removeChannel(channelRef.current); };
+    return () => clearInterval(pollTimer);
   }, [selectedRoom?.id]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages]);
@@ -468,12 +467,13 @@ export default function ChatPage() {
   }
 
   async function uploadFile(file: File): Promise<{ url:string; type:string; name:string }> {
-    const ext = file.name.split(".").pop();
-    const path = `${selectedRoom!.id}/${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("chat-files").upload(path, file);
-    if (error) throw error;
-    const { data } = supabase.storage.from("chat-files").getPublicUrl(path);
-    return { url: data.publicUrl, type: file.type.startsWith("image/")?"image":"file", name: file.name };
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("folder", `uploads/chat/${selectedRoom!.id}`);
+    const res = await fetch("/api/upload", { method: "POST", body: formData });
+    if (!res.ok) throw new Error("Ошибка загрузки файла");
+    const { url } = await res.json();
+    return { url, type: file.type.startsWith("image/") ? "image" : "file", name: file.name };
   }
 
   async function sendMessage(overrideText?: string) {
@@ -497,31 +497,48 @@ export default function ChatPage() {
       if (replyTo) payload.reply_to = replyTo.id;
       if (fileData) { payload.file_url=fileData.url; payload.file_type=fileData.type; payload.file_name=fileData.name; }
       setInput(""); setReplyTo(null);
-      await supabase.from("chat_messages").insert(payload);
+      const res = await fetch(`/api/chat/rooms/${selectedRoom.id}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const newMsg = await res.json();
+        setMessages(prev => [...prev, { ...newMsg, reactions: [] }]);
+      }
     } catch(e:any) { console.error(e); }
     setSending(false);
   }
 
   async function saveEdit() {
     if (!editingMsg || !editInput.trim()) return;
-    await supabase.from("chat_messages").update({ content: editInput.trim(), edited_at: new Date().toISOString() }).eq("id", editingMsg.id);
+    await fetch(`/api/chat/messages/${editingMsg.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: editInput.trim() }),
+    });
+    setMessages(prev => prev.map(m => m.id === editingMsg.id ? { ...m, content: editInput.trim(), edited_at: new Date().toISOString() } : m));
     setEditingMsg(null); setEditInput("");
   }
 
   async function deleteMessage(msg: Message) {
     if (!confirm("Удалить сообщение?")) return;
-    await supabase.from("chat_messages").delete().eq("id", msg.id);
+    await fetch(`/api/chat/messages/${msg.id}`, { method: "DELETE" });
+    setMessages(prev => prev.filter(m => m.id !== msg.id));
   }
 
   async function toggleReaction(msgId: string, emoji: string) {
     if (!user) return;
     const msg = messages.find(m=>m.id===msgId);
     const existing = msg?.reactions?.find(r=>r.emoji===emoji&&r.mine);
+    await fetch("/api/chat/reactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message_id: msgId, emoji, action: existing ? "remove" : "add" }),
+    });
     if (existing) {
-      await supabase.from("message_reactions").delete().eq("message_id",msgId).eq("user_id",user.id).eq("emoji",emoji);
       setMessages(prev=>prev.map(m=>m.id===msgId?{ ...m,reactions:(m.reactions||[]).map(r=>r.emoji===emoji?{ ...r,count:r.count-1,mine:false }:r).filter(r=>r.count>0) }:m));
     } else {
-      await supabase.from("message_reactions").insert({ message_id:msgId, user_id:user.id, emoji });
       setMessages(prev=>prev.map(m=>{
         if(m.id!==msgId) return m;
         const reacts = [...(m.reactions||[])];

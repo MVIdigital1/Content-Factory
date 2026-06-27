@@ -4,7 +4,6 @@ import { useState, useEffect, Suspense } from "react";
 import { useLocale } from "next-intl";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 type Tab = "profile" | "workspace" | "integrations" | "billing" | "security";
@@ -14,7 +13,6 @@ function SettingsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const locale = useLocale();
-  const supabase = createClient();
   const queryClient = useQueryClient();
 
   const initialTab = (searchParams.get("tab") as Tab) || "profile";
@@ -37,22 +35,15 @@ function SettingsContent() {
   };
 
   // Load workspace
-  const { data: workspace, isLoading: wsLoading } = useQuery({
+  const { data: workspaces, isLoading: wsLoading } = useQuery({
     queryKey: ["workspace-settings"],
     queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return null;
-      const { data } = await supabase
-        .from("workspaces")
-        .select("*")
-        .eq("owner_id", user.id)
-        .single();
-      return data;
+      const res = await fetch("/api/workspaces");
+      return res.ok ? res.json() : [];
     },
     enabled: activeTab === "workspace",
   });
+  const workspace = Array.isArray(workspaces) ? workspaces[0] : null;
 
   useEffect(() => {
     if (workspace?.name) setWsName(workspace.name);
@@ -60,15 +51,12 @@ function SettingsContent() {
 
   const updateWorkspaceMutation = useMutation({
     mutationFn: async (name: string) => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-      const { error } = await supabase
-        .from("workspaces")
-        .update({ name })
-        .eq("owner_id", user.id);
-      if (error) throw error;
+      const res = await fetch("/api/workspaces", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error("Ошибка обновления");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workspaces"] });

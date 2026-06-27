@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "next-intl";
 import Link from "next/link";
 import {
@@ -93,31 +92,25 @@ const PLATFORM_DOT: Record<string, string> = {
 };
 
 export default function PipelinePage() {
-  const supabase = createClient();
   const queryClient = useQueryClient();
   const locale = useLocale();
 
   const { data: contents = [], isLoading } = useQuery({
     queryKey: ["pipeline-contents"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("contents")
-        .select(
-          "id, title, type, platform, pipeline_status, created_at, projects(name)",
-        )
-        .order("created_at", { ascending: false })
-        .limit(100);
-      return (data || []) as unknown as Content[];
+      const res = await fetch("/api/contents?limit=100");
+      return res.ok ? (res.json() as Promise<Content[]>) : [];
     },
   });
 
   const moveMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase
-        .from("contents")
-        .update({ pipeline_status: status })
-        .eq("id", id);
-      if (error) throw error;
+      const res = await fetch(`/api/contents/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pipeline_status: status }),
+      });
+      if (!res.ok) throw new Error("Ошибка обновления");
     },
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["pipeline-contents"] }),

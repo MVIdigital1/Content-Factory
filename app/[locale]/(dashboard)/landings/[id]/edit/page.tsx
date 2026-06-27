@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import LandingRenderer, { Block } from "@/components/landing/LandingRenderer";
 import {
   Save,
@@ -30,7 +29,6 @@ export default function LandingEditorPage() {
   const id = params.id as string;
   const router = useRouter();
   const locale = useLocale();
-  const supabase = createClient();
   const qc = useQueryClient();
 
   const [blocks, setBlocks] = useState<Block[]>([]);
@@ -42,13 +40,9 @@ export default function LandingEditorPage() {
   const { data: landing, isLoading } = useQuery({
     queryKey: ["landing", id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("landing_pages")
-        .select("*")
-        .eq("id", id)
-        .single();
-      if (error) throw error;
-      return data as LandingPage;
+      const res = await fetch(`/api/landings/${id}`);
+      if (!res.ok) throw new Error("Not found");
+      return res.json() as Promise<LandingPage>;
     },
   });
 
@@ -59,10 +53,14 @@ export default function LandingEditorPage() {
   const saveMutation = useMutation({
     mutationFn: async (publish?: boolean) => {
       setSaving(true);
-      const update: Record<string, unknown> = { blocks, updated_at: new Date().toISOString() };
+      const update: Record<string, unknown> = { content: { blocks } };
       if (publish !== undefined) update.published = publish;
-      const { error } = await supabase.from("landing_pages").update(update).eq("id", id);
-      if (error) throw error;
+      const res = await fetch(`/api/landings/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(update),
+      });
+      if (!res.ok) throw new Error("Ошибка сохранения");
     },
     onSuccess: () => {
       setSaving(false);

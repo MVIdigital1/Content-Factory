@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import { Plus, Ticket } from "lucide-react";
 
 type TicketRow = {
@@ -27,53 +26,26 @@ const PRIORITY_CONFIG = {
 };
 
 export default function TicketsPage() {
-  const supabase = createClient();
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    title: "",
-    description: "",
-    priority: "medium" as const,
-  });
+  const [form, setForm] = useState({ title: "", description: "", priority: "medium" as const });
 
   const { data: tickets = [], isLoading } = useQuery({
     queryKey: ["tickets"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("tickets")
-        .select("*")
-        .order("created_at", { ascending: false });
-      return (data || []) as TicketRow[];
-    },
+    queryFn: async () => { const res = await fetch("/api/tickets"); return res.ok ? res.json() : []; },
   });
 
   const createMutation = useMutation({
     mutationFn: async (values: typeof form) => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-      const { error } = await supabase
-        .from("tickets")
-        .insert({ ...values, user_id: user.id, status: "open" });
-      if (error) throw error;
+      const res = await fetch("/api/tickets", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values) });
+      if (!res.ok) throw new Error("Ошибка создания");
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tickets"] });
-      setShowForm(false);
-      setForm({ title: "", description: "", priority: "medium" });
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["tickets"] }); setShowForm(false); setForm({ title: "", description: "", priority: "medium" }); },
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({
-      id,
-      status,
-    }: {
-      id: string;
-      status: TicketRow["status"];
-    }) => {
-      await supabase.from("tickets").update({ status }).eq("id", id);
+    mutationFn: async ({ id, status }: { id: string; status: TicketRow["status"] }) => {
+      await fetch(`/api/tickets/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tickets"] }),
   });

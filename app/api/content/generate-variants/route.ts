@@ -1,5 +1,6 @@
 import { generateContent } from "@/lib/ai/claude";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
+import { query, queryOne } from "@/lib/db";
 import { NextResponse } from "next/server";
 
 const TONE_VARIANTS = [
@@ -10,10 +11,8 @@ const TONE_VARIANTS = [
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await getCurrentUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await request.json();
     const { projectId, platform, contentType, goal, topic, imageUrl, campaignId } = body;
@@ -21,28 +20,18 @@ export async function POST(request: Request) {
     if (!projectId || !platform || !contentType || !goal || !topic)
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
 
-    const { data: project } = await supabase
-      .from("projects")
-      .select("*")
-      .eq("id", projectId)
-      .eq("user_id", user.id)
-      .single();
+    const project = await queryOne<any>(
+      "SELECT * FROM projects WHERE id = $1 AND user_id = $2",
+      [projectId, user.id]
+    );
+    if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
-    if (!project)
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    const recentContents = await query<{ caption: string }>(
+      "SELECT caption FROM contents WHERE project_id = $1 AND status = 'published' ORDER BY created_at DESC LIMIT 3",
+      [projectId]
+    );
+    const recentPosts = recentContents.map((c) => c.caption).filter(Boolean) as string[];
 
-    // Получить 3 последних поста для контекста
-    const { data: recentContents } = await supabase
-      .from("contents")
-      .select("caption")
-      .eq("project_id", projectId)
-      .eq("status", "published")
-      .order("created_at", { ascending: false })
-      .limit(3);
-
-    const recentPosts = recentContents?.map((c) => c.caption).filter(Boolean) as string[];
-
-    // Генерируем 3 варианта параллельно с разными тонами
     const variantTones = project.tone
       ? [project.tone, ...TONE_VARIANTS.filter((t) => t.tone !== project.tone).map((t) => t.tone).slice(0, 2)]
       : TONE_VARIANTS.map((t) => t.tone);
@@ -61,13 +50,12 @@ export async function POST(request: Request) {
           goal,
           topic,
           imageUrl,
-          stopWords: (project as any).stop_words || null,
+          stopWords: project.stop_words || null,
           recentPosts,
-        }),
-      ),
+        })
+      )
     );
 
-    // Собираем успешные варианты
     const variants = results
       .map((r, i) => ({
         tone: variantTones[i],
@@ -80,41 +68,23 @@ export async function POST(request: Request) {
     if (variants.length === 0)
       return NextResponse.json({ error: "Все варианты не удалось сгенерировать" }, { status: 500 });
 
-    // Сохраняем первый вариант в БД как основной, остальные — как drafts
-    const inserts = await Promise.all(
-      variants.map((v, i) =>
-        supabase
-          .from("contents")
-          .insert({
-            project_id: projectId,
-            campaign_id: campaignId || null,
-            type: contentType,
-            platform,
-            goal,
-            title: v.content!.title,
-            idea: v.content!.idea,
-            hook: v.content!.hook,
-            script: v.content!.script || [],
-            voiceover: v.content!.voiceover || "",
-            screen_text: v.content!.screen_text || "",
-            caption: v.content!.caption,
-            hashtags: v.content!.hashtags || [],
-            cta: v.content!.cta,
-            source_image_url: imageUrl || null,
-            status: "generated",
-            ai_model: "claude-sonnet-4-5",
-            ai_tokens: 3000,
-          })
-          .select()
-          .single(),
-      ),
+    const savedVariants = await Promise.all(
+      variants.map(async (v) => {
+        const content = await queryOne<any>(
+          `INSERT INTO contents (user_id, project_id, campaign_id, type, platform, goal, title, idea, hook, script, voiceover, screen_text, caption, hashtags, cta, source_image_url, status, ai_model, ai_tokens)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'generated', 'claude-sonnet-4-5', 3000)
+           RETURNING id`,
+          [
+            user.id, projectId, campaignId || null, contentType, platform, goal,
+            v.content!.title, v.content!.idea, v.content!.hook,
+            JSON.stringify(v.content!.script || []),
+            v.content!.voiceover || "", v.content!.screen_text || "",
+            v.content!.caption, v.content!.hashtags || [], v.content!.cta, imageUrl || null,
+          ]
+        );
+        return { ...v, id: content?.id, content: { ...v.content, id: content?.id } };
+      })
     );
-
-    const savedVariants = inserts.map((ins, i) => ({
-      ...variants[i],
-      id: ins.data?.id,
-      content: { ...variants[i].content, id: ins.data?.id },
-    }));
 
     return NextResponse.json({ variants: savedVariants });
   } catch (error: unknown) {

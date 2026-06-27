@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { query, queryOne } from "@/lib/db";
 import { NextResponse } from "next/server";
 
 const BOT_TOKEN = process.env.BOT_TOKEN!;
@@ -19,24 +19,12 @@ export async function POST(request: Request) {
 
     const chatId: number = message.chat.id;
     const text: string = message.text || "";
-    const username: string = message.from?.username || "";
 
-    // /start
     if (text.startsWith("/start")) {
-      await sendMessage(
-        chatId,
-        `👋 Привет! Я бот MVI Content Factory.
-
-Чтобы получать уведомления о публикациях, привяжи свой аккаунт:
-
-1. Зайди в *Профиль* на сайте
-2. Нажми *"Привязать Telegram"*
-3. Получи код и отправь мне: \`/link КОД\``,
-      );
+      await sendMessage(chatId, `👋 Привет! Я бот MVI Content Factory.\n\nЧтобы получать уведомления о публикациях, привяжи свой аккаунт:\n\n1. Зайди в *Профиль* на сайте\n2. Нажми *"Привязать Telegram"*\n3. Получи код и отправь мне: \`/link КОД\``);
       return NextResponse.json({ ok: true });
     }
 
-    // /link TOKEN
     if (text.startsWith("/link ")) {
       const token = text.replace("/link ", "").trim();
       if (!token) {
@@ -44,20 +32,13 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      const supabase = await createClient();
-
-      // Найти профиль по токену
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id, telegram_chat_id")
-        .eq("telegram_link_token", token)
-        .single();
+      const profile = await queryOne<{ id: string; telegram_chat_id: string | null }>(
+        "SELECT id, telegram_chat_id FROM profiles WHERE telegram_link_token = $1",
+        [token]
+      );
 
       if (!profile) {
-        await sendMessage(
-          chatId,
-          "❌ Неверный или устаревший код. Получи новый в Профиле на сайте.",
-        );
+        await sendMessage(chatId, "❌ Неверный или устаревший код. Получи новый в Профиле на сайте.");
         return NextResponse.json({ ok: true });
       }
 
@@ -66,30 +47,16 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // Сохранить chat_id и очистить токен
-      await supabase
-        .from("profiles")
-        .update({ telegram_chat_id: chatId, telegram_link_token: null })
-        .eq("id", profile.id);
-
-      await sendMessage(
-        chatId,
-        `✅ *Telegram успешно привязан!*
-
-Теперь ты будешь получать уведомления:
-• После публикации поста
-• Еженедельный отчёт каждый понедельник
-• Важные события аккаунта`,
+      await query(
+        "UPDATE profiles SET telegram_chat_id = $1, telegram_link_token = NULL WHERE id = $2",
+        [String(chatId), profile.id]
       );
 
+      await sendMessage(chatId, `✅ *Telegram успешно привязан!*\n\nТеперь ты будешь получать уведомления:\n• После публикации поста\n• Еженедельный отчёт каждый понедельник\n• Важные события аккаунта`);
       return NextResponse.json({ ok: true });
     }
 
-    // Другие сообщения
-    await sendMessage(
-      chatId,
-      "Используй /start для начала или /link КОД для привязки аккаунта.",
-    );
+    await sendMessage(chatId, "Используй /start для начала или /link КОД для привязки аккаунта.");
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ ok: true });

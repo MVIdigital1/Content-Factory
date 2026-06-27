@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import {
   format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay,
   isToday, addWeeks, subWeeks, addMonths, subMonths, startOfMonth,
@@ -169,7 +168,6 @@ function MonthPill({ event, onClick }: { event: CalEvent; onClick: () => void })
 function QuickCreateModal({ date, onClose, onCreated }: {
   date: Date; onClose: () => void; onCreated: () => void;
 }) {
-  const supabase = createClient();
   const locale = useLocale();
   const router = useRouter();
   const [type, setType] = useState<EventType>("post");
@@ -182,14 +180,17 @@ function QuickCreateModal({ date, onClose, onCreated }: {
     if (!title.trim()) { setErr("Введите название"); return; }
     setSaving(true); setErr("");
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Не авторизован");
       const [h, m] = time.split(":").map(Number);
       const dt = new Date(date);
       dt.setHours(h, m, 0, 0);
 
       if (type === "task") {
-        await supabase.from("tasks").insert({ title, due_date: dt.toISOString(), status: "todo", user_id: user.id });
+        const res = await fetch("/api/tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, due_date: dt.toISOString(), status: "todo" }),
+        });
+        if (!res.ok) throw new Error("Ошибка создания задачи");
       } else if (type === "post") {
         router.push(`/${locale}/create`);
         onClose(); return;
@@ -351,7 +352,6 @@ function EventDetail({ event, onClose }: { event: CalEvent; onClose: () => void 
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function CalendarPage() {
-  const supabase = createClient();
   const locale = useLocale();
   const qc = useQueryClient();
 
@@ -387,11 +387,8 @@ export default function CalendarPage() {
   const { data: posts = [] } = useQuery({
     queryKey: ["cal_posts", rangeStart, rangeEnd],
     queryFn: async () => {
-      const { data } = await supabase.from("scheduled_posts")
-        .select("*, contents(id, title, platform, type, caption)")
-        .gte("scheduled_at", rangeStart).lte("scheduled_at", rangeEnd + "T23:59:59")
-        .neq("status", "draft").order("scheduled_at");
-      return data || [];
+      const res = await fetch(`/api/scheduled-posts?start=${rangeStart}&end=${rangeEnd}`);
+      return res.ok ? res.json() : [];
     },
     staleTime: 60000,
   });
@@ -400,14 +397,8 @@ export default function CalendarPage() {
   const { data: tasks = [] } = useQuery({
     queryKey: ["cal_tasks", rangeStart, rangeEnd],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase.from("tasks")
-        .select("id, title, status, due_date")
-        .eq("user_id", user.id)
-        .gte("due_date", rangeStart).lte("due_date", rangeEnd + "T23:59:59")
-        .order("due_date");
-      return data || [];
+      const res = await fetch(`/api/tasks?start=${rangeStart}&end=${rangeEnd}`);
+      return res.ok ? res.json() : [];
     },
     staleTime: 60000,
   });
@@ -416,14 +407,8 @@ export default function CalendarPage() {
   const { data: campaigns = [] } = useQuery({
     queryKey: ["cal_campaigns", rangeStart, rangeEnd],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-      const { data } = await supabase.from("ad_campaigns")
-        .select("id, name, status, created_at, platforms")
-        .eq("user_id", user.id)
-        .gte("created_at", rangeStart).lte("created_at", rangeEnd + "T23:59:59")
-        .order("created_at");
-      return data || [];
+      const res = await fetch(`/api/campaigns?start=${rangeStart}&end=${rangeEnd}`);
+      return res.ok ? res.json() : [];
     },
     staleTime: 60000,
   });

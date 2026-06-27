@@ -1,44 +1,36 @@
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
+import { query, queryOne } from "@/lib/db";
 import { NextResponse } from "next/server";
 
-const APP_URL =
-  process.env.NEXT_PUBLIC_APP_URL || "https://content-factory-khaki.vercel.app";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://mvira.uz";
 
 export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Получить или создать реферальный код
-  let { data: profile } = await supabase
-    .from("profiles")
-    .select("referral_code, earned_months")
-    .eq("id", user.id)
-    .single();
+  let referral = await queryOne<{ code: string; reward_tokens: number }>(
+    "SELECT code, reward_tokens FROM referrals WHERE user_id = $1 LIMIT 1",
+    [user.id]
+  );
 
-  if (!profile?.referral_code) {
+  if (!referral) {
     const code = user.id.slice(0, 8).toUpperCase();
-    await supabase
-      .from("profiles")
-      .upsert({ id: user.id, referral_code: code })
-      .eq("id", user.id);
-    profile = { referral_code: code, earned_months: 0 };
+    await query(
+      "INSERT INTO referrals (user_id, code) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+      [user.id, code]
+    );
+    referral = { code, reward_tokens: 0 };
   }
 
-  // Получить рефералов
-  const { data: referrals } = await supabase
-    .from("referrals")
-    .select("id, email, converted, created_at")
-    .eq("referrer_id", user.id)
-    .order("created_at", { ascending: false });
+  const referred = await query(
+    "SELECT id, referred_user_id, status, created_at FROM referrals WHERE user_id = $1 AND referred_user_id IS NOT NULL",
+    [user.id]
+  );
 
   return NextResponse.json({
-    code: profile.referral_code,
-    url: `${APP_URL}/ru/auth/register?ref=${profile.referral_code}`,
-    referrals: referrals || [],
-    earned_months: profile.earned_months || 0,
+    code: referral.code,
+    url: `${APP_URL}/ru/auth/register?ref=${referral.code}`,
+    referrals: referred,
+    earned_months: 0,
   });
 }

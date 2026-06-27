@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import { useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import {
@@ -27,7 +26,6 @@ type LandingPage = {
 };
 
 export default function LandingsPage() {
-  const supabase = createClient();
   const qc = useQueryClient();
   const locale = useLocale();
   const router = useRouter();
@@ -37,30 +35,27 @@ export default function LandingsPage() {
   const { data: landings = [], isLoading } = useQuery({
     queryKey: ["landing_pages"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("landing_pages")
-        .select("id, title, slug, published, template_id, created_at, updated_at")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data || []) as LandingPage[];
+      const res = await fetch("/api/landings");
+      return res.ok ? (res.json() as Promise<LandingPage[]>) : [];
     },
   });
 
   const togglePublishMutation = useMutation({
     mutationFn: async ({ id, published }: { id: string; published: boolean }) => {
-      const { error } = await supabase
-        .from("landing_pages")
-        .update({ published })
-        .eq("id", id);
-      if (error) throw error;
+      const res = await fetch(`/api/landings/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ published }),
+      });
+      if (!res.ok) throw new Error("Ошибка обновления");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["landing_pages"] }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("landing_pages").delete().eq("id", id);
-      if (error) throw error;
+      const res = await fetch(`/api/landings/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Ошибка удаления");
     },
     onSuccess: () => {
       setDeletingId(null);

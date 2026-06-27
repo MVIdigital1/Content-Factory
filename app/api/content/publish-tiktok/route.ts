@@ -1,110 +1,49 @@
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
+import { query, queryOne } from "@/lib/db";
 import { NextResponse } from "next/server";
 
-// TikTok Content Posting API v2
 const TIKTOK_API = "https://open.tiktokapis.com/v2";
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { contentId } = await request.json();
 
-  const { data: content } = await supabase
-    .from("contents")
-    .select("*, projects!inner(user_id)")
-    .eq("id", contentId)
-    .eq("projects.user_id", user.id)
-    .single();
+  const content = await queryOne<{ id: string; caption: string; hashtags: string[]; source_image_url: string | null }>(
+    "SELECT c.id, c.caption, c.hashtags, c.source_image_url FROM contents c JOIN projects p ON c.project_id = p.id WHERE c.id = $1 AND p.user_id = $2",
+    [contentId, user.id]
+  );
+  if (!content) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  if (!content)
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const integration = await queryOne<{ token: string }>(
+    "SELECT token FROM integrations WHERE user_id = $1 AND platform = 'tiktok' AND is_active = true LIMIT 1",
+    [user.id]
+  );
+  if (!integration) return NextResponse.json({ error: "TikTok не подключён. Требуется Business аккаунт TikTok." }, { status: 400 });
 
-  const { data: integration } = await supabase
-    .from("integrations")
-    .select("token")
-    .eq("platform", "tiktok")
-    .eq("is_active", true)
-    .eq("user_id", user.id)
-    .single();
+  if (!content.source_image_url) return NextResponse.json({ error: "TikTok требует видео или фото для публикации" }, { status: 400 });
 
-  if (!integration) {
-    return NextResponse.json(
-      { error: "TikTok не подключён. Требуется Business аккаунт TikTok." },
-      { status: 400 },
-    );
-  }
+  const caption = [content.caption || "", (content.hashtags || []).map((h: string) => `#${h}`).join(" ")].filter(Boolean).join(" ");
 
-  if (!content.source_image_url) {
-    return NextResponse.json(
-      { error: "TikTok требует видео или фото для публикации" },
-      { status: 400 },
-    );
-  }
-
-  const caption = [
-    content.caption || "",
-    (content.hashtags || []).map((h: string) => `#${h}`).join(" "),
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  // Инициализировать загрузку фото
   const initRes = await fetch(`${TIKTOK_API}/post/publish/content/init/`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json; charset=UTF-8",
-      Authorization: `Bearer ${integration.token}`,
-    },
+    headers: { "Content-Type": "application/json; charset=UTF-8", Authorization: `Bearer ${integration.token}` },
     body: JSON.stringify({
-      post_info: {
-        title: caption.slice(0, 150),
-        privacy_level: "PUBLIC_TO_EVERYONE",
-        disable_duet: false,
-        disable_comment: false,
-        disable_stitch: false,
-      },
-      source_info: {
-        source: "PULL_FROM_URL",
-        photo_cover_index: 0,
-        photo_images: [content.source_image_url],
-      },
+      post_info: { title: caption.slice(0, 150), privacy_level: "PUBLIC_TO_EVERYONE", disable_duet: false, disable_comment: false, disable_stitch: false },
+      source_info: { source: "PULL_FROM_URL", photo_cover_index: 0, photo_images: [content.source_image_url] },
     }),
   });
-
   const initData = await initRes.json();
 
   if (initData.error?.code !== "ok") {
-    await supabase
-      .from("publish_logs")
-      .insert({
-        content_id: contentId,
-        platform: "tiktok",
-        status: "failed",
-        error_message: initData.error?.message,
-      });
-    return NextResponse.json(
-      { error: initData.error?.message || "TikTok error" },
-      { status: 500 },
-    );
+    await query("INSERT INTO publish_logs (content_id, platform, status, error_message) VALUES ($1, 'tiktok', 'failed', $2)", [contentId, initData.error?.message]);
+    return NextResponse.json({ error: initData.error?.message || "TikTok error" }, { status: 500 });
   }
 
   await Promise.all([
-    supabase
-      .from("contents")
-      .update({ status: "published" })
-      .eq("id", contentId),
-    supabase
-      .from("publish_logs")
-      .insert({
-        content_id: contentId,
-        platform: "tiktok",
-        status: "published",
-      }),
+    query("UPDATE contents SET status = 'published' WHERE id = $1", [contentId]),
+    query("INSERT INTO publish_logs (content_id, platform, status) VALUES ($1, 'tiktok', 'published')", [contentId]),
   ]);
 
   return NextResponse.json({ ok: true, publish_id: initData.data?.publish_id });

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import { Plus, FlaskConical, Trophy } from "lucide-react";
 
 type AbTest = {
@@ -17,7 +16,6 @@ type AbTest = {
 };
 
 export default function AbTestsPage() {
-  const supabase = createClient();
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [variantA, setVariantA] = useState("");
@@ -26,42 +24,28 @@ export default function AbTestsPage() {
   const { data: tests = [], isLoading } = useQuery({
     queryKey: ["ab-tests"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("ab_tests")
-        .select(
-          `*, variant_a:variant_a_id(id, title, caption, platform, status), variant_b:variant_b_id(id, title, caption, platform, status)`,
-        )
-        .order("created_at", { ascending: false });
-      return (data || []) as AbTest[];
+      const res = await fetch("/api/ab-tests");
+      return res.ok ? (res.json() as Promise<AbTest[]>) : [];
     },
   });
 
   const { data: contents = [] } = useQuery({
     queryKey: ["contents-for-ab"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("contents")
-        .select("id, title, platform, status")
-        .in("status", ["generated", "draft"])
-        .order("created_at", { ascending: false })
-        .limit(50);
-      return data || [];
+      const res = await fetch("/api/contents?status=generated&limit=50");
+      return res.ok ? res.json() : [];
     },
     enabled: showCreate,
   });
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-      const { error } = await supabase.from("ab_tests").insert({
-        variant_a_id: variantA,
-        variant_b_id: variantB,
-        user_id: user.id,
+      const res = await fetch("/api/ab-tests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variant_a_id: variantA, variant_b_id: variantB }),
       });
-      if (error) throw error;
+      if (!res.ok) throw new Error("Ошибка создания");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ab-tests"] });
@@ -79,11 +63,12 @@ export default function AbTestsPage() {
       testId: string;
       winnerId: string;
     }) => {
-      const { error } = await supabase
-        .from("ab_tests")
-        .update({ winner_id: winnerId, status: "completed" })
-        .eq("id", testId);
-      if (error) throw error;
+      const res = await fetch(`/api/ab-tests/${testId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ winner_id: winnerId, status: "completed" }),
+      });
+      if (!res.ok) throw new Error("Ошибка обновления");
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ab-tests"] }),
   });

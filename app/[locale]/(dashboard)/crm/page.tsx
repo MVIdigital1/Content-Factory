@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import { Plus, X, Contact } from "lucide-react";
 
 type Client = {
@@ -35,7 +34,6 @@ const EMPTY = {
 };
 
 export default function CrmPage() {
-  const supabase = createClient();
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [selected, setSelected] = useState<Client | null>(null);
@@ -45,57 +43,29 @@ export default function CrmPage() {
 
   const { data: clients = [], isLoading } = useQuery({
     queryKey: ["crm-clients"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("crm_clients")
-        .select("*")
-        .order("created_at", { ascending: false });
-      return (data || []) as Client[];
-    },
+    queryFn: async () => { const res = await fetch("/api/crm/clients"); return res.ok ? res.json() : []; },
   });
 
   const createMutation = useMutation({
     mutationFn: async (values: typeof EMPTY) => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-      const { error } = await supabase.from("crm_clients").insert({
-        ...values,
-        budget: values.budget ? Number(values.budget) : null,
-        user_id: user.id,
-      });
-      if (error) throw error;
+      const res = await fetch("/api/crm/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...values, budget: values.budget ? Number(values.budget) : null }) });
+      if (!res.ok) throw new Error("Ошибка создания");
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["crm-clients"] });
-      setShowForm(false);
-      setForm(EMPTY);
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["crm-clients"] }); setShowForm(false); setForm(EMPTY); },
   });
 
   const updateStatusMutation = useMutation({
-    mutationFn: async ({
-      id,
-      status,
-    }: {
-      id: string;
-      status: Client["status"];
-    }) => {
-      await supabase.from("crm_clients").update({ status }).eq("id", id);
+    mutationFn: async ({ id, status }: { id: string; status: Client["status"] }) => {
+      await fetch(`/api/crm/clients/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
     },
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["crm-clients"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crm-clients"] }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await supabase.from("crm_clients").delete().eq("id", id);
+      await fetch(`/api/crm/clients/${id}`, { method: "DELETE" });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["crm-clients"] });
-      setSelected(null);
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["crm-clients"] }); setSelected(null); },
   });
 
   const filtered = clients.filter((c) => {

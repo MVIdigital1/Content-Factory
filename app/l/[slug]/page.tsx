@@ -1,35 +1,31 @@
 import { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
+import { queryOne } from "@/lib/db";
 import PublicLandingClient from "./PublicLandingClient";
 
 type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("landing_pages")
-    .select("title")
-    .eq("slug", slug)
-    .eq("published", true)
-    .single();
-
-  return {
-    title: data?.title ?? "Лендинг",
-  };
+  const row = await queryOne<{ title: string }>(
+    "SELECT title FROM landings WHERE slug = $1 AND published = true",
+    [slug]
+  );
+  return { title: row?.title ?? "Лендинг" };
 }
 
 export default async function PublicLandingPage({ params }: Props) {
   const { slug } = await params;
-  const supabase = await createClient();
 
-  const { data: landing } = await supabase
-    .from("landing_pages")
-    .select("id, title, blocks, bg_image, settings")
-    .eq("slug", slug)
-    .eq("published", true)
-    .single();
+  const landing = await queryOne<{
+    id: string;
+    blocks: unknown;
+    bg_image: string | null;
+    settings: unknown;
+  }>(
+    "SELECT id, blocks, bg_image, settings FROM landings WHERE slug = $1 AND published = true",
+    [slug]
+  );
 
   if (!landing) notFound();
 

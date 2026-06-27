@@ -1,28 +1,39 @@
-import { createClient as createServerClient } from "@/lib/supabase/server";
-import { createClient } from "@supabase/supabase-js";
+import { getCurrentUser } from "@/lib/auth";
+import { query, queryOne } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 
-const adminSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 export async function POST(req: NextRequest) {
-  const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { email, role } = await req.json();
+  const { email, role, workspace_id } = await req.json();
   if (!email) return NextResponse.json({ error: "Email обязателен" }, { status: 400 });
 
-  const { error } = await adminSupabase.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/ru/auth/callback`,
-    data: { invited_by: user.id, role: role ?? "viewer" },
-  });
+  const workspace = await queryOne<{ id: string }>(
+    "SELECT id FROM workspaces WHERE owner_id = $1 LIMIT 1",
+    [user.id]
+  );
+  const wid = workspace_id || workspace?.id;
+  if (!wid) return NextResponse.json({ error: "Воркспейс не найден" }, { status: 404 });
 
-  // Пользователь уже существует — просто добавляем в команду без письма
-  if (error && !error.message.includes("already been registered")) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  const existingUser = await queryOne<{ id: string }>("SELECT id FROM users WHERE email = $1", [email]);
+
+  if (existingUser) {
+    const existing = await queryOne(
+      "SELECT id FROM workspace_members WHERE workspace_id = $1 AND user_id = $2",
+      [wid, existingUser.id]
+    );
+    if (!existing) {
+      await query(
+        "INSERT INTO workspace_members (workspace_id, user_id, email, role, invited_by, status) VALUES ($1, $2, $3, $4, $5, 'active') ON CONFLICT (workspace_id, user_id) DO NOTHING",
+        [wid, existingUser.id, email, role ?? "viewer", user.id]
+      );
+    }
+  } else {
+    await query(
+      "INSERT INTO workspace_members (workspace_id, email, role, invited_by, status) VALUES ($1, $2, $3, $4, 'pending') ON CONFLICT DO NOTHING",
+      [wid, email, role ?? "viewer", user.id]
+    );
   }
 
   return NextResponse.json({ ok: true });
