@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLocale } from "next-intl";
 
 export default function LoginPage() {
-  const router = useRouter();
   const locale = useLocale();
 
   const [email, setEmail] = useState("");
@@ -24,15 +22,16 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
+      let data: any = {};
+      try { data = await res.json(); } catch { /* non-JSON response */ }
       if (!res.ok) {
         setError(data.error || "Неверный email или пароль");
         return;
       }
-      router.push(`/${locale}/dashboard`);
-      router.refresh();
+      // Hard redirect so the new auth_token cookie is included in the next request
+      window.location.href = `/${locale}/dashboard`;
     } catch {
-      setError("Ошибка соединения");
+      setError("Ошибка соединения с сервером");
     } finally {
       setLoading(false);
     }
@@ -83,7 +82,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 rounded-lg bg-accent text-white text-sm font-semibold transition-colors disabled:opacity-60"
+              className="w-full py-2.5 rounded-lg bg-accent text-white text-sm font-semibold transition-colors hover:opacity-90 disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
             >
               {loading ? "Входим..." : "Войти"}
             </button>
