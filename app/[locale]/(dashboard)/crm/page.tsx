@@ -68,7 +68,7 @@ export default function CrmPage() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["crm-clients"] }); setSelected(null); },
   });
 
-  const filtered = clients.filter((c) => {
+  const filtered = clients.filter((c: any) => {
     const matchSearch =
       !search ||
       c.name.toLowerCase().includes(search.toLowerCase()) ||
