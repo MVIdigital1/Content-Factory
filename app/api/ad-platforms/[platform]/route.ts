@@ -2,11 +2,11 @@ import { getCurrentUser } from "@/lib/auth";
 import { query, queryOne } from "@/lib/db";
 import { NextResponse } from "next/server";
 
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ platform: string }> }) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id } = await params;
+  const { platform: id } = await params;
   const body = await request.json();
   const allowed = ["is_active", "status", "monthly_spend", "ad_account_id"];
   const sets: string[] = [];
@@ -23,11 +23,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   return NextResponse.json(row);
 }
 
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_req: Request, { params }: { params: Promise<{ platform: string }> }) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id } = await params;
+  const { platform: id } = await params;
   await query("DELETE FROM ad_platforms WHERE id = $1 AND user_id = $2", [id, user.id]);
   return NextResponse.json({ ok: true });
 }
