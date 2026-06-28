@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLocale } from "next-intl";
 
 export default function RegisterPage() {
-  const router = useRouter();
   const locale = useLocale();
 
   const [email, setEmail] = useState("");
@@ -15,8 +13,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleRegister = async () => {
     setLoading(true);
     setError("");
     try {
@@ -25,15 +22,15 @@ export default function RegisterPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, full_name: fullName }),
       });
-      const data = await res.json();
+      let data: any = {};
+      try { data = await res.json(); } catch { /* non-JSON response */ }
       if (!res.ok) {
         setError(data.error || "Ошибка регистрации");
         return;
       }
-      router.push(`/${locale}/dashboard`);
-      router.refresh();
+      window.location.href = `/${locale}/dashboard`;
     } catch {
-      setError("Ошибка соединения");
+      setError("Ошибка соединения с сервером");
     } finally {
       setLoading(false);
     }
@@ -51,13 +48,14 @@ export default function RegisterPage() {
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-200 p-7 shadow-sm">
-          <form onSubmit={handleRegister} className="space-y-4">
+          <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Имя</label>
               <input
                 type="text"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleRegister()}
                 placeholder="Иван Иванов"
                 className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors"
               />
@@ -68,8 +66,8 @@ export default function RegisterPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleRegister()}
                 placeholder="you@example.com"
-                required
                 className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors"
               />
             </div>
@@ -79,9 +77,8 @@ export default function RegisterPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleRegister()}
                 placeholder="минимум 6 символов"
-                required
-                minLength={6}
                 className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors"
               />
             </div>
@@ -93,13 +90,14 @@ export default function RegisterPage() {
             )}
 
             <button
-              type="submit"
+              type="button"
+              onClick={handleRegister}
               disabled={loading}
-              className="w-full py-2.5 rounded-lg bg-accent text-white text-sm font-semibold transition-colors disabled:opacity-60"
+              className="w-full py-2.5 rounded-lg bg-accent text-white text-sm font-semibold transition-colors hover:opacity-90 disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed"
             >
               {loading ? "Регистрируем..." : "Зарегистрироваться"}
             </button>
-          </form>
+          </div>
 
           <p className="text-center text-sm text-gray-500 mt-5">
             Уже есть аккаунт?{" "}
