@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { query, queryOne } from "@/lib/db";
 import { getLocale } from "next-intl/server";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
   Plus, Calendar, Sparkles, Send, Clock, FileText, Bot,
@@ -29,41 +30,54 @@ const PLATFORM_COLOR: Record<string, string> = {
 export default async function DashboardPage() {
   const user = await getCurrentUser();
   const locale = await getLocale();
-  const firstName = user?.full_name?.split(" ")[0] || "друг";
+
+  if (!user) redirect(`/${locale}/auth/login`);
+
+  const firstName = user.full_name?.split(" ")[0] || "друг";
 
   const now = new Date();
   const oneWeekAgo = new Date(now.getTime() - 7 * 864e5).toISOString();
   const twoWeeksAgo = new Date(now.getTime() - 14 * 864e5).toISOString();
+  const userId = user.id;
 
-  const userId = user?.id ?? "";
+  let genTotal = null, scheduled = null, published = null;
+  let genThisWeek = null, genLastWeek = null, pubThisWeek = null, pubLastWeek = null;
+  let platforms: { platform: string }[] = [];
+  let upcomingPosts: any[] = [];
+  let recentContents: RecentContent[] = [];
 
-  const [
-    genTotal, scheduled, published,
-    genThisWeek, genLastWeek, pubThisWeek, pubLastWeek,
-    platforms, upcomingPosts, recentContents,
-  ] = await Promise.all([
-    queryOne<{ count: string }>("SELECT COUNT(*) as count FROM contents WHERE user_id = $1", [userId]),
-    queryOne<{ count: string }>("SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'scheduled'", [userId]),
-    queryOne<{ count: string }>("SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'published'", [userId]),
-    queryOne<{ count: string }>("SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND created_at >= $2", [userId, oneWeekAgo]),
-    queryOne<{ count: string }>("SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND created_at >= $2 AND created_at < $3", [userId, twoWeeksAgo, oneWeekAgo]),
-    queryOne<{ count: string }>("SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'published' AND created_at >= $2", [userId, oneWeekAgo]),
-    queryOne<{ count: string }>("SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'published' AND created_at >= $2 AND created_at < $3", [userId, twoWeeksAgo, oneWeekAgo]),
-    query<{ platform: string }>("SELECT platform FROM contents WHERE user_id = $1", [userId]),
-    query(
-      `SELECT sp.id, sp.scheduled_at, c.title, c.platform, c.type
-       FROM scheduled_posts sp JOIN contents c ON sp.content_id = c.id
-       WHERE c.user_id = $1 AND sp.status = 'pending' AND sp.scheduled_at >= NOW()
-       ORDER BY sp.scheduled_at ASC LIMIT 4`,
-      [userId]
-    ),
-    query<RecentContent>(
-      `SELECT c.id, c.title, c.platform, c.status, c.created_at, p.name as project_name
-       FROM contents c LEFT JOIN projects p ON c.project_id = p.id
-       WHERE c.user_id = $1 ORDER BY c.created_at DESC LIMIT 4`,
-      [userId]
-    ),
-  ]);
+  try {
+    [
+      genTotal, scheduled, published,
+      genThisWeek, genLastWeek, pubThisWeek, pubLastWeek,
+      platforms, upcomingPosts, recentContents,
+    ] = await Promise.all([
+      queryOne<{ count: string }>("SELECT COUNT(*) as count FROM contents WHERE user_id = $1", [userId]),
+      queryOne<{ count: string }>("SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'scheduled'", [userId]),
+      queryOne<{ count: string }>("SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'published'", [userId]),
+      queryOne<{ count: string }>("SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND created_at >= $2", [userId, oneWeekAgo]),
+      queryOne<{ count: string }>("SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND created_at >= $2 AND created_at < $3", [userId, twoWeeksAgo, oneWeekAgo]),
+      queryOne<{ count: string }>("SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'published' AND created_at >= $2", [userId, oneWeekAgo]),
+      queryOne<{ count: string }>("SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'published' AND created_at >= $2 AND created_at < $3", [userId, twoWeeksAgo, oneWeekAgo]),
+      query<{ platform: string }>("SELECT platform FROM contents WHERE user_id = $1", [userId]),
+      query(
+        `SELECT sp.id, sp.scheduled_at, c.title, c.platform, c.type
+         FROM scheduled_posts sp JOIN contents c ON sp.content_id = c.id
+         WHERE c.user_id = $1 AND sp.status = 'pending' AND sp.scheduled_at >= NOW()
+         ORDER BY sp.scheduled_at ASC LIMIT 4`,
+        [userId]
+      ),
+      query<RecentContent>(
+        `SELECT c.id, c.title, c.platform, c.status, c.created_at, p.name as project_name
+         FROM contents c LEFT JOIN projects p ON c.project_id = p.id
+         WHERE c.user_id = $1 ORDER BY c.created_at DESC LIMIT 4`,
+        [userId]
+      ),
+    ]);
+  } catch (e) {
+    console.error("Dashboard query error:", e);
+    // Render page with empty data rather than crashing
+  }
 
   const generationsCount = parseInt(genTotal?.count ?? "0");
   const scheduledCount = parseInt(scheduled?.count ?? "0");
