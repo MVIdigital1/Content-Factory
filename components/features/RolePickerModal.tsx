@@ -153,7 +153,7 @@ export default function RolePickerModal({ onSelect }: Props) {
             Обратитесь к администратору, чтобы получить приглашение.
           </p>
           <button
-            onClick={() => { onSelect({ workspaceId: "", workspaceName: "", role: "guest", roleLabel: "Гость", roleColor: "#888888", roleIcon: "👤", projectCount: 0 }); }}
+            onClick={() => { saveAndSelect({ workspaceId: "", workspaceName: "", role: "guest", roleLabel: "Гость", roleColor: "#888888", roleIcon: "👤", projectCount: 0 }); }}
             className="w-full py-2.5 border border-line rounded-[10px] text-[13px] text-tx-2 hover:bg-hover cursor-pointer transition-colors"
             style={{ fontFamily: "inherit" }}
           >
