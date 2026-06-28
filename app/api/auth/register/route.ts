@@ -20,8 +20,8 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await hashPassword(password);
     const [user] = await query<{ id: string; email: string }>(
-      `INSERT INTO users (email, password_hash, full_name, created_at, updated_at)
-       VALUES ($1, $2, $3, NOW(), NOW()) RETURNING id, email`,
+      `INSERT INTO users (email, password_hash, full_name, created_at)
+       VALUES ($1, $2, $3, NOW()) RETURNING id, email`,
       [email.toLowerCase(), passwordHash, full_name || null]
     );
 
