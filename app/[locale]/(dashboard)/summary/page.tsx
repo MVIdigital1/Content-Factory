@@ -44,21 +44,28 @@ export default async function SummaryPage() {
   const now = new Date();
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
-  const [
-    campaignsRaw,
-    publishedRows,
-    scheduledRows,
-    totalRows,
-    contentDates,
-  ] = await Promise.all([
-    query(`SELECT id, name, status, budget_total, budget_spent, customers, leads, revenue,
-            (SELECT name FROM projects WHERE id = ac.project_id) as project_name
-            FROM ad_campaigns ac WHERE user_id = $1`, [user.id]),
-    query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'published'`, [user.id]),
-    query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'scheduled'`, [user.id]),
-    query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1`, [user.id]),
-    query(`SELECT created_at FROM contents WHERE user_id = $1 AND created_at >= $2`, [user.id, sixMonthsAgo.toISOString()]),
-  ]);
+  let campaignsRaw: any[] = [];
+  let publishedRows: any[] = [], scheduledRows: any[] = [], totalRows: any[] = [], contentDates: any[] = [];
+
+  try {
+    [
+      campaignsRaw,
+      publishedRows,
+      scheduledRows,
+      totalRows,
+      contentDates,
+    ] = await Promise.all([
+      query(`SELECT id, name, status, budget_total, budget_spent, customers, leads, revenue,
+              (SELECT name FROM projects WHERE id = ac.project_id) as project_name
+              FROM ad_campaigns ac WHERE user_id = $1`, [user.id]),
+      query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'published'`, [user.id]),
+      query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'scheduled'`, [user.id]),
+      query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1`, [user.id]),
+      query(`SELECT created_at FROM contents WHERE user_id = $1 AND created_at >= $2`, [user.id, sixMonthsAgo.toISOString()]),
+    ]);
+  } catch (e) {
+    console.error("Summary query error:", e);
+  }
 
   const campaigns = campaignsRaw as Campaign[];
   const publishedCount = Number((publishedRows[0] as any)?.count ?? 0);

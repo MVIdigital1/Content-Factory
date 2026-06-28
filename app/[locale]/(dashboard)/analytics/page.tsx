@@ -22,42 +22,52 @@ export default async function AnalyticsPage({
   const fourteenDaysAgo = new Date(now); fourteenDaysAgo.setDate(now.getDate() - 13);
   const thirtyDaysAgo = new Date(now); thirtyDaysAgo.setDate(now.getDate() - 29);
 
-  const projectFilter_ = projectFilter || null;
-  const pidParam = projectFilter_ ? `AND project_id = '${projectFilter_.replace(/'/g, "''")}'` : "";
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const validPid = projectFilter && UUID_REGEX.test(projectFilter) ? projectFilter : null;
+  const pidParam = validPid ? `AND project_id = '${validPid}'` : "";
 
-  const [
-    projects,
-    totalGenerationsRows,
-    totalScheduledRows,
-    totalPublishedRows,
-    totalFailedRows,
-    genThisWeekRows,
-    genLastWeekRows,
-    pubThisWeekRows,
-    pubLastWeekRows,
-    activityData,
-    platformData,
-    typeData,
-    statusData,
-    recentData,
-    allDates,
-  ] = await Promise.all([
-    query(`SELECT id, name FROM projects WHERE user_id = $1 AND is_active = true ORDER BY created_at DESC`, [user.id]),
-    query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1 ${pidParam}`, [user.id]),
-    query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'scheduled' ${pidParam}`, [user.id]),
-    query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'published' ${pidParam}`, [user.id]),
-    query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'failed' ${pidParam}`, [user.id]),
-    query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND created_at >= $2 ${pidParam}`, [user.id, sevenDaysAgo.toISOString()]),
-    query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND created_at >= $2 AND created_at < $3 ${pidParam}`, [user.id, fourteenDaysAgo.toISOString(), sevenDaysAgo.toISOString()]),
-    query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'published' AND created_at >= $2 ${pidParam}`, [user.id, sevenDaysAgo.toISOString()]),
-    query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'published' AND created_at >= $2 AND created_at < $3 ${pidParam}`, [user.id, fourteenDaysAgo.toISOString(), sevenDaysAgo.toISOString()]),
-    query(`SELECT created_at FROM contents WHERE user_id = $1 AND created_at >= $2 ${pidParam}`, [user.id, sevenDaysAgo.toISOString()]),
-    query(`SELECT platform FROM contents WHERE user_id = $1 ${pidParam}`, [user.id]),
-    query(`SELECT type FROM contents WHERE user_id = $1 ${pidParam}`, [user.id]),
-    query(`SELECT status FROM contents WHERE user_id = $1 ${pidParam}`, [user.id]),
-    query(`SELECT created_at FROM contents WHERE user_id = $1 AND created_at >= $2 ${pidParam}`, [user.id, thirtyDaysAgo.toISOString()]),
-    query(`SELECT created_at FROM contents WHERE user_id = $1 ${pidParam}`, [user.id]),
-  ]);
+  let projects: any[] = [];
+  let totalGenerationsRows: any[] = [], totalScheduledRows: any[] = [], totalPublishedRows: any[] = [], totalFailedRows: any[] = [];
+  let genThisWeekRows: any[] = [], genLastWeekRows: any[] = [], pubThisWeekRows: any[] = [], pubLastWeekRows: any[] = [];
+  let activityData: any[] = [], platformData: any[] = [], typeData: any[] = [], statusData: any[] = [], recentData: any[] = [], allDates: any[] = [];
+
+  try {
+    [
+      projects,
+      totalGenerationsRows,
+      totalScheduledRows,
+      totalPublishedRows,
+      totalFailedRows,
+      genThisWeekRows,
+      genLastWeekRows,
+      pubThisWeekRows,
+      pubLastWeekRows,
+      activityData,
+      platformData,
+      typeData,
+      statusData,
+      recentData,
+      allDates,
+    ] = await Promise.all([
+      query(`SELECT id, name FROM projects WHERE user_id = $1 AND is_active = true ORDER BY created_at DESC`, [user.id]),
+      query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1 ${pidParam}`, [user.id]),
+      query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'scheduled' ${pidParam}`, [user.id]),
+      query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'published' ${pidParam}`, [user.id]),
+      query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'failed' ${pidParam}`, [user.id]),
+      query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND created_at >= $2 ${pidParam}`, [user.id, sevenDaysAgo.toISOString()]),
+      query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND created_at >= $2 AND created_at < $3 ${pidParam}`, [user.id, fourteenDaysAgo.toISOString(), sevenDaysAgo.toISOString()]),
+      query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'published' AND created_at >= $2 ${pidParam}`, [user.id, sevenDaysAgo.toISOString()]),
+      query(`SELECT COUNT(*) as count FROM contents WHERE user_id = $1 AND status = 'published' AND created_at >= $2 AND created_at < $3 ${pidParam}`, [user.id, fourteenDaysAgo.toISOString(), sevenDaysAgo.toISOString()]),
+      query(`SELECT created_at FROM contents WHERE user_id = $1 AND created_at >= $2 ${pidParam}`, [user.id, sevenDaysAgo.toISOString()]),
+      query(`SELECT platform FROM contents WHERE user_id = $1 ${pidParam}`, [user.id]),
+      query(`SELECT type FROM contents WHERE user_id = $1 ${pidParam}`, [user.id]),
+      query(`SELECT status FROM contents WHERE user_id = $1 ${pidParam}`, [user.id]),
+      query(`SELECT created_at FROM contents WHERE user_id = $1 AND created_at >= $2 ${pidParam}`, [user.id, thirtyDaysAgo.toISOString()]),
+      query(`SELECT created_at FROM contents WHERE user_id = $1 ${pidParam}`, [user.id]),
+    ]);
+  } catch (e) {
+    console.error("Analytics query error:", e);
+  }
 
   const dateLocale = locale === "uz" ? "uz-UZ" : locale === "en" ? "en-US" : "ru-RU";
 

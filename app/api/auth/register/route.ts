@@ -25,11 +25,17 @@ export async function POST(req: NextRequest) {
       [email.toLowerCase(), passwordHash, full_name || null]
     );
 
-    // Create default workspace
-    await query(
-      `INSERT INTO workspaces (name, owner_id, created_at) VALUES ($1, $2, NOW())`,
+    // Create default workspace and add owner as member
+    const [workspace] = await query<{ id: string }>(
+      `INSERT INTO workspaces (name, owner_id, created_at) VALUES ($1, $2, NOW()) RETURNING id`,
       ["Мой воркспейс", user.id]
     );
+    if (workspace) {
+      await query(
+        `INSERT INTO workspace_members (workspace_id, user_id, email, role, status) VALUES ($1, $2, $3, 'owner', 'active') ON CONFLICT DO NOTHING`,
+        [workspace.id, user.id, user.email]
+      );
+    }
 
     // Create token_balance row
     await query(
