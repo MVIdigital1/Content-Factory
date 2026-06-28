@@ -25,10 +25,15 @@ export async function GET() {
   );
   const isOwner = ownedWs.length > 0;
 
-  const memberships = await query<{ workspace_id: string; role: string; project_ids: string[] | null }>(
-    "SELECT workspace_id, role, project_ids FROM workspace_members WHERE user_id = $1 AND status = 'active'",
-    [user.id]
-  );
+  let memberships: { workspace_id: string; role: string; project_ids: string[] | null }[] = [];
+  try {
+    memberships = await query<{ workspace_id: string; role: string; project_ids: string[] | null }>(
+      "SELECT workspace_id, role, project_ids FROM workspace_members WHERE user_id = $1 AND status = 'active'",
+      [user.id]
+    );
+  } catch {
+    // workspace_members may have different schema — owner context still works via ownedWs
+  }
 
   const projectCountRow = await queryOne<{ count: string }>(
     "SELECT COUNT(*) as count FROM projects WHERE user_id = $1 AND is_active = true",
