@@ -4,7 +4,7 @@ const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ["pg", "jsonwebtoken", "bcryptjs"],
+  serverExternalPackages: ["pg", "jsonwebtoken", "bcryptjs", "nodemailer"],
   images: {
     remotePatterns: [{ protocol: "https", hostname: "*.supabase.co" }],
   },

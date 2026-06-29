@@ -228,7 +228,16 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <p style={{ textAlign: "center", fontSize: 13, color: "rgba(45,27,78,0.5)", marginTop: 32 }}>
+          <p style={{ textAlign: "center", fontSize: 13, color: "rgba(45,27,78,0.5)", marginTop: 24 }}>
+            <Link
+              href={`/${locale}/auth/forgot-password`}
+              style={{ color: "rgba(45,27,78,0.5)", textDecoration: "underline", textUnderlineOffset: 3 }}
+            >
+              Забыли пароль?
+            </Link>
+          </p>
+
+          <p style={{ textAlign: "center", fontSize: 13, color: "rgba(45,27,78,0.5)", marginTop: 12 }}>
             Нет аккаунта?{" "}
             <Link
               href={`/${locale}/auth/register`}
