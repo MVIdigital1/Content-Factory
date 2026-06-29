@@ -28,11 +28,15 @@ async function verifyEdgeToken(token: string): Promise<{ userId: string; email: 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // ── 1. Пропускаем API, статику ──────────────────────────────────────────────
+  // ── 1. Пропускаем API, статику и SEO-файлы ──────────────────────────────────
   if (
     pathname.startsWith("/api") ||
     pathname.startsWith("/_next") ||
-    pathname.match(/\.(ico|png|jpg|svg|css|js)$/)
+    pathname.startsWith("/og") ||
+    pathname === "/sitemap.xml" ||
+    pathname === "/robots.txt" ||
+    pathname === "/site.webmanifest" ||
+    pathname.match(/\.(ico|png|jpg|jpeg|svg|webp|css|js|xml|txt|json|webmanifest)$/)
   ) {
     return NextResponse.next();
   }
