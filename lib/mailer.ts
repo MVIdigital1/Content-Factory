@@ -1,23 +1,24 @@
-import nodemailer from "nodemailer";
-
-export const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT) || 587,
-  secure: process.env.SMTP_SECURE === "true",
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
-
+const RESEND_API = "https://api.resend.com/emails";
+const FROM = `mvira <noreply@mvira.uz>`;
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://mvira.uz";
-const FROM = process.env.SMTP_FROM || `mvira <noreply@mvira.uz>`;
 
-export async function sendPasswordResetEmail(
-  email: string,
-  token: string,
-  locale = "ru"
-) {
+async function sendEmail(to: string, subject: string, html: string) {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) throw new Error("RESEND_API_KEY not configured");
+
+  const res = await fetch(RESEND_API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+    body: JSON.stringify({ from: FROM, to: [to], subject, html }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { message?: string }).message || "Failed to send email");
+  }
+}
+
+export async function sendPasswordResetEmail(email: string, token: string, locale = "ru") {
   const resetUrl = `${SITE_URL}/${locale}/auth/reset-password?token=${token}`;
 
   const subjects: Record<string, string> = {
@@ -82,10 +83,40 @@ export async function sendPasswordResetEmail(
     `,
   };
 
-  await transporter.sendMail({
-    from: FROM,
-    to: email,
-    subject: subjects[locale] ?? subjects.ru,
-    html: bodies[locale] ?? bodies.ru,
-  });
+  await sendEmail(email, subjects[locale] ?? subjects.ru, bodies[locale] ?? bodies.ru);
+}
+
+export async function sendInvitationEmail(
+  email: string,
+  workspaceName: string,
+  inviterName: string,
+  role: string,
+  isExistingUser: boolean
+) {
+  const loginUrl = `${SITE_URL}/ru/auth/login`;
+  const registerUrl = `${SITE_URL}/ru/auth/register`;
+  const actionUrl = isExistingUser ? loginUrl : registerUrl;
+  const actionLabel = isExistingUser ? "Войти в аккаунт" : "Зарегистрироваться";
+
+  const html = `
+    <div style="font-family:Inter,sans-serif;max-width:480px;margin:0 auto;padding:40px 24px;background:#f0ebe3">
+      <div style="background:#2d1b4e;padding:32px;border-radius:2px;text-align:center;margin-bottom:32px">
+        <span style="font-family:Georgia,serif;font-size:28px;font-weight:300;color:#f0ebe3;letter-spacing:4px">mv<span style="color:#c9847a">ira</span></span>
+      </div>
+      <h1 style="font-family:Georgia,serif;font-weight:300;font-size:28px;color:#2d1b4e;margin:0 0 16px">Приглашение в команду</h1>
+      <p style="color:rgba(45,27,78,0.65);font-size:15px;line-height:1.7;margin:0 0 8px">
+        <strong>${inviterName}</strong> приглашает вас в воркспейс <strong>${workspaceName}</strong> с ролью <strong>${role}</strong>.
+      </p>
+      <p style="color:rgba(45,27,78,0.65);font-size:15px;line-height:1.7;margin:0 0 32px">
+        ${isExistingUser ? "Войдите в аккаунт чтобы начать работу." : "Создайте аккаунт чтобы принять приглашение."}
+      </p>
+      <a href="${actionUrl}" style="display:block;background:#2d1b4e;color:#f0ebe3;text-decoration:none;text-align:center;padding:14px 32px;border-radius:2px;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:24px">
+        ${actionLabel}
+      </a>
+      <hr style="border:none;border-top:1px solid rgba(45,27,78,0.1);margin:24px 0">
+      <p style="color:rgba(45,27,78,0.3);font-size:11px;text-align:center;margin:0">mvira.uz · AI Marketing Platform</p>
+    </div>
+  `;
+
+  await sendEmail(email, `Приглашение в ${workspaceName} — mvira`, html);
 }

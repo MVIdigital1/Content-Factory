@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
 import { query, queryOne } from "@/lib/db";
+import { sendInvitationEmail } from "@/lib/mailer";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
@@ -9,12 +10,17 @@ export async function POST(req: NextRequest) {
   const { email, role, workspace_id } = await req.json();
   if (!email) return NextResponse.json({ error: "Email обязателен" }, { status: 400 });
 
-  const workspace = await queryOne<{ id: string }>(
-    "SELECT id FROM workspaces WHERE owner_id = $1 LIMIT 1",
+  const workspace = await queryOne<{ id: string; name: string }>(
+    "SELECT id, name FROM workspaces WHERE owner_id = $1 LIMIT 1",
     [user.id]
   );
   const wid = workspace_id || workspace?.id;
   if (!wid) return NextResponse.json({ error: "Воркспейс не найден" }, { status: 404 });
+
+  const inviter = await queryOne<{ full_name: string; email: string }>(
+    "SELECT full_name, email FROM users WHERE id = $1",
+    [user.id]
+  );
 
   const existingUser = await queryOne<{ id: string }>("SELECT id FROM users WHERE email = $1", [email]);
 
@@ -35,6 +41,14 @@ export async function POST(req: NextRequest) {
       [wid, email, role ?? "viewer", user.id]
     );
   }
+
+  await sendInvitationEmail(
+    email,
+    workspace?.name ?? "mvira",
+    inviter?.full_name || inviter?.email || "Команда mvira",
+    role ?? "viewer",
+    !!existingUser
+  ).catch(() => {});
 
   return NextResponse.json({ ok: true });
 }

@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   const resendKey = process.env.RESEND_API_KEY;
   if (!resendKey) return NextResponse.json({ error: "Resend API key not configured" }, { status: 500 });
 
-  const fromEmail = process.env.EMAIL_FROM || "noreply@mvidigital.uz";
+  const fromEmail = process.env.EMAIL_FROM || "noreply@mvira.uz";
   const fromName = from_name || "MVI Content Factory";
 
   const results = [];
