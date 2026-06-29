@@ -169,34 +169,33 @@ export function TopNavbar() {
       style={{
         height: 44,
         background: "var(--panel)",
-        border: "0.5px solid var(--line)",
-        borderRadius: 14,
+        border: "1px solid var(--line)",
+        borderRadius: 8,
         gap: 4,
       }}
     >
       {/* Left: nav links */}
-      <div className="flex items-center gap-1 overflow-x-auto flex-shrink-0" style={{ scrollbarWidth: "none" }}>
+      <div className="flex items-center gap-0.5 overflow-x-auto flex-shrink-0" style={{ scrollbarWidth: "none" }}>
         {NAV_LINKS.map((link) => {
           const active = isActive(link.href);
           return (
             <Link
               key={link.href}
               href={`/${locale}${link.href}`}
-              className="px-3 py-1.5 rounded-[8px] text-[12px] font-medium transition-colors"
+              className="px-3 py-1.5 text-[12px] transition-colors"
               style={{
-                background: active ? "var(--chip)" : "transparent",
-                color: active ? "var(--tx-1)" : "var(--tx-3)",
+                background: active ? "rgba(45,27,78,0.07)" : "transparent",
+                color: active ? "#2d1b4e" : "rgba(45,27,78,0.45)",
                 textDecoration: "none",
+                borderRadius: 4,
+                fontWeight: active ? 500 : 400,
+                letterSpacing: active ? "0.01em" : "normal",
               }}
               onMouseEnter={(e) => {
-                if (!active)
-                  (e.currentTarget as HTMLElement).style.background =
-                    "var(--hover)";
+                if (!active) (e.currentTarget as HTMLElement).style.color = "#2d1b4e";
               }}
               onMouseLeave={(e) => {
-                if (!active)
-                  (e.currentTarget as HTMLElement).style.background =
-                    "transparent";
+                if (!active) (e.currentTarget as HTMLElement).style.color = "rgba(45,27,78,0.45)";
               }}
             >
               {link.label}
@@ -333,7 +332,7 @@ export function TopNavbar() {
           >
             <div
               className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0"
-              style={{ background: "var(--accent)", color: "var(--on-accent)" }}
+              style={{ background: "#2d1b4e", color: "#f0ebe3" }}
             >
               {initials}
             </div>

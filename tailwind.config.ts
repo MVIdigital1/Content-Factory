@@ -9,17 +9,13 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // ── старые цвета ──────────────────────────────────
-        accent: "var(--accent)",
-        brand: {
-          blue: "#185FA5",
-          "blue-light": "#E6F1FB",
-          orange: "#854F0B",
-          "orange-light": "#FAEEDA",
-        },
-        // ── новые CSS-переменные (тёмная тема без dark:) ──
+        // Prism identity tokens
+        primary: "#2d1b4e",
+        "primary-mid": "#5a3d7a",
+        accent: "#c9847a",
+        warm: "#e8c4a0",
+        // CSS-variable aliases (theme-adaptive)
         bg: "var(--bg)",
-        sidebar: "var(--sidebar)",
         panel: "var(--panel)",
         "panel-2": "var(--panel-2)",
         line: "var(--line)",
@@ -40,6 +36,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
+        serif: ["Cormorant Garamond", "Georgia", "serif"],
       },
       borderRadius: {
         card: "14px",

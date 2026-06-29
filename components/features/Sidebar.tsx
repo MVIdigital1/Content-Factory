@@ -6,6 +6,7 @@ import { useTranslations, useLocale } from "next-intl";
 import LangSwitcher from "@/components/features/LangSwitcher";
 import ThemeToggle from "@/components/features/ThemeToggle";
 import { useUser, clearUserCache } from "@/lib/hooks/useUser";
+import Logo from "@/components/ui/Logo";
 import {
   LayoutDashboard,
   SquarePen,
@@ -29,7 +30,6 @@ import {
   LogOut,
   ChevronDown,
   Gauge,
-  Zap,
   type LucideIcon,
 } from "lucide-react";
 
@@ -126,32 +126,36 @@ function NavContent({ onClose }: { onClose?: () => void }) {
     return (
       <button
         onClick={() => go(item.href)}
-        className={`w-full flex items-center gap-2 px-2.5 py-[6px] rounded-[7px] text-[12px] text-left cursor-pointer mb-[1px] border border-transparent transition-all focus:outline-none ${active ? "border-transparent font-medium" : "hover:border-transparent"}`}
+        className="w-full flex items-center gap-2.5 text-[12px] text-left cursor-pointer mb-[1px] focus:outline-none transition-all"
         style={{
-          background: active ? "var(--sb-active-bg)" : "transparent",
-          color: active ? "var(--sb-active-tx)" : "var(--sb-tx-2)",
+          background: active ? "rgba(201,132,122,0.18)" : "transparent",
+          color: active ? "#f0ebe3" : "rgba(240,235,227,0.72)",
+          borderLeft: active ? "3px solid #c9847a" : "3px solid transparent",
+          borderTop: "none",
+          borderRight: "none",
+          borderBottom: "none",
+          borderRadius: "0 6px 6px 0",
+          padding: "6px 10px 6px 9px",
+          fontWeight: active ? 500 : 400,
         }}
         onMouseEnter={(e) => {
-          if (!active)
-            (e.currentTarget as HTMLElement).style.background =
-              "var(--sb-hover)";
+          if (!active) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)";
         }}
         onMouseLeave={(e) => {
-          if (!active)
-            (e.currentTarget as HTMLElement).style.background = "transparent";
+          if (!active) (e.currentTarget as HTMLElement).style.background = "transparent";
         }}
       >
         <Icon
-          size={15}
+          size={14}
           strokeWidth={1.6}
           style={{
-            color: active ? "var(--sb-active-tx)" : "var(--sb-tx-3)",
+            color: active ? "#c9847a" : "rgba(240,235,227,0.45)",
             flexShrink: 0,
           }}
         />
         <span className="flex-1">{t(item.key)}</span>
         {isPending && active && (
-          <span className="w-2.5 h-2.5 rounded-full border border-current border-t-transparent animate-spin" />
+          <span className="w-2 h-2 rounded-full border border-current border-t-transparent animate-spin" />
         )}
       </button>
     );
@@ -159,13 +163,13 @@ function NavContent({ onClose }: { onClose?: () => void }) {
 
   const GroupLabel = ({ label }: { label: string }) => (
     <div
-      className="px-2.5 pb-1 pt-3"
+      className="px-3 pb-1 pt-4"
       style={{
-        fontSize: "9.5px",
-        letterSpacing: "0.1em",
+        fontSize: "9px",
+        letterSpacing: "0.28em",
         textTransform: "uppercase",
-        color: "var(--sb-tx-3)",
-        fontWeight: 600,
+        color: "rgba(240,235,227,0.28)",
+        fontWeight: 500,
       }}
     >
       {label}
@@ -186,25 +190,25 @@ function NavContent({ onClose }: { onClose?: () => void }) {
     <div className="mb-1">
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between px-2.5 pb-1 pt-3 cursor-pointer"
+        className="w-full flex items-center justify-between px-3 pb-1 pt-4 cursor-pointer"
         style={{ background: "none", border: "none", outline: "none" }}
       >
         <span
           style={{
-            fontSize: "9.5px",
-            letterSpacing: "0.1em",
+            fontSize: "9px",
+            letterSpacing: "0.28em",
             textTransform: "uppercase" as const,
-            color: "var(--sb-tx-3)",
-            fontWeight: 600,
+            color: "rgba(240,235,227,0.28)",
+            fontWeight: 500,
           }}
         >
           {label}
         </span>
         <ChevronDown
-          size={11}
+          size={10}
           strokeWidth={2}
           style={{
-            color: "var(--sb-tx-3)",
+            color: "rgba(240,235,227,0.28)",
             transform: open ? "rotate(0deg)" : "rotate(-90deg)",
             transition: "transform 0.15s",
           }}
@@ -226,34 +230,15 @@ function NavContent({ onClose }: { onClose?: () => void }) {
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div
-        className="px-3 pt-4 pb-3"
-        style={{ borderBottom: "0.5px solid var(--sb-border)" }}
+        className="px-4 pt-5 pb-4"
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}
       >
         <button
           onClick={() => go("/dashboard")}
-          className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity w-full"
+          className="cursor-pointer hover:opacity-80 transition-opacity w-full text-left"
           style={{ background: "none", border: "none", outline: "none" }}
         >
-          <div
-            className="w-7 h-7 rounded-[8px] flex items-center justify-center flex-shrink-0"
-            style={{ background: "var(--accent)" }}
-          >
-            <Zap size={14} color="var(--on-accent)" strokeWidth={2.5} />
-          </div>
-          <div className="text-left">
-            <div
-              className="text-[13px] font-semibold leading-none"
-              style={{ color: "var(--sb-tx-1)" }}
-            >
-              MVI Content
-            </div>
-            <div
-              className="text-[10px] mt-0.5"
-              style={{ color: "var(--sb-tx-3)" }}
-            >
-              v1.0
-            </div>
-          </div>
+          <Logo variant="light" size={36} horizontal />
         </button>
       </div>
 
@@ -307,49 +292,44 @@ function NavContent({ onClose }: { onClose?: () => void }) {
 
       {/* Footer */}
       <div
-        className="px-2 py-2.5"
-        style={{ borderTop: "0.5px solid var(--sb-border)" }}
+        className="px-3 py-3"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
       >
         {isAdmin && (
           <button
-            onClick={() => {
-              window.location.href = "/admin";
-            }}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-[7px] text-[12px] cursor-pointer mb-1"
-            style={{ background: "none", border: "none", color: "var(--c-3)" }}
+            onClick={() => { window.location.href = "/admin"; }}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] cursor-pointer mb-1"
+            style={{ background: "none", border: "none", color: "#c9847a", borderRadius: 4 }}
           >
-            <Settings size={14} strokeWidth={1.6} /> Admin
+            <Settings size={13} strokeWidth={1.6} /> Admin
           </button>
         )}
-        <div className="flex items-center justify-between gap-2 mb-2 px-1">
+        <div className="flex items-center justify-between gap-2 mb-3 px-1">
           <LangSwitcher />
           <ThemeToggle />
         </div>
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded-[8px]">
+        <div
+          className="flex items-center gap-2.5 px-2 py-2 rounded-[6px] cursor-pointer"
+          style={{ background: "rgba(255,255,255,0.05)" }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.09)"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)"; }}
+        >
           <button
             onClick={() => go("/profile")}
-            className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer"
+            className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer"
             style={{ background: "none", border: "none", outline: "none" }}
           >
             <div
               className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold flex-shrink-0"
-              style={{ background: "var(--accent)", color: "var(--on-accent)" }}
+              style={{ background: "#c9847a", color: "#2d1b4e" }}
             >
               {initials}
             </div>
             <div className="flex-1 min-w-0 text-left">
-              <div
-                className="text-[12px] font-medium truncate"
-                style={{ color: "var(--sb-tx-1)" }}
-              >
-                {user?.full_name ||
-                  user?.email?.split("@")[0] ||
-                  "Пользователь"}
+              <div className="text-[12px] font-medium truncate" style={{ color: "#f0ebe3" }}>
+                {user?.full_name || user?.email?.split("@")[0] || "Пользователь"}
               </div>
-              <div
-                className="text-[10px] truncate"
-                style={{ color: "var(--sb-tx-3)" }}
-              >
+              <div className="text-[10px] truncate" style={{ color: "rgba(240,235,227,0.4)" }}>
                 {user?.email || ""}
               </div>
             </div>
@@ -357,12 +337,10 @@ function NavContent({ onClose }: { onClose?: () => void }) {
           <button
             onClick={handleLogout}
             title="Выйти"
-            className="p-1 rounded-md cursor-pointer flex-shrink-0"
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--sb-tx-3)",
-            }}
+            className="p-1 cursor-pointer flex-shrink-0"
+            style={{ background: "none", border: "none", color: "rgba(240,235,227,0.35)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#c9847a"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(240,235,227,0.35)"; }}
           >
             <LogOut size={13} strokeWidth={1.6} />
           </button>

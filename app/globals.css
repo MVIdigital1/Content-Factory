@@ -1,103 +1,95 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Inter:wght@400;500;600&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ============================================================
-   MVI Content — design tokens v9
-   Light: бежевый #f8f5f0, sidebar светлый #ece8e1, акцент тёмный #1a1a1a
-   Dark:  мягкий тёмный #2a2826, sidebar #1f1d1b
+   Prism — MVI Content identity
+   Primary: #2d1b4e  Accent: #c9847a  Warm: #e8c4a0  Bg: #f0ebe3
    ============================================================ */
 
 :root {
-  /* Фоны */
-  --bg: #f8f8f6;
+  /* Backgrounds */
+  --bg: #f0ebe3;
   --panel: #ffffff;
-  --panel-2: #f8f8f6;
+  --panel-2: #f5f1eb;
 
-  /* Sidebar — светлый, чуть темнее фона */
-  --sb-bg: #f8f8f6;
-  --sb-border: rgba(0, 0, 0, 0.08);
-  --sb-tx-1: #1a1a18;
-  --sb-tx-2: #4a4845;
-  --sb-tx-3: #9a9690;
-  --sb-active-bg: rgba(26, 26, 24, 0.1);
-  --sb-active-tx: #1a1a18;
-  --sb-hover: rgba(0, 0, 0, 0.05);
+  /* Sidebar — always dark primary */
+  --sb-bg: #2d1b4e;
+  --sb-border: rgba(255, 255, 255, 0.1);
+  --sb-tx-1: #f0ebe3;
+  --sb-tx-2: rgba(240, 235, 227, 0.75);
+  --sb-tx-3: rgba(240, 235, 227, 0.35);
+  --sb-active-bg: rgba(201, 132, 122, 0.18);
+  --sb-active-tx: #f0ebe3;
+  --sb-hover: rgba(255, 255, 255, 0.06);
 
   /* Borders */
-  --line: rgba(0, 0, 0, 0.07);
-  --line-strong: rgba(0, 0, 0, 0.13);
+  --line: rgba(45, 27, 78, 0.09);
+  --line-strong: rgba(45, 27, 78, 0.18);
 
   /* Text */
-  --tx-1: #1a1a18;
-  --tx-2: rgba(26, 26, 24, 0.58);
-  --tx-3: rgba(26, 26, 24, 0.38);
+  --tx-1: #2d1b4e;
+  --tx-2: rgba(45, 27, 78, 0.6);
+  --tx-3: rgba(45, 27, 78, 0.38);
 
-  /* Accent — нейтральный */
-  --accent: #1a1a18;
-  --accent-rgb: 26, 26, 24;
-  --accent-dim: rgba(26, 26, 24, 0.08);
-  --on-accent: #ffffff;
+  /* Accent */
+  --accent: #2d1b4e;
+  --accent-rgb: 45, 27, 78;
+  --accent-dim: rgba(45, 27, 78, 0.07);
+  --on-accent: #f0ebe3;
 
   /* Semantic */
   --pos: #3a7d6b;
   --pos-dim: rgba(58, 125, 107, 0.08);
-  --neg: #c1121f;
-  --c-2: #1a1a18;
-  --c-3: #b5500a;
+  --neg: #b85c52;
+  --c-2: #5a3d7a;
+  --c-3: #c9847a;
 
   /* Misc */
-  --hover: rgba(0, 0, 0, 0.04);
-  --chip: rgba(0, 0, 0, 0.06);
-  --track: rgba(0, 0, 0, 0.08);
-  --radius: 10px;
-  --radius-sm: 7px;
+  --hover: rgba(45, 27, 78, 0.04);
+  --chip: #e8c4a0;
+  --track: rgba(45, 27, 78, 0.1);
+  --radius: 8px;
+  --radius-sm: 2px;
 
   color-scheme: light;
 }
 
 [data-theme="dark"] {
-  /* Фоны — мягкий тёмный, не чёрный */
-  --bg: #2a2826;
-  --panel: #343230;
-  --panel-2: #2f2d2b;
+  --bg: #1a0d2e;
+  --panel: #2d1b4e;
+  --panel-2: #231440;
 
-  /* Sidebar — чуть темнее контента */
-  --sb-bg: #1f1d1b;
-  --sb-border: rgba(255, 255, 255, 0.07);
-  --sb-tx-1: #ffffff;
-  --sb-tx-2: #faf7f7;
-  --sb-tx-3: #5a5654;
-  --sb-active-bg: rgba(240, 236, 230, 0.1);
-  --sb-active-tx: #f0ece6;
+  --sb-bg: #120a20;
+  --sb-border: rgba(255, 255, 255, 0.08);
+  --sb-tx-1: #f0ebe3;
+  --sb-tx-2: rgba(240, 235, 227, 0.72);
+  --sb-tx-3: rgba(240, 235, 227, 0.32);
+  --sb-active-bg: rgba(201, 132, 122, 0.2);
+  --sb-active-tx: #f0ebe3;
   --sb-hover: rgba(255, 255, 255, 0.05);
 
-  /* Borders */
   --line: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.14);
 
-  /* Text */
-  --tx-1: #f0ece6;
-  --tx-2: rgba(240, 236, 230, 0.62);
-  --tx-3: rgba(240, 236, 230, 0.38);
+  --tx-1: #f0ebe3;
+  --tx-2: rgba(240, 235, 227, 0.62);
+  --tx-3: rgba(240, 235, 227, 0.38);
 
-  /* Accent — нейтральный */
-  --accent: #f0ece6;
-  --accent-rgb: 240, 236, 230;
-  --accent-dim: rgba(240, 236, 230, 0.1);
-  --on-accent: #1f1d1b;
+  --accent: #c9847a;
+  --accent-rgb: 201, 132, 122;
+  --accent-dim: rgba(201, 132, 122, 0.15);
+  --on-accent: #2d1b4e;
 
-  /* Semantic */
   --pos: #6b9e8a;
   --pos-dim: rgba(107, 158, 138, 0.1);
-  --neg: #e63946;
-  --c-2: #f0ece6;
-  --c-3: #e07a2f;
+  --neg: #e07060;
+  --c-2: #e8c4a0;
+  --c-3: #c9847a;
 
-  /* Misc */
   --hover: rgba(255, 255, 255, 0.04);
-  --chip: rgba(255, 255, 255, 0.07);
+  --chip: rgba(255, 255, 255, 0.08);
   --track: rgba(255, 255, 255, 0.09);
 
   color-scheme: dark;
@@ -113,31 +105,66 @@ body {
   color: var(--tx-1);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition:
-    background 0.2s ease,
-    color 0.2s ease;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+h1, h2, h3 {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-weight: 300;
+  letter-spacing: 0.05em;
 }
 
 @layer components {
   .ui-label {
     font-size: 10px;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.28em;
     text-transform: uppercase;
-    color: var(--accent);
-    font-weight: 700;
+    color: var(--tx-3);
+    font-weight: 500;
+    font-family: "Inter", system-ui, sans-serif;
   }
   .ui-num {
-    font-feature-settings: "tnum" 1;
-    letter-spacing: -0.02em;
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-weight: 300;
+    letter-spacing: -0.01em;
   }
   .ui-surface {
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: var(--radius);
   }
+  .prism-label {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #5a3d7a;
+    font-weight: 500;
+  }
+  .btn-primary {
+    background: #2d1b4e;
+    color: #f0ebe3;
+    border-radius: 2px;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-primary:hover {
+    background: #5a3d7a;
+  }
+  .btn-secondary {
+    background: transparent;
+    color: #2d1b4e;
+    border: 1px solid #2d1b4e;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .btn-secondary:hover {
+    background: #2d1b4e;
+    color: #f0ebe3;
+  }
 }
 
-/* Custom native select styling */
 select {
   appearance: none;
   -webkit-appearance: none;
@@ -149,13 +176,13 @@ select {
   font-size: 0.75rem;
   outline: none;
   cursor: pointer;
-  background-image: url("data:image/svg+xml,%3Csvg width='11' height='11' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 9l6 6 6-6' stroke='%239a9690' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg width='11' height='11' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 9l6 6 6-6' stroke='%235a3d7a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.625rem center;
   transition: border-color 0.15s;
 }
 select:focus {
-  border-color: var(--accent);
+  border-color: #2d1b4e;
 }
 select option {
   background-color: var(--panel);
@@ -163,8 +190,8 @@ select option {
 }
 
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -174,18 +201,12 @@ select option {
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--line-strong);
+  background: rgba(45, 27, 78, 0.2);
 }
 
 @keyframes ui-rise {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
 }
 .ui-rise {
   animation: ui-rise 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
