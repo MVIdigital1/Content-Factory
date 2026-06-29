@@ -379,20 +379,7 @@ export default function Sidebar() {
             <path d="M3 12h18M3 6h18M3 18h18" />
           </svg>
         </button>
-        <div className="flex items-center gap-2">
-          <div
-            className="w-6 h-6 rounded-[6px] flex items-center justify-center"
-            style={{ background: "var(--accent)" }}
-          >
-            <Zap size={12} color="var(--on-accent)" strokeWidth={2.5} />
-          </div>
-          <span
-            className="text-[13px] font-semibold"
-            style={{ color: "var(--sb-tx-1)" }}
-          >
-            MVI Content
-          </span>
-        </div>
+        <Logo variant="light" size={28} horizontal />
       </div>
 
       {mobileOpen && (
