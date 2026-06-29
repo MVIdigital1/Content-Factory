@@ -12,7 +12,7 @@ const SIGN_COLOR = {
   dark: "#2d1b4e",
 };
 
-function PrismSign({ color, size = 48 }: { color: string; size?: number }) {
+function PrismSign({ color, size = 48, className }: { color: string; size?: number; className?: string }) {
   return (
     <svg
       width={size}
@@ -20,6 +20,7 @@ function PrismSign({ color, size = 48 }: { color: string; size?: number }) {
       viewBox="0 0 180 178"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
+      className={className}
     >
       <line x1="15" y1="140" x2="115" y2="10" stroke={color} strokeWidth="10" strokeLinecap="round" />
       <line x1="165" y1="140" x2="65" y2="10" stroke={color} strokeWidth="10" strokeLinecap="round" />
