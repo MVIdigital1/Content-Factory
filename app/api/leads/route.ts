@@ -1,13 +1,47 @@
-import { query } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
+import { query, queryOne } from "@/lib/db";
 import { NextResponse } from "next/server";
 
+export async function GET(request: Request) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { searchParams } = new URL(request.url);
+  const landingId = searchParams.get("landing_id");
+
+  if (landingId) {
+    const rows = await query(
+      "SELECT * FROM leads WHERE landing_id = $1 ORDER BY created_at DESC",
+      [landingId]
+    );
+    return NextResponse.json(rows);
+  }
+
+  const rows = await query(
+    `SELECT l.*, la.title AS landing_title, la.slug AS landing_slug
+     FROM leads l
+     LEFT JOIN landings la ON la.id = l.landing_id
+     WHERE la.user_id = $1
+     ORDER BY l.created_at DESC
+     LIMIT 200`,
+    [user.id]
+  );
+  return NextResponse.json(rows);
+}
+
 export async function POST(request: Request) {
-  const { landing_id, name, phone, email } = await request.json();
+  const { landing_id, name, phone, email, message } = await request.json();
   if (!landing_id) return NextResponse.json({ error: "Missing landing_id" }, { status: 400 });
 
+  const landing = await queryOne<{ user_id: string }>(
+    "SELECT user_id FROM landings WHERE id = $1",
+    [landing_id]
+  );
+
   await query(
-    "INSERT INTO leads (landing_id, name, phone, email) VALUES ($1, $2, $3, $4)",
-    [landing_id, name || null, phone || null, email || null]
+    `INSERT INTO leads (landing_id, user_id, name, phone, email, message, status)
+     VALUES ($1, $2, $3, $4, $5, $6, 'new')`,
+    [landing_id, landing?.user_id ?? null, name ?? null, phone ?? null, email ?? null, message ?? null]
   );
   return NextResponse.json({ ok: true });
 }

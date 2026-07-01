@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
       [user.id, parsed.title || businessName, slug, JSON.stringify({ blocks: parsed.blocks || [], template_id: templateId || "classic", bg_image: bgImage || null, settings: { brandColor: brandColor || "#6366f1", tone } })]
     );
 
-    return NextResponse.json({ id: landing?.id });
+    return NextResponse.json({ id: landing?.id, slug });
   } catch (err: any) {
     console.error("[landings/generate]", err);
     return NextResponse.json({ error: err.message || "Внутренняя ошибка" }, { status: 500 });
