@@ -12,7 +12,43 @@ import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
 
-const STEPS = ["Цель", "Лендинг", "Платформы", "Создать", "Креативы", "Запуск"];
+const ALL_STEP_DEFS = [
+  { key: "goal" as const, label: "Цель" },
+  { key: "landing" as const, label: "Лендинг" },
+  { key: "platforms" as const, label: "Платформы" },
+  { key: "create" as const, label: "Создать" },
+  { key: "creatives" as const, label: "Креативы" },
+  { key: "launch" as const, label: "Запуск" },
+];
+
+const WIZARD_NICHE_TREE = [
+  { icon: "☕", label: "Еда и напитки", subs: ["Кофейня", "Ресторан", "Доставка еды", "Кондитерская", "Бар", "Фастфуд", "Кейтеринг", "Пекарня", "Суши / Роллы", "Пиццерия", "Чайхана", "Фуд-корт"] },
+  { icon: "👗", label: "Одежда и мода", subs: ["Женская одежда", "Мужская одежда", "Детская одежда", "Обувь", "Аксессуары", "Спортивная одежда", "Свадебные наряды", "Дизайнерская одежда", "Секонд-хенд", "Трикотаж"] },
+  { icon: "💄", label: "Красота и уход", subs: ["Салон красоты", "Косметика", "Маникюр / Педикюр", "СПА", "Парфюм", "Уход за кожей", "Барбершоп", "Татуировки", "Бровисты / Ресницы", "Массаж"] },
+  { icon: "💻", label: "IT / Технологии", subs: ["SaaS", "Мобильное приложение", "Веб-разработка", "Геймдев", "Кибербезопасность", "AI / ML", "Облачные сервисы", "Электроника", "Стартап", "IT-аутсорс"] },
+  { icon: "📚", label: "Образование", subs: ["Онлайн-курсы", "Репетиторство", "Языковая школа", "Детское образование", "Бизнес-обучение", "Профессиональные курсы", "Университет / Колледж", "Автошкола"] },
+  { icon: "🏋️", label: "Спорт и здоровье", subs: ["Фитнес-клуб", "Йога / Пилатес", "Единоборства", "Спортпит", "Тренажёры", "Бег / Триатлон", "Бассейн", "Танцы"] },
+  { icon: "🏥", label: "Медицина", subs: ["Клиника", "Стоматология", "Ветклиника", "Аптека", "Косметология", "Психология / Психотерапия", "Офтальмология", "Лабораторная диагностика"] },
+  { icon: "🏗️", label: "Строительство", subs: ["Ремонт и отделка", "Дизайн интерьера", "Стройматериалы", "Архитектура", "Инженерные системы", "Окна и двери", "Кровля", "Ландшафтный дизайн"] },
+  { icon: "🏠", label: "Товары для дома", subs: ["Мебель", "Декор", "Кухонные товары", "Бытовая техника", "Текстиль", "Освещение", "Сантехника", "Садовые товары"] },
+  { icon: "🚗", label: "Авто", subs: ["Автосалон", "Автосервис", "Автозапчасти", "Детейлинг", "Шиномонтаж", "Мотоциклы", "Аренда авто", "Тюнинг", "Автомойка"] },
+  { icon: "🏡", label: "Недвижимость", subs: ["Жилая недвижимость", "Коммерческая недвижимость", "Аренда квартир", "Застройщик", "Риэлтор", "Загородная недвижимость", "Апартаменты", "Коворкинг"] },
+  { icon: "✈️", label: "Туризм и путешествия", subs: ["Турагентство", "Отель / Хостел", "Авиабилеты", "Аренда жилья", "Экскурсии", "Визовый центр", "Круизы", "Горнолыжный курорт"] },
+  { icon: "🐾", label: "Домашние животные", subs: ["Зоомагазин", "Ветклиника", "Груминг", "Дрессировка", "Зоогостиница", "Корма для животных"] },
+  { icon: "💰", label: "Финансы", subs: ["Банк", "Страхование", "Инвестиции", "Микрокредиты", "Бухгалтерия", "Криптовалюта", "Лизинг", "Налоговый консалтинг"] },
+  { icon: "⚖️", label: "Юридические услуги", subs: ["Адвокат", "Нотариус", "Корпоративное право", "Иммиграция", "Патенты / Авторское право"] },
+  { icon: "🎉", label: "Мероприятия", subs: ["Свадебное агентство", "Event-агентство", "Аренда зала", "Ведущий / Тамада", "Флористика", "Аниматоры"] },
+  { icon: "📦", label: "Логистика", subs: ["Курьерская доставка", "Транспортная компания", "Склад и хранение", "Переезды", "Грузоперевозки"] },
+  { icon: "⚙️", label: "Услуги", subs: ["Маркетинг и реклама", "HR / Рекрутинг", "Клининг", "Консалтинг", "PR-агентство", "Полиграфия", "Охрана", "Ремонт техники"] },
+  { icon: "🌿", label: "Экология / ЗОЖ", subs: ["Органические продукты", "Экотовары", "Вегетарианство", "ЗОЖ-продукты", "Натуральная косметика"] },
+  { icon: "🎮", label: "Развлечения", subs: ["Кино / Стриминг", "Музыка", "Игры / Геймдев", "Квест-комнаты", "Боулинг", "Детский парк"] },
+  { icon: "👶", label: "Детские товары", subs: ["Детская одежда", "Игрушки", "Детское питание", "Школьные принадлежности", "Детская мебель"] },
+  { icon: "📸", label: "Фото / Видео", subs: ["Фотостудия", "Видеопроизводство", "Дрон-съёмка", "Графический дизайн", "Фотограф"] },
+  { icon: "🌾", label: "Сельское хозяйство", subs: ["Фермерство", "Агротехника", "Семена и удобрения", "Животноводство", "Теплицы"] },
+  { icon: "🎨", label: "Творчество и искусство", subs: ["Галерея", "Арт-студия", "Музыкальная школа", "Театр", "Handmade / Крафт"] },
+  { icon: "📱", label: "Медиа / SMM", subs: ["Новостной портал", "Блог", "YouTube-канал", "Telegram-канал", "Подкаст", "SMM-агентство"] },
+  { icon: "✦", label: "Другое", subs: [] },
+];
 
 const PLATFORM_SUBTYPES: Record<
   string,
@@ -558,6 +594,9 @@ export function WizardView({
   const [newProjectNiche, setNewProjectNiche] = useState("");
   const [creatingProject, setCreatingProject] = useState(false);
 
+  const [nicheSearch, setNicheSearch] = useState("");
+  const [nicheDropdownOpen, setNicheDropdownOpen] = useState(false);
+
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [productImagePreview, setProductImagePreview] = useState<string | null>(
     null,
@@ -803,6 +842,19 @@ export function WizardView({
   const [loadingRecs, setLoadingRecs] = useState(false);
   const [autofilling, setAutofilling] = useState(false);
 
+  // Dynamic steps based on selected tools
+  const activeSteps = ALL_STEP_DEFS.filter(s => {
+    if (s.key === "goal" || s.key === "launch") return true;
+    if (s.key === "landing") return campaignTools.has("landing");
+    return campaignTools.has("creatives") || campaignTools.has("content");
+  });
+  const currentStepKey = activeSteps[step]?.key ?? "goal";
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (step >= activeSteps.length) setStep(0);
+  }, [campaignTools]);
+
   const suggestBudget = async () => {
     setBudgetSuggesting(true);
     try {
@@ -930,6 +982,8 @@ export function WizardView({
       setShowCreateProject(false);
       setNewProjectName("");
       setNewProjectNiche("");
+      setNicheSearch("");
+      setNicheDropdownOpen(false);
     } catch (e: any) {
       alert("Ошибка: " + e.message);
     } finally {
@@ -1038,8 +1092,10 @@ export function WizardView({
   };
 
   const handleGoToCreatives = () => {
-    setStep(4);
-    setMaxStep((prev: number) => Math.max(prev, 4));
+    const pos = activeSteps.findIndex(s => s.key === "creatives");
+    const target = pos !== -1 ? pos : activeSteps.length - 1;
+    setStep(target);
+    setMaxStep((prev: number) => Math.max(prev, target));
     generateAllCreatives();
   };
 
@@ -1181,8 +1237,8 @@ export function WizardView({
     <div>
       {/* Step bar */}
       <div className="flex items-center gap-1 bg-panel-2 border border-line rounded-[9px] p-2.5 mb-5 overflow-x-auto">
-        {STEPS.map((label, i) => (
-          <div key={label} className="flex items-center gap-1">
+        {activeSteps.map((s, i) => (
+          <div key={s.key} className="flex items-center gap-1">
             <button
               onClick={() => { if (i <= maxStep) setStep(i); }}
               style={{ cursor: i <= maxStep ? "pointer" : "default" }}
@@ -1193,9 +1249,9 @@ export function WizardView({
               >
                 {i < maxStep ? "✓" : i + 1}
               </div>
-              {label}
+              {s.label}
             </button>
-            {i < STEPS.length - 1 && (
+            {i < activeSteps.length - 1 && (
               <span className="text-tx-3 text-[10px]">›</span>
             )}
           </div>
@@ -1261,7 +1317,7 @@ export function WizardView({
       )}
 
       {/* ══ STEP 0: Goal ══ */}
-      {step === 0 && (
+      {currentStepKey === "goal" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <div className="space-y-4">
             {/* Project selector block — always visible above Название */}
@@ -1320,7 +1376,7 @@ export function WizardView({
                   <div style={{
                     position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
                     zIndex: 50, background: "var(--panel)", border: "0.5px solid var(--line)",
-                    borderRadius: 10, padding: 6, maxHeight: 220, overflowY: "auto",
+                    borderRadius: 10, padding: 6, maxHeight: 260, overflowY: "auto",
                     boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
                   }}>
                     {(projects as any[]).length === 0 ? (
@@ -1356,10 +1412,111 @@ export function WizardView({
                         </button>
                       ))
                     )}
+                    <div style={{ borderTop: "0.5px solid var(--line)", marginTop: 4, paddingTop: 4 }}>
+                      <button
+                        type="button"
+                        onClick={() => { setShowCreateProject(true); setProjectOpen(false); }}
+                        style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "8px 10px", borderRadius: 7, border: "none", background: "none", color: "var(--accent)", fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}
+                      >
+                        <span style={{ fontSize: 16 }}>+</span> Создать новый проект
+                      </button>
+                    </div>
                   </div>
                 </>
               )}
             </div>
+
+            {/* Inline create project form */}
+            {showCreateProject && (
+              <div style={{ padding: 14, border: "0.5px solid var(--accent)", borderRadius: 10, background: "var(--chip)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>Новый проект</p>
+                  <button type="button" onClick={() => { setShowCreateProject(false); setNewProjectName(""); setNewProjectNiche(""); setNicheSearch(""); setNicheDropdownOpen(false); }}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--tx-3)", fontSize: 16, padding: 0 }}>✕</button>
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <label style={{ fontSize: 11, color: "var(--tx-3)", display: "block", marginBottom: 4 }}>Название *</label>
+                  <input
+                    value={newProjectName}
+                    onChange={e => setNewProjectName(e.target.value)}
+                    placeholder="Название проекта"
+                    className={inp}
+                  />
+                </div>
+                <div style={{ marginBottom: 12, position: "relative" }}>
+                  <label style={{ fontSize: 11, color: "var(--tx-3)", display: "block", marginBottom: 4 }}>Ниша</label>
+                  {newProjectNiche && !nicheDropdownOpen ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, border: "0.5px solid var(--accent)", background: "var(--panel)", cursor: "pointer" }}
+                      onClick={() => { setNicheSearch(""); setNicheDropdownOpen(true); }}>
+                      <span style={{ flex: 1, fontSize: 12, color: "var(--accent)", fontWeight: 500 }}>{newProjectNiche}</span>
+                      <button type="button" onClick={e => { e.stopPropagation(); setNewProjectNiche(""); }}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--tx-3)", fontSize: 14, padding: 0 }}>✕</button>
+                    </div>
+                  ) : (
+                    <div>
+                      <input
+                        value={nicheSearch}
+                        onChange={e => { setNicheSearch(e.target.value); setNicheDropdownOpen(true); }}
+                        onFocus={() => setNicheDropdownOpen(true)}
+                        placeholder="🔍 Поиск ниши — кофейня, IT, авто..."
+                        className={inp}
+                        autoComplete="off"
+                      />
+                      {nicheDropdownOpen && (
+                        <>
+                          <div style={{ position: "fixed", inset: 0, zIndex: 59 }} onClick={() => setNicheDropdownOpen(false)} />
+                          <div style={{
+                            position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+                            zIndex: 60, background: "var(--panel)", border: "0.5px solid var(--line)",
+                            borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+                            maxHeight: 240, overflowY: "auto",
+                          }}>
+                            {WIZARD_NICHE_TREE
+                              .flatMap(n => {
+                                const q = nicheSearch.toLowerCase();
+                                const parentMatch = n.label.toLowerCase().includes(q);
+                                const matchedSubs = n.subs.filter(s => !q || s.toLowerCase().includes(q) || parentMatch);
+                                const items: { icon: string; parent: string; sub: string }[] = matchedSubs.map(s => ({ icon: n.icon, parent: n.label, sub: s }));
+                                if (n.subs.length === 0 && (!q || parentMatch)) items.push({ icon: n.icon, parent: "", sub: n.label });
+                                return items;
+                              })
+                              .slice(0, 15)
+                              .map(item => (
+                                <button key={item.sub} type="button"
+                                  onClick={() => { setNewProjectNiche(item.sub); setNicheSearch(""); setNicheDropdownOpen(false); }}
+                                  style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 12px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+                                  onMouseEnter={e => (e.currentTarget.style.background = "var(--hover)")}
+                                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                                >
+                                  <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
+                                  <div>
+                                    {item.parent && <span style={{ fontSize: 10, color: "var(--tx-3)" }}>{item.parent} / </span>}
+                                    <span style={{ fontSize: 12, color: "var(--tx-1)", fontWeight: 500 }}>{item.sub}</span>
+                                  </div>
+                                </button>
+                              ))
+                            }
+                            {WIZARD_NICHE_TREE.flatMap(n => { const q = nicheSearch.toLowerCase(); const parentMatch = n.label.toLowerCase().includes(q); return [...n.subs.filter(s => !q || s.toLowerCase().includes(q) || parentMatch), ...(n.subs.length === 0 && (!q || parentMatch) ? [n.label] : [])]; }).length === 0 && (
+                              <p style={{ fontSize: 11, color: "var(--tx-3)", padding: "10px 12px", margin: 0 }}>Ничего не найдено</p>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button type="button"
+                    onClick={() => { setShowCreateProject(false); setNewProjectName(""); setNewProjectNiche(""); setNicheSearch(""); setNicheDropdownOpen(false); }}
+                    style={{ flex: 1, padding: "9px", borderRadius: 7, border: "0.5px solid var(--line)", background: "transparent", color: "var(--tx-2)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}
+                  >Отмена</button>
+                  <button type="button" onClick={handleCreateProject}
+                    disabled={creatingProject || !newProjectName.trim()}
+                    style={{ flex: 1, padding: "9px", borderRadius: 7, border: "none", background: "var(--accent)", color: "var(--on-accent)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", opacity: (creatingProject || !newProjectName.trim()) ? 0.6 : 1 }}
+                  >{creatingProject ? "Создаю..." : "Создать"}</button>
+                </div>
+              </div>
+            )}
 
             {/* Autofill banner */}
             {autofilling && (
@@ -1671,19 +1828,20 @@ export function WizardView({
                   return;
                 }
                 setError("");
-                setStep(1);
-                setMaxStep((prev: number) => Math.max(prev, 1));
+                const next = Math.min(step + 1, activeSteps.length - 1);
+                setStep(next);
+                setMaxStep((prev: number) => Math.max(prev, next));
               }}
               className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
             >
-              Далее: Лендинг →
+              Далее: {activeSteps[step + 1]?.label ?? "Запуск"} →
             </button>
           </div>
         </div>
       )}
 
       {/* ══ STEP 2: Platforms ══ */}
-      {step === 2 && (() => {
+      {currentStepKey === "platforms" && (() => {
         const tgChannels = (connectedIntegrations as any[]).filter((i) => i.platform === "telegram");
         const igChannels = (connectedIntegrations as any[]).filter((i) => i.platform === "instagram");
 
@@ -1792,19 +1950,20 @@ export function WizardView({
             </div>
 
             <div className="flex justify-between pt-2">
-              <button onClick={() => setStep(1)} className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer">
+              <button onClick={() => setStep(step - 1)} className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer">
                 ← Назад
               </button>
               <button
                 onClick={() => {
                   if (selectedPlatforms.size === 0) { setError("Выберите платформу"); return; }
                   setError("");
-                  setStep(3);
-                  setMaxStep((prev: number) => Math.max(prev, 3));
+                  const next = Math.min(step + 1, activeSteps.length - 1);
+                  setStep(next);
+                  setMaxStep((prev: number) => Math.max(prev, next));
                 }}
                 className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
               >
-                Далее: Создать →
+                Далее: {activeSteps[step + 1]?.label ?? "Запуск"} →
               </button>
             </div>
           </div>
@@ -1812,18 +1971,18 @@ export function WizardView({
       })()}
 
       {/* ══ STEP 3: Создать ══ */}
-      {step === 3 && (
+      {currentStepKey === "create" && (
         <CreateCreativesStep
           projectId={projectId}
           campaignId={draftId ?? ""}
           selectedPlatforms={[...selectedPlatforms]}
-          onBack={() => setStep(2)}
+          onBack={() => setStep(step - 1)}
           onNext={handleGoToCreatives}
         />
       )}
 
       {/* ══ STEP 1: Лендинг ══ */}
-      {step === 1 && (
+      {currentStepKey === "landing" && (
         <div className="space-y-5">
           <div>
             <p className="text-[13px] font-semibold text-tx-1 mb-1">Посадочная страница</p>
@@ -1890,26 +2049,27 @@ export function WizardView({
 
           <div className="flex justify-between pt-2 border-t border-line">
             <button
-              onClick={() => setStep(0)}
+              onClick={() => setStep(step - 1)}
               className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
             >
               ← Назад
             </button>
             <button
               onClick={() => {
-                setStep(2);
-                setMaxStep((prev: number) => Math.max(prev, 2));
+                const next = Math.min(step + 1, activeSteps.length - 1);
+                setStep(next);
+                setMaxStep((prev: number) => Math.max(prev, next));
               }}
               className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
             >
-              Далее: Платформы →
+              Далее: {activeSteps[step + 1]?.label ?? "Запуск"} →
             </button>
           </div>
         </div>
       )}
 
       {/* ══ STEP 4: Creatives ══ */}
-      {step === 4 && (
+      {currentStepKey === "creatives" && (
         <div style={{ position: "relative" }}>
           {/* Auto-gen loading overlay */}
           {generating && generatedCreatives.length === 0 && (
@@ -2161,7 +2321,7 @@ export function WizardView({
 
           <div className="flex justify-between items-center pt-2">
             <button
-              onClick={() => setStep(3)}
+              onClick={() => setStep(step - 1)}
               className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
             >
               ← Назад
@@ -2182,12 +2342,13 @@ export function WizardView({
                     return;
                   }
                   setError("");
-                  setStep(5);
-                  setMaxStep((prev: number) => Math.max(prev, 5));
+                  const next = Math.min(step + 1, activeSteps.length - 1);
+                  setStep(next);
+                  setMaxStep((prev: number) => Math.max(prev, next));
                 }}
                 className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
               >
-                Далее: Запуск →
+                Далее: {activeSteps[step + 1]?.label ?? "Запуск"} →
               </button>
             </div>
           </div>
@@ -2203,7 +2364,7 @@ export function WizardView({
       )}
 
       {/* ══ STEP 5: Launch ══ */}
-      {step === 5 && (
+      {currentStepKey === "launch" && (
         <div>
           <div className="ui-surface p-4 mb-4 space-y-2">
             {[
@@ -2260,7 +2421,7 @@ export function WizardView({
 
           <div className="flex justify-between">
             <button
-              onClick={() => setStep(4)}
+              onClick={() => setStep(step - 1)}
               className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
             >
               ← Назад

@@ -161,7 +161,6 @@ function ProjectForm({
   const [toneSub, setToneSub] = useState(
     initialSnapshot ? initialSnapshot.toneSub : "",
   );
-  const [nicheSearch, setNicheSearch] = useState("");
   const [aiGenerating, setAiGenerating] = useState(false);
 
   const onFormChangeRef = useRef(onFormChange);
@@ -326,18 +325,8 @@ function ProjectForm({
         {/* Ниша */}
         <div>
           <label className="block ui-label mb-2">Ниша</label>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", border: "0.5px solid var(--line)", borderRadius: 8, background: "var(--panel)", marginBottom: 8 }}>
-            <Search size={12} style={{ color: "var(--tx-3)", flexShrink: 0 }} />
-            <input
-              value={nicheSearch}
-              onChange={(e) => setNicheSearch(e.target.value)}
-              placeholder="Поиск ниши..."
-              style={{ background: "none", border: "none", outline: "none", fontSize: 12, color: "var(--tx-1)", width: "100%", fontFamily: "inherit" }}
-            />
-            {nicheSearch && <button onClick={() => setNicheSearch("")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--tx-3)", padding: 0, fontSize: 14 }}>✕</button>}
-          </div>
           <div className="flex gap-1.5 flex-wrap mb-2">
-            {NICHE_TREE.filter(n => !nicheSearch || n.label.toLowerCase().includes(nicheSearch.toLowerCase()) || n.subs.some(s => s.toLowerCase().includes(nicheSearch.toLowerCase()))).map((n) => {
+            {NICHE_TREE.map((n) => {
               const isActive = nicheCategory === n.label;
               return (
                 <button
