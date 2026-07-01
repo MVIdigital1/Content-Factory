@@ -40,15 +40,20 @@ CTA: ${content.cta || "—"}
   "tip": "одна конкретная рекомендация как улучшить пост"
 }`;
 
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-5",
-    max_tokens: 300,
-    messages: [{ role: "user", content: prompt }],
-  });
+  try {
+    const message = await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 300,
+      messages: [{ role: "user", content: prompt }],
+    });
 
-  const raw = (message.content[0] as { text: string }).text;
-  const clean = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
-  const score = JSON.parse(clean);
+    const raw = (message.content[0] as { text: string }).text;
+    const clean = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
+    const score = JSON.parse(clean);
 
-  return NextResponse.json({ score });
+    return NextResponse.json({ score });
+  } catch (err: any) {
+    console.error("[ai/score-post]", err?.message || err);
+    return NextResponse.json({ error: err?.message || "AI error" }, { status: 500 });
+  }
 }

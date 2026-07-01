@@ -68,15 +68,20 @@ export async function POST(request: Request) {
   "summary": "краткое резюме стратегии"
 }`;
 
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-5",
-    max_tokens: 2000,
-    messages: [{ role: "user", content: prompt }],
-  });
+  try {
+    const message = await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 2000,
+      messages: [{ role: "user", content: prompt }],
+    });
 
-  const raw = (message.content[0] as { text: string }).text;
-  const clean = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
-  const plan = JSON.parse(clean);
+    const raw = (message.content[0] as { text: string }).text;
+    const clean = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
+    const plan = JSON.parse(clean);
 
-  return NextResponse.json({ plan });
+    return NextResponse.json({ plan });
+  } catch (err: any) {
+    console.error("[ai/smm-manager]", err?.message || err);
+    return NextResponse.json({ error: err?.message || "AI error" }, { status: 500 });
+  }
 }

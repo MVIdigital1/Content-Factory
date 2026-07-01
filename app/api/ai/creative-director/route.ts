@@ -58,15 +58,20 @@ export async function POST(request: Request) {
   "estimated_reach": "прогноз охвата"
 }`;
 
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-5",
-    max_tokens: 2500,
-    messages: [{ role: "user", content: prompt }],
-  });
+  try {
+    const message = await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 2500,
+      messages: [{ role: "user", content: prompt }],
+    });
 
-  const raw = (message.content[0] as { text: string }).text;
-  const clean = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
-  const campaign = JSON.parse(clean);
+    const raw = (message.content[0] as { text: string }).text;
+    const clean = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
+    const campaign = JSON.parse(clean);
 
-  return NextResponse.json({ campaign });
+    return NextResponse.json({ campaign });
+  } catch (err: any) {
+    console.error("[ai/creative-director]", err?.message || err);
+    return NextResponse.json({ error: err?.message || "AI error" }, { status: 500 });
+  }
 }

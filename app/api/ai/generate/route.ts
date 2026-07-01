@@ -10,12 +10,17 @@ export async function POST(request: Request) {
 
   const { prompt, max_tokens = 500 } = await request.json();
 
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-5",
-    max_tokens,
-    messages: [{ role: "user", content: prompt }],
-  });
+  try {
+    const message = await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens,
+      messages: [{ role: "user", content: prompt }],
+    });
 
-  const text = (message.content[0] as { text: string }).text;
-  return NextResponse.json({ text });
+    const text = (message.content[0] as { text: string }).text;
+    return NextResponse.json({ text });
+  } catch (err: any) {
+    console.error("[ai/generate]", err?.message || err);
+    return NextResponse.json({ error: err?.message || "AI error" }, { status: 500 });
+  }
 }

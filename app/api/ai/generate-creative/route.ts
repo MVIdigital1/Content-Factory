@@ -54,19 +54,24 @@ ${angle.instruction}
 Ответ ТОЛЬКО JSON без markdown:
 {"title":"...","hook":"...","caption":"..."}`;
 
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-5",
-    max_tokens: 1000,
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const raw = (message.content[0] as { text: string }).text;
-  const clean = raw.replace(/```json|```/g, "").trim();
-
   try {
-    const result = JSON.parse(clean);
-    return NextResponse.json(result);
-  } catch {
-    return NextResponse.json({ title: "Креатив", hook: "", caption: raw });
+    const message = await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1000,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const raw = (message.content[0] as { text: string }).text;
+    const clean = raw.replace(/```json|```/g, "").trim();
+
+    try {
+      const result = JSON.parse(clean);
+      return NextResponse.json(result);
+    } catch {
+      return NextResponse.json({ title: "Креатив", hook: "", caption: raw });
+    }
+  } catch (err: any) {
+    console.error("[ai/generate-creative]", err?.message || err);
+    return NextResponse.json({ error: err?.message || "AI error" }, { status: 500 });
   }
 }
