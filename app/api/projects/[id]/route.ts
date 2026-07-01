@@ -21,7 +21,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params;
 
   const body = await request.json();
-  const { name, niche, description, audience, tone, language, logo_url, is_active, country, phone, website } = body;
+  const { name, niche, description, audience, tone, language, logo_url, is_active, country, phone, website, keywords } = body;
 
   const project = await queryOne(
     `UPDATE projects SET
@@ -36,9 +36,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       country = COALESCE($9, country),
       phone = COALESCE($10, phone),
       website = COALESCE($11, website),
+      keywords = COALESCE($12, keywords),
       updated_at = NOW()
-     WHERE id = $12 AND user_id = $13 RETURNING *`,
-    [name || null, niche || null, description || null, audience || null, tone || null, language || null, logo_url || null, is_active ?? null, country || null, phone || null, website || null, id, user.id]
+     WHERE id = $13 AND user_id = $14 RETURNING *`,
+    [name || null, niche || null, description || null, audience || null, tone || null, language || null, logo_url || null, is_active ?? null, country || null, phone || null, website || null, keywords || null, id, user.id]
   );
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(project);

@@ -17,13 +17,13 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { name, niche, description, audience, tone, language, logo_url, country, phone, website } = await request.json();
+  const { name, niche, description, audience, tone, language, logo_url, country, phone, website, keywords } = await request.json();
   if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
   const project = await queryOne(
-    `INSERT INTO projects (user_id, name, niche, description, audience, tone, language, logo_url, country, phone, website, is_active)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true) RETURNING *`,
-    [user.id, name.trim(), niche || null, description || null, audience || null, tone || "friendly", language || "ru", logo_url || null, country || null, phone || null, website || null]
+    `INSERT INTO projects (user_id, name, niche, description, audience, tone, language, logo_url, country, phone, website, keywords, is_active)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, true) RETURNING *`,
+    [user.id, name.trim(), niche || null, description || null, audience || null, tone || "friendly", language || "ru", logo_url || null, country || null, phone || null, website || null, keywords || null]
   );
   return NextResponse.json(project, { status: 201 });
 }

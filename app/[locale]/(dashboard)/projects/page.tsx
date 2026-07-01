@@ -97,7 +97,7 @@ const colorFor = (id: string) => COLORS[id.charCodeAt(0) % COLORS.length];
 type FormState = {
   name: string; niche: string; description: string;
   audience: string; tone: string; language: string; logo_url: string;
-  country: string; phone: string; website: string;
+  country: string; phone: string; website: string; keywords: string;
 };
 type FormSnapshot = { form: FormState; nicheCategory: string; toneSub: string };
 type Draft = { id: string; name: string; snapshot: FormSnapshot; savedAt: string };
@@ -141,7 +141,7 @@ function ProjectForm({
   const defaultForm: FormState = {
     name: "", niche: "", description: "", audience: "",
     tone: "friendly", language: "ru", logo_url: "",
-    country: "", phone: "", website: "",
+    country: "", phone: "", website: "", keywords: "",
   };
 
   const [form, setForm] = useState<FormState>(
@@ -162,6 +162,7 @@ function ProjectForm({
     initialSnapshot ? initialSnapshot.toneSub : "",
   );
   const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState("");
 
   const onFormChangeRef = useRef(onFormChange);
   useEffect(() => { onFormChangeRef.current = onFormChange; });
@@ -208,18 +209,23 @@ function ProjectForm({
   const handleAiGenerate = async () => {
     if (!form.name.trim()) return;
     setAiGenerating(true);
+    setAiError("");
     try {
       const res = await fetch("/api/ai/suggest-project", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: form.name, niche: form.niche }),
+        body: JSON.stringify({ name: form.name, niche: form.niche, keywords: form.keywords }),
       });
-      if (!res.ok) throw new Error("AI error");
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || `Ошибка сервера ${res.status}`);
+      }
       const data = await res.json();
       if (data.description) f("description", data.description);
       if (data.audience) f("audience", data.audience);
-    } catch {
-      alert("Не удалось сгенерировать. Попробуйте ещё раз.");
+      if (data.keywords) f("keywords", data.keywords);
+    } catch (e: any) {
+      setAiError(e.message || "Не удалось сгенерировать. Попробуйте ещё раз.");
     } finally {
       setAiGenerating(false);
     }
@@ -250,6 +256,7 @@ function ProjectForm({
         country: form.country || null,
         phone: form.phone || null,
         website: form.website || null,
+        keywords: form.keywords || null,
       };
 
       const res = projectId
@@ -472,6 +479,9 @@ function ProjectForm({
             placeholder="Чем занимается компания, что продаёт, какие ценности..."
             className={`${inp} resize-none h-24`}
           />
+          {aiError && (
+            <p style={{ fontSize: 10, color: "var(--neg)", marginTop: 4 }}>⚠ {aiError}</p>
+          )}
         </div>
         <div>
           <label className="block ui-label mb-1">Целевая аудитория</label>
@@ -481,6 +491,16 @@ function ProjectForm({
             placeholder="Возраст, интересы, география, боли и желания..."
             className={`${inp} resize-none h-16`}
           />
+        </div>
+        <div>
+          <label className="block ui-label mb-1">Ключевые слова</label>
+          <input
+            value={form.keywords}
+            onChange={(e) => f("keywords", e.target.value)}
+            placeholder="пицца, доставка, Ташкент, быстро..."
+            className={inp}
+          />
+          <p style={{ fontSize: 10, color: "var(--tx-3)", marginTop: 3 }}>Используются при генерации контента и рекламы</p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <div>
@@ -561,6 +581,7 @@ function EditProjectModal({
       country: project.country ?? "",
       phone: project.phone ?? "",
       website: project.website ?? "",
+      keywords: project.keywords ?? "",
     },
     nicheCategory: getNicheCategory(project.niche ?? ""),
     toneSub: "",

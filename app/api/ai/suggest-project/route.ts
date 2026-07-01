@@ -8,18 +8,20 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { name, niche } = await request.json();
+  const { name, niche, keywords } = await request.json();
   if (!name) return NextResponse.json({ error: "Name required" }, { status: 400 });
 
-  const prompt = `Ты маркетолог. На основе названия и ниши бизнеса напиши краткое описание бренда и целевую аудиторию.
+  const prompt = `Ты маркетолог. На основе названия и ниши бизнеса напиши краткое описание бренда, целевую аудиторию и ключевые слова.
 
 Название: ${name}
 Ниша: ${niche || "не указана"}
+Ключевые слова (если уже есть): ${keywords || "нет"}
 
 Верни ТОЛЬКО JSON без markdown:
 {
   "description": "2-3 предложения о бренде: чем занимается, что предлагает, ценности (до 200 символов)",
-  "audience": "целевая аудитория: возраст, интересы, боли, география (до 150 символов)"
+  "audience": "целевая аудитория: возраст, интересы, боли, география (до 150 символов)",
+  "keywords": "7-10 ключевых слов через запятую для SEO и рекламы"
 }`;
 
   try {
