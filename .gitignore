@@ -55,3 +55,4 @@ coverage/
 # Misc
 *.tgz
 .turbo
+FETCH_HEAD
