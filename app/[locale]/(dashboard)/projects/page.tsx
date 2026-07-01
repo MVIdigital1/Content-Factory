@@ -346,7 +346,24 @@ function ProjectForm({
           </div>
           {nicheCategory && (() => {
             const parent = NICHE_TREE.find((n) => n.label === nicheCategory);
-            if (!parent || parent.subs.length === 0) return null;
+            if (!parent) return null;
+            if (parent.subs.length === 0) {
+              return (
+                <div className="pl-2 border-l-2 border-accent/30 ml-1">
+                  <p className="text-[10px] text-tx-3 mb-1.5">
+                    Введи свою нишу · <span className="text-accent">{nicheCategory}</span>
+                  </p>
+                  <input
+                    type="text"
+                    value={form.niche === nicheCategory ? "" : form.niche}
+                    onChange={(e) => f("niche", e.target.value || nicheCategory)}
+                    placeholder="Например: Ювелирные украшения, Рыбалка..."
+                    autoFocus
+                    className="w-full px-3 py-1.5 rounded-[7px] border border-line bg-panel-2 text-[12px] text-tx-1 outline-none focus:border-accent"
+                  />
+                </div>
+              );
+            }
             return (
               <div className="pl-2 border-l-2 border-accent/30 ml-1">
                 <p className="text-[10px] text-tx-3 mb-1.5">
