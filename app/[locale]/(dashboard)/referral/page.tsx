@@ -55,6 +55,15 @@ export default function ReferralPage() {
                 {copied ? <Check size={13} /> : <Copy size={13} />}
                 {copied ? "Готово" : "Копировать"}
               </button>
+              <button
+                onClick={() => {
+                  // TODO: определить действие кнопки
+                }}
+                className="flex-shrink-0 inline-flex items-center gap-1 text-[13px] font-semibold text-white bg-green-600 hover:bg-green-700 px-4 py-2 rounded-xl cursor-pointer transition-colors"
+              >
+                {/* TODO: вынести в messages/ (ru/uz/en) */}
+                Поехали
+              </button>
             </div>
             <div className="flex gap-5">
               <div>
