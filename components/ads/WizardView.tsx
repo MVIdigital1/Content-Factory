@@ -1471,69 +1471,6 @@ export function WizardView({
               </div>
             </div>
 
-            {/* Campaign tools checkboxes */}
-            <div>
-              <label className="block ui-label mb-2">Инструменты кампании</label>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {[
-                  { key: "landing", label: "Лендинг", icon: "🌐" },
-                  { key: "ai_agent", label: "AI-агент", icon: "🤖" },
-                  { key: "creatives", label: "Рекламные креативы", icon: "🎨" },
-                  { key: "content", label: "Контент для соцсетей", icon: "📝" },
-                ].map((tool) => {
-                  const checked = campaignTools.has(tool.key);
-                  return (
-                    <div key={tool.key}>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "8px 10px", borderRadius: 8, border: `0.5px solid ${checked ? "var(--accent)" : "var(--line)"}`, background: checked ? "var(--chip)" : "transparent", transition: "all 0.15s" }}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => {
-                            const next = new Set(campaignTools);
-                            if (checked) { next.delete(tool.key); if (tool.key === "ai_agent") { setAgentDropdownOpen(false); setSelectedAgentId(null); } }
-                            else { next.add(tool.key); if (tool.key === "ai_agent") setAgentDropdownOpen(true); }
-                            setCampaignTools(next);
-                          }}
-                          style={{ accentColor: "var(--accent)", width: 14, height: 14, flexShrink: 0 }}
-                        />
-                        <span style={{ fontSize: 14 }}>{tool.icon}</span>
-                        <span style={{ fontSize: 12, color: "var(--tx-1)", fontWeight: checked ? 500 : 400 }}>{tool.label}</span>
-                      </label>
-                      {tool.key === "ai_agent" && checked && (
-                        <div style={{ marginTop: 6, marginLeft: 10, padding: 10, background: "var(--panel-2)", borderRadius: 8, border: "0.5px solid var(--line)" }}>
-                          <p style={{ fontSize: 10, color: "var(--tx-3)", marginBottom: 8 }}>Выберите AI-агента:</p>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto" }}>
-                            {(aiAgents as any[]).map((a: any) => (
-                              <button
-                                key={a.id}
-                                type="button"
-                                onClick={() => setSelectedAgentId(selectedAgentId === a.id ? null : a.id)}
-                                style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 6, border: `0.5px solid ${selectedAgentId === a.id ? "var(--accent)" : "var(--line)"}`, background: selectedAgentId === a.id ? "var(--chip)" : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
-                              >
-                                <span style={{ fontSize: 12 }}>🤖</span>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <p style={{ fontSize: 11, fontWeight: 500, color: "var(--tx-1)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</p>
-                                  {a.role && <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0 }}>{a.role}</p>}
-                                </div>
-                                {selectedAgentId === a.id && <span style={{ fontSize: 10, color: "var(--accent)", flexShrink: 0 }}>✓</span>}
-                              </button>
-                            ))}
-                            <button
-                              type="button"
-                              onClick={() => router.push(`/${locale}/ai-workers`)}
-                              style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 6, border: "0.5px dashed var(--line)", background: "transparent", cursor: "pointer", fontFamily: "inherit", color: "var(--accent)", fontSize: 11 }}
-                            >
-                              <span>+</span> Создать собственного AI-агента
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
             {/* Product */}
             <div>
               <label className="block ui-label mb-1">О продукте — для AI</label>
@@ -1613,8 +1550,65 @@ export function WizardView({
             </div>
           </div>
 
-          {/* Right: project images */}
-          <div>
+          {/* Right: tools + project images */}
+          <div className="space-y-4">
+            {/* Campaign tools checkboxes */}
+            <div>
+              <label className="block ui-label mb-2">Инструменты кампании</label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {[
+                  { key: "landing", label: "Лендинг", icon: "🌐" },
+                  { key: "ai_agent", label: "AI-агент", icon: "🤖" },
+                  { key: "creatives", label: "Рекламные креативы", icon: "🎨" },
+                  { key: "content", label: "Контент для соцсетей", icon: "📝" },
+                ].map((tool) => {
+                  const checked = campaignTools.has(tool.key);
+                  return (
+                    <div key={tool.key}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "8px 10px", borderRadius: 8, border: `0.5px solid ${checked ? "var(--accent)" : "var(--line)"}`, background: checked ? "var(--chip)" : "transparent", transition: "all 0.15s" }}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            const next = new Set(campaignTools);
+                            if (checked) { next.delete(tool.key); if (tool.key === "ai_agent") { setSelectedAgentId(null); } }
+                            else { next.add(tool.key); }
+                            setCampaignTools(next);
+                          }}
+                          style={{ accentColor: "var(--accent)", width: 14, height: 14, flexShrink: 0 }}
+                        />
+                        <span style={{ fontSize: 14 }}>{tool.icon}</span>
+                        <span style={{ fontSize: 12, color: "var(--tx-1)", fontWeight: checked ? 500 : 400 }}>{tool.label}</span>
+                      </label>
+                      {tool.key === "ai_agent" && checked && (
+                        <div style={{ marginTop: 6, marginLeft: 10, padding: 10, background: "var(--panel-2)", borderRadius: 8, border: "0.5px solid var(--line)" }}>
+                          <p style={{ fontSize: 10, color: "var(--tx-3)", marginBottom: 8 }}>Выберите AI-агента:</p>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto" }}>
+                            {(aiAgents as any[]).map((a: any) => (
+                              <button key={a.id} type="button" onClick={() => setSelectedAgentId(selectedAgentId === a.id ? null : a.id)}
+                                style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 6, border: `0.5px solid ${selectedAgentId === a.id ? "var(--accent)" : "var(--line)"}`, background: selectedAgentId === a.id ? "var(--chip)" : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+                              >
+                                <span style={{ fontSize: 12 }}>🤖</span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <p style={{ fontSize: 11, fontWeight: 500, color: "var(--tx-1)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</p>
+                                  {a.role && <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0 }}>{a.role}</p>}
+                                </div>
+                                {selectedAgentId === a.id && <span style={{ fontSize: 10, color: "var(--accent)", flexShrink: 0 }}>✓</span>}
+                              </button>
+                            ))}
+                            <button type="button" onClick={() => router.push(`/${locale}/ai-workers`)}
+                              style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 6, border: "0.5px dashed var(--line)", background: "transparent", cursor: "pointer", fontFamily: "inherit", color: "var(--accent)", fontSize: 11 }}
+                            >
+                              <span>+</span> Создать собственного AI-агента
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
             <ProjectImagesPanel projectId={projectId} />
           </div>
 
