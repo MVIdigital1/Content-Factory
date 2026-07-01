@@ -597,6 +597,12 @@ export function WizardView({
   const [nicheSearch, setNicheSearch] = useState("");
   const [nicheDropdownOpen, setNicheDropdownOpen] = useState(false);
 
+  // Campaign-level niche in Goal step
+  const [campaignNiche, setCampaignNiche] = useState<string>(draft?.campaignNiche ?? "");
+  const [goalNicheSearch, setGoalNicheSearch] = useState("");
+  const [goalNicheOpen, setGoalNicheOpen] = useState(false);
+  const [budgetError, setBudgetError] = useState("");
+
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [productImagePreview, setProductImagePreview] = useState<string | null>(
     null,
@@ -755,6 +761,7 @@ export function WizardView({
         landingId,
         step,
         maxStep,
+        campaignNiche,
       },
       tabId,
     );
@@ -857,19 +864,21 @@ export function WizardView({
 
   const suggestBudget = async () => {
     setBudgetSuggesting(true);
+    setBudgetTip("");
+    setBudgetError("");
     try {
       const days = dateFrom && dateTo ? Math.max(1, Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000)) : 30;
       const res = await fetch("/api/ai/suggest-budget", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goal, niche: activeProject?.niche, audience, platforms: Array.from(selectedPlatforms), days }),
+        body: JSON.stringify({ goal, niche: campaignNiche || (activeProject as any)?.niche, audience, platforms: Array.from(selectedPlatforms), days }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error("Ошибка сервера — попробуйте снова");
       const data = await res.json();
       if (data.recommended) setBudget(String(data.recommended));
       if (data.tip) setBudgetTip(data.tip);
-    } catch {
-      // silent
+    } catch (e: any) {
+      setBudgetError(e.message || "Не удалось получить AI совет");
     } finally {
       setBudgetSuggesting(false);
     }
@@ -884,7 +893,7 @@ export function WizardView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           projectName: project.name,
-          niche: project.niche,
+          niche: campaignNiche || project.niche,
           description: project.description,
           audience: project.audience,
         }),
@@ -1628,6 +1637,66 @@ export function WizardView({
               </div>
             </div>
 
+            {/* Niche search */}
+            <div style={{ position: "relative" }}>
+              <label className="block ui-label mb-1">Ниша</label>
+              <div
+                style={{ position: "relative" }}
+                onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setGoalNicheOpen(false); }}
+              >
+                <div style={{ position: "relative" }}>
+                  <input
+                    type="text"
+                    value={goalNicheOpen ? goalNicheSearch : (campaignNiche || goalNicheSearch)}
+                    onChange={(e) => { setGoalNicheSearch(e.target.value); setGoalNicheOpen(true); if (!e.target.value) setCampaignNiche(""); }}
+                    onFocus={() => { setGoalNicheOpen(true); setGoalNicheSearch(""); }}
+                    placeholder={campaignNiche || "Поиск ниши — ресторан, IT, одежда..."}
+                    className={inp}
+                    style={{ paddingRight: 32 }}
+                  />
+                  {campaignNiche && (
+                    <button
+                      type="button"
+                      onClick={() => { setCampaignNiche(""); setGoalNicheSearch(""); }}
+                      style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--tx-3)", fontSize: 14, lineHeight: 1, padding: 2 }}
+                    >×</button>
+                  )}
+                </div>
+                {goalNicheOpen && (
+                  <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 60, background: "var(--panel)", border: "0.5px solid var(--line)", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", maxHeight: 220, overflowY: "auto" }}>
+                    {WIZARD_NICHE_TREE.flatMap(n => {
+                      const q = goalNicheSearch.toLowerCase();
+                      const parentMatch = n.label.toLowerCase().includes(q);
+                      const subs = n.subs.filter(s => !q || s.toLowerCase().includes(q) || parentMatch);
+                      return subs.map(s => ({ icon: n.icon, parent: n.label, sub: s }))
+                        .concat(n.subs.length === 0 && (!q || parentMatch) ? [{ icon: n.icon, parent: "", sub: n.label }] : []);
+                    }).slice(0, 40).map(item => (
+                      <button
+                        key={`${item.parent}/${item.sub}`}
+                        type="button"
+                        tabIndex={0}
+                        onMouseDown={(e) => { e.preventDefault(); const val = item.parent ? `${item.parent} / ${item.sub}` : item.sub; setCampaignNiche(val); setGoalNicheSearch(""); setGoalNicheOpen(false); }}
+                        style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 12px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
+                      >
+                        <span style={{ fontSize: 15, flexShrink: 0 }}>{item.icon}</span>
+                        <div>
+                          {item.parent && <span style={{ fontSize: 10, color: "var(--tx-3)" }}>{item.parent} / </span>}
+                          <span style={{ fontSize: 12, color: "var(--tx-1)", fontWeight: 500 }}>{item.sub}</span>
+                        </div>
+                      </button>
+                    ))}
+                    {WIZARD_NICHE_TREE.flatMap(n => {
+                      const q = goalNicheSearch.toLowerCase();
+                      const parentMatch = n.label.toLowerCase().includes(q);
+                      return n.subs.filter(s => !q || s.toLowerCase().includes(q) || parentMatch);
+                    }).length === 0 && (
+                      <p style={{ fontSize: 11, color: "var(--tx-3)", padding: "10px 12px", margin: 0 }}>Ничего не найдено</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Product */}
             <div>
               <label className="block ui-label mb-1">О продукте — для AI</label>
@@ -1666,12 +1735,15 @@ export function WizardView({
               <input
                 type="number"
                 value={budget}
-                onChange={(e) => { setBudget(e.target.value); setBudgetTip(""); }}
+                onChange={(e) => { setBudget(e.target.value); setBudgetTip(""); setBudgetError(""); }}
                 placeholder="150000"
                 className={inp}
               />
               {budgetTip && (
                 <p style={{ fontSize: 10, color: "var(--tx-3)", marginTop: 4, lineHeight: 1.5 }}>✦ {budgetTip}</p>
+              )}
+              {budgetError && (
+                <p style={{ fontSize: 10, color: "var(--neg)", marginTop: 4 }}>⚠ {budgetError}</p>
               )}
             </div>
 
