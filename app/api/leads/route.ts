@@ -2,6 +2,40 @@ import { getCurrentUser } from "@/lib/auth";
 import { query, queryOne } from "@/lib/db";
 import { NextResponse } from "next/server";
 
+const BOT_TOKEN = process.env.BOT_TOKEN;
+
+// Fire-and-forget уведомление владельцу лендинга о новом лиде.
+// Никогда не бросает исключение — сохранение лида важнее доставки пинга.
+async function notifyOwner(
+  ownerId: string | null,
+  lead: { name?: string; phone?: string; email?: string; message?: string; title?: string }
+) {
+  if (!ownerId || !BOT_TOKEN) return;
+
+  const owner = await queryOne<{ telegram_chat_id: string | null }>(
+    "SELECT telegram_chat_id FROM profiles WHERE id = $1",
+    [ownerId]
+  );
+  if (!owner?.telegram_chat_id) return;
+
+  const text = [
+    "🔔 Новый лид!",
+    lead.title ? `Лендинг: ${lead.title}` : null,
+    lead.name ? `Имя: ${lead.name}` : null,
+    lead.phone ? `Телефон: ${lead.phone}` : null,
+    lead.email ? `Email: ${lead.email}` : null,
+    lead.message ? `Сообщение: ${lead.message}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: owner.telegram_chat_id, text }),
+  });
+}
+
 export async function GET(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -33,8 +67,8 @@ export async function POST(request: Request) {
   const { landing_id, name, phone, email, message } = await request.json();
   if (!landing_id) return NextResponse.json({ error: "Missing landing_id" }, { status: 400 });
 
-  const landing = await queryOne<{ user_id: string }>(
-    "SELECT user_id FROM landings WHERE id = $1",
+  const landing = await queryOne<{ user_id: string; title: string }>(
+    "SELECT user_id, title FROM landings WHERE id = $1",
     [landing_id]
   );
 
@@ -43,5 +77,11 @@ export async function POST(request: Request) {
      VALUES ($1, $2, $3, $4, $5, $6, 'new')`,
     [landing_id, landing?.user_id ?? null, name ?? null, phone ?? null, email ?? null, message ?? null]
   );
+
+  // пингуем владельца, но не ждём и не роняем ответ при сбое телеги
+  notifyOwner(landing?.user_id ?? null, { name, phone, email, message, title: landing?.title }).catch(
+    () => {}
+  );
+
   return NextResponse.json({ ok: true });
 }

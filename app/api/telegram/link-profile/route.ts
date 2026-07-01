@@ -12,8 +12,9 @@ export async function POST() {
 
   const token = generateToken();
   await query(
-    "INSERT INTO profiles (id, role) VALUES ($1, 'user') ON CONFLICT (id) DO NOTHING",
-    [user.id]
+    `INSERT INTO profiles (id, role, telegram_link_token) VALUES ($1, 'user', $2)
+     ON CONFLICT (id) DO UPDATE SET telegram_link_token = EXCLUDED.telegram_link_token`,
+    [user.id, token]
   );
 
   const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || "postcentro_bot";
