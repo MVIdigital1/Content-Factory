@@ -2,260 +2,256 @@
 
 ## Что это за проект
 
-**MVI Content Factory** — AI-платформа для SMM-специалистов и агентств. Помогает создавать контент, управлять рекламными кампаниями, запускать AI-агентов и отслеживать аналитику по нескольким платформам (Telegram, Instagram, TikTok, VK, Яндекс Директ).
-
-Целевая аудитория: маркетологи, SMM-агентства, малый и средний бизнес в России и Узбекистане.
+**MVI Content Factory** — AI-платформа для SMM-специалистов и агентств на рынке Узбекистана/СНГ.
+Сайт: **mvira.uz**
+Разработчик/владелец: Jahongir (johasalimov1717@gmail.com)
 
 ---
 
-## Стек технологий
+## Стек технологий (АКТУАЛЬНЫЙ)
 
 | Слой | Технология |
 |------|-----------|
 | Фреймворк | Next.js 16 (App Router) |
 | Язык | TypeScript |
-| БД и Auth | Supabase (PostgreSQL + Auth + Storage) |
-| AI | Anthropic Claude (`@anthropic-ai/sdk`) + OpenAI |
-| Стили | Tailwind CSS + CSS-переменные (кастомная дизайн-система) |
-| Стейт/Запросы | TanStack React Query v5 |
-| Интернационализация | next-intl (ru / uz / en) |
-| Графики | Recharts |
+| БД | PostgreSQL напрямую через `pg` — НЕ Supabase клиент |
+| Auth | JWT (`jsonwebtoken` + `bcryptjs`) — НЕ Supabase Auth |
+| AI | Anthropic Claude (`@anthropic-ai/sdk`) — модель `claude-haiku-4-5-20251001` для быстрых задач |
+| Стили | Tailwind CSS + CSS-переменные |
+| Стейт | TanStack React Query v5 |
+| i18n | next-intl (ru / uz / en) |
 | Иконки | lucide-react |
-| Деплой | Vercel |
+| Деплой | **Webdock VPS** (НЕ Vercel) |
+
+> ⚠️ В CLAUDE.md ранее было написано "Supabase Auth" и "Vercel" — это НЕВЕРНО. Auth и БД — кастомные.
 
 ---
 
-## Структура папок
+## Deploy — как происходит git push
+
+1. Разработчик делает `git push origin main` с локальной машины
+2. **GitHub Actions** (`.github/workflows/deploy.yml`) автоматически запускается
+3. Actions подключается по SSH к **Webdock VPS** (`admin@mvira.uz`)
+4. На сервере выполняется:
+   ```bash
+   cd /var/www/Content-Factory
+   git pull origin main
+   npm ci --omit=dev
+   npm run build
+   pm2 restart all --update-env
+   ```
+5. Сайт обновляется через ~2-3 минуты после пуша
+
+**При ошибке деплоя:**
+- Зайти на сервер по SSH
+- `pm2 logs` — посмотреть ошибки
+- `npm run build` — запустить вручную и посмотреть что сломалось
+- `pm2 restart all --update-env` — перезапустить после исправления
+
+---
+
+## База данных
+
+**Подключение:** через `lib/db.ts` → `pg.Pool` → переменная `DATABASE_URL`
+**Пользователь БД:** `mvira_user`
+**Имя БД:** `mvira`
+
+**Утилиты:**
+```ts
+import { query, queryOne } from "@/lib/db";
+// query() возвращает T[] (массив строк напрямую, НЕ { rows })
+// queryOne() возвращает T | null
+```
+
+### Схема таблиц (актуальная после всех миграций)
+
+**`users`**
+```
+id, email, password_hash, full_name, created_at, updated_at
+```
+
+**`projects`** (миграции 001, 006, 008)
+```
+id, user_id, name, niche, description, audience, tone, language,
+logo_url, is_active, ai_agent_id, country, phone, website, keywords,
+created_at, updated_at
+```
+
+**`landings`**
+```
+id, user_id, title, slug, content (JSON), published,
+template_id, bg_image, settings (JSON), created_at, updated_at
+```
+
+**`leads`** (миграция 007)
+```
+id, landing_id, user_id, name, phone, email, message, status, created_at
+```
+
+**`ad_campaigns`**
+```
+id, user_id, project_id, name, goal, product, audience, budget,
+date_from, date_to, status, platforms (JSON), created_at, updated_at
+```
+
+**`contents`, `ai_agents`, `tasks`, `profiles`** — стандартные, без изменений
+
+### Миграции
+```
+001_init_no_supabase.sql      — начальная схема
+002_missing_tables.sql        — дополнительные таблицы
+003_fix_workspace_members.sql
+004_fix_users_table.sql
+005_password_reset_tokens.sql
+006_project_extra_fields.sql  — country, phone, website в projects
+007_landing_leads.sql         — landing_id, message в leads
+008_project_keywords.sql      — keywords в projects
+```
+
+**Запуск миграции на сервере:**
+```bash
+sudo -u postgres psql -d mvira -f /var/www/Content-Factory/supabase/migrations/XXX.sql
+```
+
+---
+
+## Auth
+
+**Файл:** `lib/auth.ts`
+- `getCurrentUser()` — читает JWT из cookie `auth_token`, возвращает `{ id, email, full_name }`
+- `createToken(userId, email)` — создаёт JWT на 30 дней
+- JWT_SECRET берётся из `process.env.JWT_SECRET`
+
+Во всех Route Handlers:
+```ts
+const user = await getCurrentUser();
+if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+```
+
+---
+
+## Структура папок (ключевые)
 
 ```
 app/
-  [locale]/
-    (dashboard)/          ← все страницы дашборда (требуют авторизации)
-      layout.tsx          ← Sidebar + TopNavbar обёртка
-      projects/           ← управление проектами (основная сущность)
-      campaigns/          ← рекламные кампании
-      create/             ← создание контента (основная AI-фича)
-      ai-workers/         ← AI-агенты
-      dashboard/          ← главная страница с метриками
-      history/            ← история контента
-      analytics/          ← аналитика
-      calendar/           ← контент-календарь
-      summary/            ← сводка
-      tasks/              ← задачи
-      ab-tests/           ← A/B тесты
-      integrations/       ← подключение каналов
-      crm/                ← CRM клиентов
-      team/               ← команда
-      chat/               ← чат
-      tickets/            ← поддержка
-      billing/            ← тарифы и оплата
-      referral/           ← реферальная программа
-      settings/           ← настройки
-      tokens/             ← токены (лимиты AI)
-      infographics/       ← генерация инфографики
-    auth/                 ← login / register / callback
-    admin/                ← admin-панель
-    page.tsx              ← лендинг (публичный)
-  api/                    ← Route Handlers
-    ai/                   ← AI-эндпоинты (generate, score-post, smm-manager и др.)
-    telegram/             ← Telegram API интеграция
-    billing/              ← Click / Payme вебхуки
-    content/              ← публикация контента
-    tokens/               ← баланс и списание токенов
+  [locale]/(dashboard)/     ← все страницы дашборда ("use client")
+    projects/page.tsx        ← проекты с вкладками, черновиками, AI-заполнением
+    campaigns/page.tsx       ← кампании + WizardView
+    landings/
+      page.tsx               ← список лендингов + вкладка "Заявки" + кнопка Портфолио
+      create/page.tsx        ← создание лендинга (sessionStorage + превью после генерации)
+      [id]/edit/page.tsx     ← редактирование лендинга
+  api/
+    auth/me/route.ts         ← GET текущего пользователя → { user: { id, email, full_name } }
+    projects/route.ts        ← GET все проекты / POST создать
+    projects/[id]/route.ts   ← GET / PATCH / DELETE проект
+    landings/route.ts        ← GET лендинги пользователя
+    landings/[id]/route.ts   ← GET / PATCH / DELETE лендинг
+    landings/generate/route.ts ← POST генерация лендинга через AI (возвращает { id, slug })
+    landings/public/route.ts ← GET публичный лендинг по slug
+    landings/portfolio/[userId]/route.ts ← GET опубликованные лендинги пользователя
+    leads/route.ts           ← GET (все заявки пользователя) / POST (новая заявка)
+    ai/suggest-project/route.ts ← AI заполнение description + audience + keywords
+    ai/suggest-budget/route.ts  ← AI совет по бюджету кампании
+  l/
+    [slug]/page.tsx          ← публичный лендинг
+    u/[userId]/page.tsx      ← публичное портфолио (все опубликованные лендинги)
 components/
-  features/               ← основные компоненты (Sidebar, TopNavbar и др.)
-  ads/                    ← компоненты рекламного модуля (WizardView и др.)
-  ui/                     ← базовые UI-компоненты (Button, Modal, Badge и др.)
-lib/
-  ai/claude.ts            ← клиент Anthropic + системный промпт
-  supabase/               ← client.ts / server.ts / types.ts
-  hooks/                  ← кастомные хуки (useAdsData и др.)
-messages/                 ← переводы ru.json / uz.json / en.json
-supabase/migrations/      ← SQL-миграции
+  ads/WizardView.tsx         ← визард создания кампании (2645+ строк, осторожно!)
 ```
 
 ---
 
-## Основные сущности в БД (Supabase)
+## Дизайн-система
 
-| Таблица | Описание |
-|---------|----------|
-| `projects` | Проекты брендов. Поля: `name`, `niche`, `description`, `audience`, `tone`, `language`, `logo_url`, `is_active`, `ai_agent_id` |
-| `contents` | Сгенерированный контент. Привязан к `project_id` |
-| `ad_campaigns` | Рекламные кампании. Привязаны к `project_id` |
-| `ai_agents` | AI-агенты. Привязаны к `project_id` через `ai_agent_id` |
-| `tasks` | Задачи |
-| `profiles` | Профили пользователей |
+CSS-переменные (НЕ Tailwind цвета):
+```
+--bg, --panel, --panel-2, --line, --line-strong
+--tx-1, --tx-2, --tx-3
+--accent, --on-accent, --neg, --hover, --chip
+```
 
-Все таблицы привязаны к `user_id` (Supabase Auth UUID). Row Level Security включён.
+Классы: `ui-surface`, `ui-label`, `text-tx-1/2/3`
 
 ---
 
-## Дизайн-система (CSS-переменные)
+## Текущий статус фич (последнее обновление: 2026-07-01)
 
-Все цвета — через переменные, не через Tailwind-палитру:
+### ✅ Работает
+- Аутентификация (JWT, login/register)
+- Проекты: создание, редактирование, черновики, ниша с деревом, тон с подстилями
+  - Ниша "Другое" → показывает текстовый input
+  - AI заполнить → description + audience + keywords (с показом ошибки)
+  - Поле "Ключевые слова" в правой колонке
+- Кампании: WizardView с динамическими шагами по выбранным инструментам
+  - Ниша — поиск прямо в шаге "Цель" (WIZARD_NICHE_TREE, 26 категорий)
+  - AI совет по бюджету (с показом ошибки если упал)
+  - Шаг "Платформы" всегда виден
+- Лендинги:
+  - Создание через AI (шаблоны, фон, sessionStorage между шагами)
+  - После создания — превью с iframe, не редирект
+  - Публичная страница `/l/[slug]`
+  - Портфолио `/l/u/[userId]` — все опубликованные лендинги пользователя
+  - Вкладка "Заявки" в /landings (все лиды с контактами)
+  - Кнопка "Портфолио" в шапке /landings (только если есть опубликованные)
+- Заявки (leads): форма на лендинге → сохраняется в БД с landing_id
+- AI-агенты, генерация контента, инфографика
+- Биллинг (Click/Payme)
+- Мультиязычность (ru/uz/en)
 
-```
---bg           фон страницы
---panel        фон панелей/карточек
---panel-2      вторичный фон
---line         бордер обычный
---line-strong  бордер активный
---tx-1         текст основной
---tx-2         текст вторичный
---tx-3         текст третичный (подписи, плейсхолдеры)
---accent       акцентный цвет (кнопки, активные элементы)
---on-accent    текст поверх accent
---neg          цвет ошибок/удаления (красный)
---hover        фон при hover
---chip         фон тегов/чипсов
-```
+### 🔄 Частично / в процессе
+- Instagram интеграция — OAuth есть, публикация частичная
+- Telegram публикация — есть, дорабатывается
+- CRM, командная работа, тикеты — базовая структура
 
-CSS-классы из глобального стиля:
-- `ui-surface` — карточка/поверхность
-- `ui-label` — лейбл поля формы
-- `text-tx-1`, `text-tx-2`, `text-tx-3` — текстовые цвета
-
-Тема переключается через `ThemeProvider` (light/dark), сохраняется в localStorage.
-
----
-
-## Паттерны кода
-
-### Supabase клиент
-```ts
-// В клиентских компонентах ("use client")
-import { createClient } from "@/lib/supabase/client";
-const supabase = createClient();
-
-// В серверных компонентах / Route Handlers
-import { createClient } from "@/lib/supabase/server";
-const supabase = await createClient();
-```
-
-### Запросы данных
-Всегда через **TanStack React Query** в клиентских компонентах:
-```ts
-const { data, isLoading } = useQuery({
-  queryKey: ["projects"],
-  queryFn: async () => { /* supabase query */ }
-});
-
-const mutation = useMutation({
-  mutationFn: async (id: string) => { /* supabase update */ },
-  onSuccess: () => qc.invalidateQueries({ queryKey: ["projects"] })
-});
-```
-
-### AI вызовы
-Все AI-запросы — через серверные Route Handlers (`app/api/ai/*/route.ts`), не напрямую с клиента. Используется `@anthropic-ai/sdk` (Claude) и `openai` SDK.
-
-### Интернационализация
-```ts
-import { useTranslations, useLocale } from "next-intl";
-const t = useTranslations("Namespace");
-const locale = useLocale(); // "ru" | "uz" | "en"
-```
-Переводы в `messages/ru.json`, `messages/uz.json`, `messages/en.json`.
-
-### Навигация
-```ts
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-// Все ссылки с локалью:
-href={`/${locale}/projects/${id}`}
-```
-
-### Стили
-Смешанный подход: Tailwind-классы + инлайн `style={}`. Не используй внешние CSS-файлы — только `globals.css` для переменных и базовых классов.
+### ❌ Не реализовано / заглушки
+- Реальная аналитика по платформам (данные моковые)
+- A/B тесты — UI есть, логика нет
 
 ---
 
-## Ключевые страницы и их особенности
+## Правила работы с кодом (ВАЖНО)
 
-### `/projects` — Проекты
-- Браузерные вкладки внутри страницы (создание нескольких проектов одновременно)
-- Черновики: сохраняются в `localStorage` (ключ `project_drafts_v1`)
-- Редактирование: открывается модальным окном с полной формой
-- Форма создания: 2 колонки — левая (логотип, название, ниша с деревом, тон с подстилями, язык), правая (описание, аудитория)
-- Ниша и тон — двухуровневые: сначала категория, потом подкатегория
-
-### `/campaigns` — Кампании
-- Таб-структура: Кампании / Создать (WizardView) / Креативы / Отчёты / Подключить
-- WizardView — многошаговый визард для создания рекламной кампании
-- `components/ads/` — все компоненты этого модуля
-
-### `/create` — Создание контента
-- Основная AI-фича: генерация постов для соцсетей
-- Использует данные проекта (бренд, аудитория, тон) для промпта
-
-### `/ai-workers` — AI-агенты
-- Настройка и запуск AI-агентов (SMM-менеджер, аналитик, копирайтер и др.)
-
-### `/billing` — Оплата
-- Интеграция с Click и Payme (платёжные системы СНГ)
-- Вебхуки: `app/api/billing/click/webhook/route.ts`, `app/api/billing/payme/webhook/route.ts`
-
-### `/tokens` — Токены
-- Система лимитов AI-использования
-- Баланс токенов, процент использования, история трат
+1. **Перед изменением** — сначала прочитать файл через Read, не угадывать содержимое
+2. **`query()` возвращает `T[]` напрямую** — никогда не делать `result.rows` (это undefined)
+3. **Изменяя API** — проверить все места где он вызывается (grep)
+4. **Изменяя схему БД** — создать новую миграцию `supabase/migrations/00N_name.sql`
+5. **Миграцию запускать вручную** на сервере после деплоя
+6. **Не трогать** без явного запроса: `middleware.ts`, `layout.tsx`, auth файлы
+7. **TypeScript** — после изменений запустить `npx tsc --noEmit` чтобы убедиться что нет ошибок
+8. **WizardView.tsx** — файл 2600+ строк, менять точечно только нужный блок
+9. **Стили** — только Tailwind + CSS-переменные, никаких новых CSS файлов
+10. **После каждой сессии** — обновить секцию "Последние изменения" в этом файле
 
 ---
 
-## Мультиязычность (i18n)
+## Последние изменения (лог)
 
-- Локаль в URL: `/{locale}/dashboard` → `/ru/dashboard`, `/uz/dashboard`, `/en/dashboard`
-- Роутинг настроен в `i18n/routing.ts`, middleware в `middleware.ts`
-- По умолчанию: `ru`
+### 2026-07-01
+- `projects/page.tsx`: исправлен баг "Другое" ниши (показывает input), добавлено поле Keywords, inline ошибка AI заполнения
+- `api/projects/route.ts` + `[id]/route.ts`: добавлен keywords в POST и PATCH
+- `api/ai/suggest-project/route.ts`: возвращает keywords в ответе
+- `supabase/migrations/008_project_keywords.sql`: **нужно запустить на сервере**
+- `components/ads/WizardView.tsx`: ниша-поиск прямо в шаге "Цель", AI budget показывает ошибку
+
+### 2026-06-29 (предыдущая сессия)
+- `landings/page.tsx`: вкладка "Заявки", кнопка "Портфолио"
+- `landings/create/page.tsx`: sessionStorage + превью после генерации
+- `api/landings/generate/route.ts`: возвращает slug
+- `api/leads/route.ts`: GET + исправлен баг result.rows
+- `app/l/u/[userId]/page.tsx`: публичная портфолио страница (новый файл)
+- `supabase/migrations/007_landing_leads.sql`: **уже запущена на сервере** ✅
 
 ---
 
-## Переменные окружения (`.env.local`)
+## Переменные окружения на сервере
 
+Файл: `/var/www/Content-Factory/.env.local`
 ```
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-ANTHROPIC_API_KEY=
-OPENAI_API_KEY=
+DATABASE_URL=postgresql://mvira_user:...@localhost:5432/mvira
+JWT_SECRET=...
+ANTHROPIC_API_KEY=...
+NEXT_PUBLIC_APP_URL=https://mvira.uz
 ```
 
----
-
-## Команды
-
-```bash
-npm run dev      # запуск dev-сервера (localhost:3000)
-npm run build    # production сборка
-npm run lint     # линтер
-```
-
----
-
-## Что важно знать при работе с кодом
-
-1. **Все компоненты в `(dashboard)` — клиентские** (`"use client"`), данные через React Query
-2. **Не трогай `components/LangSwitcher.tsx`, `components/QueryProvider.tsx` и подобные дубли** в корне `components/` — используй версии из `components/features/`
-3. **Стили** — не добавляй новых CSS файлов; используй Tailwind-классы и CSS-переменные через `style={{}}`
-4. **Мутации** после успеха всегда инвалидируй нужные queryKey через `qc.invalidateQueries()`
-5. **Логотипы** хранятся в Supabase Storage bucket `content-images`, папка `logos/{user_id}/`
-6. **Admin-раздел** (`/admin`) защищён отдельной проверкой роли
-7. **Суфикс `_v2`, `_v1`** в localStorage-ключах — намеренно, для совместимости при изменении схемы
-
----
-
-## Текущий статус разработки
-
-- ✅ Аутентификация (Supabase Auth)
-- ✅ Управление проектами (с редактированием, черновиками)
-- ✅ Создание контента через AI
-- ✅ Рекламные кампании (WizardView с шагами)
-- ✅ AI-агенты
-- ✅ Аналитика, календарь, история контента
-- ✅ Биллинг (Click / Payme)
-- ✅ Токены (лимиты AI)
-- ✅ Инфографика
-- ✅ Мультиязычность (ru/uz/en)
-- 🔄 CRM, командная работа, тикеты — базовая структура есть
-- 🔄 Интеграция с Instagram API (частичная)
-- 🔄 Telegram публикация — есть, продолжается доработка
+PM2 должен быть запущен с `--update-env` чтобы подхватить новые переменные.
