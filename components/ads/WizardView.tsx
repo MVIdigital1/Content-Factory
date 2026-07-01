@@ -844,7 +844,7 @@ export function WizardView({
 
   // Dynamic steps based on selected tools
   const activeSteps = ALL_STEP_DEFS.filter(s => {
-    if (s.key === "goal" || s.key === "launch") return true;
+    if (s.key === "goal" || s.key === "platforms" || s.key === "launch") return true;
     if (s.key === "landing") return campaignTools.has("landing");
     return campaignTools.has("creatives") || campaignTools.has("content");
   });
