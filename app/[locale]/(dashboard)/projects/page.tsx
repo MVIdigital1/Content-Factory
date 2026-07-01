@@ -97,6 +97,7 @@ const colorFor = (id: string) => COLORS[id.charCodeAt(0) % COLORS.length];
 type FormState = {
   name: string; niche: string; description: string;
   audience: string; tone: string; language: string; logo_url: string;
+  country: string; phone: string; website: string;
 };
 type FormSnapshot = { form: FormState; nicheCategory: string; toneSub: string };
 type Draft = { id: string; name: string; snapshot: FormSnapshot; savedAt: string };
@@ -140,6 +141,7 @@ function ProjectForm({
   const defaultForm: FormState = {
     name: "", niche: "", description: "", audience: "",
     tone: "friendly", language: "ru", logo_url: "",
+    country: "", phone: "", website: "",
   };
 
   const [form, setForm] = useState<FormState>(
@@ -159,6 +161,8 @@ function ProjectForm({
   const [toneSub, setToneSub] = useState(
     initialSnapshot ? initialSnapshot.toneSub : "",
   );
+  const [nicheSearch, setNicheSearch] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
 
   const onFormChangeRef = useRef(onFormChange);
   useEffect(() => { onFormChangeRef.current = onFormChange; });
@@ -202,6 +206,26 @@ function ProjectForm({
     r.readAsDataURL(file);
   };
 
+  const handleAiGenerate = async () => {
+    if (!form.name.trim()) return;
+    setAiGenerating(true);
+    try {
+      const res = await fetch("/api/ai/suggest-project", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: form.name, niche: form.niche }),
+      });
+      if (!res.ok) throw new Error("AI error");
+      const data = await res.json();
+      if (data.description) f("description", data.description);
+      if (data.audience) f("audience", data.audience);
+    } catch {
+      alert("Не удалось сгенерировать. Попробуйте ещё раз.");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!form.name.trim() || nameError) return;
     setSaving(true);
@@ -224,6 +248,9 @@ function ProjectForm({
         tone: form.tone,
         language: form.language,
         logo_url: logo_url || null,
+        country: form.country || null,
+        phone: form.phone || null,
+        website: form.website || null,
       };
 
       const res = projectId
@@ -299,8 +326,18 @@ function ProjectForm({
         {/* Ниша */}
         <div>
           <label className="block ui-label mb-2">Ниша</label>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", border: "0.5px solid var(--line)", borderRadius: 8, background: "var(--panel)", marginBottom: 8 }}>
+            <Search size={12} style={{ color: "var(--tx-3)", flexShrink: 0 }} />
+            <input
+              value={nicheSearch}
+              onChange={(e) => setNicheSearch(e.target.value)}
+              placeholder="Поиск ниши..."
+              style={{ background: "none", border: "none", outline: "none", fontSize: 12, color: "var(--tx-1)", width: "100%", fontFamily: "inherit" }}
+            />
+            {nicheSearch && <button onClick={() => setNicheSearch("")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--tx-3)", padding: 0, fontSize: 14 }}>✕</button>}
+          </div>
           <div className="flex gap-1.5 flex-wrap mb-2">
-            {NICHE_TREE.map((n) => {
+            {NICHE_TREE.filter(n => !nicheSearch || n.label.toLowerCase().includes(nicheSearch.toLowerCase()) || n.subs.some(s => s.toLowerCase().includes(nicheSearch.toLowerCase()))).map((n) => {
               const isActive = nicheCategory === n.label;
               return (
                 <button
@@ -413,7 +450,16 @@ function ProjectForm({
 
       <div className="space-y-4">
         <div>
-          <label className="block ui-label mb-1">Описание бренда</label>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+            <label className="block ui-label">Описание бренда</label>
+            <button
+              onClick={handleAiGenerate}
+              disabled={!form.name.trim() || aiGenerating}
+              style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 6, border: "0.5px solid var(--accent)", background: "transparent", color: "var(--accent)", fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", opacity: !form.name.trim() || aiGenerating ? 0.5 : 1 }}
+            >
+              {aiGenerating ? "⟳ Генерирую..." : "✦ AI заполнить"}
+            </button>
+          </div>
           <textarea
             value={form.description}
             onChange={(e) => f("description", e.target.value)}
@@ -427,16 +473,45 @@ function ProjectForm({
             value={form.audience}
             onChange={(e) => f("audience", e.target.value)}
             placeholder="Возраст, интересы, география, боли и желания..."
-            className={`${inp} resize-none h-20`}
+            className={`${inp} resize-none h-16`}
           />
         </div>
-        <div className="p-4 bg-chip/30 rounded-[10px] border border-line">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div>
+            <label className="block ui-label mb-1">Страна</label>
+            <input
+              value={form.country}
+              onChange={(e) => f("country", e.target.value)}
+              placeholder="Узбекистан"
+              className={inp}
+            />
+          </div>
+          <div>
+            <label className="block ui-label mb-1">Телефон</label>
+            <input
+              value={form.phone}
+              onChange={(e) => f("phone", e.target.value)}
+              placeholder="+998 90 000 00 00"
+              className={inp}
+            />
+          </div>
+        </div>
+        <div>
+          <label className="block ui-label mb-1">Сайт</label>
+          <input
+            value={form.website}
+            onChange={(e) => f("website", e.target.value)}
+            placeholder="https://example.com"
+            className={inp}
+          />
+        </div>
+        <div className="p-3 bg-chip/30 rounded-[10px] border border-line">
           <div className="flex items-start gap-2">
-            <span style={{ fontSize: 16 }}>✦</span>
+            <span style={{ fontSize: 14 }}>✦</span>
             <div>
-              <p className="text-[11px] font-semibold text-tx-1 mb-1">Чем больше заполнишь — тем лучше AI</p>
+              <p className="text-[11px] font-semibold text-tx-1 mb-0.5">Чем больше заполнишь — тем лучше AI</p>
               <p className="text-[10px] text-tx-3 leading-relaxed">
-                Описание и аудитория используются при генерации контента, кампаний и рекомендаций агентов
+                Описание и аудитория используются при генерации контента и рекомендаций
               </p>
             </div>
           </div>
@@ -477,6 +552,9 @@ function EditProjectModal({
       tone: project.tone ?? "friendly",
       language: project.language ?? "ru",
       logo_url: project.logo_url ?? "",
+      country: project.country ?? "",
+      phone: project.phone ?? "",
+      website: project.website ?? "",
     },
     nicheCategory: getNicheCategory(project.niche ?? ""),
     toneSub: "",

@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "next-intl";
 import { ChevronLeft, ChevronRight, Sparkles, Lock, Check } from "lucide-react";
 
@@ -102,11 +102,17 @@ const BG_IMAGES = [
 ];
 
 // ── Component ──────────────────────────────────────────────────────────────
-export default function CreateLandingPage() {
+function CreateLandingPageInner() {
   const router = useRouter();
   const locale = useLocale();
+  const searchParams = useSearchParams();
+  const fromCampaign = searchParams.get("from") === "campaign";
   const [step, setStep] = useState(1);
-  const [step1, setStep1] = useState<Step1>(EMPTY_STEP1);
+  const [step1, setStep1] = useState<Step1>(() => {
+    const offer = searchParams.get("product") || "";
+    const audience = searchParams.get("audience") || "";
+    return { ...EMPTY_STEP1, offer, audience };
+  });
   const [templateId, setTemplateId] = useState<string>("classic");
   const [bgImage, setBgImage] = useState<string>(BG_IMAGES[0].url);
   const [aiPrompt, setAiPrompt] = useState("");
@@ -146,7 +152,7 @@ export default function CreateLandingPage() {
       <div style={{ maxWidth: 760, margin: "0 auto" }}>
         {/* Back */}
         <button
-          onClick={() => router.push(`/${locale}/landings`)}
+          onClick={() => fromCampaign ? router.back() : router.push(`/${locale}/landings`)}
           style={{
             display: "flex",
             alignItems: "center",
@@ -609,6 +615,14 @@ export default function CreateLandingPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function CreateLandingPage() {
+  return (
+    <Suspense fallback={null}>
+      <CreateLandingPageInner />
+    </Suspense>
   );
 }
 

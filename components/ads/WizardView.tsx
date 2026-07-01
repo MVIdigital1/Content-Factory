@@ -517,6 +517,11 @@ export function WizardView({
     ),
   );
   const [landingId, setLandingId] = useState<string | null>(draft?.landingId ?? null);
+  const [campaignTools, setCampaignTools] = useState<Set<string>>(new Set(draft?.campaignTools ?? []));
+  const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(draft?.selectedAgentId ?? null);
+  const [budgetSuggesting, setBudgetSuggesting] = useState(false);
+  const [budgetTip, setBudgetTip] = useState("");
   const [autoSaved, setAutoSaved] = useState(false);
   const [draftId, setDraftId] = useState<string | null>(draft?.draftId ?? null);
 
@@ -797,6 +802,26 @@ export function WizardView({
   const [projectRecs, setProjectRecs] = useState<string[]>([]);
   const [loadingRecs, setLoadingRecs] = useState(false);
   const [autofilling, setAutofilling] = useState(false);
+
+  const suggestBudget = async () => {
+    setBudgetSuggesting(true);
+    try {
+      const days = dateFrom && dateTo ? Math.max(1, Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000)) : 30;
+      const res = await fetch("/api/ai/suggest-budget", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ goal, niche: activeProject?.niche, audience, platforms: Array.from(selectedPlatforms), days }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      if (data.recommended) setBudget(String(data.recommended));
+      if (data.tip) setBudgetTip(data.tip);
+    } catch {
+      // silent
+    } finally {
+      setBudgetSuggesting(false);
+    }
+  };
 
   const autofillFromProject = async (project: any) => {
     if (!project) return;
@@ -1446,6 +1471,69 @@ export function WizardView({
               </div>
             </div>
 
+            {/* Campaign tools checkboxes */}
+            <div>
+              <label className="block ui-label mb-2">Инструменты кампании</label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {[
+                  { key: "landing", label: "Лендинг", icon: "🌐" },
+                  { key: "ai_agent", label: "AI-агент", icon: "🤖" },
+                  { key: "creatives", label: "Рекламные креативы", icon: "🎨" },
+                  { key: "content", label: "Контент для соцсетей", icon: "📝" },
+                ].map((tool) => {
+                  const checked = campaignTools.has(tool.key);
+                  return (
+                    <div key={tool.key}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "8px 10px", borderRadius: 8, border: `0.5px solid ${checked ? "var(--accent)" : "var(--line)"}`, background: checked ? "var(--chip)" : "transparent", transition: "all 0.15s" }}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            const next = new Set(campaignTools);
+                            if (checked) { next.delete(tool.key); if (tool.key === "ai_agent") { setAgentDropdownOpen(false); setSelectedAgentId(null); } }
+                            else { next.add(tool.key); if (tool.key === "ai_agent") setAgentDropdownOpen(true); }
+                            setCampaignTools(next);
+                          }}
+                          style={{ accentColor: "var(--accent)", width: 14, height: 14, flexShrink: 0 }}
+                        />
+                        <span style={{ fontSize: 14 }}>{tool.icon}</span>
+                        <span style={{ fontSize: 12, color: "var(--tx-1)", fontWeight: checked ? 500 : 400 }}>{tool.label}</span>
+                      </label>
+                      {tool.key === "ai_agent" && checked && (
+                        <div style={{ marginTop: 6, marginLeft: 10, padding: 10, background: "var(--panel-2)", borderRadius: 8, border: "0.5px solid var(--line)" }}>
+                          <p style={{ fontSize: 10, color: "var(--tx-3)", marginBottom: 8 }}>Выберите AI-агента:</p>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto" }}>
+                            {(aiAgents as any[]).map((a: any) => (
+                              <button
+                                key={a.id}
+                                type="button"
+                                onClick={() => setSelectedAgentId(selectedAgentId === a.id ? null : a.id)}
+                                style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 6, border: `0.5px solid ${selectedAgentId === a.id ? "var(--accent)" : "var(--line)"}`, background: selectedAgentId === a.id ? "var(--chip)" : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+                              >
+                                <span style={{ fontSize: 12 }}>🤖</span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <p style={{ fontSize: 11, fontWeight: 500, color: "var(--tx-1)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</p>
+                                  {a.role && <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0 }}>{a.role}</p>}
+                                </div>
+                                {selectedAgentId === a.id && <span style={{ fontSize: 10, color: "var(--accent)", flexShrink: 0 }}>✓</span>}
+                              </button>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/${locale}/ai-workers`)}
+                              style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 6, border: "0.5px dashed var(--line)", background: "transparent", cursor: "pointer", fontFamily: "inherit", color: "var(--accent)", fontSize: 11 }}
+                            >
+                              <span>+</span> Создать собственного AI-агента
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Product */}
             <div>
               <label className="block ui-label mb-1">О продукте — для AI</label>
@@ -1470,14 +1558,27 @@ export function WizardView({
 
             {/* Budget */}
             <div>
-              <label className="block ui-label mb-1">Бюджет (₽)</label>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                <label className="block ui-label">Бюджет (₽)</label>
+                <button
+                  type="button"
+                  onClick={suggestBudget}
+                  disabled={budgetSuggesting}
+                  style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 6, border: "0.5px solid var(--accent)", background: "transparent", color: "var(--accent)", fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", opacity: budgetSuggesting ? 0.6 : 1 }}
+                >
+                  {budgetSuggesting ? "⟳ Считаю..." : "✦ AI совет"}
+                </button>
+              </div>
               <input
                 type="number"
                 value={budget}
-                onChange={(e) => setBudget(e.target.value)}
+                onChange={(e) => { setBudget(e.target.value); setBudgetTip(""); }}
                 placeholder="150000"
                 className={inp}
               />
+              {budgetTip && (
+                <p style={{ fontSize: 10, color: "var(--tx-3)", marginTop: 4, lineHeight: 1.5 }}>✦ {budgetTip}</p>
+              )}
             </div>
 
             {/* Deadline / period */}
@@ -1743,7 +1844,10 @@ export function WizardView({
                 <p className="text-[13px] font-semibold text-tx-1 mb-1">Нет опубликованных лендингов</p>
                 <p className="text-[11px] text-tx-3 mb-4">Создайте лендинг и он появится здесь</p>
                 <button
-                  onClick={() => router.push(`/${locale}/landings/create`)}
+                  onClick={() => {
+                    const params = new URLSearchParams({ from: "campaign", goal, ...(product && { product }), ...(audience && { audience }), ...(name && { campaign_name: name }) });
+                    router.push(`/${locale}/landings/create?${params}`);
+                  }}
                   className="px-4 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] cursor-pointer hover:opacity-90"
                 >
                   + Создать лендинг
