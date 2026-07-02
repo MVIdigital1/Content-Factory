@@ -4,6 +4,25 @@ import { NextResponse } from "next/server";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
+const MAX_LOGO_BYTES = 5 * 1024 * 1024; // 5MB
+const LOGO_FETCH_TIMEOUT_MS = 10_000;
+
+type ImageMime = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+
+function mimeFromContentType(contentType: string | null): ImageMime | null {
+  const match = contentType?.match(/image\/(jpeg|png|gif|webp)/);
+  return match ? (`image/${match[1]}` as ImageMime) : null;
+}
+
+function mimeFromUrl(url: string): ImageMime | null {
+  const ext = url.split("?")[0].split(".").pop()?.toLowerCase();
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  if (ext === "png") return "image/png";
+  if (ext === "gif") return "image/gif";
+  if (ext === "webp") return "image/webp";
+  return null;
+}
+
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -13,8 +32,44 @@ export async function POST(request: Request) {
   try {
     // AI fill from logo image — returns ALL fields
     if (logoBase64) {
-      const mime = (logoMime || "image/jpeg") as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+      let mime = (logoMime || "image/jpeg") as ImageMime;
       const isUrl = logoBase64.startsWith("http") || logoBase64.startsWith("/");
+
+      let imageData: string;
+      if (isUrl) {
+        const fullUrl = logoBase64.startsWith("/") ? `${process.env.NEXT_PUBLIC_APP_URL}${logoBase64}` : logoBase64;
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), LOGO_FETCH_TIMEOUT_MS);
+        let imgRes: Response;
+        try {
+          imgRes = await fetch(fullUrl, { signal: controller.signal });
+        } catch (fetchErr: any) {
+          const reason = fetchErr?.name === "AbortError" ? "превышено время ожидания" : fetchErr?.message || "сеть недоступна";
+          return NextResponse.json({ error: `Не удалось загрузить логотип по ссылке: ${reason}` }, { status: 400 });
+        } finally {
+          clearTimeout(timeout);
+        }
+
+        if (!imgRes.ok) {
+          return NextResponse.json({ error: `Не удалось загрузить логотип по ссылке (HTTP ${imgRes.status})` }, { status: 400 });
+        }
+
+        const lengthHeader = imgRes.headers.get("content-length");
+        if (lengthHeader && Number(lengthHeader) > MAX_LOGO_BYTES) {
+          return NextResponse.json({ error: "Логотип слишком большой (максимум 5 МБ)" }, { status: 400 });
+        }
+
+        const buf = Buffer.from(await imgRes.arrayBuffer());
+        if (buf.byteLength > MAX_LOGO_BYTES) {
+          return NextResponse.json({ error: "Логотип слишком большой (максимум 5 МБ)" }, { status: 400 });
+        }
+
+        mime = mimeFromContentType(imgRes.headers.get("content-type")) || mimeFromUrl(fullUrl) || mime;
+        imageData = buf.toString("base64");
+      } else {
+        imageData = logoBase64.includes(",") ? logoBase64.split(",")[1] : logoBase64;
+      }
 
       const prompt = `Ты опытный маркетолог и SMM-специалист. Внимательно изучи логотип бренда и заполни все поля профиля бренда для платформы управления контентом.
 
@@ -31,17 +86,13 @@ ${name ? `Название бренда: ${name}` : "Определи назва
   "keywords": "8-12 ключевых слов через запятую для SEO и рекламы"
 }`;
 
-      const imageSource = isUrl
-        ? { type: "url" as const, url: logoBase64.startsWith("/") ? `${process.env.NEXT_PUBLIC_APP_URL}${logoBase64}` : logoBase64 }
-        : { type: "base64" as const, media_type: mime, data: logoBase64.includes(",") ? logoBase64.split(",")[1] : logoBase64 };
-
       const message = await client.messages.create({
         model: "claude-sonnet-4-6",
         max_tokens: 600,
         messages: [{
           role: "user",
           content: [
-            { type: "image", source: imageSource },
+            { type: "image", source: { type: "base64" as const, media_type: mime, data: imageData } },
             { type: "text", text: prompt },
           ],
         }],
