@@ -47,7 +47,7 @@ ${recentPosts.length ? `ПРИМЕРЫ СТИЛЯ:\n${recentPosts.map((p, i) => 
         send("status", { message: "Анализирую бренд..." });
 
         const anthropicStream = client.messages.stream({
-          model: "claude-sonnet-4-5",
+          model: "claude-sonnet-4-6",
           max_tokens: 3000,
           system: SYSTEM_PROMPT,
           messages: [{ role: "user", content: prompt }],

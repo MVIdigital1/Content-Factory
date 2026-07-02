@@ -39,12 +39,12 @@ export async function getCurrentUser() {
     if (!token) return null;
     const payload = verifyToken(token);
     if (!payload) return null;
-    const row = await queryOne<{ id: string; email: string; full_name: string }>(
-      "SELECT id, email, full_name FROM users WHERE id = $1",
+    const row = await queryOne<{ id: string; email: string; full_name: string; avatar_url: string | null }>(
+      "SELECT id, email, full_name, avatar_url FROM users WHERE id = $1",
       [payload.userId]
     );
     if (!row) return null;
-    return { ...row, avatar_url: null };
+    return row;
   } catch {
     return null;
   }
