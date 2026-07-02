@@ -108,6 +108,7 @@ export default function ProjectDetailPage() {
   const [newTaskPriority,  setNewTaskPriority] = useState<TaskPriority>("medium");
   const [taskError,        setTaskError]       = useState("");
   const [taskFilter,       setTaskFilter]      = useState<"all"|"todo"|"done">("all");
+  const [lightboxUrl,      setLightboxUrl]     = useState<string | null>(null);
 
   // ── Queries ──────────────────────────────────────────────────────────────
 
@@ -1025,9 +1026,11 @@ export default function ProjectDetailPage() {
                     >
                       {/* Превью */}
                       {f.type === "image" && f.url ? (
-                        <div className="relative">
+                        <div className="relative cursor-zoom-in" onClick={() => setLightboxUrl(f.url)}>
                           <img src={f.url} alt={f.name} className="w-full h-28 object-cover" />
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                            <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-medium bg-black/50 px-2 py-1 rounded-md transition-opacity">Просмотр</span>
+                          </div>
                         </div>
                       ) : f.type === "video" ? (
                         <div className="w-full h-28 bg-panel-2 flex items-center justify-center">
@@ -1092,6 +1095,28 @@ export default function ProjectDetailPage() {
         )}
 
       </div>
+
+      {/* ── Lightbox ── */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            onClick={() => setLightboxUrl(null)}
+            className="absolute top-4 right-4 text-white/70 hover:text-white cursor-pointer"
+            style={{ background: "rgba(0,0,0,0.4)", border: "none", borderRadius: 8, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            <X size={18} />
+          </button>
+          <img
+            src={lightboxUrl}
+            alt=""
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: "90vw", maxHeight: "90vh", borderRadius: 12, objectFit: "contain", boxShadow: "0 32px 80px rgba(0,0,0,0.6)" }}
+          />
+        </div>
+      )}
 
       {/* ── Task modal ── */}
       {showTaskModal && (

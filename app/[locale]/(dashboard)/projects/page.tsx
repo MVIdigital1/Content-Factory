@@ -173,6 +173,7 @@ function ProjectForm({
     initialSnapshot?.form.logo_url || null,
   );
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoModalOpen, setLogoModalOpen] = useState(false);
   const logoRef = useRef<HTMLInputElement>(null);
   const [nicheCategory, setNicheCategory] = useState(
     initialSnapshot ? initialSnapshot.nicheCategory : "",
@@ -369,6 +370,7 @@ function ProjectForm({
   };
 
   return (
+    <>
     <div className="grid grid-cols-2 gap-6">
       <div className="space-y-4">
         {/* Логотип */}
@@ -377,7 +379,12 @@ function ProjectForm({
           <input ref={logoRef} type="file" accept="image/*" onChange={handleLogoFile} style={{ display: "none" }} />
           {logoPreview ? (
             <div className="flex items-center gap-3 p-3 bg-panel-2 border border-line rounded-[9px]">
-              <img src={logoPreview} alt="" style={{ width: 52, height: 52, borderRadius: 10, objectFit: "cover", flexShrink: 0 }} />
+              <img
+                src={logoPreview}
+                alt=""
+                onClick={() => setLogoModalOpen(true)}
+                style={{ width: 52, height: 52, borderRadius: 10, objectFit: "cover", flexShrink: 0, cursor: "zoom-in" }}
+              />
               <div className="flex-1 min-w-0">
                 <p className="text-[12px] font-medium text-tx-1 mb-1.5">Логотип загружен</p>
                 <div className="flex items-center gap-3 flex-wrap">
@@ -657,6 +664,28 @@ function ProjectForm({
         </button>
       </div>
     </div>
+
+    {/* Logo lightbox */}
+    {logoModalOpen && logoPreview && (
+      <div
+        onClick={() => setLogoModalOpen(false)}
+        style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+      >
+        <button
+          onClick={() => setLogoModalOpen(false)}
+          style={{ position: "absolute", top: 16, right: 16, width: 36, height: 36, borderRadius: 8, border: "none", background: "rgba(255,255,255,0.1)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}
+        >
+          ✕
+        </button>
+        <img
+          src={logoPreview}
+          alt=""
+          onClick={(e) => e.stopPropagation()}
+          style={{ maxWidth: "80vw", maxHeight: "80vh", borderRadius: 16, objectFit: "contain", boxShadow: "0 32px 80px rgba(0,0,0,0.6)" }}
+        />
+      </div>
+    )}
+    </>
   );
 }
 
