@@ -36,7 +36,8 @@ export async function POST(request: Request) {
     const text = (message.content[0] as { text: string }).text;
     const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
     return NextResponse.json(parsed);
-  } catch {
-    return NextResponse.json({ error: "Generation failed" }, { status: 500 });
+  } catch (err: any) {
+    console.error("[ai/suggest-budget]", err?.message || err);
+    return NextResponse.json({ error: err?.message || "Generation failed" }, { status: 500 });
   }
 }

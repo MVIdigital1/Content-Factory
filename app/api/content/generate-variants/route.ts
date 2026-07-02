@@ -72,7 +72,7 @@ export async function POST(request: Request) {
       variants.map(async (v) => {
         const content = await queryOne<any>(
           `INSERT INTO contents (user_id, project_id, campaign_id, type, platform, goal, title, idea, hook, script, voiceover, screen_text, caption, hashtags, cta, source_image_url, status, ai_model, ai_tokens)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'generated', 'claude-sonnet-4-5', 3000)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'generated', 'claude-sonnet-4-6', 3000)
            RETURNING id`,
           [
             user.id, projectId, campaignId || null, contentType, platform, goal,

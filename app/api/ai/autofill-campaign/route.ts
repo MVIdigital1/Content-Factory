@@ -39,7 +39,8 @@ export async function POST(request: Request) {
     if (!validGoals.includes(parsed.goal)) parsed.goal = "Продажи / заявки";
 
     return NextResponse.json(parsed);
-  } catch {
-    return NextResponse.json({ error: "Generation failed" }, { status: 500 });
+  } catch (err: any) {
+    console.error("[ai/autofill-campaign]", err?.message || err);
+    return NextResponse.json({ error: err?.message || "Generation failed" }, { status: 500 });
   }
 }
