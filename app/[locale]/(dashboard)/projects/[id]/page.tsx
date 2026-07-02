@@ -397,7 +397,7 @@ export default function ProjectDetailPage() {
 
   const filteredFiles  = fileFilter === "all"
     ? (files as any[])
-    : (files as any[]).filter((f: any) => f.file_type === fileFilter);
+    : (files as any[]).filter((f: any) => f.type === fileFilter);
 
   // ── Loading / not found ───────────────────────────────────────────────────
 
@@ -1024,12 +1024,12 @@ export default function ProjectDetailPage() {
                       className="group border border-line rounded-xl overflow-hidden hover:border-line-strong transition-colors bg-panel"
                     >
                       {/* Превью */}
-                      {f.file_type === "image" && f.file_url ? (
+                      {f.type === "image" && f.url ? (
                         <div className="relative">
-                          <img src={f.file_url} alt={f.name} className="w-full h-28 object-cover" />
+                          <img src={f.url} alt={f.name} className="w-full h-28 object-cover" />
                           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
                         </div>
-                      ) : f.file_type === "video" ? (
+                      ) : f.type === "video" ? (
                         <div className="w-full h-28 bg-panel-2 flex items-center justify-center">
                           <Film size={28} className="text-tx-3" strokeWidth={1.4} />
                         </div>
@@ -1043,13 +1043,13 @@ export default function ProjectDetailPage() {
                       <div className="p-2">
                         <p className="text-[11px] font-medium text-tx-1 truncate" title={f.name}>{f.name}</p>
                         <div className="flex items-center justify-between mt-1">
-                          <span className="text-[9px] text-tx-3">{formatBytes(f.size_bytes)}</span>
-                          <span className="text-[9px] text-tx-3 capitalize">{FILE_TYPE_LABELS[f.file_type] || f.file_type}</span>
+                          <span className="text-[9px] text-tx-3">{formatBytes(f.size)}</span>
+                          <span className="text-[9px] text-tx-3 capitalize">{FILE_TYPE_LABELS[f.type] || f.type}</span>
                         </div>
                         {/* Действия */}
                         <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           <a
-                            href={f.file_url}
+                            href={f.url}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex-1 text-center text-[10px] py-1 bg-accent/10 text-accent rounded-md font-medium hover:bg-accent/20 transition-colors"
@@ -1059,7 +1059,7 @@ export default function ProjectDetailPage() {
                           <button
                             onClick={() => {
                               if (confirm(`Удалить «${f.name}»?`)) {
-                                deleteFileMutation.mutate({ id: f.id, file_url: f.file_url });
+                                deleteFileMutation.mutate({ id: f.id, file_url: f.url });
                               }
                             }}
                             disabled={deleteFileMutation.isPending}

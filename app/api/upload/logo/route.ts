@@ -7,18 +7,25 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const formData = await request.formData();
-  const file = formData.get("file") as File;
-  if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
+  try {
+    const { base64, name } = await request.json();
+    if (!base64 || !name) return NextResponse.json({ error: "No file" }, { status: 400 });
 
-  const ext = file.name.split(".").pop() || "jpg";
-  const filename = `${user.id}_${Date.now()}.${ext}`;
-  const uploadDir = path.join(process.cwd(), "public", "uploads", "logos");
+    const [, data] = base64.split(",");
+    if (!data) return NextResponse.json({ error: "Invalid image data" }, { status: 400 });
 
-  if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+    const ext = (name as string).split(".").pop() || "jpg";
+    const filename = `${user.id}_${Date.now()}.${ext}`;
+    const uploadDir = path.join(process.cwd(), "public", "uploads", "logos");
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  fs.writeFileSync(path.join(uploadDir, filename), buffer);
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
-  return NextResponse.json({ url: `/uploads/logos/${filename}` });
+    const buffer = Buffer.from(data, "base64");
+    fs.writeFileSync(path.join(uploadDir, filename), buffer);
+
+    return NextResponse.json({ url: `/uploads/logos/${filename}` });
+  } catch (err: any) {
+    console.error("[upload/logo]", err?.message || err);
+    return NextResponse.json({ error: "Upload failed" }, { status: 500 });
+  }
 }

@@ -237,9 +237,17 @@ function ProjectForm({
     try {
       let logo_url = form.logo_url;
       if (logoFile) {
-        const fd = new FormData();
-        fd.append("file", logoFile);
-        const upRes = await fetch("/api/upload/logo", { method: "POST", body: fd });
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(logoFile);
+        });
+        const upRes = await fetch("/api/upload/logo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ base64, name: logoFile.name }),
+        });
         if (!upRes.ok) { alert("Ошибка загрузки логотипа"); setSaving(false); return; }
         const { url } = await upRes.json();
         logo_url = url;
