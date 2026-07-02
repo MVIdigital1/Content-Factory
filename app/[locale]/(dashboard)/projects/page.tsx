@@ -250,6 +250,41 @@ function ProjectForm({
     }
   };
 
+  const handleAiFromImage = async () => {
+    if (!logoPreview) return;
+    setAiGenerating(true);
+    setAiError("");
+    try {
+      const mimeMatch = logoPreview.match(/^data:([^;]+);/);
+      const logoMime = mimeMatch?.[1] || "image/jpeg";
+      const res = await fetch("/api/ai/suggest-project", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: form.name || undefined, logoBase64: logoPreview, logoMime }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || `Ошибка сервера ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.name && !form.name.trim()) f("name", data.name);
+      if (data.description) f("description", data.description);
+      if (data.audience) f("audience", data.audience);
+      if (data.keywords) f("keywords", data.keywords);
+      if (data.tone) f("tone", data.tone);
+      if (data.language) f("language", data.language);
+      if (data.niche) {
+        f("niche", data.niche);
+        const match = NICHE_TREE.find((n) => n.label === data.niche || data.niche.includes(n.label));
+        if (match) setNicheCategory(match.label);
+      }
+    } catch (e: any) {
+      setAiError(e.message || "Не удалось проанализировать логотип.");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!form.name.trim() || nameError) return;
     setSaving(true);
@@ -320,17 +355,28 @@ function ProjectForm({
           <label className="block ui-label mb-2">Логотип</label>
           <input ref={logoRef} type="file" accept="image/*" onChange={handleLogoFile} style={{ display: "none" }} />
           {logoPreview ? (
-            <div className="flex items-center gap-4 p-3 bg-panel-2 border border-line rounded-[9px]">
-              <img src={logoPreview} alt="" style={{ width: 52, height: 52, borderRadius: 10, objectFit: "cover" }} />
-              <div>
-                <p className="text-[12px] font-medium text-tx-1 mb-1">Логотип загружен</p>
-                <button
-                  onClick={() => { setLogoFile(null); setLogoPreview(null); setForm((p) => ({ ...p, logo_url: "" })); }}
-                  className="text-[11px] text-neg cursor-pointer"
-                  style={{ background: "none", border: "none" }}
-                >
-                  Удалить
-                </button>
+            <div className="flex items-center gap-3 p-3 bg-panel-2 border border-line rounded-[9px]">
+              <img src={logoPreview} alt="" style={{ width: 52, height: 52, borderRadius: 10, objectFit: "cover", flexShrink: 0 }} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-medium text-tx-1 mb-1.5">Логотип загружен</p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <button
+                    onClick={() => { setLogoFile(null); setLogoPreview(null); setForm((p) => ({ ...p, logo_url: "" })); }}
+                    className="text-[11px] text-neg cursor-pointer"
+                    style={{ background: "none", border: "none", padding: 0 }}
+                  >
+                    Удалить
+                  </button>
+                  <button
+                    onClick={handleAiFromImage}
+                    disabled={aiGenerating}
+                    className="flex items-center gap-1 text-[11px] font-medium cursor-pointer disabled:opacity-60 transition-opacity"
+                    style={{ background: "none", border: "none", padding: 0, color: "var(--accent)" }}
+                  >
+                    <span>✦</span>
+                    <span>{aiGenerating ? "Анализирую..." : "AI заполнить всё по логотипу"}</span>
+                  </button>
+                </div>
               </div>
             </div>
           ) : (

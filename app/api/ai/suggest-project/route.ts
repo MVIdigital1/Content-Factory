@@ -8,10 +8,50 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { name, niche, keywords } = await request.json();
-  if (!name) return NextResponse.json({ error: "Name required" }, { status: 400 });
+  const { name, niche, keywords, logoBase64, logoMime } = await request.json();
 
-  const prompt = `Ты маркетолог. На основе названия и ниши бизнеса напиши краткое описание бренда, целевую аудиторию и ключевые слова.
+  try {
+    // AI fill from logo image — returns ALL fields
+    if (logoBase64) {
+      const mime = (logoMime || "image/jpeg") as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+      const [, data] = logoBase64.includes(",") ? logoBase64.split(",") : ["", logoBase64];
+
+      const prompt = `Ты опытный маркетолог и SMM-специалист. Внимательно изучи логотип бренда и заполни все поля профиля бренда для платформы управления контентом.
+
+${name ? `Название бренда: ${name}` : "Определи название бренда по логотипу если возможно."}
+
+Верни ТОЛЬКО JSON без markdown и без пояснений:
+{
+  "name": "название бренда (если можно определить по логотипу, иначе оставь пустым)",
+  "description": "2-3 предложения: чем занимается бренд, что предлагает, ключевые ценности (до 250 символов)",
+  "audience": "целевая аудитория: возраст, пол, интересы, боли, география СНГ (до 180 символов)",
+  "tone": "один из вариантов: friendly | professional | humorous | formal",
+  "niche": "одна из ниш: Еда и напитки | Одежда и мода | Красота и уход | IT / Технологии | Образование | Спорт и здоровье | Строительство | Товары для дома | Услуги | Другое",
+  "language": "ru | uz | en",
+  "keywords": "8-12 ключевых слов через запятую для SEO и рекламы"
+}`;
+
+      const message = await client.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 600,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image", source: { type: "base64", media_type: mime, data } },
+            { type: "text", text: prompt },
+          ],
+        }],
+      });
+
+      const text = (message.content[0] as { text: string }).text;
+      const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+      return NextResponse.json({ ...parsed, fromImage: true });
+    }
+
+    // Text-only fill — description, audience, keywords
+    if (!name) return NextResponse.json({ error: "Name required" }, { status: 400 });
+
+    const prompt = `Ты маркетолог. На основе названия и ниши бизнеса напиши краткое описание бренда, целевую аудиторию и ключевые слова.
 
 Название: ${name}
 Ниша: ${niche || "не указана"}
@@ -24,7 +64,6 @@ export async function POST(request: Request) {
   "keywords": "7-10 ключевых слов через запятую для SEO и рекламы"
 }`;
 
-  try {
     const message = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 300,
