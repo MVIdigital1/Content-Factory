@@ -10,7 +10,7 @@ export async function POST(request: Request) {
 
   const { goal, niche, audience, platforms, days } = await request.json();
 
-  const prompt = `Ты специалист по рекламе в СНГ. Порекомендуй бюджет для рекламной кампании.
+  const prompt = `Ты специалист по рекламе в СНГ. Порекомендуй бюджет для рекламной кампании и объясни почему именно такая сумма.
 
 Цель: ${goal || "Продажи / заявки"}
 Ниша: ${niche || "не указана"}
@@ -23,13 +23,13 @@ export async function POST(request: Request) {
   "min": число (минимальный бюджет в рублях),
   "recommended": число (рекомендованный бюджет в рублях),
   "max": число (максимальный бюджет в рублях),
-  "tip": "одна фраза-совет по бюджету (до 100 символов)"
+  "explanation": "2-3 предложения: почему именно эта сумма — учти платформу (средняя стоимость клика/показа), нишу, конкуренцию, период и цель. Конкретно и по делу, без воды."
 }`;
 
   try {
     const message = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 200,
+      max_tokens: 400,
       messages: [{ role: "user", content: prompt }],
     });
 

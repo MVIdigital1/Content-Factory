@@ -569,6 +569,7 @@ export function WizardView({
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(draft?.selectedAgentId ?? null);
   const [budgetSuggesting, setBudgetSuggesting] = useState(false);
   const [budgetTip, setBudgetTip] = useState("");
+  const [budgetRange, setBudgetRange] = useState<{ min: number; max: number } | null>(null);
   const [autoSaved, setAutoSaved] = useState(false);
   const [draftId, setDraftId] = useState<string | null>(draft?.draftId ?? null);
 
@@ -876,6 +877,7 @@ export function WizardView({
   const suggestBudget = async () => {
     setBudgetSuggesting(true);
     setBudgetTip("");
+    setBudgetRange(null);
     setBudgetError("");
     try {
       const days = dateFrom && dateTo ? Math.max(1, Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000)) : 30;
@@ -887,7 +889,9 @@ export function WizardView({
       if (!res.ok) throw new Error("Ошибка сервера — попробуйте снова");
       const data = await res.json();
       if (data.recommended) setBudget(String(data.recommended));
-      if (data.tip) setBudgetTip(data.tip);
+      if (data.min && data.max) setBudgetRange({ min: data.min, max: data.max });
+      if (data.explanation) setBudgetTip(data.explanation);
+      else if (data.tip) setBudgetTip(data.tip);
     } catch (e: any) {
       setBudgetError(e.message || "Не удалось получить AI совет");
     } finally {
@@ -1756,12 +1760,34 @@ export function WizardView({
               <input
                 type="number"
                 value={budget}
-                onChange={(e) => { setBudget(e.target.value); setBudgetTip(""); setBudgetError(""); }}
+                onChange={(e) => { setBudget(e.target.value); setBudgetTip(""); setBudgetRange(null); setBudgetError(""); }}
                 placeholder="150000"
                 className={inp}
               />
-              {budgetTip && (
-                <p style={{ fontSize: 10, color: "var(--tx-3)", marginTop: 4, lineHeight: 1.5 }}>✦ {budgetTip}</p>
+              {(budgetTip || budgetRange) && (
+                <div style={{ marginTop: 8, padding: "10px 12px", background: "var(--panel-2)", border: "0.5px solid var(--line)", borderRadius: 8 }}>
+                  {budgetRange && (
+                    <div style={{ display: "flex", gap: 12, marginBottom: budgetTip ? 8 : 0 }}>
+                      <div style={{ flex: 1, textAlign: "center" }}>
+                        <p style={{ fontSize: 9, color: "var(--tx-3)", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Минимум</p>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-2)" }}>{budgetRange.min.toLocaleString("ru")} ₽</p>
+                      </div>
+                      <div style={{ flex: 1, textAlign: "center", borderLeft: "0.5px solid var(--line)", borderRight: "0.5px solid var(--line)" }}>
+                        <p style={{ fontSize: 9, color: "var(--accent)", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 600 }}>Рекомендуем</p>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)" }}>{Number(budget).toLocaleString("ru")} ₽</p>
+                      </div>
+                      <div style={{ flex: 1, textAlign: "center" }}>
+                        <p style={{ fontSize: 9, color: "var(--tx-3)", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Максимум</p>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-2)" }}>{budgetRange.max.toLocaleString("ru")} ₽</p>
+                      </div>
+                    </div>
+                  )}
+                  {budgetTip && (
+                    <p style={{ fontSize: 11, color: "var(--tx-2)", lineHeight: 1.6, margin: 0 }}>
+                      <span style={{ color: "var(--accent)", marginRight: 4 }}>✦</span>{budgetTip}
+                    </p>
+                  )}
+                </div>
               )}
               {budgetError && (
                 <p style={{ fontSize: 10, color: "var(--neg)", marginTop: 4 }}>⚠ {budgetError}</p>
