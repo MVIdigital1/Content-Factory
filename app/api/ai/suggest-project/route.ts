@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     // AI fill from logo image — returns ALL fields
     if (logoBase64) {
       const mime = (logoMime || "image/jpeg") as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
-      const [, data] = logoBase64.includes(",") ? logoBase64.split(",") : ["", logoBase64];
+      const isUrl = logoBase64.startsWith("http") || logoBase64.startsWith("/");
 
       const prompt = `Ты опытный маркетолог и SMM-специалист. Внимательно изучи логотип бренда и заполни все поля профиля бренда для платформы управления контентом.
 
@@ -31,13 +31,17 @@ ${name ? `Название бренда: ${name}` : "Определи назва
   "keywords": "8-12 ключевых слов через запятую для SEO и рекламы"
 }`;
 
+      const imageSource = isUrl
+        ? { type: "url" as const, url: logoBase64.startsWith("/") ? `${process.env.NEXT_PUBLIC_APP_URL}${logoBase64}` : logoBase64 }
+        : { type: "base64" as const, media_type: mime, data: logoBase64.includes(",") ? logoBase64.split(",")[1] : logoBase64 };
+
       const message = await client.messages.create({
         model: "claude-sonnet-4-6",
         max_tokens: 600,
         messages: [{
           role: "user",
           content: [
-            { type: "image", source: { type: "base64", media_type: mime, data } },
+            { type: "image", source: imageSource },
             { type: "text", text: prompt },
           ],
         }],
