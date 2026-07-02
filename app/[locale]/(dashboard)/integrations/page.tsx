@@ -1436,7 +1436,7 @@ function IntegrationsPageInner() {
 
   const connectMetaAds = () => {
     const params = new URLSearchParams({
-      client_id: process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID ?? "",
+      client_id: process.env.NEXT_PUBLIC_META_APP_ID ?? "",
       redirect_uri: process.env.NEXT_PUBLIC_META_REDIRECT_URI ?? "",
       scope: "ads_read,ads_management,leads_retrieval,business_management,instagram_business_basic,instagram_business_content_publish",
       response_type: "code",

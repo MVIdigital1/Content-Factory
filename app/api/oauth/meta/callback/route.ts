@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      client_id: process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID,
+      client_id: process.env.NEXT_PUBLIC_META_APP_ID,
       client_secret: process.env.META_APP_SECRET,
       redirect_uri: process.env.NEXT_PUBLIC_META_REDIRECT_URI,
       code,
