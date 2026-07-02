@@ -110,6 +110,25 @@ function loadDrafts(): Draft[] {
 function saveDraftsStorage(drafts: Draft[]) {
   try { localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts)); } catch {}
 }
+const TAB_SNAPSHOTS_KEY = "project_tab_snapshots_v1";
+function loadTabSnapshots(): Record<string, FormSnapshot> {
+  try { const d = localStorage.getItem(TAB_SNAPSHOTS_KEY); if (d) return JSON.parse(d); } catch {}
+  return {};
+}
+function saveTabSnapshot(tabId: string, snap: FormSnapshot) {
+  try {
+    const all = loadTabSnapshots();
+    all[tabId] = snap;
+    localStorage.setItem(TAB_SNAPSHOTS_KEY, JSON.stringify(all));
+  } catch {}
+}
+function deleteTabSnapshot(tabId: string) {
+  try {
+    const all = loadTabSnapshots();
+    delete all[tabId];
+    localStorage.setItem(TAB_SNAPSHOTS_KEY, JSON.stringify(all));
+  } catch {}
+}
 function getNicheCategory(niche: string): string {
   if (!niche) return "";
   if (NICHE_TREE.find((n) => n.label === niche)) return niche;
@@ -780,6 +799,9 @@ function ProjectsPageInner() {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [editingProject, setEditingProject] = useState<any | null>(null);
   const tabFormDataRef = useRef<Record<string, FormSnapshot>>({});
+  const savedSnapshotsRef = useRef<Record<string, FormSnapshot>>(
+    typeof window !== "undefined" ? loadTabSnapshots() : {}
+  );
 
   useEffect(() => { setDrafts(loadDrafts()); }, []);
   useEffect(() => { saveTabs(tabs); }, [tabs]);
@@ -855,6 +877,8 @@ function ProjectsPageInner() {
 
   const forceCloseTab = (id: string) => {
     if (id === "all") return;
+    deleteTabSnapshot(id);
+    delete savedSnapshotsRef.current[id];
     setTabs((prev) => {
       const next = prev.filter((t) => t.id !== id);
       if (activeId === id) { setActiveId("all"); saveActiveId("all"); }
@@ -1201,7 +1225,7 @@ function ProjectsPageInner() {
                   <ProjectForm
                     key={tab.id}
                     tabId={tab.id}
-                    initialSnapshot={isDraft && draft ? draft.snapshot : undefined}
+                    initialSnapshot={isDraft && draft ? draft.snapshot : savedSnapshotsRef.current[tab.id]}
                     onNameChange={(n) => updateTitle(tab.id, n)}
                     onDirtyChange={(dirty) =>
                       setDirtyTabs((prev) => {
@@ -1210,8 +1234,13 @@ function ProjectsPageInner() {
                         return next;
                       })
                     }
-                    onFormChange={(snap) => { tabFormDataRef.current[tab.id] = snap; }}
+                    onFormChange={(snap) => {
+                      tabFormDataRef.current[tab.id] = snap;
+                      if (!isDraft) saveTabSnapshot(tab.id, snap);
+                    }}
                     onSaved={() => {
+                      deleteTabSnapshot(tab.id);
+                      delete savedSnapshotsRef.current[tab.id];
                       if (isDraft && draft) deleteDraft(draft.id);
                       setActiveId("all");
                       saveActiveId("all");
