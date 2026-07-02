@@ -463,6 +463,9 @@ export default function ProjectDetailPage() {
       {/* ── Project title + status ── */}
       <div className="px-4 pt-3 pb-2 border-b border-line bg-panel flex-shrink-0">
         <div className="flex items-center gap-2 mb-0.5">
+          {project.logo_url && (
+            <img src={project.logo_url} alt="" style={{ width: 28, height: 28, borderRadius: 7, objectFit: "cover", flexShrink: 0 }} />
+          )}
           <span className="text-base font-semibold text-tx-1">{project.name}</span>
 
           {/* Активен */}

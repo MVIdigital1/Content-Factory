@@ -355,19 +355,31 @@ function ProjectForm({
             const parent = NICHE_TREE.find((n) => n.label === nicheCategory);
             if (!parent) return null;
             if (parent.subs.length === 0) {
+              const customVal = form.niche === nicheCategory ? "" : form.niche;
               return (
                 <div className="pl-2 border-l-2 border-accent/30 ml-1">
                   <p className="text-[10px] text-tx-3 mb-1.5">
                     Введи свою нишу · <span className="text-accent">{nicheCategory}</span>
                   </p>
-                  <input
-                    type="text"
-                    value={form.niche === nicheCategory ? "" : form.niche}
-                    onChange={(e) => f("niche", e.target.value || nicheCategory)}
-                    placeholder="Например: Ювелирные украшения, Рыбалка..."
-                    autoFocus
-                    className="w-full px-3 py-1.5 rounded-[7px] border border-line bg-panel-2 text-[12px] text-tx-1 outline-none focus:border-accent"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={customVal}
+                      onChange={(e) => f("niche", e.target.value || nicheCategory)}
+                      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                      placeholder="Например: Ювелирные украшения, Рыбалка..."
+                      autoFocus
+                      className="flex-1 px-3 py-1.5 rounded-[7px] border border-line bg-panel-2 text-[12px] text-tx-1 outline-none focus:border-accent"
+                    />
+                    {customVal && (
+                      <button
+                        onClick={() => {}}
+                        style={{ padding: "4px 10px", borderRadius: 7, background: "var(--accent)", color: "var(--on-accent)", fontSize: 11, fontWeight: 600, border: "none", cursor: "default" }}
+                      >
+                        ✓ {customVal}
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             }
@@ -463,25 +475,13 @@ function ProjectForm({
 
       <div className="space-y-4">
         <div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-            <label className="block ui-label">Описание бренда</label>
-            <button
-              onClick={handleAiGenerate}
-              disabled={!form.name.trim() || aiGenerating}
-              style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 6, border: "0.5px solid var(--accent)", background: "transparent", color: "var(--accent)", fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", opacity: !form.name.trim() || aiGenerating ? 0.5 : 1 }}
-            >
-              {aiGenerating ? "⟳ Генерирую..." : "✦ AI заполнить"}
-            </button>
-          </div>
+          <label className="block ui-label mb-1">Описание бренда</label>
           <textarea
             value={form.description}
             onChange={(e) => f("description", e.target.value)}
             placeholder="Чем занимается компания, что продаёт, какие ценности..."
             className={`${inp} resize-none h-24`}
           />
-          {aiError && (
-            <p style={{ fontSize: 10, color: "var(--neg)", marginTop: 4 }}>⚠ {aiError}</p>
-          )}
         </div>
         <div>
           <label className="block ui-label mb-1">Целевая аудитория</label>
@@ -493,14 +493,26 @@ function ProjectForm({
           />
         </div>
         <div>
-          <label className="block ui-label mb-1">Ключевые слова</label>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+            <label className="block ui-label">Ключевые слова</label>
+            <button
+              onClick={handleAiGenerate}
+              disabled={!form.name.trim() || aiGenerating}
+              style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 6, border: "0.5px solid var(--accent)", background: "transparent", color: "var(--accent)", fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", opacity: !form.name.trim() || aiGenerating ? 0.5 : 1 }}
+            >
+              {aiGenerating ? "⟳ Генерирую..." : "✦ AI заполнить"}
+            </button>
+          </div>
           <input
             value={form.keywords}
             onChange={(e) => f("keywords", e.target.value)}
             placeholder="пицца, доставка, Ташкент, быстро..."
             className={inp}
           />
-          <p style={{ fontSize: 10, color: "var(--tx-3)", marginTop: 3 }}>Используются при генерации контента и рекламы</p>
+          {aiError && (
+            <p style={{ fontSize: 10, color: "var(--neg)", marginTop: 4 }}>⚠ {aiError}</p>
+          )}
+          <p style={{ fontSize: 10, color: "var(--tx-3)", marginTop: 3 }}>Введи ключевые слова и нажми «AI заполнить» — описание и аудитория заполнятся автоматически</p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <div>
