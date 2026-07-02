@@ -313,18 +313,24 @@ function ProjectForm({
     try {
       let logo_url = form.logo_url;
       if (logoFile) {
-        const base64 = await new Promise<string>((resolve, reject) => {
+        const raw = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result as string);
           reader.onerror = reject;
           reader.readAsDataURL(logoFile);
         });
+        const base64 = await resizeLogo(raw);
         const upRes = await fetch("/api/upload/logo", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ base64, name: logoFile.name }),
         });
-        if (!upRes.ok) { alert("Ошибка загрузки логотипа"); setSaving(false); return; }
+        if (!upRes.ok) {
+          const errData = await upRes.json().catch(() => ({}));
+          alert("Ошибка загрузки логотипа: " + (errData.error || upRes.status));
+          setSaving(false);
+          return;
+        }
         const { url } = await upRes.json();
         logo_url = url;
       }
