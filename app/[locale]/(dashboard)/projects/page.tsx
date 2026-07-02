@@ -250,17 +250,38 @@ function ProjectForm({
     }
   };
 
+  const resizeLogo = (dataUrl: string): Promise<string> =>
+    new Promise((resolve) => {
+      if (!dataUrl.startsWith("data:")) { resolve(dataUrl); return; }
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 800;
+        let w = img.width; let h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+
   const handleAiFromImage = async () => {
     if (!logoPreview) return;
     setAiGenerating(true);
     setAiError("");
     try {
-      const mimeMatch = logoPreview.match(/^data:([^;]+);/);
+      const resized = await resizeLogo(logoPreview);
+      const mimeMatch = resized.match(/^data:([^;]+);/);
       const logoMime = mimeMatch?.[1] || "image/jpeg";
       const res = await fetch("/api/ai/suggest-project", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: form.name || undefined, logoBase64: logoPreview, logoMime }),
+        body: JSON.stringify({ name: form.name || undefined, logoBase64: resized, logoMime }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
