@@ -4,7 +4,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import LandingRenderer, {
-  Block, HeroBlock, FormBlock, PriceBlock, FeaturesBlock,
+  Block, HeroBlock, FormBlock, PriceBlock, FeaturesBlock, BenefitsBlock,
 } from "@/components/landing/LandingRenderer";
 import {
   Type, Palette, Image, FileText, Search, Globe, BarChart2,
@@ -144,10 +144,11 @@ function LandingEditorInner() {
   });
 
   // ── Block helpers ──────────────────────────────────────────────────────────
-  const hero     = blocks.find(b => b.type === "hero")     as HeroBlock     | undefined;
-  const formBlk  = blocks.find(b => b.type === "form")     as FormBlock     | undefined;
-  const priceBlk = blocks.find(b => b.type === "price")    as PriceBlock    | undefined;
-  const featBlk  = blocks.find(b => b.type === "features") as FeaturesBlock | undefined;
+  const hero        = blocks.find(b => b.type === "hero")                               as HeroBlock     | undefined;
+  const formBlk     = blocks.find(b => b.type === "form")                               as FormBlock     | undefined;
+  const priceBlk    = blocks.find(b => b.type === "price")                              as PriceBlock    | undefined;
+  const featBlk     = blocks.find(b => b.type === "features" || b.type === "benefits")  as (FeaturesBlock | BenefitsBlock) | undefined;
+  const benefitsType = featBlk?.type ?? "benefits";
 
   const patchBlock = (type: string, patch: Record<string, unknown>) =>
     setBlocks(prev => prev.map(b => b.type === type ? { ...b, ...patch } as Block : b));
@@ -287,9 +288,9 @@ function LandingEditorInner() {
           {/* ─ Контент ─ */}
           {activeSection === "content" && (
             <Panel title="Контент">
-              <Section label="Заголовок">
-                <F label="Акционная метка">
-                  <input value={(hero as any)?.badge || ""} onChange={e => patchAndTouch("hero", { badge: e.target.value })} style={inp} placeholder="напр. Скидка 30% до конца июля" />
+              <Section label="Hero блок">
+                <F label="Акционная метка / бейдж">
+                  <input value={(hero as any)?.badge || (hero as any)?.eyebrow || ""} onChange={e => patchAndTouch("hero", { badge: e.target.value })} style={inp} placeholder="напр. Скидка 30% до конца июля" />
                 </F>
                 <F label="Главный заголовок *">
                   <textarea value={(hero as any)?.headline || ""} onChange={e => patchAndTouch("hero", { headline: e.target.value })} rows={2} style={{ ...inp, resize: "vertical" }} />
@@ -300,41 +301,49 @@ function LandingEditorInner() {
                 <F label="Кнопка (CTA)">
                   <input value={(hero as any)?.cta || ""} onChange={e => patchAndTouch("hero", { cta: e.target.value })} style={inp} placeholder="напр. Получить предложение" />
                 </F>
-                <F label="Эмодзи / иконка">
-                  <input value={(hero as any)?.emoji || ""} onChange={e => patchAndTouch("hero", { emoji: e.target.value })} style={inp} placeholder="🛒" />
+                <F label="Визуальный эмодзи (правая сторона)">
+                  <input value={(hero as any)?.visual || (hero as any)?.emoji || ""} onChange={e => patchAndTouch("hero", { visual: e.target.value, emoji: e.target.value })} style={inp} placeholder="🛒" />
                 </F>
               </Section>
               {priceBlk && (
-                <Section label="Цена">
+                <Section label="Блок цены">
+                  <F label="Бейдж акции">
+                    <input value={(priceBlk as any).badge || ""} onChange={e => patchAndTouch("price", { badge: e.target.value })} style={inp} placeholder="Выгода 30%" />
+                  </F>
                   <F label="Старая цена">
                     <input value={priceBlk.oldPrice || ""} onChange={e => patchAndTouch("price", { oldPrice: e.target.value })} style={inp} placeholder="150 000 сум" />
                   </F>
-                  <F label="Новая цена">
+                  <F label="Новая цена *">
                     <input value={priceBlk.newPrice || ""} onChange={e => patchAndTouch("price", { newPrice: e.target.value })} style={inp} placeholder="99 000 сум" />
                   </F>
-                  <F label="Кнопка покупки">
+                  <F label="Кнопка">
                     <input value={priceBlk.cta || ""} onChange={e => patchAndTouch("price", { cta: e.target.value })} style={inp} placeholder="Заказать сейчас" />
                   </F>
                 </Section>
               )}
               {featBlk && (
-                <Section label="Преимущества">
-                  <F label="Заголовок блока">
-                    <input value={featBlk.title || ""} onChange={e => patchAndTouch("features", { title: e.target.value })} style={inp} />
+                <Section label="Преимущества / Услуги">
+                  <F label="Заголовок раздела">
+                    <input value={featBlk.title || ""} onChange={e => patchAndTouch(benefitsType, { title: e.target.value })} style={inp} />
                   </F>
-                  {(featBlk.items || []).map((item, i) => (
-                    <div key={i} style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 6 }}>
-                      <p style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 500 }}>Пункт {i + 1}</p>
+                  {(featBlk.items || []).map((item, fi) => (
+                    <div key={fi} style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 6 }}>
+                      <p style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 500 }}>Пункт {fi + 1}</p>
                       <input value={item.icon || ""} onChange={e => {
                         const items = [...(featBlk.items || [])];
-                        items[i] = { ...items[i], icon: e.target.value };
-                        patchAndTouch("features", { items });
-                      }} style={{ ...inp, marginBottom: 5 }} placeholder="Иконка" />
+                        items[fi] = { ...items[fi], icon: e.target.value };
+                        patchAndTouch(benefitsType, { items });
+                      }} style={{ ...inp, marginBottom: 5 }} placeholder="Иконка (эмодзи)" />
                       <input value={item.title} onChange={e => {
                         const items = [...(featBlk.items || [])];
-                        items[i] = { ...items[i], title: e.target.value };
-                        patchAndTouch("features", { items });
-                      }} style={{ ...inp, marginBottom: 5 }} placeholder="Заголовок" />
+                        items[fi] = { ...items[fi], title: e.target.value };
+                        patchAndTouch(benefitsType, { items });
+                      }} style={{ ...inp, marginBottom: 5 }} placeholder="Заголовок пункта" />
+                      <input value={item.desc || ""} onChange={e => {
+                        const items = [...(featBlk.items || [])];
+                        items[fi] = { ...items[fi], desc: e.target.value };
+                        patchAndTouch(benefitsType, { items });
+                      }} style={inp} placeholder="Описание" />
                     </div>
                   ))}
                 </Section>
