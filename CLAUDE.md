@@ -233,6 +233,24 @@ CSS-переменные (НЕ Tailwind цвета):
 
 ## Последние изменения (лог)
 
+### 2026-07-03 (текущая сессия)
+- `components/landing/LandingRenderer.tsx`: полный редизайн — новые типы блоков:
+  - `price` (старая цена перечёркнута + новая зелёная + кнопка + эмодзи-карточка)
+  - `hero` теперь поддерживает `badge` (чёрная пилюля-метка), `centered`, `emoji`
+  - `form` теперь поддерживает `dark` (тёмный фон #1A1A18) + `note` (подпись под кнопкой)
+- `landings/create/page.tsx`:
+  - Step1 добавлены поля `oldPrice`, `newPrice`, `productEmoji`
+  - TEMPLATES заменены на 6 целевых: Товар, Заявка, Запись, Событие, Меню, Звонок
+  - В шаге 2 (тип) для шаблона "product" показываются поля цены
+- `api/landings/generate/route.ts`:
+  - Разные промпты для каждого templateId (product/appointment/event/menu/callback/form)
+  - Для "product": hero(badge,centered) + price + features + form(dark,note)
+  - Переключён на claude-haiku-4-5-20251001 (быстрее)
+- `landings/[id]/edit/page.tsx`:
+  - Поддержка `price` блока в сайдбаре (emoji, oldPrice, newPrice, cta)
+  - Hero: добавлено поле `badge`
+  - Form: добавлены поля `note` и `dark` (toggle светлый/тёмный)
+
 ### 2026-07-02–03
 - `projects/page.tsx`: ресайз лого перед загрузкой (800×800 JPEG 85%) — исправлен 413 при сохранении
 - `projects/page.tsx`: localStorage персистентность формы (`project_tab_snapshots_v1`)

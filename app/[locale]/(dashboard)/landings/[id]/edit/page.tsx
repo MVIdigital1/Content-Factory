@@ -401,11 +401,11 @@ export default function LandingEditorPage() {
                     }}
                   >
                     <span style={{ fontSize: 16 }}>
-                      {b.type === "hero" ? "🏠" : b.type === "form" ? "📝" : b.type === "features" ? "✦" : "📄"}
+                      {b.type === "hero" ? "🏠" : b.type === "form" ? "📝" : b.type === "features" ? "✦" : b.type === "price" ? "🏷️" : "📄"}
                     </span>
                     <div>
                       <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>
-                        {b.type === "hero" ? "Герой" : b.type === "form" ? "Форма" : b.type === "features" ? "Преимущества" : "Текст"}
+                        {b.type === "hero" ? "Герой" : b.type === "form" ? "Форма" : b.type === "features" ? "Преимущества" : b.type === "price" ? "Цена" : "Текст"}
                       </p>
                       <p style={{ fontSize: 11, color: "var(--tx-3)", margin: 0 }}>
                         {b.type === "hero" && (b as any).headline?.slice(0, 30)}
@@ -422,7 +422,7 @@ export default function LandingEditorPage() {
             <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)" }}>
-                  {selectedBlock.type === "hero" ? "🏠 Герой" : selectedBlock.type === "form" ? "📝 Форма" : selectedBlock.type === "features" ? "✦ Преимущества" : "📄 Текст"}
+                  {selectedBlock.type === "hero" ? "🏠 Герой" : selectedBlock.type === "form" ? "📝 Форма" : selectedBlock.type === "features" ? "✦ Преимущества" : selectedBlock.type === "price" ? "🏷️ Цена" : "📄 Текст"}
                 </span>
                 <button
                   onClick={() => setSelectedIndex(null)}
@@ -442,7 +442,15 @@ export default function LandingEditorPage() {
 
               {selectedBlock.type === "hero" && (
                 <>
-                  <SideField label="Eyebrow">
+                  <SideField label="Акционная метка (badge)">
+                    <input
+                      value={(selectedBlock as any).badge || ""}
+                      onChange={(e) => updateBlock("badge", e.target.value)}
+                      style={sideInputStyle}
+                      placeholder="напр. Скидка 30% до конца месяца"
+                    />
+                  </SideField>
+                  <SideField label="Eyebrow (над заголовком)">
                     <input
                       value={(selectedBlock as any).eyebrow || ""}
                       onChange={(e) => updateBlock("eyebrow", e.target.value)}
@@ -479,6 +487,43 @@ export default function LandingEditorPage() {
                 </>
               )}
 
+              {selectedBlock.type === "price" && (
+                <>
+                  <SideField label="Эмодзи товара">
+                    <input
+                      value={(selectedBlock as any).emoji || ""}
+                      onChange={(e) => updateBlock("emoji", e.target.value)}
+                      style={sideInputStyle}
+                      placeholder="🛒"
+                    />
+                  </SideField>
+                  <SideField label="Старая цена (перечёркнутая)">
+                    <input
+                      value={(selectedBlock as any).oldPrice || ""}
+                      onChange={(e) => updateBlock("oldPrice", e.target.value)}
+                      style={sideInputStyle}
+                      placeholder="напр. 150 000 сум"
+                    />
+                  </SideField>
+                  <SideField label="Новая цена">
+                    <input
+                      value={(selectedBlock as any).newPrice || ""}
+                      onChange={(e) => updateBlock("newPrice", e.target.value)}
+                      style={sideInputStyle}
+                      placeholder="напр. 99 000 сум"
+                    />
+                  </SideField>
+                  <SideField label="Кнопка CTA">
+                    <input
+                      value={(selectedBlock as any).cta || ""}
+                      onChange={(e) => updateBlock("cta", e.target.value)}
+                      style={sideInputStyle}
+                      placeholder="Заказать сейчас"
+                    />
+                  </SideField>
+                </>
+              )}
+
               {selectedBlock.type === "form" && (
                 <>
                   <SideField label="Заголовок формы">
@@ -501,6 +546,24 @@ export default function LandingEditorPage() {
                       onChange={(e) => updateBlock("button", e.target.value)}
                       style={sideInputStyle}
                     />
+                  </SideField>
+                  <SideField label="Примечание (под кнопкой)">
+                    <input
+                      value={(selectedBlock as any).note || ""}
+                      onChange={(e) => updateBlock("note", e.target.value)}
+                      style={sideInputStyle}
+                      placeholder="напр. AI перезвонит за 1 минуту"
+                    />
+                  </SideField>
+                  <SideField label="Тёмный фон">
+                    <select
+                      value={(selectedBlock as any).dark ? "true" : "false"}
+                      onChange={(e) => updateBlock("dark", e.target.value === "true" ? "true" : "")}
+                      style={sideInputStyle}
+                    >
+                      <option value="false">Светлый</option>
+                      <option value="true">Тёмный (#1A1A18)</option>
+                    </select>
                   </SideField>
                 </>
               )}

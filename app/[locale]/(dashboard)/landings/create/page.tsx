@@ -15,6 +15,9 @@ type Step1 = {
   advantages: string;
   tone: string;
   brandColor: string;
+  oldPrice: string;
+  newPrice: string;
+  productEmoji: string;
 };
 
 type Project = {
@@ -34,6 +37,9 @@ const EMPTY_STEP1: Step1 = {
   advantages: "",
   tone: "профессиональный",
   brandColor: "#6366f1",
+  oldPrice: "",
+  newPrice: "",
+  productEmoji: "",
 };
 
 const NICHES = [
@@ -44,12 +50,12 @@ const NICHES = [
 const TONES = ["профессиональный", "дружелюбный", "молодёжный", "экспертный", "вдохновляющий"];
 
 const TEMPLATES = [
-  { id: "classic",    name: "Классический",   desc: "Одноколоночный лаконичный дизайн", pro: false, preview: "🗂️" },
-  { id: "hero-form",  name: "Hero + форма",    desc: "Текст слева, форма справа",         pro: false, preview: "📄" },
-  { id: "minimal",    name: "Минималистичный", desc: "Чистый белый с акцентами",          pro: false, preview: "⬜" },
-  { id: "big-photo",  name: "Большое фото",    desc: "Полноэкранное изображение фона",    pro: false, preview: "🖼️" },
-  { id: "video-bg",   name: "Видео фон",       desc: "Динамичный видеофон",               pro: true,  preview: "🎬" },
-  { id: "fullscreen", name: "Полноэкранный",   desc: "Секции на весь экран",              pro: true,  preview: "⬛" },
+  { id: "product",     name: "Товар",    desc: "Продажа товара со скидкой и ценой",   pro: false, preview: "🛒" },
+  { id: "form",        name: "Заявка",   desc: "Форма сбора лидов для услуг",         pro: false, preview: "📋" },
+  { id: "appointment", name: "Запись",   desc: "Запись на консультацию или приём",    pro: false, preview: "📅" },
+  { id: "event",       name: "Событие",  desc: "Мероприятие, вебинар или тренинг",   pro: false, preview: "🎉" },
+  { id: "menu",        name: "Меню",     desc: "Каталог блюд, услуг или позиций",    pro: false, preview: "🍽️" },
+  { id: "callback",    name: "Звонок",   desc: "Обратный звонок — AI перезвонит",    pro: false, preview: "📞" },
 ];
 
 const BG_IMAGES = [
@@ -460,9 +466,9 @@ function CreateLandingPageInner() {
         {step === 2 && (
           <div>
             <p style={{ fontSize: 14, color: "var(--tx-2)", marginBottom: 24 }}>
-              Выберите структуру лендинга. Позже вы сможете изменить любой блок.
+              Выберите тип лендинга — AI сгенерирует подходящую структуру.
             </p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14, marginBottom: 32 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14, marginBottom: 24 }}>
               {TEMPLATES.map((tpl) => {
                 const selected = templateId === tpl.id;
                 return (
@@ -471,7 +477,7 @@ function CreateLandingPageInner() {
                     onClick={() => !tpl.pro && setTemplateId(tpl.id)}
                     style={{ position: "relative", border: selected ? "2px solid var(--accent)" : "1px solid var(--line)", borderRadius: 12, overflow: "hidden", cursor: tpl.pro ? "default" : "pointer", opacity: tpl.pro ? 0.6 : 1, background: "var(--panel)", transition: "border 0.15s" }}
                   >
-                    <div style={{ height: 100, background: "var(--panel-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, position: "relative" }}>
+                    <div style={{ height: 100, background: "var(--panel-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, position: "relative" }}>
                       {tpl.preview}
                       {tpl.pro && (
                         <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -495,6 +501,25 @@ function CreateLandingPageInner() {
                 );
               })}
             </div>
+
+            {/* Price fields — shown only for product template */}
+            {templateId === "product" && (
+              <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: "16px 16px 20px", marginBottom: 24 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", marginBottom: 14 }}>🏷️ Цена товара</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                  <Field label="Старая цена (перечёркнутая)">
+                    <input value={step1.oldPrice} onChange={set1("oldPrice")} placeholder="напр. 150 000 сум" style={inputStyle} />
+                  </Field>
+                  <Field label="Новая цена (зелёная)">
+                    <input value={step1.newPrice} onChange={set1("newPrice")} placeholder="напр. 99 000 сум" style={inputStyle} />
+                  </Field>
+                  <Field label="Эмодзи товара">
+                    <input value={step1.productEmoji} onChange={set1("productEmoji")} placeholder="напр. 🛍️" style={inputStyle} />
+                  </Field>
+                </div>
+              </div>
+            )}
+
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <button onClick={goBack} style={backBtnStyle}><ChevronLeft size={16} /> Назад</button>
               <button onClick={() => setStep(3)} style={nextBtnStyle(false)}>Далее <ChevronRight size={16} /></button>
