@@ -511,9 +511,7 @@ function CampaignsPageInner() {
     router.push(`${pathname}?${p.toString()}`, { scroll: false });
   };
 
-  // When clicking "Создать" — show project selector first
   const handleCreateClick = () => {
-    // If no tabs exist (all were closed), create one first
     if (wizardTabs.length === 0 || !wizardTabs.find((t) => t.id === activeWizardId)) {
       const id = String(Date.now());
       try { localStorage.removeItem(`wizard_draft_v5_${id}`); } catch {}
@@ -522,31 +520,19 @@ function CampaignsPageInner() {
       setActiveWizardId(id);
       saveActiveId(id);
       saveTabs([newTab]);
-      pendingTabId.current = id;
       setTab("wizard");
-      setShowProjectSelector(true);
       return;
     }
     setTab("wizard");
-    const activeTab = wizardTabs.find((t) => t.id === activeWizardId);
-    if (!activeTab?.projectId) {
-      pendingTabId.current = activeWizardId;
-      setShowProjectSelector(true);
-    }
   };
 
   const addWizardTab = () => {
     const id = String(Date.now());
-    // Clear any stale draft for this new tab id
-    try {
-      localStorage.removeItem(`wizard_draft_v5_${id}`);
-    } catch {}
+    try { localStorage.removeItem(`wizard_draft_v5_${id}`); } catch {}
     const newTab: WizardTab = { id, title: "Новая кампания" };
     setWizardTabs((prev) => [...prev, newTab]);
     setActiveWizardId(id);
     saveActiveId(id);
-    pendingTabId.current = id;
-    setShowProjectSelector(true);
   };
 
   // Check if tab has any data worth saving
@@ -899,12 +885,6 @@ function CampaignsPageInner() {
           onSelect={(id) => {
             setActiveWizardId(id);
             saveActiveId(id);
-            // If tab has no project — show selector
-            const t = wizardTabs.find((t) => t.id === id);
-            if (!t?.projectId) {
-              pendingTabId.current = id;
-              setShowProjectSelector(true);
-            }
           }}
           onAdd={addWizardTab}
           onClose={tryCloseWizardTab}
@@ -950,17 +930,6 @@ function CampaignsPageInner() {
         </div>
         <RightPanel projectId={projectId} />
       </div>
-
-      {/* ── Project selector overlay ── */}
-      {showProjectSelector && (
-        <ProjectSelector
-          onSelect={handleProjectSelected}
-          onClose={() => {
-            setShowProjectSelector(false);
-            pendingTabId.current = null;
-          }}
-        />
-      )}
 
       {/* Close confirm modal */}
       {closeConfirm && (
