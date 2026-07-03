@@ -28,6 +28,18 @@ async function verifyEdgeToken(token: string): Promise<{ userId: string; email: 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // ── 0. Subdomain landing routing (e.g. my-shop.mvira.uz → /l/my-shop) ───────
+  const host = request.headers.get("host") || "";
+  const appHost = (process.env.NEXT_PUBLIC_APP_URL || "https://mvira.uz")
+    .replace(/^https?:\/\//, "")
+    .split(":")[0];
+  const subdomain = host.replace(`.${appHost}`, "");
+  if (subdomain && subdomain !== host && subdomain !== "www") {
+    const url = request.nextUrl.clone();
+    url.pathname = `/l/${subdomain}`;
+    return NextResponse.rewrite(url);
+  }
+
   // ── 1. Пропускаем API, статику и SEO-файлы ──────────────────────────────────
   if (
     pathname.startsWith("/api") ||

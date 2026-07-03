@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
 
     const landing = await queryOne<{ id: string }>(
       `INSERT INTO landings (user_id, title, slug, content, published)
-       VALUES ($1, $2, $3, $4, false) RETURNING id`,
+       VALUES ($1, $2, $3, $4, true) RETURNING id`,
       [user.id, parsed.title || businessName, slug, JSON.stringify({ blocks: parsed.blocks || [], template_id: templateId || "classic", bg_image: bgImage || null, settings: { brandColor: brandColor || "#6366f1", tone } })]
     );
 
