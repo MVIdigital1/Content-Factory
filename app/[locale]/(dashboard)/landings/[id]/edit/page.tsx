@@ -1,126 +1,141 @@
 "use client";
-import { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import LandingRenderer, { Block } from "@/components/landing/LandingRenderer";
-import { ChevronLeft, ExternalLink, Plus, X } from "lucide-react";
+import LandingRenderer, {
+  Block, HeroBlock, FormBlock, PriceBlock, FeaturesBlock,
+} from "@/components/landing/LandingRenderer";
+import {
+  Type, Palette, Image, FileText, Search, Globe, BarChart2,
+  Monitor, Smartphone, ExternalLink, ChevronLeft, Eye, EyeOff,
+  TrendingUp, Users, MousePointer, ChevronRight,
+} from "lucide-react";
 
-type LandingPage = {
-  id: string;
-  title: string;
-  slug: string;
-  published: boolean;
-  blocks: Block[];
-  bg_image: string | null;
-  settings: {
-    brandColor?: string;
-    tone?: string;
-    autoCloseDays?: number | null;
-    routing?: { aiCallback?: boolean; crm?: boolean; payments?: boolean };
-  };
-  template_id: string;
-  created_at?: string;
-  updated_at?: string;
+// ── Types ────────────────────────────────────────────────────────────────────
+type LP = {
+  id: string; title: string; slug: string; published: boolean;
+  blocks: Block[]; bg_image: string | null;
+  settings: { brandColor?: string; tone?: string; autoCloseDays?: number | null; routing?: { aiCallback?: boolean; crm?: boolean; payments?: boolean } };
+  template_id: string; created_at?: string; updated_at?: string;
 };
+type Lead = { id: string; name: string | null; phone: string | null; status: string; created_at: string };
 
-const TEMPLATE_TYPES = [
-  { id: "product",     name: "Товар",   icon: "🛒" },
-  { id: "form",        name: "Заявка",  icon: "📋" },
-  { id: "appointment", name: "Запись",  icon: "📅" },
-  { id: "event",       name: "Событие", icon: "🎉" },
-  { id: "menu",        name: "Меню",    icon: "🍽️" },
-  { id: "callback",    name: "Звонок",  icon: "📞" },
+// ── Constants ────────────────────────────────────────────────────────────────
+const NAV = [
+  { id: "content",  label: "Контент",     Icon: Type       },
+  { id: "design",   label: "Дизайн",      Icon: Palette    },
+  { id: "form",     label: "Форма",        Icon: FileText   },
+  { id: "seo",      label: "SEO",          Icon: Search     },
+  { id: "publish",  label: "Публикация",   Icon: Globe      },
+  { id: "analytics",label: "Аналитика",   Icon: BarChart2  },
 ];
 
-const LIFECYCLE_OPTIONS = [
-  { value: 1,   label: "24 часа" },
-  { value: 3,   label: "3 дня" },
-  { value: 7,   label: "7 дней" },
-  { value: 30,  label: "30 дней" },
+const TEMPLATE_TYPES = [
+  { id: "product", name: "Товар",   icon: "🛒" },
+  { id: "form",    name: "Заявка",  icon: "📋" },
+  { id: "appointment", name: "Запись", icon: "📅" },
+  { id: "event",   name: "Событие", icon: "🎉" },
+  { id: "menu",    name: "Меню",    icon: "🍽️" },
+  { id: "callback",name: "Звонок",  icon: "📞" },
+];
+
+const LIFECYCLE = [
+  { value: 1, label: "24 часа" }, { value: 3, label: "3 дня" },
+  { value: 7, label: "7 дней" }, { value: 30, label: "30 дней" },
   { value: null, label: "Бессрочно" },
 ];
 
+// ── Colour tokens (premium palette) ──────────────────────────────────────────
+const C = {
+  bg:       "#F8FAFC",
+  surface:  "#FFFFFF",
+  border:   "#E2E8F0",
+  text:     "#0F172A",
+  muted:    "#64748B",
+  accent:   "var(--accent)",
+  success:  "#10B981",
+  indigo:   "#4F46E5",
+};
+
+// ── Main component ────────────────────────────────────────────────────────────
 function LandingEditorInner() {
-  const params = useParams();
-  const id = params.id as string;
-  const router = useRouter();
-  const locale = useLocale();
-  const qc = useQueryClient();
-  const searchParams = useSearchParams();
-  const fromCampaign = searchParams.get("from") === "campaign";
+  const params      = useParams();
+  const id          = params.id as string;
+  const router      = useRouter();
+  const locale      = useLocale();
+  const qc          = useQueryClient();
+  const sp          = useSearchParams();
+  const fromCampaign = sp.get("from") === "campaign";
 
-  const [blocks, setBlocks] = useState<Block[]>([]);
-  const [templateType, setTemplateType] = useState("product");
+  const [activeSection, setActiveSection] = useState("content");
+  const [preview, setPreview]             = useState<"desktop" | "mobile">("desktop");
+  const [blocks, setBlocks]               = useState<Block[]>([]);
+  const [templateType, setTemplateType]   = useState("product");
+  const [brandColor, setBrandColor]       = useState("#4F46E5");
   const [autoCloseDays, setAutoCloseDays] = useState<number | null>(null);
-  const [routing, setRouting] = useState({ aiCallback: true, crm: true, payments: false });
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [routing, setRouting]             = useState({ aiCallback: true, crm: true, payments: false });
+  const [saving, setSaving]               = useState(false);
+  const [saved, setSaved]                 = useState(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout>>();
 
+  // ── Data fetching ──────────────────────────────────────────────────────────
   const { data: landing, isLoading } = useQuery({
     queryKey: ["landing", id],
     queryFn: async () => {
-      const res = await fetch(`/api/landings/${id}`);
-      if (!res.ok) throw new Error("Not found");
-      return res.json() as Promise<LandingPage>;
+      const r = await fetch(`/api/landings/${id}`);
+      if (!r.ok) throw new Error("Not found");
+      return r.json() as Promise<LP>;
     },
   });
 
   const { data: stats } = useQuery({
     queryKey: ["landing_stats", id],
     queryFn: async () => {
-      const [leadsRes, viewsRes] = await Promise.all([
+      const [lr, vr] = await Promise.all([
         fetch(`/api/leads?landing_id=${id}`),
         fetch(`/api/landings/${id}/stats`),
       ]);
-      const leads = leadsRes.ok ? (await leadsRes.json() as any[]) : [];
-      const viewData = viewsRes.ok ? await viewsRes.json() : { views: 0 };
-      return { leadCount: leads.length, views: viewData.views ?? 0 };
+      const leads: Lead[] = lr.ok ? await lr.json() : [];
+      const { views = 0 } = vr.ok ? await vr.json() : {};
+      return { leads, views };
     },
-    refetchInterval: 30000,
+    refetchInterval: 30_000,
   });
 
   useEffect(() => {
     if (!landing) return;
     setBlocks(landing.blocks ?? []);
     setTemplateType(landing.template_id || "product");
+    setBrandColor(landing.settings?.brandColor || "#4F46E5");
     setAutoCloseDays(landing.settings?.autoCloseDays ?? null);
     setRouting({
       aiCallback: landing.settings?.routing?.aiCallback ?? true,
-      crm: landing.settings?.routing?.crm ?? true,
-      payments: landing.settings?.routing?.payments ?? false,
+      crm:        landing.settings?.routing?.crm ?? true,
+      payments:   landing.settings?.routing?.payments ?? false,
     });
   }, [landing]);
 
-  const brandColor = landing?.settings?.brandColor || "#6366f1";
-
+  // ── Mutations ──────────────────────────────────────────────────────────────
   const saveMutation = useMutation({
     mutationFn: async (publish?: boolean) => {
       setSaving(true);
-      const content = {
-        blocks,
-        template_id: templateType,
-        bg_image: landing?.bg_image ?? null,
-        settings: {
-          brandColor,
-          tone: landing?.settings?.tone,
-          autoCloseDays,
-          routing,
+      const body: Record<string, unknown> = {
+        content: {
+          blocks, template_id: templateType,
+          bg_image: landing?.bg_image ?? null,
+          settings: { brandColor, tone: landing?.settings?.tone, autoCloseDays, routing },
         },
       };
-      const body: Record<string, unknown> = { content };
       if (publish !== undefined) body.published = publish;
-      const res = await fetch(`/api/landings/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      const r = await fetch(`/api/landings/${id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error("Ошибка сохранения");
+      if (!r.ok) throw new Error("Ошибка");
     },
     onSuccess: () => {
-      setSaving(false);
-      setSaved(true);
+      setSaving(false); setSaved(true);
       qc.invalidateQueries({ queryKey: ["landing", id] });
       qc.invalidateQueries({ queryKey: ["landing_pages"] });
       setTimeout(() => setSaved(false), 2500);
@@ -128,366 +143,498 @@ function LandingEditorInner() {
     onError: () => setSaving(false),
   });
 
-  const updateBlock = (field: string, value: string | boolean) => {
-    if (selectedIndex === null) return;
-    setBlocks((prev) => {
-      const next = [...prev];
-      next[selectedIndex] = { ...next[selectedIndex], [field]: value } as Block;
-      return next;
-    });
+  // ── Block helpers ──────────────────────────────────────────────────────────
+  const hero     = blocks.find(b => b.type === "hero")     as HeroBlock     | undefined;
+  const formBlk  = blocks.find(b => b.type === "form")     as FormBlock     | undefined;
+  const priceBlk = blocks.find(b => b.type === "price")    as PriceBlock    | undefined;
+  const featBlk  = blocks.find(b => b.type === "features") as FeaturesBlock | undefined;
+
+  const patchBlock = (type: string, patch: Record<string, unknown>) =>
+    setBlocks(prev => prev.map(b => b.type === type ? { ...b, ...patch } as Block : b));
+
+  // Auto-save after 2s idle
+  const touch = () => {
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => saveMutation.mutate(undefined), 2000);
   };
 
-  const updateFeatureItem = (itemIndex: number, field: string, value: string) => {
-    if (selectedIndex === null) return;
-    setBlocks((prev) => {
-      const next = [...prev];
-      const block = { ...(next[selectedIndex] as any) };
-      const items = [...(block.items || [])];
-      items[itemIndex] = { ...items[itemIndex], [field]: value };
-      block.items = items;
-      next[selectedIndex] = block;
-      return next;
-    });
+  const patchAndTouch = (type: string, patch: Record<string, unknown>) => {
+    patchBlock(type, patch); touch();
   };
 
-  const selectedBlock = selectedIndex !== null ? blocks[selectedIndex] : null;
+  if (isLoading) return <Loader />;
+  if (!landing)  return <Loader label="Не найдено" />;
 
-  if (isLoading) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "var(--tx-3)", fontSize: 14 }}>
-        Загрузка...
-      </div>
-    );
-  }
+  const leads     = stats?.leads ?? [];
+  const views     = stats?.views ?? 0;
+  const leadCount = leads.length;
+  const cvr       = views > 0 ? ((leadCount / views) * 100).toFixed(1) + "%" : "—";
 
-  if (!landing) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "var(--tx-3)", fontSize: 14 }}>
-        Лендинг не найден
-      </div>
-    );
-  }
-
-  const publishedAt = new Date(landing.updated_at || landing.id);
-  const minutesSince = Math.round((Date.now() - publishedAt.getTime()) / 60000);
-
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "var(--bg)" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "'Inter', -apple-system, sans-serif", background: C.bg, color: C.text, overflow: "hidden" }}>
 
-      {/* ── Left: Phone preview ──────────────────────────────────────── */}
-      <div style={{ flex: 1, background: "#f0f0ef", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 24, overflow: "hidden" }}>
-        {/* Top controls */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, alignSelf: "stretch" }}>
-          <button
-            onClick={() => fromCampaign ? router.back() : router.push(`/${locale}/landings`)}
-            style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(255,255,255,0.8)", border: "none", borderRadius: 8, padding: "7px 12px", fontSize: 13, color: "#555", cursor: "pointer" }}
-          >
-            <ChevronLeft size={15} /> {fromCampaign ? "К кампании" : "Назад"}
-          </button>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#333", flex: 1, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {landing.title}
-          </span>
-          {landing.published && (
-            <a
-              href={`/l/${landing.slug}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.8)", border: "none", borderRadius: 8, padding: "7px 12px", fontSize: 13, color: "#555", textDecoration: "none" }}
-            >
-              <ExternalLink size={13} /> Открыть
-            </a>
-          )}
-        </div>
+      {/* ── Top bar ──────────────────────────────────────────────────────── */}
+      <header style={{ height: 52, borderBottom: `1px solid ${C.border}`, background: C.surface, display: "flex", alignItems: "center", gap: 12, padding: "0 20px", flexShrink: 0, zIndex: 10 }}>
+        <button onClick={() => fromCampaign ? router.back() : router.push(`/${locale}/landings`)}
+          style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 7, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+          <ChevronLeft size={14} /> {fromCampaign ? "К кампании" : "Лендинги"}
+        </button>
 
-        {/* Phone frame */}
-        <div style={{ width: 320, height: 620, background: "#1a1a18", borderRadius: 44, padding: "14px 10px", boxShadow: "0 24px 64px rgba(0,0,0,0.35), 0 0 0 2px #333", flexShrink: 0 }}>
-          {/* Notch */}
-          <div style={{ width: 80, height: 20, background: "#1a1a18", borderRadius: 10, margin: "0 auto 8px", position: "relative", zIndex: 2 }} />
-          <div style={{ height: "calc(100% - 28px)", borderRadius: 34, overflow: "auto", background: "#fff", scrollbarWidth: "none" }}>
-            <LandingRenderer
-              blocks={blocks}
-              bgImage={landing.bg_image || undefined}
-              brandColor={brandColor}
-              preview
-              onSelectBlock={(i) => setSelectedIndex(selectedIndex === i ? null : i)}
-              selectedIndex={selectedIndex}
-            />
-          </div>
-        </div>
+        <div style={{ width: 1, height: 20, background: C.border }} />
 
-        {selectedIndex !== null && (
-          <p style={{ fontSize: 12, color: "#888" }}>
-            Кликните на блок чтобы выбрать · нажмите ✕ чтобы закрыть редактор
-          </p>
-        )}
-      </div>
+        <span style={{ fontSize: 14, fontWeight: 600, color: C.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {landing.title}
+        </span>
 
-      {/* ── Right: Settings panel ─────────────────────────────────────── */}
-      <div style={{ width: 420, borderLeft: "1px solid var(--line)", background: "var(--panel)", display: "flex", flexDirection: "column", overflow: "hidden", flexShrink: 0 }}>
-
-        {/* Header */}
-        <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--line)" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--tx-1)" }}>AI Лендинг</span>
-            <button
-              onClick={() => router.push(`/${locale}/landings/create`)}
-              style={{ display: "flex", alignItems: "center", gap: 5, background: "var(--chip)", border: "none", borderRadius: 7, padding: "5px 10px", fontSize: 12, color: "var(--tx-2)", cursor: "pointer" }}
-            >
-              <Plus size={13} /> Создать ещё
+        {/* Desktop / Mobile toggle */}
+        <div style={{ display: "flex", background: C.bg, borderRadius: 8, border: `1px solid ${C.border}`, padding: 2, gap: 1 }}>
+          {(["desktop", "mobile"] as const).map(m => (
+            <button key={m} onClick={() => setPreview(m)}
+              style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 6, border: "none", background: preview === m ? C.surface : "transparent", color: preview === m ? C.text : C.muted, fontSize: 12, fontWeight: preview === m ? 600 : 400, cursor: "pointer", boxShadow: preview === m ? "0 1px 3px rgba(0,0,0,0.08)" : "none", transition: "all 0.15s", fontFamily: "inherit" }}>
+              {m === "desktop" ? <Monitor size={13} /> : <Smartphone size={13} />}
+              {m === "desktop" ? "Desktop" : "Mobile"}
             </button>
-          </div>
-          <p style={{ fontSize: 11, color: "var(--tx-3)", margin: 0 }}>
-            AI генерирует лендинг под кампанию · настройте параметры ниже
-          </p>
+          ))}
         </div>
 
-        {/* Scrollable content */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 20 }}>
+        <button onClick={() => saveMutation.mutate(undefined)} disabled={saving}
+          style={{ padding: "6px 14px", borderRadius: 7, border: `1px solid ${C.border}`, background: "transparent", color: saved ? C.success : C.muted, fontSize: 13, fontWeight: 500, cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit", transition: "color 0.2s" }}>
+          {saved ? "✓ Сохранено" : saving ? "..." : "Сохранить"}
+        </button>
 
-          {/* Stats */}
-          <section>
-            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-2)", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Результаты</p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-              {[
-                { label: "Просмотры", value: stats?.views ?? "—", icon: "👁️", color: "#6366f1" },
-                { label: "Заявки",    value: stats?.leadCount ?? "—", icon: "📩", color: "#16a34a" },
-                { label: "Конверсия", value: stats && stats.views > 0 ? `${((stats.leadCount / stats.views) * 100).toFixed(1)}%` : "—", icon: "📈", color: "#f59e0b" },
-              ].map((s) => (
-                <div key={s.label} style={{ background: "var(--chip)", borderRadius: 12, padding: "16px 10px", textAlign: "center", border: "1px solid var(--line)" }}>
-                  <div style={{ fontSize: 22, marginBottom: 6 }}>{s.icon}</div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: s.color, marginBottom: 4 }}>{s.value}</div>
-                  <div style={{ fontSize: 11, color: "var(--tx-3)", fontWeight: 500 }}>{s.label}</div>
-                </div>
-              ))}
+        <button onClick={() => saveMutation.mutate(!landing.published)} disabled={saving}
+          style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 16px", borderRadius: 7, border: "none", background: landing.published ? "#FEE2E2" : C.indigo, color: landing.published ? "#DC2626" : "#fff", fontSize: 13, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+          {landing.published ? <><EyeOff size={13} /> Снять</> : <><Eye size={13} /> Опубликовать</>}
+        </button>
+
+        {landing.published && (
+          <a href={`/l/${landing.slug}`} target="_blank" rel="noopener noreferrer"
+            style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 7, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, fontSize: 13, textDecoration: "none" }}>
+            <ExternalLink size={13} />
+          </a>
+        )}
+      </header>
+
+      {/* ── Body ─────────────────────────────────────────────────────────── */}
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+
+        {/* ── Left nav ─────────────────────────────────────────────── */}
+        <nav style={{ width: 220, borderRight: `1px solid ${C.border}`, background: C.surface, display: "flex", flexDirection: "column", padding: "12px 8px", gap: 1, flexShrink: 0, overflowY: "auto" }}>
+          <p style={{ fontSize: 10, fontWeight: 600, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", padding: "4px 10px", marginBottom: 4 }}>
+            Редактор
+          </p>
+          {NAV.filter(n => n.id !== "analytics" || landing.published).map(({ id: nid, label, Icon }) => {
+            const active = activeSection === nid;
+            return (
+              <button key={nid} onClick={() => setActiveSection(nid)}
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, border: "none", background: active ? `${C.indigo}12` : "transparent", color: active ? C.indigo : C.muted, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%", transition: "all 0.15s", borderLeft: active ? `2px solid ${C.indigo}` : "2px solid transparent" }}>
+                <Icon size={15} />
+                {label}
+              </button>
+            );
+          })}
+
+          <div style={{ flex: 1 }} />
+
+          {/* Landing URL */}
+          <div style={{ padding: "10px 12px", borderTop: `1px solid ${C.border}`, marginTop: 8 }}>
+            <p style={{ fontSize: 10, color: C.muted, marginBottom: 4 }}>Адрес страницы</p>
+            <p style={{ fontSize: 11, fontWeight: 600, color: C.text, wordBreak: "break-all" }}>
+              /l/{landing.slug}
+            </p>
+            <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: landing.published ? C.success : C.muted }} />
+              <span style={{ fontSize: 11, color: landing.published ? C.success : C.muted, fontWeight: 500 }}>
+                {landing.published ? "Опубликован" : "Черновик"}
+              </span>
             </div>
-          </section>
+          </div>
+        </nav>
 
-          {/* Template type */}
-          <section>
-            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-2)", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Тип лендинга</p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-              {TEMPLATE_TYPES.map((t) => {
-                const active = templateType === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => setTemplateType(t.id)}
-                    style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "10px 6px", borderRadius: 10, border: active ? `2px solid var(--accent)` : "1.5px solid var(--line)", background: active ? "color-mix(in srgb, var(--accent) 10%, var(--panel))" : "var(--chip)", cursor: "pointer", transition: "all 0.15s" }}
-                  >
-                    <span style={{ fontSize: 18 }}>{t.icon}</span>
-                    <span style={{ fontSize: 11, fontWeight: active ? 700 : 400, color: active ? "var(--accent)" : "var(--tx-2)" }}>{t.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+        {/* ── Center: preview ──────────────────────────────────────── */}
+        <main style={{ flex: 1, background: C.bg, overflow: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: preview === "desktop" ? "24px 32px" : "24px 16px" }}>
 
-          {/* Lifecycle */}
-          <section>
-            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-2)", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Жизненный цикл</p>
-            <div style={{ background: "var(--chip)", borderRadius: 10, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
-              {landing.published && (
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 12, color: "var(--tx-3)" }}>Опубликован</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: "#16a34a" }}>{minutesSince} мин назад</span>
+          {preview === "desktop" ? (
+            <div style={{ width: "100%", maxWidth: 960, background: C.surface, borderRadius: 12, overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.06)", minHeight: 500 }}>
+              {/* Browser bar */}
+              <div style={{ height: 36, background: "#F1F5F9", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 14px", gap: 8 }}>
+                <div style={{ display: "flex", gap: 5 }}>
+                  {["#F87171", "#FBBF24", "#34D399"].map(c => <div key={c} style={{ width: 10, height: 10, borderRadius: "50%", background: c }} />)}
                 </div>
+                <div style={{ flex: 1, background: C.surface, borderRadius: 5, height: 20, margin: "0 12px", display: "flex", alignItems: "center", padding: "0 10px" }}>
+                  <span style={{ fontSize: 11, color: C.muted }}>mvira.uz/l/{landing.slug}</span>
+                </div>
+              </div>
+              <LandingRenderer blocks={blocks} bgImage={landing.bg_image || undefined} brandColor={brandColor} />
+            </div>
+          ) : (
+            <div style={{ width: 375, flexShrink: 0 }}>
+              {/* Phone frame */}
+              <div style={{ background: "#1C1C1E", borderRadius: 50, padding: "16px 10px 24px", boxShadow: "0 32px 80px rgba(0,0,0,0.4), 0 0 0 2px #3A3A3C" }}>
+                <div style={{ background: "#1C1C1E", width: 90, height: 24, borderRadius: 12, margin: "0 auto 10px" }} />
+                <div style={{ borderRadius: 38, overflow: "hidden", maxHeight: 620, overflowY: "auto" }}>
+                  <LandingRenderer blocks={blocks} bgImage={landing.bg_image || undefined} brandColor={brandColor} preview />
+                </div>
+              </div>
+            </div>
+          )}
+        </main>
+
+        {/* ── Right panel ──────────────────────────────────────────── */}
+        <aside style={{ width: 320, borderLeft: `1px solid ${C.border}`, background: C.surface, display: "flex", flexDirection: "column", overflowY: "auto", flexShrink: 0 }}>
+
+          {/* ─ Контент ─ */}
+          {activeSection === "content" && (
+            <Panel title="Контент">
+              <Section label="Заголовок">
+                <F label="Акционная метка">
+                  <input value={(hero as any)?.badge || ""} onChange={e => patchAndTouch("hero", { badge: e.target.value })} style={inp} placeholder="напр. Скидка 30% до конца июля" />
+                </F>
+                <F label="Главный заголовок *">
+                  <textarea value={(hero as any)?.headline || ""} onChange={e => patchAndTouch("hero", { headline: e.target.value })} rows={2} style={{ ...inp, resize: "vertical" }} />
+                </F>
+                <F label="Подзаголовок">
+                  <textarea value={(hero as any)?.subheadline || ""} onChange={e => patchAndTouch("hero", { subheadline: e.target.value })} rows={2} style={{ ...inp, resize: "vertical" }} />
+                </F>
+                <F label="Кнопка (CTA)">
+                  <input value={(hero as any)?.cta || ""} onChange={e => patchAndTouch("hero", { cta: e.target.value })} style={inp} placeholder="напр. Получить предложение" />
+                </F>
+                <F label="Эмодзи / иконка">
+                  <input value={(hero as any)?.emoji || ""} onChange={e => patchAndTouch("hero", { emoji: e.target.value })} style={inp} placeholder="🛒" />
+                </F>
+              </Section>
+              {priceBlk && (
+                <Section label="Цена">
+                  <F label="Старая цена">
+                    <input value={priceBlk.oldPrice || ""} onChange={e => patchAndTouch("price", { oldPrice: e.target.value })} style={inp} placeholder="150 000 сум" />
+                  </F>
+                  <F label="Новая цена">
+                    <input value={priceBlk.newPrice || ""} onChange={e => patchAndTouch("price", { newPrice: e.target.value })} style={inp} placeholder="99 000 сум" />
+                  </F>
+                  <F label="Кнопка покупки">
+                    <input value={priceBlk.cta || ""} onChange={e => patchAndTouch("price", { cta: e.target.value })} style={inp} placeholder="Заказать сейчас" />
+                  </F>
+                </Section>
               )}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 12, color: "var(--tx-3)" }}>Авто-закрытие</span>
-                <select
-                  value={autoCloseDays === null ? "null" : String(autoCloseDays)}
-                  onChange={(e) => setAutoCloseDays(e.target.value === "null" ? null : Number(e.target.value))}
-                  style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-1)", background: "transparent", border: "none", outline: "none", cursor: "pointer" }}
-                >
-                  {LIFECYCLE_OPTIONS.map((o) => (
-                    <option key={String(o.value)} value={String(o.value)}>{o.label}</option>
+              {featBlk && (
+                <Section label="Преимущества">
+                  <F label="Заголовок блока">
+                    <input value={featBlk.title || ""} onChange={e => patchAndTouch("features", { title: e.target.value })} style={inp} />
+                  </F>
+                  {(featBlk.items || []).map((item, i) => (
+                    <div key={i} style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 6 }}>
+                      <p style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 500 }}>Пункт {i + 1}</p>
+                      <input value={item.icon || ""} onChange={e => {
+                        const items = [...(featBlk.items || [])];
+                        items[i] = { ...items[i], icon: e.target.value };
+                        patchAndTouch("features", { items });
+                      }} style={{ ...inp, marginBottom: 5 }} placeholder="Иконка" />
+                      <input value={item.title} onChange={e => {
+                        const items = [...(featBlk.items || [])];
+                        items[i] = { ...items[i], title: e.target.value };
+                        patchAndTouch("features", { items });
+                      }} style={{ ...inp, marginBottom: 5 }} placeholder="Заголовок" />
+                    </div>
                   ))}
-                </select>
-              </div>
-            </div>
-          </section>
+                </Section>
+              )}
+            </Panel>
+          )}
 
-          {/* Lead routing */}
-          <section>
-            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-2)", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Куда идут лиды</p>
-            <div style={{ background: "var(--chip)", borderRadius: 10, overflow: "hidden" }}>
-              {[
-                { key: "aiCallback" as const, label: "AI-менеджер обрабатывает", icon: "🤖" },
-                { key: "crm" as const,        label: "Заявки в CRM",             icon: "📊" },
-                { key: "payments" as const,   label: "PayMall платёжи",          icon: "💳" },
-              ].map((item, i) => (
-                <div key={item.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderBottom: i < 2 ? "1px solid var(--line)" : "none" }}>
-                  <span style={{ fontSize: 16 }}>{item.icon}</span>
-                  <span style={{ flex: 1, fontSize: 12, color: "var(--tx-1)" }}>{item.label}</span>
-                  <div
-                    onClick={() => setRouting((p) => ({ ...p, [item.key]: !p[item.key] }))}
-                    style={{ width: 36, height: 20, borderRadius: 10, background: routing[item.key] ? "var(--accent)" : "var(--line)", cursor: "pointer", position: "relative", transition: "background 0.2s" }}
-                  >
-                    <div style={{ position: "absolute", top: 2, left: routing[item.key] ? 18 : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} />
-                  </div>
+          {/* ─ Дизайн ─ */}
+          {activeSection === "design" && (
+            <Panel title="Дизайн">
+              <Section label="Цвет бренда">
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <input type="color" value={brandColor} onChange={e => { setBrandColor(e.target.value); touch(); }}
+                    style={{ width: 42, height: 38, border: `1px solid ${C.border}`, borderRadius: 8, padding: 2, cursor: "pointer", flexShrink: 0 }} />
+                  <input value={brandColor} onChange={e => { setBrandColor(e.target.value); touch(); }}
+                    style={{ ...inp, flex: 1, fontFamily: "monospace", fontSize: 13 }} />
                 </div>
-              ))}
-            </div>
-          </section>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+                  {["#4F46E5","#0EA5E9","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#1E293B"].map(c => (
+                    <div key={c} onClick={() => { setBrandColor(c); touch(); }}
+                      style={{ width: 28, height: 28, borderRadius: "50%", background: c, cursor: "pointer", border: brandColor === c ? `2px solid ${C.text}` : "2px solid transparent", transition: "border 0.15s" }} />
+                  ))}
+                </div>
+              </Section>
+              <Section label="Тип лендинга">
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+                  {TEMPLATE_TYPES.map(t => {
+                    const active = templateType === t.id;
+                    return (
+                      <button key={t.id} onClick={() => { setTemplateType(t.id); touch(); }}
+                        style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "10px 4px", borderRadius: 8, border: `1.5px solid ${active ? C.indigo : C.border}`, background: active ? `${C.indigo}10` : "transparent", cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}>
+                        <span style={{ fontSize: 18 }}>{t.icon}</span>
+                        <span style={{ fontSize: 10, fontWeight: active ? 700 : 400, color: active ? C.indigo : C.muted }}>{t.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </Section>
+            </Panel>
+          )}
 
-          {/* Block editor — shown when a block is selected */}
-          {selectedBlock && (
-            <section style={{ background: "var(--chip)", borderRadius: 12, padding: "14px", border: "1px solid var(--line)" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--tx-1)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  Редактировать блок
-                </span>
-                <button onClick={() => setSelectedIndex(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--tx-3)", padding: 2 }}>
-                  <X size={15} />
-                </button>
+          {/* ─ Форма ─ */}
+          {activeSection === "form" && (
+            <Panel title="Форма захвата лидов">
+              <Section label="Текст формы">
+                <F label="Заголовок">
+                  <input value={formBlk?.title || ""} onChange={e => patchAndTouch("form", { title: e.target.value })} style={inp} />
+                </F>
+                <F label="Подзаголовок">
+                  <input value={formBlk?.subtitle || ""} onChange={e => patchAndTouch("form", { subtitle: e.target.value })} style={inp} />
+                </F>
+                <F label="Кнопка отправки">
+                  <input value={formBlk?.button || ""} onChange={e => patchAndTouch("form", { button: e.target.value })} style={inp} placeholder="Отправить заявку" />
+                </F>
+                <F label="Подпись под кнопкой">
+                  <input value={formBlk?.note || ""} onChange={e => patchAndTouch("form", { note: e.target.value })} style={inp} placeholder="AI перезвонит за 1 минуту" />
+                </F>
+              </Section>
+              <Section label="Стиль">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: C.text }}>Тёмный фон</p>
+                    <p style={{ fontSize: 11, color: C.muted }}>Форма на чёрном фоне</p>
+                  </div>
+                  <Toggle on={!!(formBlk as any)?.dark} onChange={v => patchAndTouch("form", { dark: v })} />
+                </div>
+              </Section>
+            </Panel>
+          )}
+
+          {/* ─ SEO ─ */}
+          {activeSection === "seo" && (
+            <Panel title="SEO">
+              <Section label="Метаданные">
+                <F label="Заголовок страницы">
+                  <input value={landing.title || ""} readOnly style={{ ...inp, background: C.bg }} />
+                </F>
+                <F label="URL страницы">
+                  <input value={`mvira.uz/l/${landing.slug}`} readOnly style={{ ...inp, background: C.bg, fontFamily: "monospace", fontSize: 12 }} />
+                </F>
+              </Section>
+              <div style={{ padding: "12px 20px", background: `${C.indigo}08`, margin: "0 -20px", borderTop: `1px solid ${C.border}` }}>
+                <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
+                  SEO-заголовок и описание генерируется AI автоматически на основе контента лендинга.
+                </p>
+              </div>
+            </Panel>
+          )}
+
+          {/* ─ Публикация ─ */}
+          {activeSection === "publish" && (
+            <Panel title="Публикация">
+              <Section label="Статус">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: landing.published ? "#F0FDF4" : C.bg, borderRadius: 10, border: `1px solid ${landing.published ? "#BBF7D0" : C.border}` }}>
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: landing.published ? C.success : C.text }}>
+                      {landing.published ? "Опубликован" : "Черновик"}
+                    </p>
+                    <p style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                      {landing.published ? `mvira.uz/l/${landing.slug}` : "Не виден для посетителей"}
+                    </p>
+                  </div>
+                  <button onClick={() => saveMutation.mutate(!landing.published)}
+                    style={{ padding: "6px 14px", borderRadius: 7, border: "none", background: landing.published ? "#FEE2E2" : C.indigo, color: landing.published ? "#DC2626" : "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                    {landing.published ? "Снять" : "Опубликовать"}
+                  </button>
+                </div>
+              </Section>
+              <Section label="Жизненный цикл">
+                <F label="Авто-закрытие">
+                  <select value={autoCloseDays === null ? "null" : String(autoCloseDays)} onChange={e => { setAutoCloseDays(e.target.value === "null" ? null : Number(e.target.value)); touch(); }}
+                    style={{ ...inp, cursor: "pointer" }}>
+                    {LIFECYCLE.map(o => <option key={String(o.value)} value={String(o.value)}>{o.label}</option>)}
+                  </select>
+                </F>
+              </Section>
+              <Section label="Куда идут лиды">
+                {[
+                  { key: "aiCallback" as const, label: "AI-менеджер перезванивает", desc: "Автоматический звонок", icon: "🤖" },
+                  { key: "crm" as const,        label: "Сохранить в CRM",           desc: "Раздел Заявки",       icon: "📊" },
+                  { key: "payments" as const,   label: "PayMall платёжи",            desc: "Подключить оплату",   icon: "💳" },
+                ].map(item => (
+                  <div key={item.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      <span style={{ fontSize: 18 }}>{item.icon}</span>
+                      <div>
+                        <p style={{ fontSize: 12, fontWeight: 500, color: C.text }}>{item.label}</p>
+                        <p style={{ fontSize: 11, color: C.muted }}>{item.desc}</p>
+                      </div>
+                    </div>
+                    <Toggle on={routing[item.key]} onChange={v => { setRouting(p => ({ ...p, [item.key]: v })); touch(); }} />
+                  </div>
+                ))}
+              </Section>
+            </Panel>
+          )}
+
+          {/* ─ Аналитика ─ */}
+          {activeSection === "analytics" && landing.published && (
+            <Panel title="Аналитика">
+              {/* Stat cards */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 4 }}>
+                <StatCard icon={<MousePointer size={14} />} label="Просмотры" value={views} color={C.indigo} />
+                <StatCard icon={<Users size={14} />} label="Заявки" value={leadCount} color={C.success} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <StatCard icon={<TrendingUp size={14} />} label="Конверсия" value={cvr} color="#F59E0B" />
+                <StatCard icon={<BarChart2 size={14} />} label="Статус" value={landing.published ? "Live" : "Draft"} color={landing.published ? C.success : C.muted} />
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {/* Mini chart */}
+              {leadCount > 0 && (
+                <Section label="Заявки за 7 дней">
+                  <MiniChart leads={leads} />
+                </Section>
+              )}
 
-                {selectedBlock.type === "hero" && (
-                  <>
-                    <SideField label="Метка (badge)">
-                      <input value={(selectedBlock as any).badge || ""} onChange={(e) => updateBlock("badge", e.target.value)} style={inp} placeholder="напр. Скидка 30% сейчас" />
-                    </SideField>
-                    <SideField label="Заголовок">
-                      <textarea value={(selectedBlock as any).headline || ""} onChange={(e) => updateBlock("headline", e.target.value)} rows={2} style={{ ...inp, resize: "vertical" }} />
-                    </SideField>
-                    <SideField label="Подзаголовок">
-                      <textarea value={(selectedBlock as any).subheadline || ""} onChange={(e) => updateBlock("subheadline", e.target.value)} rows={2} style={{ ...inp, resize: "vertical" }} />
-                    </SideField>
-                    <SideField label="Кнопка">
-                      <input value={(selectedBlock as any).cta || ""} onChange={(e) => updateBlock("cta", e.target.value)} style={inp} />
-                    </SideField>
-                  </>
-                )}
-
-                {selectedBlock.type === "price" && (
-                  <>
-                    <SideField label="Эмодзи">
-                      <input value={(selectedBlock as any).emoji || ""} onChange={(e) => updateBlock("emoji", e.target.value)} style={inp} placeholder="🛒" />
-                    </SideField>
-                    <SideField label="Старая цена">
-                      <input value={(selectedBlock as any).oldPrice || ""} onChange={(e) => updateBlock("oldPrice", e.target.value)} style={inp} placeholder="150 000 сум" />
-                    </SideField>
-                    <SideField label="Новая цена">
-                      <input value={(selectedBlock as any).newPrice || ""} onChange={(e) => updateBlock("newPrice", e.target.value)} style={inp} placeholder="99 000 сум" />
-                    </SideField>
-                    <SideField label="Кнопка">
-                      <input value={(selectedBlock as any).cta || ""} onChange={(e) => updateBlock("cta", e.target.value)} style={inp} placeholder="Заказать сейчас" />
-                    </SideField>
-                  </>
-                )}
-
-                {selectedBlock.type === "form" && (
-                  <>
-                    <SideField label="Заголовок">
-                      <input value={(selectedBlock as any).title || ""} onChange={(e) => updateBlock("title", e.target.value)} style={inp} />
-                    </SideField>
-                    <SideField label="Подзаголовок">
-                      <input value={(selectedBlock as any).subtitle || ""} onChange={(e) => updateBlock("subtitle", e.target.value)} style={inp} />
-                    </SideField>
-                    <SideField label="Кнопка">
-                      <input value={(selectedBlock as any).button || ""} onChange={(e) => updateBlock("button", e.target.value)} style={inp} />
-                    </SideField>
-                    <SideField label="Примечание">
-                      <input value={(selectedBlock as any).note || ""} onChange={(e) => updateBlock("note", e.target.value)} style={inp} placeholder="AI перезвонит за 1 минуту" />
-                    </SideField>
-                    <SideField label="Тёмный фон">
-                      <div
-                        onClick={() => updateBlock("dark", !(selectedBlock as any).dark)}
-                        style={{ width: 36, height: 20, borderRadius: 10, background: (selectedBlock as any).dark ? "var(--accent)" : "var(--line)", cursor: "pointer", position: "relative", transition: "background 0.2s" }}
-                      >
-                        <div style={{ position: "absolute", top: 2, left: (selectedBlock as any).dark ? 18 : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
-                      </div>
-                    </SideField>
-                  </>
-                )}
-
-                {selectedBlock.type === "features" && (
-                  <>
-                    <SideField label="Заголовок секции">
-                      <input value={(selectedBlock as any).title || ""} onChange={(e) => updateBlock("title", e.target.value)} style={inp} />
-                    </SideField>
-                    {((selectedBlock as any).items || []).map((item: any, idx: number) => (
-                      <div key={idx} style={{ borderTop: "1px solid var(--line)", paddingTop: 8 }}>
-                        <p style={{ fontSize: 10, color: "var(--tx-3)", marginBottom: 6 }}>Пункт {idx + 1}</p>
-                        <input value={item.icon || ""} onChange={(e) => updateFeatureItem(idx, "icon", e.target.value)} style={{ ...inp, marginBottom: 5 }} placeholder="Иконка" />
-                        <input value={item.title} onChange={(e) => updateFeatureItem(idx, "title", e.target.value)} style={{ ...inp, marginBottom: 5 }} placeholder="Заголовок" />
-                        <textarea value={item.desc || ""} onChange={(e) => updateFeatureItem(idx, "desc", e.target.value)} rows={2} style={{ ...inp, resize: "vertical" }} placeholder="Описание" />
+              {/* Recent leads */}
+              {leads.length > 0 && (
+                <Section label={`Последние заявки (${leads.length})`}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {leads.slice(0, 6).map(l => (
+                      <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 12px", background: C.bg, borderRadius: 9, border: `1px solid ${C.border}` }}>
+                        <div>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{l.name || "—"}</p>
+                          <p style={{ fontSize: 11, color: C.muted }}>{l.phone || "—"}</p>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <p style={{ fontSize: 10, color: C.muted }}>{new Date(l.created_at).toLocaleDateString("ru")}</p>
+                          <span style={{ fontSize: 10, fontWeight: 600, color: C.success, background: "#F0FDF4", padding: "2px 7px", borderRadius: 10 }}>
+                            {l.status === "new" ? "Новый" : l.status}
+                          </span>
+                        </div>
                       </div>
                     ))}
-                  </>
-                )}
+                    {leads.length > 6 && (
+                      <button onClick={() => router.push(`/${locale}/landings`)}
+                        style={{ fontSize: 12, color: C.indigo, background: "none", border: "none", cursor: "pointer", textAlign: "center", padding: "4px", fontFamily: "inherit" }}>
+                        Все заявки → {leads.length - 6} ещё
+                      </button>
+                    )}
+                  </div>
+                </Section>
+              )}
 
-                {selectedBlock.type === "text" && (
-                  <>
-                    <SideField label="Заголовок">
-                      <input value={(selectedBlock as any).title || ""} onChange={(e) => updateBlock("title", e.target.value)} style={inp} />
-                    </SideField>
-                    <SideField label="Текст">
-                      <textarea value={(selectedBlock as any).body || ""} onChange={(e) => updateBlock("body", e.target.value)} rows={4} style={{ ...inp, resize: "vertical" }} />
-                    </SideField>
-                  </>
-                )}
-
-                <button
-                  onClick={() => { saveMutation.mutate(undefined); setSelectedIndex(null); }}
-                  style={{ width: "100%", background: "var(--accent)", color: "var(--on-accent)", border: "none", borderRadius: 8, padding: "8px", fontSize: 13, fontWeight: 600, cursor: "pointer", marginTop: 4 }}
-                >
-                  Сохранить блок
-                </button>
-              </div>
-            </section>
+              {leadCount === 0 && (
+                <div style={{ textAlign: "center", padding: "32px 20px", color: C.muted }}>
+                  <BarChart2 size={32} style={{ margin: "0 auto 12px", opacity: 0.3 }} />
+                  <p style={{ fontSize: 13, fontWeight: 500 }}>Пока нет заявок</p>
+                  <p style={{ fontSize: 12, marginTop: 4 }}>Появятся после первых визитов</p>
+                </div>
+              )}
+            </Panel>
           )}
-        </div>
 
-        {/* Bottom: save + publish */}
-        <div style={{ padding: "14px 20px", borderTop: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
-          <button
-            onClick={() => saveMutation.mutate(undefined)}
-            disabled={saving}
-            style={{ width: "100%", background: "var(--chip)", color: saved ? "#16a34a" : "var(--tx-1)", border: "1px solid var(--line)", borderRadius: 10, padding: "10px", fontSize: 13, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}
-          >
-            {saved ? "✓ Сохранено" : saving ? "Сохранение..." : "Сохранить изменения"}
-          </button>
-          <button
-            onClick={() => saveMutation.mutate(!landing.published)}
-            disabled={saving}
-            style={{ width: "100%", background: landing.published ? "#fee2e2" : "var(--accent)", color: landing.published ? "#dc2626" : "var(--on-accent)", border: "none", borderRadius: 10, padding: "10px", fontSize: 13, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}
-          >
-            {landing.published ? "Снять с публикации" : "Опубликовать лендинг"}
-          </button>
-        </div>
+        </aside>
       </div>
     </div>
   );
 }
 
-function SideField({ label, children }: { label: string; children: React.ReactNode }) {
+// ── Helper components ─────────────────────────────────────────────────────────
+function Loader({ label = "Загрузка..." }: { label?: string }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <label style={{ fontSize: 11, color: "var(--tx-3)" }}>{label}</label>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: C.muted, fontSize: 14, fontFamily: "Inter, sans-serif" }}>
+      {label}
+    </div>
+  );
+}
+
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "16px 20px 12px", borderBottom: `1px solid ${C.border}` }}>
+        <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: 0 }}>{title}</p>
+      </div>
+      <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 20 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Section({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <p style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</p>
       {children}
     </div>
   );
 }
 
+function F({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+      <label style={{ fontSize: 12, fontWeight: 500, color: C.muted }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div onClick={() => onChange(!on)}
+      style={{ width: 38, height: 22, borderRadius: 11, background: on ? C.indigo : C.border, cursor: "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
+      <div style={{ position: "absolute", top: 3, left: on ? 19 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }} />
+    </div>
+  );
+}
+
+function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string | number; color: string }) {
+  return (
+    <div style={{ padding: "14px 12px", borderRadius: 10, background: C.bg, border: `1px solid ${C.border}` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, color: color, marginBottom: 8 }}>
+        {icon}
+        <span style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>{label}</span>
+      </div>
+      <p style={{ fontSize: 22, fontWeight: 800, color: C.text, margin: 0 }}>{value}</p>
+    </div>
+  );
+}
+
+function MiniChart({ leads }: { leads: { created_at: string }[] }) {
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return d;
+  });
+  const counts = days.map(day =>
+    leads.filter(l => new Date(l.created_at).toDateString() === day.toDateString()).length
+  );
+  const max = Math.max(...counts, 1);
+  return (
+    <svg width="100%" height={72} viewBox="0 0 260 72" style={{ display: "block" }}>
+      {counts.map((n, i) => {
+        const barH = Math.max((n / max) * 48, n > 0 ? 4 : 2);
+        const x = i * 38;
+        return (
+          <g key={i}>
+            <rect x={x + 2} y={52 - barH} width={30} height={barH} rx={4}
+              fill={n > 0 ? C.indigo : C.border} opacity={n > 0 ? 0.85 : 1} />
+            <text x={x + 17} y={68} textAnchor="middle" fontSize={9} fill={C.muted}>
+              {days[i].getDate()}
+            </text>
+            {n > 0 && <text x={x + 17} y={52 - barH - 4} textAnchor="middle" fontSize={9} fill={C.indigo} fontWeight="600">{n}</text>}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 const inp: React.CSSProperties = {
-  width: "100%",
-  padding: "7px 10px",
-  background: "var(--panel)",
-  border: "1px solid var(--line)",
-  borderRadius: 7,
-  fontSize: 12,
-  color: "var(--tx-1)",
-  outline: "none",
-  boxSizing: "border-box",
+  width: "100%", padding: "8px 11px", border: `1px solid ${C.border}`,
+  borderRadius: 7, fontSize: 13, color: C.text, outline: "none",
+  boxSizing: "border-box", fontFamily: "Inter, sans-serif", background: "#fff",
+  transition: "border-color 0.15s",
 };
 
+// ── Export ────────────────────────────────────────────────────────────────────
 export default function LandingEditorPage() {
-  return (
-    <Suspense fallback={null}>
-      <LandingEditorInner />
-    </Suspense>
-  );
+  return <Suspense fallback={null}><LandingEditorInner /></Suspense>;
 }
