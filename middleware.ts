@@ -45,6 +45,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/og") ||
+    pathname.startsWith("/l/") ||
+    pathname.startsWith("/l/u/") ||
     pathname === "/sitemap.xml" ||
     pathname === "/robots.txt" ||
     pathname === "/site.webmanifest" ||
