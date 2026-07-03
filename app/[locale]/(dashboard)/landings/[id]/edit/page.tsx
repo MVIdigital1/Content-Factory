@@ -221,7 +221,7 @@ export default function LandingEditorPage() {
       </div>
 
       {/* ── Right: Settings panel ─────────────────────────────────────── */}
-      <div style={{ width: 340, borderLeft: "1px solid var(--line)", background: "var(--panel)", display: "flex", flexDirection: "column", overflow: "hidden", flexShrink: 0 }}>
+      <div style={{ width: 420, borderLeft: "1px solid var(--line)", background: "var(--panel)", display: "flex", flexDirection: "column", overflow: "hidden", flexShrink: 0 }}>
 
         {/* Header */}
         <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--line)" }}>
@@ -245,16 +245,16 @@ export default function LandingEditorPage() {
           {/* Stats */}
           <section>
             <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-2)", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Результаты</p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
               {[
-                { label: "Просмотры", value: stats?.views ?? "—", icon: "👁️" },
-                { label: "Заявки", value: stats?.leadCount ?? "—", icon: "📩" },
-                { label: "Конверсия", value: stats && stats.views > 0 ? `${((stats.leadCount / stats.views) * 100).toFixed(1)}%` : "—", icon: "📈" },
+                { label: "Просмотры", value: stats?.views ?? "—", icon: "👁️", color: "#6366f1" },
+                { label: "Заявки",    value: stats?.leadCount ?? "—", icon: "📩", color: "#16a34a" },
+                { label: "Конверсия", value: stats && stats.views > 0 ? `${((stats.leadCount / stats.views) * 100).toFixed(1)}%` : "—", icon: "📈", color: "#f59e0b" },
               ].map((s) => (
-                <div key={s.label} style={{ background: "var(--chip)", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
-                  <div style={{ fontSize: 18, marginBottom: 4 }}>{s.icon}</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--tx-1)" }}>{s.value}</div>
-                  <div style={{ fontSize: 10, color: "var(--tx-3)" }}>{s.label}</div>
+                <div key={s.label} style={{ background: "var(--chip)", borderRadius: 12, padding: "16px 10px", textAlign: "center", border: "1px solid var(--line)" }}>
+                  <div style={{ fontSize: 22, marginBottom: 6 }}>{s.icon}</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: s.color, marginBottom: 4 }}>{s.value}</div>
+                  <div style={{ fontSize: 11, color: "var(--tx-3)", fontWeight: 500 }}>{s.label}</div>
                 </div>
               ))}
             </div>
