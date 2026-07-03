@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import LandingRenderer, { Block } from "@/components/landing/LandingRenderer";
@@ -41,12 +41,14 @@ const LIFECYCLE_OPTIONS = [
   { value: null, label: "Бессрочно" },
 ];
 
-export default function LandingEditorPage() {
+function LandingEditorInner() {
   const params = useParams();
   const id = params.id as string;
   const router = useRouter();
   const locale = useLocale();
   const qc = useQueryClient();
+  const searchParams = useSearchParams();
+  const fromCampaign = searchParams.get("from") === "campaign";
 
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [templateType, setTemplateType] = useState("product");
@@ -177,10 +179,10 @@ export default function LandingEditorPage() {
         {/* Top controls */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, alignSelf: "stretch" }}>
           <button
-            onClick={() => router.push(`/${locale}/landings`)}
+            onClick={() => fromCampaign ? router.back() : router.push(`/${locale}/landings`)}
             style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(255,255,255,0.8)", border: "none", borderRadius: 8, padding: "7px 12px", fontSize: 13, color: "#555", cursor: "pointer" }}
           >
-            <ChevronLeft size={15} /> Назад
+            <ChevronLeft size={15} /> {fromCampaign ? "К кампании" : "Назад"}
           </button>
           <span style={{ fontSize: 13, fontWeight: 600, color: "#333", flex: 1, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {landing.title}
@@ -481,3 +483,11 @@ const inp: React.CSSProperties = {
   outline: "none",
   boxSizing: "border-box",
 };
+
+export default function LandingEditorPage() {
+  return (
+    <Suspense fallback={null}>
+      <LandingEditorInner />
+    </Suspense>
+  );
+}

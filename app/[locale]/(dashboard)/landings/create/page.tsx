@@ -191,7 +191,10 @@ function CreateLandingPageInner() {
         sessionStorage.removeItem(STORAGE_KEY + "_bg");
       } catch {}
       setCreated({ id, slug });
-      router.push(`/${locale}/landings/${id}/edit`);
+      const editUrl = fromCampaign
+        ? `/${locale}/landings/${id}/edit?from=campaign`
+        : `/${locale}/landings/${id}/edit`;
+      router.push(editUrl);
     } catch (e: any) {
       setError(e.message);
       setGenerating(false);

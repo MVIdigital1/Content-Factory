@@ -2150,7 +2150,7 @@ export function WizardView({
                     className={`flex flex-col items-start p-4 border rounded-[10px] cursor-pointer transition-colors text-left ${landingId === lp.id ? "border-accent bg-chip" : "border-line hover:border-line-strong hover:bg-hover"}`}
                   >
                     <div style={{ fontSize: 20, marginBottom: 6 }}>🌐</div>
-                    <p className="text-[12px] font-semibold text-tx-1 leading-tight mb-1">{lp.name}</p>
+                    <p className="text-[12px] font-semibold text-tx-1 leading-tight mb-1">{lp.title || lp.name}</p>
                     <p className="text-[10px] text-tx-3">/{lp.slug}</p>
                     {landingId === lp.id && (
                       <span
@@ -2163,6 +2163,19 @@ export function WizardView({
                   </button>
                 ))}
               </div>
+            )}
+
+            {/* Create new landing button — always shown */}
+            {(landingPages as any[]).length > 0 && (
+              <button
+                onClick={() => {
+                  const params = new URLSearchParams({ from: "campaign", goal, ...(product && { product }), ...(audience && { audience }), ...(name && { campaign_name: name }) });
+                  router.push(`/${locale}/landings/create?${params}`);
+                }}
+                className="mt-3 w-full py-2 border border-dashed border-line rounded-[10px] text-[12px] text-tx-3 hover:border-accent hover:text-accent cursor-pointer transition-colors"
+              >
+                + Создать новый лендинг
+              </button>
             )}
           </div>
 
