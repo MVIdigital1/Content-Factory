@@ -191,8 +191,7 @@ function CreateLandingPageInner() {
         sessionStorage.removeItem(STORAGE_KEY + "_bg");
       } catch {}
       setCreated({ id, slug });
-      // redirect to list after short delay so user sees the success screen
-      setTimeout(() => router.push(`/${locale}/landings`), 4000);
+      router.push(`/${locale}/landings/${id}/edit`);
     } catch (e: any) {
       setError(e.message);
       setGenerating(false);

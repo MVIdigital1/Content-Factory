@@ -4,15 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import LandingRenderer, { Block } from "@/components/landing/LandingRenderer";
-import {
-  Save,
-  Globe,
-  EyeOff,
-  ChevronLeft,
-  ExternalLink,
-  Smartphone,
-  Monitor,
-} from "lucide-react";
+import { ChevronLeft, ExternalLink, Plus, X } from "lucide-react";
 
 type LandingPage = {
   id: string;
@@ -21,8 +13,33 @@ type LandingPage = {
   published: boolean;
   blocks: Block[];
   bg_image: string | null;
-  settings: { brandColor?: string; tone?: string };
+  settings: {
+    brandColor?: string;
+    tone?: string;
+    autoCloseDays?: number | null;
+    routing?: { aiCallback?: boolean; crm?: boolean; payments?: boolean };
+  };
+  template_id: string;
+  created_at?: string;
+  updated_at?: string;
 };
+
+const TEMPLATE_TYPES = [
+  { id: "product",     name: "Товар",   icon: "🛒" },
+  { id: "form",        name: "Заявка",  icon: "📋" },
+  { id: "appointment", name: "Запись",  icon: "📅" },
+  { id: "event",       name: "Событие", icon: "🎉" },
+  { id: "menu",        name: "Меню",    icon: "🍽️" },
+  { id: "callback",    name: "Звонок",  icon: "📞" },
+];
+
+const LIFECYCLE_OPTIONS = [
+  { value: 1,   label: "24 часа" },
+  { value: 3,   label: "3 дня" },
+  { value: 7,   label: "7 дней" },
+  { value: 30,  label: "30 дней" },
+  { value: null, label: "Бессрочно" },
+];
 
 export default function LandingEditorPage() {
   const params = useParams();
@@ -32,8 +49,10 @@ export default function LandingEditorPage() {
   const qc = useQueryClient();
 
   const [blocks, setBlocks] = useState<Block[]>([]);
+  const [templateType, setTemplateType] = useState("product");
+  const [autoCloseDays, setAutoCloseDays] = useState<number | null>(null);
+  const [routing, setRouting] = useState({ aiCallback: true, crm: true, payments: false });
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -47,18 +66,39 @@ export default function LandingEditorPage() {
   });
 
   useEffect(() => {
-    if (landing?.blocks) setBlocks(landing.blocks as Block[]);
+    if (!landing) return;
+    setBlocks(landing.blocks ?? []);
+    setTemplateType(landing.template_id || "product");
+    setAutoCloseDays(landing.settings?.autoCloseDays ?? null);
+    setRouting({
+      aiCallback: landing.settings?.routing?.aiCallback ?? true,
+      crm: landing.settings?.routing?.crm ?? true,
+      payments: landing.settings?.routing?.payments ?? false,
+    });
   }, [landing]);
+
+  const brandColor = landing?.settings?.brandColor || "#6366f1";
 
   const saveMutation = useMutation({
     mutationFn: async (publish?: boolean) => {
       setSaving(true);
-      const update: Record<string, unknown> = { content: { blocks } };
-      if (publish !== undefined) update.published = publish;
+      const content = {
+        blocks,
+        template_id: templateType,
+        bg_image: landing?.bg_image ?? null,
+        settings: {
+          brandColor,
+          tone: landing?.settings?.tone,
+          autoCloseDays,
+          routing,
+        },
+      };
+      const body: Record<string, unknown> = { content };
+      if (publish !== undefined) body.published = publish;
       const res = await fetch(`/api/landings/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(update),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error("Ошибка сохранения");
     },
@@ -72,10 +112,7 @@ export default function LandingEditorPage() {
     onError: () => setSaving(false),
   });
 
-  const selectedBlock = selectedIndex !== null ? blocks[selectedIndex] : null;
-  const brandColor = landing?.settings?.brandColor || "#6366f1";
-
-  const updateBlock = (field: string, value: string) => {
+  const updateBlock = (field: string, value: string | boolean) => {
     if (selectedIndex === null) return;
     setBlocks((prev) => {
       const next = [...prev];
@@ -97,17 +134,11 @@ export default function LandingEditorPage() {
     });
   };
 
+  const selectedBlock = selectedIndex !== null ? blocks[selectedIndex] : null;
+
   if (isLoading) {
     return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100vh",
-          color: "var(--tx-3)",
-        }}
-      >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "var(--tx-3)", fontSize: 14 }}>
         Загрузка...
       </div>
     );
@@ -115,554 +146,283 @@ export default function LandingEditorPage() {
 
   if (!landing) {
     return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100vh",
-          color: "var(--tx-3)",
-        }}
-      >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "var(--tx-3)", fontSize: 14 }}>
         Лендинг не найден
       </div>
     );
   }
 
+  const publishedAt = new Date(landing.updated_at || landing.id);
+  const minutesSince = Math.round((Date.now() - publishedAt.getTime()) / 60000);
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "var(--bg)" }}>
-      {/* Top bar */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          padding: "0 16px",
-          height: 52,
-          borderBottom: "1px solid var(--line)",
-          background: "var(--panel)",
-          flexShrink: 0,
-        }}
-      >
-        <button
-          onClick={() => router.push(`/${locale}/landings`)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            background: "none",
-            border: "none",
-            color: "var(--tx-3)",
-            fontSize: 13,
-            cursor: "pointer",
-            padding: "4px 6px",
-            borderRadius: 6,
-          }}
-        >
-          <ChevronLeft size={15} />
-          Назад
-        </button>
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "var(--bg)" }}>
 
-        <div style={{ width: 1, height: 20, background: "var(--line)" }} />
-
-        <span
-          style={{
-            fontSize: 14,
-            fontWeight: 600,
-            color: "var(--tx-1)",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            flex: 1,
-          }}
-        >
-          {landing.title}
-        </span>
-
-        {/* Preview mode toggle */}
-        <div
-          style={{
-            display: "flex",
-            background: "var(--chip)",
-            borderRadius: 8,
-            padding: 2,
-            gap: 2,
-          }}
-        >
-          {(["desktop", "mobile"] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => setPreviewMode(m)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                padding: "4px 10px",
-                border: "none",
-                borderRadius: 6,
-                background: previewMode === m ? "var(--panel)" : "transparent",
-                color: previewMode === m ? "var(--tx-1)" : "var(--tx-3)",
-                cursor: "pointer",
-                fontSize: 12,
-              }}
-            >
-              {m === "desktop" ? <Monitor size={13} /> : <Smartphone size={13} />}
-            </button>
-          ))}
-        </div>
-
-        <div style={{ display: "flex", gap: 8 }}>
+      {/* ── Left: Phone preview ──────────────────────────────────────── */}
+      <div style={{ flex: 1, background: "#f0f0ef", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 24, overflow: "hidden" }}>
+        {/* Top controls */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, alignSelf: "stretch" }}>
           <button
-            onClick={() => saveMutation.mutate(undefined)}
-            disabled={saving}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              background: "var(--chip)",
-              border: "none",
-              borderRadius: 8,
-              padding: "7px 14px",
-              fontSize: 13,
-              fontWeight: 500,
-              color: saved ? "#16a34a" : "var(--tx-1)",
-              cursor: saving ? "not-allowed" : "pointer",
-              opacity: saving ? 0.6 : 1,
-            }}
+            onClick={() => router.push(`/${locale}/landings`)}
+            style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(255,255,255,0.8)", border: "none", borderRadius: 8, padding: "7px 12px", fontSize: 13, color: "#555", cursor: "pointer" }}
           >
-            <Save size={14} />
-            {saved ? "Сохранено" : saving ? "..." : "Сохранить"}
+            <ChevronLeft size={15} /> Назад
           </button>
-
-          <button
-            onClick={() => saveMutation.mutate(!landing.published)}
-            disabled={saving}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              background: landing.published ? "var(--chip)" : "var(--accent)",
-              color: landing.published ? "var(--tx-2)" : "var(--on-accent)",
-              border: "none",
-              borderRadius: 8,
-              padding: "7px 14px",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: saving ? "not-allowed" : "pointer",
-            }}
-          >
-            {landing.published ? (
-              <>
-                <EyeOff size={14} />
-                Снять
-              </>
-            ) : (
-              <>
-                <Globe size={14} />
-                Опубликовать
-              </>
-            )}
-          </button>
-
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#333", flex: 1, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {landing.title}
+          </span>
           {landing.published && (
             <a
-              href={`/${locale}/l/${landing.slug}`}
+              href={`/l/${landing.slug}`}
               target="_blank"
               rel="noopener noreferrer"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                background: "var(--chip)",
-                color: "var(--tx-2)",
-                border: "none",
-                borderRadius: 8,
-                padding: "7px 12px",
-                fontSize: 13,
-                textDecoration: "none",
-              }}
+              style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.8)", border: "none", borderRadius: 8, padding: "7px 12px", fontSize: 13, color: "#555", textDecoration: "none" }}
             >
-              <ExternalLink size={14} />
+              <ExternalLink size={13} /> Открыть
             </a>
           )}
         </div>
-      </div>
 
-      {/* Main layout */}
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        {/* Preview pane */}
-        <div
-          style={{
-            flex: 1,
-            overflow: "auto",
-            background: "#e5e7eb",
-            padding: 24,
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "flex-start",
-          }}
-        >
-          <div
-            style={{
-              width: previewMode === "mobile" ? 375 : "100%",
-              maxWidth: previewMode === "mobile" ? 375 : 960,
-              background: "#fff",
-              borderRadius: 12,
-              overflow: "hidden",
-              boxShadow: "0 4px 32px rgba(0,0,0,0.12)",
-              minHeight: 400,
-            }}
-          >
-            {/* Browser chrome */}
-            <div
-              style={{
-                height: 32,
-                background: "#f1f3f4",
-                borderBottom: "1px solid #ddd",
-                display: "flex",
-                alignItems: "center",
-                padding: "0 12px",
-                gap: 6,
-              }}
-            >
-              <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#ff5f57" }} />
-              <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#febc2e" }} />
-              <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#28c840" }} />
-              <div
-                style={{
-                  flex: 1,
-                  background: "#fff",
-                  borderRadius: 4,
-                  height: 16,
-                  margin: "0 12px",
-                  fontSize: 9,
-                  color: "#999",
-                  display: "flex",
-                  alignItems: "center",
-                  paddingLeft: 8,
-                }}
-              >
-                {typeof window !== "undefined" ? window.location.origin : ""}/{locale}/l/{landing.slug}
-              </div>
-            </div>
+        {/* Phone frame */}
+        <div style={{ width: 320, height: 620, background: "#1a1a18", borderRadius: 44, padding: "14px 10px", boxShadow: "0 24px 64px rgba(0,0,0,0.35), 0 0 0 2px #333", flexShrink: 0 }}>
+          {/* Notch */}
+          <div style={{ width: 80, height: 20, background: "#1a1a18", borderRadius: 10, margin: "0 auto 8px", position: "relative", zIndex: 2 }} />
+          <div style={{ height: "calc(100% - 28px)", borderRadius: 34, overflow: "auto", background: "#fff", scrollbarWidth: "none" }}>
             <LandingRenderer
               blocks={blocks}
               bgImage={landing.bg_image || undefined}
               brandColor={brandColor}
-              selectedIndex={selectedIndex}
-              onSelectBlock={(i) => setSelectedIndex(selectedIndex === i ? null : i)}
               preview
+              onSelectBlock={(i) => setSelectedIndex(selectedIndex === i ? null : i)}
+              selectedIndex={selectedIndex}
             />
           </div>
         </div>
 
-        {/* Sidebar */}
-        <div
-          style={{
-            width: 280,
-            borderLeft: "1px solid var(--line)",
-            background: "var(--panel)",
-            overflow: "auto",
-            flexShrink: 0,
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          {selectedBlock === null ? (
-            <div
-              style={{
-                padding: 20,
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-              }}
+        {selectedIndex !== null && (
+          <p style={{ fontSize: 12, color: "#888" }}>
+            Кликните на блок чтобы выбрать · нажмите ✕ чтобы закрыть редактор
+          </p>
+        )}
+      </div>
+
+      {/* ── Right: Settings panel ─────────────────────────────────────── */}
+      <div style={{ width: 340, borderLeft: "1px solid var(--line)", background: "var(--panel)", display: "flex", flexDirection: "column", overflow: "hidden", flexShrink: 0 }}>
+
+        {/* Header */}
+        <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--line)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--tx-1)" }}>AI Лендинг</span>
+            <button
+              onClick={() => router.push(`/${locale}/landings/create`)}
+              style={{ display: "flex", alignItems: "center", gap: 5, background: "var(--chip)", border: "none", borderRadius: 7, padding: "5px 10px", fontSize: 12, color: "var(--tx-2)", cursor: "pointer" }}
             >
-              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>
-                Блоки страницы
-              </p>
-              <p style={{ fontSize: 12, color: "var(--tx-3)", margin: 0 }}>
-                Кликните на блок в превью чтобы редактировать
-              </p>
-              <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-                {blocks.map((b, i) => (
+              <Plus size={13} /> Создать ещё
+            </button>
+          </div>
+          <p style={{ fontSize: 11, color: "var(--tx-3)", margin: 0 }}>
+            AI генерирует лендинг под кампанию · настройте параметры ниже
+          </p>
+        </div>
+
+        {/* Scrollable content */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 20 }}>
+
+          {/* Template type */}
+          <section>
+            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-2)", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Тип лендинга</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+              {TEMPLATE_TYPES.map((t) => {
+                const active = templateType === t.id;
+                return (
                   <button
-                    key={i}
-                    onClick={() => setSelectedIndex(i)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      background: "var(--chip)",
-                      border: "1px solid var(--line)",
-                      borderRadius: 8,
-                      padding: "8px 12px",
-                      cursor: "pointer",
-                      textAlign: "left",
-                    }}
+                    key={t.id}
+                    onClick={() => setTemplateType(t.id)}
+                    style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "10px 6px", borderRadius: 10, border: active ? `2px solid var(--accent)` : "1.5px solid var(--line)", background: active ? "color-mix(in srgb, var(--accent) 10%, var(--panel))" : "var(--chip)", cursor: "pointer", transition: "all 0.15s" }}
                   >
-                    <span style={{ fontSize: 16 }}>
-                      {b.type === "hero" ? "🏠" : b.type === "form" ? "📝" : b.type === "features" ? "✦" : b.type === "price" ? "🏷️" : "📄"}
-                    </span>
-                    <div>
-                      <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>
-                        {b.type === "hero" ? "Герой" : b.type === "form" ? "Форма" : b.type === "features" ? "Преимущества" : b.type === "price" ? "Цена" : "Текст"}
-                      </p>
-                      <p style={{ fontSize: 11, color: "var(--tx-3)", margin: 0 }}>
-                        {b.type === "hero" && (b as any).headline?.slice(0, 30)}
-                        {b.type === "form" && (b as any).title?.slice(0, 30)}
-                        {b.type === "features" && (b as any).title?.slice(0, 30)}
-                        {b.type === "text" && (b as any).title?.slice(0, 30)}
-                      </p>
-                    </div>
+                    <span style={{ fontSize: 18 }}>{t.icon}</span>
+                    <span style={{ fontSize: 11, fontWeight: active ? 700 : 400, color: active ? "var(--accent)" : "var(--tx-2)" }}>{t.name}</span>
                   </button>
-                ))}
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Lifecycle */}
+          <section>
+            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-2)", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Жизненный цикл</p>
+            <div style={{ background: "var(--chip)", borderRadius: 10, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+              {landing.published && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 12, color: "var(--tx-3)" }}>Опубликован</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#16a34a" }}>{minutesSince} мин назад</span>
+                </div>
+              )}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 12, color: "var(--tx-3)" }}>Авто-закрытие</span>
+                <select
+                  value={autoCloseDays === null ? "null" : String(autoCloseDays)}
+                  onChange={(e) => setAutoCloseDays(e.target.value === "null" ? null : Number(e.target.value))}
+                  style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-1)", background: "transparent", border: "none", outline: "none", cursor: "pointer" }}
+                >
+                  {LIFECYCLE_OPTIONS.map((o) => (
+                    <option key={String(o.value)} value={String(o.value)}>{o.label}</option>
+                  ))}
+                </select>
               </div>
             </div>
-          ) : (
-            <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)" }}>
-                  {selectedBlock.type === "hero" ? "🏠 Герой" : selectedBlock.type === "form" ? "📝 Форма" : selectedBlock.type === "features" ? "✦ Преимущества" : selectedBlock.type === "price" ? "🏷️ Цена" : "📄 Текст"}
+          </section>
+
+          {/* Lead routing */}
+          <section>
+            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-2)", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Куда идут лиды</p>
+            <div style={{ background: "var(--chip)", borderRadius: 10, overflow: "hidden" }}>
+              {[
+                { key: "aiCallback" as const, label: "AI-менеджер обрабатывает", icon: "🤖" },
+                { key: "crm" as const,        label: "Заявки в CRM",             icon: "📊" },
+                { key: "payments" as const,   label: "PayMall платёжи",          icon: "💳" },
+              ].map((item, i) => (
+                <div key={item.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderBottom: i < 2 ? "1px solid var(--line)" : "none" }}>
+                  <span style={{ fontSize: 16 }}>{item.icon}</span>
+                  <span style={{ flex: 1, fontSize: 12, color: "var(--tx-1)" }}>{item.label}</span>
+                  <div
+                    onClick={() => setRouting((p) => ({ ...p, [item.key]: !p[item.key] }))}
+                    style={{ width: 36, height: 20, borderRadius: 10, background: routing[item.key] ? "var(--accent)" : "var(--line)", cursor: "pointer", position: "relative", transition: "background 0.2s" }}
+                  >
+                    <div style={{ position: "absolute", top: 2, left: routing[item.key] ? 18 : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Block editor — shown when a block is selected */}
+          {selectedBlock && (
+            <section style={{ background: "var(--chip)", borderRadius: 12, padding: "14px", border: "1px solid var(--line)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--tx-1)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Редактировать блок
                 </span>
-                <button
-                  onClick={() => setSelectedIndex(null)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "var(--tx-3)",
-                    cursor: "pointer",
-                    fontSize: 18,
-                    lineHeight: 1,
-                    padding: 2,
-                  }}
-                >
-                  ×
+                <button onClick={() => setSelectedIndex(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--tx-3)", padding: 2 }}>
+                  <X size={15} />
                 </button>
               </div>
 
-              {selectedBlock.type === "hero" && (
-                <>
-                  <SideField label="Акционная метка (badge)">
-                    <input
-                      value={(selectedBlock as any).badge || ""}
-                      onChange={(e) => updateBlock("badge", e.target.value)}
-                      style={sideInputStyle}
-                      placeholder="напр. Скидка 30% до конца месяца"
-                    />
-                  </SideField>
-                  <SideField label="Eyebrow (над заголовком)">
-                    <input
-                      value={(selectedBlock as any).eyebrow || ""}
-                      onChange={(e) => updateBlock("eyebrow", e.target.value)}
-                      style={sideInputStyle}
-                      placeholder="Фраза над заголовком"
-                    />
-                  </SideField>
-                  <SideField label="Заголовок">
-                    <textarea
-                      value={(selectedBlock as any).headline || ""}
-                      onChange={(e) => updateBlock("headline", e.target.value)}
-                      rows={3}
-                      style={{ ...sideInputStyle, resize: "vertical" }}
-                      placeholder="Главный заголовок"
-                    />
-                  </SideField>
-                  <SideField label="Подзаголовок">
-                    <textarea
-                      value={(selectedBlock as any).subheadline || ""}
-                      onChange={(e) => updateBlock("subheadline", e.target.value)}
-                      rows={3}
-                      style={{ ...sideInputStyle, resize: "vertical" }}
-                      placeholder="Описание оффера"
-                    />
-                  </SideField>
-                  <SideField label="Кнопка CTA">
-                    <input
-                      value={(selectedBlock as any).cta || ""}
-                      onChange={(e) => updateBlock("cta", e.target.value)}
-                      style={sideInputStyle}
-                      placeholder="Текст кнопки"
-                    />
-                  </SideField>
-                </>
-              )}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
 
-              {selectedBlock.type === "price" && (
-                <>
-                  <SideField label="Эмодзи товара">
-                    <input
-                      value={(selectedBlock as any).emoji || ""}
-                      onChange={(e) => updateBlock("emoji", e.target.value)}
-                      style={sideInputStyle}
-                      placeholder="🛒"
-                    />
-                  </SideField>
-                  <SideField label="Старая цена (перечёркнутая)">
-                    <input
-                      value={(selectedBlock as any).oldPrice || ""}
-                      onChange={(e) => updateBlock("oldPrice", e.target.value)}
-                      style={sideInputStyle}
-                      placeholder="напр. 150 000 сум"
-                    />
-                  </SideField>
-                  <SideField label="Новая цена">
-                    <input
-                      value={(selectedBlock as any).newPrice || ""}
-                      onChange={(e) => updateBlock("newPrice", e.target.value)}
-                      style={sideInputStyle}
-                      placeholder="напр. 99 000 сум"
-                    />
-                  </SideField>
-                  <SideField label="Кнопка CTA">
-                    <input
-                      value={(selectedBlock as any).cta || ""}
-                      onChange={(e) => updateBlock("cta", e.target.value)}
-                      style={sideInputStyle}
-                      placeholder="Заказать сейчас"
-                    />
-                  </SideField>
-                </>
-              )}
+                {selectedBlock.type === "hero" && (
+                  <>
+                    <SideField label="Метка (badge)">
+                      <input value={(selectedBlock as any).badge || ""} onChange={(e) => updateBlock("badge", e.target.value)} style={inp} placeholder="напр. Скидка 30% сейчас" />
+                    </SideField>
+                    <SideField label="Заголовок">
+                      <textarea value={(selectedBlock as any).headline || ""} onChange={(e) => updateBlock("headline", e.target.value)} rows={2} style={{ ...inp, resize: "vertical" }} />
+                    </SideField>
+                    <SideField label="Подзаголовок">
+                      <textarea value={(selectedBlock as any).subheadline || ""} onChange={(e) => updateBlock("subheadline", e.target.value)} rows={2} style={{ ...inp, resize: "vertical" }} />
+                    </SideField>
+                    <SideField label="Кнопка">
+                      <input value={(selectedBlock as any).cta || ""} onChange={(e) => updateBlock("cta", e.target.value)} style={inp} />
+                    </SideField>
+                  </>
+                )}
 
-              {selectedBlock.type === "form" && (
-                <>
-                  <SideField label="Заголовок формы">
-                    <input
-                      value={(selectedBlock as any).title || ""}
-                      onChange={(e) => updateBlock("title", e.target.value)}
-                      style={sideInputStyle}
-                    />
-                  </SideField>
-                  <SideField label="Подзаголовок">
-                    <input
-                      value={(selectedBlock as any).subtitle || ""}
-                      onChange={(e) => updateBlock("subtitle", e.target.value)}
-                      style={sideInputStyle}
-                    />
-                  </SideField>
-                  <SideField label="Текст кнопки">
-                    <input
-                      value={(selectedBlock as any).button || ""}
-                      onChange={(e) => updateBlock("button", e.target.value)}
-                      style={sideInputStyle}
-                    />
-                  </SideField>
-                  <SideField label="Примечание (под кнопкой)">
-                    <input
-                      value={(selectedBlock as any).note || ""}
-                      onChange={(e) => updateBlock("note", e.target.value)}
-                      style={sideInputStyle}
-                      placeholder="напр. AI перезвонит за 1 минуту"
-                    />
-                  </SideField>
-                  <SideField label="Тёмный фон">
-                    <select
-                      value={(selectedBlock as any).dark ? "true" : "false"}
-                      onChange={(e) => updateBlock("dark", e.target.value === "true" ? "true" : "")}
-                      style={sideInputStyle}
-                    >
-                      <option value="false">Светлый</option>
-                      <option value="true">Тёмный (#1A1A18)</option>
-                    </select>
-                  </SideField>
-                </>
-              )}
+                {selectedBlock.type === "price" && (
+                  <>
+                    <SideField label="Эмодзи">
+                      <input value={(selectedBlock as any).emoji || ""} onChange={(e) => updateBlock("emoji", e.target.value)} style={inp} placeholder="🛒" />
+                    </SideField>
+                    <SideField label="Старая цена">
+                      <input value={(selectedBlock as any).oldPrice || ""} onChange={(e) => updateBlock("oldPrice", e.target.value)} style={inp} placeholder="150 000 сум" />
+                    </SideField>
+                    <SideField label="Новая цена">
+                      <input value={(selectedBlock as any).newPrice || ""} onChange={(e) => updateBlock("newPrice", e.target.value)} style={inp} placeholder="99 000 сум" />
+                    </SideField>
+                    <SideField label="Кнопка">
+                      <input value={(selectedBlock as any).cta || ""} onChange={(e) => updateBlock("cta", e.target.value)} style={inp} placeholder="Заказать сейчас" />
+                    </SideField>
+                  </>
+                )}
 
-              {selectedBlock.type === "features" && (
-                <>
-                  <SideField label="Заголовок секции">
-                    <input
-                      value={(selectedBlock as any).title || ""}
-                      onChange={(e) => updateBlock("title", e.target.value)}
-                      style={sideInputStyle}
-                    />
-                  </SideField>
-                  {((selectedBlock as any).items || []).map(
-                    (item: { icon?: string; title: string; desc?: string }, idx: number) => (
+                {selectedBlock.type === "form" && (
+                  <>
+                    <SideField label="Заголовок">
+                      <input value={(selectedBlock as any).title || ""} onChange={(e) => updateBlock("title", e.target.value)} style={inp} />
+                    </SideField>
+                    <SideField label="Подзаголовок">
+                      <input value={(selectedBlock as any).subtitle || ""} onChange={(e) => updateBlock("subtitle", e.target.value)} style={inp} />
+                    </SideField>
+                    <SideField label="Кнопка">
+                      <input value={(selectedBlock as any).button || ""} onChange={(e) => updateBlock("button", e.target.value)} style={inp} />
+                    </SideField>
+                    <SideField label="Примечание">
+                      <input value={(selectedBlock as any).note || ""} onChange={(e) => updateBlock("note", e.target.value)} style={inp} placeholder="AI перезвонит за 1 минуту" />
+                    </SideField>
+                    <SideField label="Тёмный фон">
                       <div
-                        key={idx}
-                        style={{
-                          border: "1px solid var(--line)",
-                          borderRadius: 8,
-                          padding: 10,
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: 8,
-                        }}
+                        onClick={() => updateBlock("dark", !(selectedBlock as any).dark)}
+                        style={{ width: 36, height: 20, borderRadius: 10, background: (selectedBlock as any).dark ? "var(--accent)" : "var(--line)", cursor: "pointer", position: "relative", transition: "background 0.2s" }}
                       >
-                        <p style={{ fontSize: 11, fontWeight: 600, color: "var(--tx-3)", margin: 0 }}>
-                          Пункт {idx + 1}
-                        </p>
-                        <input
-                          value={item.icon || ""}
-                          onChange={(e) => updateFeatureItem(idx, "icon", e.target.value)}
-                          style={sideInputStyle}
-                          placeholder="Иконка (эмодзи)"
-                        />
-                        <input
-                          value={item.title}
-                          onChange={(e) => updateFeatureItem(idx, "title", e.target.value)}
-                          style={sideInputStyle}
-                          placeholder="Заголовок"
-                        />
-                        <textarea
-                          value={item.desc || ""}
-                          onChange={(e) => updateFeatureItem(idx, "desc", e.target.value)}
-                          rows={2}
-                          style={{ ...sideInputStyle, resize: "vertical" }}
-                          placeholder="Описание"
-                        />
+                        <div style={{ position: "absolute", top: 2, left: (selectedBlock as any).dark ? 18 : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
                       </div>
-                    )
-                  )}
-                </>
-              )}
+                    </SideField>
+                  </>
+                )}
 
-              {selectedBlock.type === "text" && (
-                <>
-                  <SideField label="Заголовок">
-                    <input
-                      value={(selectedBlock as any).title || ""}
-                      onChange={(e) => updateBlock("title", e.target.value)}
-                      style={sideInputStyle}
-                    />
-                  </SideField>
-                  <SideField label="Текст">
-                    <textarea
-                      value={(selectedBlock as any).body || ""}
-                      onChange={(e) => updateBlock("body", e.target.value)}
-                      rows={5}
-                      style={{ ...sideInputStyle, resize: "vertical" }}
-                    />
-                  </SideField>
-                </>
-              )}
+                {selectedBlock.type === "features" && (
+                  <>
+                    <SideField label="Заголовок секции">
+                      <input value={(selectedBlock as any).title || ""} onChange={(e) => updateBlock("title", e.target.value)} style={inp} />
+                    </SideField>
+                    {((selectedBlock as any).items || []).map((item: any, idx: number) => (
+                      <div key={idx} style={{ borderTop: "1px solid var(--line)", paddingTop: 8 }}>
+                        <p style={{ fontSize: 10, color: "var(--tx-3)", marginBottom: 6 }}>Пункт {idx + 1}</p>
+                        <input value={item.icon || ""} onChange={(e) => updateFeatureItem(idx, "icon", e.target.value)} style={{ ...inp, marginBottom: 5 }} placeholder="Иконка" />
+                        <input value={item.title} onChange={(e) => updateFeatureItem(idx, "title", e.target.value)} style={{ ...inp, marginBottom: 5 }} placeholder="Заголовок" />
+                        <textarea value={item.desc || ""} onChange={(e) => updateFeatureItem(idx, "desc", e.target.value)} rows={2} style={{ ...inp, resize: "vertical" }} placeholder="Описание" />
+                      </div>
+                    ))}
+                  </>
+                )}
 
-              <button
-                onClick={() => saveMutation.mutate(undefined)}
-                disabled={saving}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                  background: "var(--accent)",
-                  color: "var(--on-accent)",
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "9px",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: saving ? "not-allowed" : "pointer",
-                  opacity: saving ? 0.6 : 1,
-                  marginTop: 4,
-                }}
-              >
-                <Save size={13} />
-                {saving ? "Сохранение..." : saved ? "Сохранено ✓" : "Сохранить"}
-              </button>
-            </div>
+                {selectedBlock.type === "text" && (
+                  <>
+                    <SideField label="Заголовок">
+                      <input value={(selectedBlock as any).title || ""} onChange={(e) => updateBlock("title", e.target.value)} style={inp} />
+                    </SideField>
+                    <SideField label="Текст">
+                      <textarea value={(selectedBlock as any).body || ""} onChange={(e) => updateBlock("body", e.target.value)} rows={4} style={{ ...inp, resize: "vertical" }} />
+                    </SideField>
+                  </>
+                )}
+
+                <button
+                  onClick={() => { saveMutation.mutate(undefined); setSelectedIndex(null); }}
+                  style={{ width: "100%", background: "var(--accent)", color: "var(--on-accent)", border: "none", borderRadius: 8, padding: "8px", fontSize: 13, fontWeight: 600, cursor: "pointer", marginTop: 4 }}
+                >
+                  Сохранить блок
+                </button>
+              </div>
+            </section>
           )}
+        </div>
+
+        {/* Bottom: save + publish */}
+        <div style={{ padding: "14px 20px", borderTop: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
+          <button
+            onClick={() => saveMutation.mutate(undefined)}
+            disabled={saving}
+            style={{ width: "100%", background: "var(--chip)", color: saved ? "#16a34a" : "var(--tx-1)", border: "1px solid var(--line)", borderRadius: 10, padding: "10px", fontSize: 13, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}
+          >
+            {saved ? "✓ Сохранено" : saving ? "Сохранение..." : "Сохранить изменения"}
+          </button>
+          <button
+            onClick={() => saveMutation.mutate(!landing.published)}
+            disabled={saving}
+            style={{ width: "100%", background: landing.published ? "#fee2e2" : "var(--accent)", color: landing.published ? "#dc2626" : "var(--on-accent)", border: "none", borderRadius: 10, padding: "10px", fontSize: 13, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}
+          >
+            {landing.published ? "Снять с публикации" : "Опубликовать лендинг"}
+          </button>
         </div>
       </div>
     </div>
@@ -671,22 +431,20 @@ export default function LandingEditorPage() {
 
 function SideField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-      <label style={{ fontSize: 11, fontWeight: 500, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-        {label}
-      </label>
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <label style={{ fontSize: 11, color: "var(--tx-3)" }}>{label}</label>
       {children}
     </div>
   );
 }
 
-const sideInputStyle: React.CSSProperties = {
+const inp: React.CSSProperties = {
   width: "100%",
   padding: "7px 10px",
-  background: "var(--panel-2)",
+  background: "var(--panel)",
   border: "1px solid var(--line)",
   borderRadius: 7,
-  fontSize: 13,
+  fontSize: 12,
   color: "var(--tx-1)",
   outline: "none",
   boxSizing: "border-box",
