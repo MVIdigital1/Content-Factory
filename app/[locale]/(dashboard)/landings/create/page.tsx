@@ -2,7 +2,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "next-intl";
-import { ChevronLeft, ChevronRight, Sparkles, Lock, Check, ExternalLink, Edit3 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Sparkles, Lock, Check, ExternalLink, Edit3, Building2 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type Step1 = {
@@ -15,6 +15,13 @@ type Step1 = {
   advantages: string;
   tone: string;
   brandColor: string;
+};
+
+type Project = {
+  id: string;
+  name: string;
+  niche: string | null;
+  logo_url: string | null;
 };
 
 const EMPTY_STEP1: Step1 = {
@@ -30,19 +37,19 @@ const EMPTY_STEP1: Step1 = {
 };
 
 const NICHES = [
-  "недвижимость","медицина","образование","услуги","товары",
-  "IT / технологии","красота и уход","строительство","питание","другое",
+  "недвижимость", "медицина", "образование", "услуги", "товары",
+  "IT / технологии", "красота и уход", "строительство", "питание", "другое",
 ];
 
 const TONES = ["профессиональный", "дружелюбный", "молодёжный", "экспертный", "вдохновляющий"];
 
 const TEMPLATES = [
-  { id: "classic",    name: "Классический",     desc: "Одноколоночный лаконичный дизайн",  pro: false, preview: "🗂️" },
-  { id: "hero-form",  name: "Hero + форма",      desc: "Текст слева, форма справа",          pro: false, preview: "📄" },
-  { id: "minimal",    name: "Минималистичный",   desc: "Чистый белый с акцентами",           pro: false, preview: "⬜" },
-  { id: "big-photo",  name: "Большое фото",      desc: "Полноэкранное изображение фона",     pro: false, preview: "🖼️" },
-  { id: "video-bg",   name: "Видео фон",         desc: "Динамичный видеофон",                pro: true,  preview: "🎬" },
-  { id: "fullscreen", name: "Полноэкранный",     desc: "Секции на весь экран",              pro: true,  preview: "⬛" },
+  { id: "classic",    name: "Классический",   desc: "Одноколоночный лаконичный дизайн", pro: false, preview: "🗂️" },
+  { id: "hero-form",  name: "Hero + форма",    desc: "Текст слева, форма справа",         pro: false, preview: "📄" },
+  { id: "minimal",    name: "Минималистичный", desc: "Чистый белый с акцентами",          pro: false, preview: "⬜" },
+  { id: "big-photo",  name: "Большое фото",    desc: "Полноэкранное изображение фона",    pro: false, preview: "🖼️" },
+  { id: "video-bg",   name: "Видео фон",       desc: "Динамичный видеофон",               pro: true,  preview: "🎬" },
+  { id: "fullscreen", name: "Полноэкранный",   desc: "Секции на весь экран",              pro: true,  preview: "⬛" },
 ];
 
 const BG_IMAGES = [
@@ -66,7 +73,8 @@ function CreateLandingPageInner() {
   const searchParams = useSearchParams();
   const fromCampaign = searchParams.get("from") === "campaign";
 
-  const [step, setStep] = useState(1);
+  // step 0 = project selection, 1 = business details, 2 = template, 3 = background
+  const [step, setStep] = useState(0);
   const [step1, setStep1] = useState<Step1>(() => {
     const offer = searchParams.get("product") || "";
     const audience = searchParams.get("audience") || "";
@@ -90,6 +98,21 @@ function CreateLandingPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<{ id: string; slug: string } | null>(null);
 
+  // Project selection
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [fillingFromProject, setFillingFromProject] = useState(false);
+  const [filledFromProject, setFilledFromProject] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/projects")
+      .then((r) => r.json())
+      .then((data) => setProjects(Array.isArray(data) ? data : []))
+      .catch(() => setProjects([]))
+      .finally(() => setProjectsLoading(false));
+  }, []);
+
   // Persist to sessionStorage
   useEffect(() => {
     try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(step1)); } catch {}
@@ -101,10 +124,46 @@ function CreateLandingPageInner() {
     try { sessionStorage.setItem(STORAGE_KEY + "_bg", bgImage); } catch {}
   }, [bgImage]);
 
-  const set1 = (field: keyof Step1) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-    setStep1((p) => ({ ...p, [field]: e.target.value }));
+  const set1 = (field: keyof Step1) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+      setStep1((p) => ({ ...p, [field]: e.target.value }));
 
   const canNext1 = step1.businessName && step1.offer && step1.audience;
+
+  const handleSelectProject = async (projectId: string) => {
+    setFillingFromProject(true);
+    try {
+      const res = await fetch("/api/landings/from-project", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+      if (!res.ok) throw new Error("failed");
+      const data = await res.json();
+      setStep1((prev) => ({
+        ...prev,
+        businessName: data.businessName || prev.businessName,
+        niche: data.niche || prev.niche,
+        city: data.city || prev.city,
+        offer: data.offer || prev.offer,
+        audience: data.audience || prev.audience,
+        pain: data.pain || prev.pain,
+        advantages: data.advantages || prev.advantages,
+        tone: data.tone || prev.tone,
+      }));
+      const proj = projects.find((p) => p.id === projectId);
+      setFilledFromProject(proj?.name ?? null);
+    } catch {
+      const proj = projects.find((p) => p.id === projectId);
+      if (proj) {
+        setStep1((prev) => ({ ...prev, businessName: proj.name }));
+        setFilledFromProject(proj.name);
+      }
+    } finally {
+      setFillingFromProject(false);
+      setStep(1);
+    }
+  };
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -132,7 +191,15 @@ function CreateLandingPageInner() {
     }
   };
 
-  const STEPS = ["Бизнес", "Шаблон", "Фон"];
+  const goBack = () => {
+    if (step === 0) {
+      fromCampaign ? router.back() : router.push(`/${locale}/landings`);
+    } else {
+      setStep((s) => s - 1);
+    }
+  };
+
+  const STEPS = ["Проект", "Детали", "Шаблон", "Фон"];
 
   // ── Success screen ─────────────────────────────────────────────────────
   if (created) {
@@ -147,8 +214,7 @@ function CreateLandingPageInner() {
               <p style={{ fontSize: 16, fontWeight: 700, color: "var(--tx-1)", margin: 0 }}>Лендинг создан!</p>
               <p style={{ fontSize: 13, color: "var(--tx-3)", margin: "2px 0 0" }}>
                 Страница доступна по адресу{" "}
-                <a href={`/l/${created.slug}`} target="_blank" rel="noreferrer"
-                  style={{ color: "var(--accent)", fontWeight: 600 }}>
+                <a href={`/l/${created.slug}`} target="_blank" rel="noreferrer" style={{ color: "var(--accent)", fontWeight: 600 }}>
                   /l/{created.slug}
                 </a>
               </p>
@@ -161,9 +227,7 @@ function CreateLandingPageInner() {
                 <Edit3 size={14} /> Редактировать
               </button>
               <a
-                href={`/l/${created.slug}`}
-                target="_blank"
-                rel="noreferrer"
+                href={`/l/${created.slug}`} target="_blank" rel="noreferrer"
                 style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", border: "none", borderRadius: 9, background: "var(--accent)", color: "var(--on-accent)", fontSize: 13, fontWeight: 600, cursor: "pointer", textDecoration: "none" }}
               >
                 <ExternalLink size={14} /> Открыть
@@ -171,21 +235,18 @@ function CreateLandingPageInner() {
             </div>
           </div>
 
-          {/* Preview iframe */}
           <div style={{ border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden", marginBottom: 20 }}>
             <div style={{ padding: "8px 16px", background: "var(--panel-2)", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ display: "flex", gap: 5 }}>
-                {["#ff5f57","#febc2e","#28c840"].map(c => <div key={c} style={{ width: 10, height: 10, borderRadius: "50%", background: c }} />)}
+                {["#ff5f57", "#febc2e", "#28c840"].map((c) => (
+                  <div key={c} style={{ width: 10, height: 10, borderRadius: "50%", background: c }} />
+                ))}
               </div>
               <div style={{ flex: 1, background: "var(--bg)", borderRadius: 6, padding: "4px 12px", fontSize: 11, color: "var(--tx-3)" }}>
                 mvira.uz/l/{created.slug}
               </div>
             </div>
-            <iframe
-              src={`/l/${created.slug}`}
-              style={{ width: "100%", height: 560, border: "none", display: "block" }}
-              title="Предпросмотр лендинга"
-            />
+            <iframe src={`/l/${created.slug}`} style={{ width: "100%", height: 560, border: "none", display: "block" }} title="Предпросмотр лендинга" />
           </div>
 
           <div style={{ display: "flex", gap: 10 }}>
@@ -196,13 +257,7 @@ function CreateLandingPageInner() {
               ← Все лендинги
             </button>
             <button
-              onClick={() => {
-                setCreated(null);
-                setStep(1);
-                setStep1(EMPTY_STEP1);
-                setTemplateId("classic");
-                setBgImage(BG_IMAGES[0].url);
-              }}
+              onClick={() => { setCreated(null); setStep(0); setStep1(EMPTY_STEP1); setTemplateId("classic"); setBgImage(BG_IMAGES[0].url); setFilledFromProject(null); setSelectedProjectId(null); }}
               style={{ padding: "10px 20px", border: "1px solid var(--line)", borderRadius: 9, background: "var(--panel)", color: "var(--tx-1)", fontSize: 13, cursor: "pointer" }}
             >
               + Создать ещё
@@ -218,34 +273,31 @@ function CreateLandingPageInner() {
       <div style={{ maxWidth: 760, margin: "0 auto" }}>
         {/* Back */}
         <button
-          onClick={() => fromCampaign ? router.back() : router.push(`/${locale}/landings`)}
+          onClick={goBack}
           style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", color: "var(--tx-3)", fontSize: 14, cursor: "pointer", marginBottom: 24, padding: 0 }}
         >
           <ChevronLeft size={16} />
-          Все лендинги
+          {step === 0 ? "Все лендинги" : "Назад"}
         </button>
 
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--tx-1)", marginBottom: 8 }}>
-          Создать лендинг
-        </h1>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--tx-1)", marginBottom: 8 }}>Создать лендинг</h1>
 
         {/* Step indicator */}
         <div style={{ display: "flex", gap: 0, marginBottom: 36, alignItems: "center" }}>
           {STEPS.map((label, i) => {
-            const n = i + 1;
-            const done = step > n;
-            const active = step === n;
+            const done = step > i;
+            const active = step === i;
             return (
-              <div key={n} style={{ display: "flex", alignItems: "center", flex: n < STEPS.length ? 1 : "none" }}>
+              <div key={i} style={{ display: "flex", alignItems: "center", flex: i < STEPS.length - 1 ? 1 : "none" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, background: done || active ? "var(--accent)" : "var(--chip)", color: done || active ? "var(--on-accent)" : "var(--tx-3)", flexShrink: 0 }}>
-                    {done ? <Check size={13} /> : n}
+                    {done ? <Check size={13} /> : i + 1}
                   </div>
                   <span style={{ fontSize: 13, fontWeight: active ? 600 : 400, color: active ? "var(--tx-1)" : "var(--tx-3)", whiteSpace: "nowrap" }}>
                     {label}
                   </span>
                 </div>
-                {n < STEPS.length && (
+                {i < STEPS.length - 1 && (
                   <div style={{ flex: 1, height: 1, background: done ? "var(--accent)" : "var(--line)", margin: "0 12px" }} />
                 )}
               </div>
@@ -253,14 +305,108 @@ function CreateLandingPageInner() {
           })}
         </div>
 
+        {/* ── Step 0 — Project selection ─────────────────────────────── */}
+        {step === 0 && (
+          <div>
+            <p style={{ fontSize: 14, color: "var(--tx-2)", marginBottom: 24 }}>
+              Выберите проект — AI автоматически адаптирует данные для лендинга. Или заполните вручную.
+            </p>
+
+            {projectsLoading ? (
+              <div style={{ textAlign: "center", padding: "48px 0", color: "var(--tx-3)", fontSize: 14 }}>
+                Загрузка проектов...
+              </div>
+            ) : projects.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "48px 0" }}>
+                <div style={{ width: 56, height: 56, borderRadius: 16, background: "var(--chip)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                  <Building2 size={24} color="var(--tx-3)" />
+                </div>
+                <p style={{ color: "var(--tx-2)", fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Нет проектов</p>
+                <p style={{ color: "var(--tx-3)", fontSize: 13, marginBottom: 20 }}>Создайте проект или заполните данные вручную</p>
+                <button onClick={() => setStep(1)} style={nextBtnStyle(false)}>
+                  Заполнить вручную <ChevronRight size={16} />
+                </button>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 12, marginBottom: 28 }}>
+                  {projects.map((p) => {
+                    const selected = selectedProjectId === p.id;
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => setSelectedProjectId(selected ? null : p.id)}
+                        style={{
+                          border: selected ? "2px solid var(--accent)" : "1px solid var(--line)",
+                          borderRadius: 12,
+                          padding: "14px 16px",
+                          cursor: "pointer",
+                          background: selected ? "color-mix(in srgb, var(--accent) 8%, var(--panel))" : "var(--panel)",
+                          transition: "all 0.15s",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 12,
+                        }}
+                      >
+                        {p.logo_url ? (
+                          <img src={p.logo_url} alt="" style={{ width: 44, height: 44, borderRadius: 10, objectFit: "cover", flexShrink: 0 }} />
+                        ) : (
+                          <div style={{ width: 44, height: 44, borderRadius: 10, background: "var(--panel-2)", border: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <Building2 size={20} color="var(--tx-3)" />
+                          </div>
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {p.name}
+                          </div>
+                          {p.niche && (
+                            <div style={{ fontSize: 11, color: "var(--tx-3)", marginTop: 2 }}>{p.niche}</div>
+                          )}
+                        </div>
+                        <div style={{ width: 20, height: 20, borderRadius: "50%", border: selected ? "none" : "2px solid var(--line)", background: selected ? "var(--accent)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
+                          {selected && <Check size={11} color="white" />}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <button onClick={() => setStep(1)} style={backBtnStyle}>
+                    Без проекта
+                  </button>
+                  <button
+                    onClick={() => selectedProjectId && handleSelectProject(selectedProjectId)}
+                    disabled={!selectedProjectId || fillingFromProject}
+                    style={nextBtnStyle(!selectedProjectId || fillingFromProject)}
+                  >
+                    {fillingFromProject ? (
+                      <><Sparkles size={15} style={{ animation: "spin 1s linear infinite" }} /> AI заполняет поля...</>
+                    ) : (
+                      <>Использовать проект <ChevronRight size={16} /></>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* ── Step 1 — Business info ─────────────────────────────────── */}
         {step === 1 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            {filledFromProject && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", background: "color-mix(in srgb, var(--accent) 8%, var(--panel))", border: "1px solid color-mix(in srgb, var(--accent) 25%, var(--line))", borderRadius: 10, fontSize: 13, color: "var(--tx-2)" }}>
+                <Sparkles size={15} color="var(--accent)" style={{ flexShrink: 0 }} />
+                <span>AI заполнил поля по проекту <strong style={{ color: "var(--tx-1)" }}>«{filledFromProject}»</strong>. Проверьте и при необходимости отредактируйте.</span>
+              </div>
+            )}
+
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <Field label="Название бизнеса *">
                 <input value={step1.businessName} onChange={set1("businessName")} placeholder="напр. Клиника Здоровье" style={inputStyle} />
               </Field>
-              <Field label="Ниша / категория *">
+              <Field label="Ниша / категория">
                 <select value={step1.niche} onChange={set1("niche")} style={inputStyle}>
                   {NICHES.map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
@@ -288,7 +434,7 @@ function CreateLandingPageInner() {
             </Field>
 
             <Field label="Главная боль клиента">
-              <textarea value={step1.pain} onChange={set1("pain")} placeholder="напр. Страх боли и дорогого лечения" rows={2} style={{ ...inputStyle, resize: "vertical" }} />
+              <textarea value={step1.pain} onChange={set1("pain")} placeholder="напр. Страх боли и высокой стоимости лечения" rows={2} style={{ ...inputStyle, resize: "vertical" }} />
             </Field>
 
             <Field label="Три преимущества (через запятую)">
@@ -301,7 +447,8 @@ function CreateLandingPageInner() {
               </select>
             </Field>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+              <button onClick={goBack} style={backBtnStyle}><ChevronLeft size={16} /> Назад</button>
               <button onClick={() => setStep(2)} disabled={!canNext1} style={nextBtnStyle(!canNext1)}>
                 Далее <ChevronRight size={16} />
               </button>
@@ -319,7 +466,9 @@ function CreateLandingPageInner() {
               {TEMPLATES.map((tpl) => {
                 const selected = templateId === tpl.id;
                 return (
-                  <div key={tpl.id} onClick={() => !tpl.pro && setTemplateId(tpl.id)}
+                  <div
+                    key={tpl.id}
+                    onClick={() => !tpl.pro && setTemplateId(tpl.id)}
                     style={{ position: "relative", border: selected ? "2px solid var(--accent)" : "1px solid var(--line)", borderRadius: 12, overflow: "hidden", cursor: tpl.pro ? "default" : "pointer", opacity: tpl.pro ? 0.6 : 1, background: "var(--panel)", transition: "border 0.15s" }}
                   >
                     <div style={{ height: 100, background: "var(--panel-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, position: "relative" }}>
@@ -347,7 +496,7 @@ function CreateLandingPageInner() {
               })}
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <button onClick={() => setStep(1)} style={backBtnStyle}><ChevronLeft size={16} /> Назад</button>
+              <button onClick={goBack} style={backBtnStyle}><ChevronLeft size={16} /> Назад</button>
               <button onClick={() => setStep(3)} style={nextBtnStyle(false)}>Далее <ChevronRight size={16} /></button>
             </div>
           </div>
@@ -363,7 +512,9 @@ function CreateLandingPageInner() {
               {BG_IMAGES.map((img) => {
                 const selected = bgImage === img.url;
                 return (
-                  <div key={img.id} onClick={() => !img.pro && setBgImage(img.url)}
+                  <div
+                    key={img.id}
+                    onClick={() => !img.pro && setBgImage(img.url)}
                     style={{ position: "relative", height: 100, borderRadius: 10, overflow: "hidden", cursor: img.pro ? "default" : "pointer", border: selected ? "2px solid var(--accent)" : "2px solid transparent", transition: "border 0.15s" }}
                   >
                     <img src={img.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -396,8 +547,10 @@ function CreateLandingPageInner() {
             )}
 
             <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <button onClick={() => setStep(2)} style={backBtnStyle}><ChevronLeft size={16} /> Назад</button>
-              <button onClick={handleGenerate} disabled={generating}
+              <button onClick={goBack} style={backBtnStyle}><ChevronLeft size={16} /> Назад</button>
+              <button
+                onClick={handleGenerate}
+                disabled={generating}
                 style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--accent)", color: "var(--on-accent)", border: "none", borderRadius: 10, padding: "11px 24px", fontSize: 14, fontWeight: 700, cursor: generating ? "not-allowed" : "pointer", opacity: generating ? 0.7 : 1 }}
               >
                 <Sparkles size={16} />
