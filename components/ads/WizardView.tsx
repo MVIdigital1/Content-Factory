@@ -915,10 +915,10 @@ export function WizardView({
       });
       if (!res.ok) return;
       const data = await res.json();
-      if (data.name && !name.trim()) handleNameChange(data.name);
+      if (data.name) handleNameChange(data.name);
       if (data.goal) setGoal(data.goal);
-      if (data.product && !product.trim()) setProduct(data.product);
-      if (data.audience && !audience.trim()) setAudience(data.audience);
+      if (data.product) setProduct(data.product);
+      if (data.audience) setAudience(data.audience);
     } catch {
       // silent fail — user can fill manually
     } finally {
