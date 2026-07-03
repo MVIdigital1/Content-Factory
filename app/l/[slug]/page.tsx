@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { queryOne } from "@/lib/db";
+import { queryOne, query } from "@/lib/db";
 import PublicLandingClient from "./PublicLandingClient";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -33,6 +33,9 @@ export default async function PublicLandingPage({ params }: Props) {
   );
 
   if (!landing) notFound();
+
+  // increment view counter (fire-and-forget)
+  query("UPDATE landings SET views = views + 1 WHERE id = $1", [landing.id]).catch(() => {});
 
   const content = (landing.content ?? {}) as { blocks?: unknown[]; bg_image?: string | null; settings?: { brandColor?: string } };
   const blocks = content.blocks ?? [];

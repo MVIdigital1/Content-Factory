@@ -65,6 +65,20 @@ export default function LandingEditorPage() {
     },
   });
 
+  const { data: stats } = useQuery({
+    queryKey: ["landing_stats", id],
+    queryFn: async () => {
+      const [leadsRes, viewsRes] = await Promise.all([
+        fetch(`/api/leads?landing_id=${id}`),
+        fetch(`/api/landings/${id}/stats`),
+      ]);
+      const leads = leadsRes.ok ? (await leadsRes.json() as any[]) : [];
+      const viewData = viewsRes.ok ? await viewsRes.json() : { views: 0 };
+      return { leadCount: leads.length, views: viewData.views ?? 0 };
+    },
+    refetchInterval: 30000,
+  });
+
   useEffect(() => {
     if (!landing) return;
     setBlocks(landing.blocks ?? []);
@@ -227,6 +241,24 @@ export default function LandingEditorPage() {
 
         {/* Scrollable content */}
         <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 20 }}>
+
+          {/* Stats */}
+          <section>
+            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-2)", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Результаты</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+              {[
+                { label: "Просмотры", value: stats?.views ?? "—", icon: "👁️" },
+                { label: "Заявки", value: stats?.leadCount ?? "—", icon: "📩" },
+                { label: "Конверсия", value: stats && stats.views > 0 ? `${((stats.leadCount / stats.views) * 100).toFixed(1)}%` : "—", icon: "📈" },
+              ].map((s) => (
+                <div key={s.label} style={{ background: "var(--chip)", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
+                  <div style={{ fontSize: 18, marginBottom: 4 }}>{s.icon}</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--tx-1)" }}>{s.value}</div>
+                  <div style={{ fontSize: 10, color: "var(--tx-3)" }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </section>
 
           {/* Template type */}
           <section>
