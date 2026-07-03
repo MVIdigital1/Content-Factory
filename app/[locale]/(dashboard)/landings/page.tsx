@@ -193,7 +193,9 @@ export default function LandingsPage() {
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
             {landings.map((landing) => (
-              <div key={landing.id} style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              <div key={landing.id} style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column", cursor: "pointer" }}
+                onClick={() => router.push(`/${locale}/landings/${landing.id}/edit`)}
+              >
                 <div style={{ height: 140, background: "var(--panel-2)", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
                   <FileText size={32} style={{ color: "var(--tx-3)" }} />
                   <div style={{ position: "absolute", top: 10, right: 10, padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, background: landing.published ? "#dcfce7" : "var(--chip)", color: landing.published ? "#16a34a" : "var(--tx-3)" }}>
@@ -210,7 +212,7 @@ export default function LandingsPage() {
                   </p>
                 </div>
 
-                <div style={{ display: "flex", gap: 6, padding: "0 12px 12px", borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+                <div style={{ display: "flex", gap: 6, padding: "0 12px 12px", borderTop: "1px solid var(--line)", paddingTop: 10 }} onClick={(e) => e.stopPropagation()}>
                   <button onClick={() => router.push(`/${locale}/landings/${landing.id}/edit`)} title="Редактировать" style={iconBtnStyle}>
                     <Edit3 size={14} />
                   </button>
@@ -223,7 +225,7 @@ export default function LandingsPage() {
                   </button>
                   {landing.published && (
                     <a href={`/l/${landing.slug}`} target="_blank" rel="noopener noreferrer" title="Открыть"
-                      style={{ ...iconBtnStyle, textDecoration: "none" }}>
+                      style={{ ...iconBtnStyle, textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>
                       <ExternalLink size={14} />
                     </a>
                   )}
