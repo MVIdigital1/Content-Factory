@@ -81,7 +81,7 @@ export async function POST(request: Request) {
       await query(
         `INSERT INTO leads (landing_id, user_id, name, phone, email, message, status)
          VALUES ($1, $2, $3, $4, $5, $6, 'new')`,
-        [landing_id, landing?.user_id ?? null, name ?? null, phone ?? null, email ?? null, message ?? null]
+        [landing ? landing_id : null, landing?.user_id ?? null, name ?? null, phone ?? null, email ?? null, message ?? null]
       );
     }
 
