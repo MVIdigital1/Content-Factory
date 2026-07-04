@@ -2,7 +2,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "next-intl";
-import { ChevronLeft, ChevronRight, Sparkles, Lock, Check, ExternalLink, Edit3, Building2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Sparkles, Check, ExternalLink, Edit3, Building2 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type Step1 = {
@@ -58,18 +58,6 @@ const TEMPLATES = [
   { id: "callback",    name: "Звонок",   desc: "Обратный звонок — AI перезвонит",    pro: false, preview: "📞" },
 ];
 
-const BG_IMAGES = [
-  { id: "abstract1", url: "https://picsum.photos/seed/land1/800/500", pro: false },
-  { id: "abstract2", url: "https://picsum.photos/seed/land2/800/500", pro: false },
-  { id: "abstract3", url: "https://picsum.photos/seed/land3/800/500", pro: false },
-  { id: "abstract4", url: "https://picsum.photos/seed/land4/800/500", pro: false },
-  { id: "abstract5", url: "https://picsum.photos/seed/land5/800/500", pro: false },
-  { id: "abstract6", url: "https://picsum.photos/seed/land6/800/500", pro: false },
-  { id: "pro1",      url: "https://picsum.photos/seed/pro1/800/500",  pro: true },
-  { id: "pro2",      url: "https://picsum.photos/seed/pro2/800/500",  pro: true },
-  { id: "pro3",      url: "https://picsum.photos/seed/pro3/800/500",  pro: true },
-];
-
 const STORAGE_KEY = "landing_draft_v1";
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -79,7 +67,7 @@ function CreateLandingPageInner() {
   const searchParams = useSearchParams();
   const fromCampaign = searchParams.get("from") === "campaign";
 
-  // step 0 = project selection, 1 = business details, 2 = template, 3 = background
+  // step 0 = project selection, 1 = business details, 2 = template
   const [step, setStep] = useState(0);
   const [step1, setStep1] = useState<Step1>(() => {
     const offer = searchParams.get("product") || "";
@@ -96,10 +84,6 @@ function CreateLandingPageInner() {
   const [templateId, setTemplateId] = useState<string>(() => {
     try { return sessionStorage.getItem(STORAGE_KEY + "_tpl") || "classic"; } catch { return "classic"; }
   });
-  const [bgImage, setBgImage] = useState<string>(() => {
-    try { return sessionStorage.getItem(STORAGE_KEY + "_bg") || BG_IMAGES[0].url; } catch { return BG_IMAGES[0].url; }
-  });
-  const [aiPrompt, setAiPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<{ id: string; slug: string } | null>(null);
@@ -126,9 +110,6 @@ function CreateLandingPageInner() {
   useEffect(() => {
     try { sessionStorage.setItem(STORAGE_KEY + "_tpl", templateId); } catch {}
   }, [templateId]);
-  useEffect(() => {
-    try { sessionStorage.setItem(STORAGE_KEY + "_bg", bgImage); } catch {}
-  }, [bgImage]);
 
   const set1 = (field: keyof Step1) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -178,7 +159,7 @@ function CreateLandingPageInner() {
       const res = await fetch("/api/landings/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...step1, templateId, bgImage }),
+        body: JSON.stringify({ ...step1, templateId }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -188,7 +169,6 @@ function CreateLandingPageInner() {
       try {
         sessionStorage.removeItem(STORAGE_KEY);
         sessionStorage.removeItem(STORAGE_KEY + "_tpl");
-        sessionStorage.removeItem(STORAGE_KEY + "_bg");
       } catch {}
       setCreated({ id, slug });
       const editUrl = fromCampaign
@@ -209,7 +189,7 @@ function CreateLandingPageInner() {
     }
   };
 
-  const STEPS = ["Проект", "Детали", "Шаблон", "Фон"];
+  const STEPS = ["Проект", "Детали", "Шаблон"];
 
   // ── Success screen ─────────────────────────────────────────────────────
   if (created) {
@@ -267,7 +247,7 @@ function CreateLandingPageInner() {
               ← Все лендинги
             </button>
             <button
-              onClick={() => { setCreated(null); setStep(0); setStep1(EMPTY_STEP1); setTemplateId("classic"); setBgImage(BG_IMAGES[0].url); setFilledFromProject(null); setSelectedProjectId(null); }}
+              onClick={() => { setCreated(null); setStep(0); setStep1(EMPTY_STEP1); setTemplateId("classic"); setFilledFromProject(null); setSelectedProjectId(null); }}
               style={{ padding: "10px 20px", border: "1px solid var(--line)", borderRadius: 9, background: "var(--panel)", color: "var(--tx-1)", fontSize: 13, cursor: "pointer" }}
             >
               + Создать ещё
@@ -523,51 +503,6 @@ function CreateLandingPageInner() {
                 </div>
               </div>
             )}
-
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <button onClick={goBack} style={backBtnStyle}><ChevronLeft size={16} /> Назад</button>
-              <button onClick={() => setStep(3)} style={nextBtnStyle(false)}>Далее <ChevronRight size={16} /></button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 3 — Background ───────────────────────────────────── */}
-        {step === 3 && (
-          <div>
-            <p style={{ fontSize: 14, color: "var(--tx-2)", marginBottom: 20 }}>
-              Выберите фоновое изображение
-            </p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12, marginBottom: 24 }}>
-              {BG_IMAGES.map((img) => {
-                const selected = bgImage === img.url;
-                return (
-                  <div
-                    key={img.id}
-                    onClick={() => !img.pro && setBgImage(img.url)}
-                    style={{ position: "relative", height: 100, borderRadius: 10, overflow: "hidden", cursor: img.pro ? "default" : "pointer", border: selected ? "2px solid var(--accent)" : "2px solid transparent", transition: "border 0.15s" }}
-                  >
-                    <img src={img.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    {img.pro && (
-                      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 4 }}>
-                        <Lock size={16} color="#fff" />
-                        <span style={{ fontSize: 9, color: "#fff", fontWeight: 700 }}>PRO</span>
-                      </div>
-                    )}
-                    {selected && (
-                      <div style={{ position: "absolute", top: 6, right: 6, width: 20, height: 20, borderRadius: "50%", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <Check size={11} color="white" />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: 16, marginBottom: 24 }}>
-              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", marginBottom: 8 }}>✦ Описать фон для AI</p>
-              <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} placeholder="напр. Современный офис с большими окнами, теплые тона" rows={2} style={{ ...inputStyle, resize: "vertical" }} />
-              <p style={{ fontSize: 11, color: "var(--tx-3)", marginTop: 6 }}>Генерация фонов через AI будет доступна скоро</p>
-            </div>
 
             {error && (
               <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#dc2626", marginBottom: 16 }}>

@@ -9,7 +9,7 @@ import LandingRenderer, {
 import {
   Type, Palette, Image, FileText, Search, Globe, BarChart2,
   Monitor, Smartphone, ExternalLink, ChevronLeft, Eye, EyeOff,
-  TrendingUp, Users, MousePointer, ChevronRight,
+  TrendingUp, Users, MousePointer, ChevronRight, RefreshCw,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -77,6 +77,7 @@ function LandingEditorInner() {
   const [routing, setRouting]             = useState({ aiCallback: true, crm: true, payments: false });
   const [saving, setSaving]               = useState(false);
   const [saved, setSaved]                 = useState(false);
+  const [iframeKey, setIframeKey]         = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
 
   // ── Data fetching ──────────────────────────────────────────────────────────
@@ -136,6 +137,7 @@ function LandingEditorInner() {
     },
     onSuccess: () => {
       setSaving(false); setSaved(true);
+      setIframeKey(k => k + 1);
       qc.invalidateQueries({ queryKey: ["landing", id] });
       qc.invalidateQueries({ queryKey: ["landing_pages"] });
       setTimeout(() => setSaved(false), 2500);
@@ -258,11 +260,11 @@ function LandingEditorInner() {
         </nav>
 
         {/* ── Center: preview ──────────────────────────────────────── */}
-        <main style={{ flex: 1, background: C.bg, overflow: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: preview === "desktop" ? "24px 32px" : "24px 16px" }}>
+        <main style={{ flex: 1, background: C.bg, overflow: "hidden", padding: preview === "desktop" ? "24px 32px" : "24px 16px" }}>
 
           {effectiveBlocks.length === 0 ? (
             /* ── Empty state ── */
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 16, textAlign: "center", padding: 40 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "calc(100vh - 100px)", gap: 16, textAlign: "center", padding: 40 }}>
               <div style={{ width: 64, height: 64, borderRadius: 18, background: C.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>📄</div>
               <div>
                 <p style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: 0 }}>Контент лендинга пустой</p>
@@ -278,7 +280,7 @@ function LandingEditorInner() {
               </button>
             </div>
           ) : preview === "desktop" ? (
-            <div style={{ width: "100%", maxWidth: 960, background: C.surface, borderRadius: 12, overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.06)", minHeight: 500 }}>
+            <div style={{ width: "100%", maxWidth: 960, margin: "0 auto", background: C.surface, borderRadius: 12, overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.06)" }}>
               {/* Browser bar */}
               <div style={{ height: 36, background: "#F1F5F9", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 14px", gap: 8 }}>
                 <div style={{ display: "flex", gap: 5 }}>
@@ -287,11 +289,21 @@ function LandingEditorInner() {
                 <div style={{ flex: 1, background: C.surface, borderRadius: 5, height: 20, margin: "0 12px", display: "flex", alignItems: "center", padding: "0 10px" }}>
                   <span style={{ fontSize: 11, color: C.muted }}>mvira.uz/l/{landing.slug}</span>
                 </div>
+                <button onClick={() => setIframeKey(k => k + 1)} title="Обновить превью"
+                  style={{ display: "flex", alignItems: "center", padding: 4, border: "none", background: "transparent", cursor: "pointer", color: C.muted, borderRadius: 4 }}>
+                  <RefreshCw size={12} />
+                </button>
               </div>
-              <LandingRenderer blocks={effectiveBlocks} bgImage={landing.bg_image || undefined} brandColor={brandColor} />
+              {/* iframe loads /l/preview/[id] — нативный скролл, отражает последнее сохранение */}
+              <iframe
+                key={iframeKey}
+                src={`/l/preview/${id}`}
+                style={{ display: "block", width: "100%", height: "calc(100vh - 136px)", border: "none" }}
+                title="Landing preview"
+              />
             </div>
           ) : (
-            <div style={{ width: 375, flexShrink: 0 }}>
+            <div style={{ width: 375, margin: "0 auto" }}>
               {/* Phone frame */}
               <div style={{ background: "#1C1C1E", borderRadius: 50, padding: "16px 10px 24px", boxShadow: "0 32px 80px rgba(0,0,0,0.4), 0 0 0 2px #3A3A3C" }}>
                 <div style={{ background: "#1C1C1E", width: 90, height: 24, borderRadius: 12, margin: "0 auto 10px" }} />

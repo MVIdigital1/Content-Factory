@@ -136,6 +136,7 @@ export default function LandingRenderer({
   const [lead, setLead] = useState({ name: "", phone: "" });
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const accent = brandColor;
 
@@ -146,8 +147,15 @@ export default function LandingRenderer({
     e.preventDefault();
     if (!onLeadSubmit || submitting) return;
     setSubmitting(true);
-    try { await onLeadSubmit(lead); setSubmitted(true); }
-    finally { setSubmitting(false); }
+    setSubmitError(null);
+    try {
+      await onLeadSubmit(lead);
+      setSubmitted(true);
+    } catch (err: any) {
+      setSubmitError(err.message || "Произошла ошибка. Попробуйте снова.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -481,9 +489,18 @@ export default function LandingRenderer({
                         <input
                           key={fi}
                           type={fi === 1 ? "tel" : "text"}
+                          inputMode={fi === 1 ? "numeric" : undefined}
                           placeholder={ph}
                           value={preview ? "" : fi === 0 ? lead.name : lead.phone}
-                          onChange={(e) => !preview && setLead(p => fi === 0 ? { ...p, name: e.target.value } : { ...p, phone: e.target.value })}
+                          onChange={(e) => {
+                            if (preview) return;
+                            if (fi === 1) {
+                              const digits = e.target.value.replace(/[^\d+\-\s()]/g, "");
+                              setLead(p => ({ ...p, phone: digits }));
+                            } else {
+                              setLead(p => ({ ...p, name: e.target.value }));
+                            }
+                          }}
                           readOnly={preview}
                           required={!preview}
                           style={{
@@ -515,6 +532,11 @@ export default function LandingRenderer({
                         {submitting ? "Отправка..." : (block.button || "Отправить заявку")}
                       </button>
                     </form>
+                  )}
+                  {submitError && (
+                    <p style={{ fontSize: px(12, 10), color: "#DC2626", textAlign: "center", marginTop: px(10, 6) }}>
+                      ⚠ {submitError}
+                    </p>
                   )}
                   {block.note && (
                     <p style={{ fontSize: px(12, 9), color: "#94A3B8", textAlign: "center", marginTop: px(14, 8) }}>
