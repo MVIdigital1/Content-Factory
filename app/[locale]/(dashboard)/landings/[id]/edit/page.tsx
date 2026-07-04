@@ -9,7 +9,7 @@ import LandingRenderer, {
 import {
   Type, Palette, Image, FileText, Search, Globe, BarChart2,
   Monitor, Smartphone, ExternalLink, ChevronLeft, Eye, EyeOff,
-  TrendingUp, Users, MousePointer, ChevronRight, RefreshCw,
+  TrendingUp, Users, MousePointer, ChevronRight,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -77,7 +77,6 @@ function LandingEditorInner() {
   const [routing, setRouting]             = useState({ aiCallback: true, crm: true, payments: false });
   const [saving, setSaving]               = useState(false);
   const [saved, setSaved]                 = useState(false);
-  const [iframeKey, setIframeKey]         = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
 
   // ── Data fetching ──────────────────────────────────────────────────────────
@@ -137,7 +136,6 @@ function LandingEditorInner() {
     },
     onSuccess: () => {
       setSaving(false); setSaved(true);
-      setIframeKey(k => k + 1);
       qc.invalidateQueries({ queryKey: ["landing", id] });
       qc.invalidateQueries({ queryKey: ["landing_pages"] });
       setTimeout(() => setSaved(false), 2500);
@@ -289,18 +287,10 @@ function LandingEditorInner() {
                 <div style={{ flex: 1, background: C.surface, borderRadius: 5, height: 20, margin: "0 12px", display: "flex", alignItems: "center", padding: "0 10px" }}>
                   <span style={{ fontSize: 11, color: C.muted }}>mvira.uz/l/{landing.slug}</span>
                 </div>
-                <button onClick={() => setIframeKey(k => k + 1)} title="Обновить превью"
-                  style={{ display: "flex", alignItems: "center", padding: 4, border: "none", background: "transparent", cursor: "pointer", color: C.muted, borderRadius: 4 }}>
-                  <RefreshCw size={12} />
-                </button>
               </div>
-              {/* iframe loads /l/preview/[id] — нативный скролл, отражает последнее сохранение */}
-              <iframe
-                key={iframeKey}
-                src={`/l/preview/${id}`}
-                style={{ display: "block", width: "100%", height: "calc(100vh - 136px)", border: "none" }}
-                title="Landing preview"
-              />
+              <div style={{ height: "calc(100vh - 136px)", overflowY: "scroll" }}>
+                <LandingRenderer blocks={effectiveBlocks} bgImage={landing.bg_image || undefined} brandColor={brandColor} />
+              </div>
             </div>
           ) : (
             <div style={{ width: 375, margin: "0 auto" }}>
