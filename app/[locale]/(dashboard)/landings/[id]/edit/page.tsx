@@ -256,7 +256,24 @@ function LandingEditorInner() {
         {/* ── Center: preview ──────────────────────────────────────── */}
         <main style={{ flex: 1, background: C.bg, overflow: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: preview === "desktop" ? "24px 32px" : "24px 16px" }}>
 
-          {preview === "desktop" ? (
+          {blocks.length === 0 ? (
+            /* ── Empty state ── */
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 16, textAlign: "center", padding: 40 }}>
+              <div style={{ width: 64, height: 64, borderRadius: 18, background: C.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>📄</div>
+              <div>
+                <p style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: 0 }}>Контент лендинга пустой</p>
+                <p style={{ fontSize: 13, color: C.muted, marginTop: 6, maxWidth: 320, lineHeight: 1.6 }}>
+                  Блоки не сохранились при создании. Удалите этот лендинг и создайте новый — AI сгенерирует полноценную страницу.
+                </p>
+              </div>
+              <button
+                onClick={() => router.push(`/${locale}/landings/create`)}
+                style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: C.indigo, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Создать новый лендинг
+              </button>
+            </div>
+          ) : preview === "desktop" ? (
             <div style={{ width: "100%", maxWidth: 960, background: C.surface, borderRadius: 12, overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.06)", minHeight: 500 }}>
               {/* Browser bar */}
               <div style={{ height: 36, background: "#F1F5F9", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 14px", gap: 8 }}>
