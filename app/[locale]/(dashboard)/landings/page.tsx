@@ -194,7 +194,7 @@ export default function LandingsPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
             {landings.map((landing) => (
               <div key={landing.id} style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column", cursor: "pointer" }}
-                onClick={() => router.push(`/${locale}/landings/${landing.id}/edit`)}
+                onClick={() => router.push(`/${locale}/landings/${landing.id}`)}
               >
                 <div style={{ height: 140, background: "var(--panel-2)", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
                   <FileText size={32} style={{ color: "var(--tx-3)" }} />
@@ -213,7 +213,7 @@ export default function LandingsPage() {
                 </div>
 
                 <div style={{ display: "flex", gap: 6, padding: "0 12px 12px", borderTop: "1px solid var(--line)", paddingTop: 10 }} onClick={(e) => e.stopPropagation()}>
-                  <button onClick={() => router.push(`/${locale}/landings/${landing.id}/edit`)} title="Редактировать" style={iconBtnStyle}>
+                  <button onClick={() => router.push(`/${locale}/landings/${landing.id}`)} title="Открыть карточку" style={iconBtnStyle}>
                     <Edit3 size={14} />
                   </button>
                   <button onClick={() => togglePublishMutation.mutate({ id: landing.id, published: !landing.published })} title={landing.published ? "Снять с публикации" : "Опубликовать"} style={iconBtnStyle}>
