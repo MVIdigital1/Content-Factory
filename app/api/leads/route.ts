@@ -68,18 +68,26 @@ export async function POST(request: Request) {
     const { landing_id, name, phone, email, message } = await request.json();
     if (!landing_id) return NextResponse.json({ error: "Missing landing_id" }, { status: 400 });
 
-    const landing = await queryOne<{ user_id: string; title: string }>(
-      "SELECT user_id, title FROM landings WHERE id = $1",
+    const landing = await queryOne<{ user_id: string; title: string; content: any }>(
+      "SELECT user_id, title, content FROM landings WHERE id = $1",
       [landing_id]
     );
 
-    await query(
-      `INSERT INTO leads (landing_id, user_id, name, phone, email, message, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'new')`,
-      [landing_id, landing?.user_id ?? null, name ?? null, phone ?? null, email ?? null, message ?? null]
-    );
+    const routing = landing?.content?.settings?.routing ?? {};
+    const crmEnabled      = routing.crm      !== false; // default true
+    const aiCallback      = routing.aiCallback !== false; // default true
 
-    notifyOwner(landing?.user_id ?? null, { name, phone, email, message, title: landing?.title }).catch(() => {});
+    if (crmEnabled) {
+      await query(
+        `INSERT INTO leads (landing_id, user_id, name, phone, email, message, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'new')`,
+        [landing_id, landing?.user_id ?? null, name ?? null, phone ?? null, email ?? null, message ?? null]
+      );
+    }
+
+    if (aiCallback) {
+      notifyOwner(landing?.user_id ?? null, { name, phone, email, message, title: landing?.title }).catch(() => {});
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
