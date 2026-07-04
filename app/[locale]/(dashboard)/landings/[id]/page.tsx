@@ -7,6 +7,7 @@ import {
   ChevronLeft, Copy, Check, ExternalLink, Edit3,
   Eye, EyeOff, Zap, Database, CreditCard,
 } from "lucide-react";
+import LandingRenderer, { Block } from "@/components/landing/LandingRenderer";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Settings = {
@@ -24,6 +25,7 @@ type LP = {
   template_id: string;
   bg_image: string | null;
   settings: Settings;
+  blocks: Block[];
   created_at: string;
   updated_at: string;
 };
@@ -174,10 +176,11 @@ function LandingDetailInner() {
       {/* ── Two-column layout ───────────────────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 400px", gap: 28, alignItems: "start" }}>
 
-        {/* ── Left: phone iframe mockup ──────────────────────────────── */}
-        <div style={{ display: "flex", justifyContent: "center", background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 20, padding: "32px 24px" }}>
+        {/* ── Left: phone preview ────────────────────────────────────── */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 20, padding: "32px 24px" }}>
+          {/* Phone frame */}
           <div style={{
-            width: 320, flexShrink: 0,
+            width: 300, flexShrink: 0,
             background: "#1C1C1E",
             borderRadius: 44,
             padding: "14px 8px 20px",
@@ -186,23 +189,30 @@ function LandingDetailInner() {
             {/* Notch */}
             <div style={{ width: 80, height: 20, background: "#1C1C1E", borderRadius: 10, margin: "0 auto 8px" }} />
             {/* Screen */}
-            <div style={{ borderRadius: 32, overflow: "hidden", height: 560, background: "#fff" }}>
-              {landing.published ? (
-                <iframe
-                  src={`/l/${landing.slug}`}
-                  style={{ width: "100%", height: "100%", border: "none", transform: "scale(1)", transformOrigin: "top left" }}
-                  title="Landing preview"
-                  sandbox="allow-scripts allow-same-origin"
+            <div style={{ borderRadius: 32, overflow: "hidden", height: 560, overflowY: "auto", background: "#fff" }}>
+              {(landing.blocks ?? []).length > 0 ? (
+                <LandingRenderer
+                  blocks={landing.blocks}
+                  bgImage={landing.bg_image ?? undefined}
+                  brandColor={landing.settings?.brandColor ?? "#4F46E5"}
+                  preview
                 />
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", padding: 24, textAlign: "center", background: "var(--panel-2)" }}>
-                  <EyeOff size={32} style={{ color: "var(--tx-3)", marginBottom: 12 }} />
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-2)", margin: 0 }}>Черновик</p>
-                  <p style={{ fontSize: 12, color: "var(--tx-3)", marginTop: 6 }}>Опубликуйте лендинг, чтобы увидеть превью</p>
+                  <EyeOff size={28} style={{ color: "var(--tx-3)", marginBottom: 10 }} />
+                  <p style={{ fontSize: 12, color: "var(--tx-3)" }}>Нет контента</p>
                 </div>
               )}
             </div>
           </div>
+
+          {/* Open link */}
+          {landing.published && (
+            <a href={`/l/${landing.slug}`} target="_blank" rel="noopener noreferrer"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--tx-3)", textDecoration: "none" }}>
+              <ExternalLink size={12} /> Открыть в браузере
+            </a>
+          )}
         </div>
 
         {/* ── Right: config panel ────────────────────────────────────── */}
