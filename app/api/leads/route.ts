@@ -64,24 +64,26 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const { landing_id, name, phone, email, message } = await request.json();
-  if (!landing_id) return NextResponse.json({ error: "Missing landing_id" }, { status: 400 });
+  try {
+    const { landing_id, name, phone, email, message } = await request.json();
+    if (!landing_id) return NextResponse.json({ error: "Missing landing_id" }, { status: 400 });
 
-  const landing = await queryOne<{ user_id: string; title: string }>(
-    "SELECT user_id, title FROM landings WHERE id = $1",
-    [landing_id]
-  );
+    const landing = await queryOne<{ user_id: string; title: string }>(
+      "SELECT user_id, title FROM landings WHERE id = $1",
+      [landing_id]
+    );
 
-  await query(
-    `INSERT INTO leads (landing_id, user_id, name, phone, email, message, status)
-     VALUES ($1, $2, $3, $4, $5, $6, 'new')`,
-    [landing_id, landing?.user_id ?? null, name ?? null, phone ?? null, email ?? null, message ?? null]
-  );
+    await query(
+      `INSERT INTO leads (landing_id, user_id, name, phone, email, message, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'new')`,
+      [landing_id, landing?.user_id ?? null, name ?? null, phone ?? null, email ?? null, message ?? null]
+    );
 
-  // пингуем владельца, но не ждём и не роняем ответ при сбое телеги
-  notifyOwner(landing?.user_id ?? null, { name, phone, email, message, title: landing?.title }).catch(
-    () => {}
-  );
+    notifyOwner(landing?.user_id ?? null, { name, phone, email, message, title: landing?.title }).catch(() => {});
 
-  return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true });
+  } catch (err: any) {
+    console.error("[leads POST]", err?.message || err);
+    return NextResponse.json({ error: err?.message || "Ошибка сервера" }, { status: 500 });
+  }
 }
