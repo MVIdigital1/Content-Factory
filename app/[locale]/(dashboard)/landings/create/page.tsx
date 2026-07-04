@@ -2,7 +2,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "next-intl";
-import { ChevronLeft, ChevronRight, Sparkles, Check, ExternalLink, Edit3, Building2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Sparkles, Lock, Check, ExternalLink, Edit3, Building2 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type Step1 = {
