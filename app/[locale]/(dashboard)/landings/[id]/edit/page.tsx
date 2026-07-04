@@ -143,11 +143,15 @@ function LandingEditorInner() {
     onError: () => setSaving(false),
   });
 
+  // ── Effective blocks: fall back to query data while local state is still empty
+  // (happens when navigating from cached detail page — useEffect fires after first render)
+  const effectiveBlocks: Block[] = blocks.length > 0 ? blocks : (landing?.blocks ?? []);
+
   // ── Block helpers ──────────────────────────────────────────────────────────
-  const hero        = blocks.find(b => b.type === "hero")                               as HeroBlock     | undefined;
-  const formBlk     = blocks.find(b => b.type === "form")                               as FormBlock     | undefined;
-  const priceBlk    = blocks.find(b => b.type === "price")                              as PriceBlock    | undefined;
-  const featBlk     = blocks.find(b => b.type === "features" || b.type === "benefits")  as (FeaturesBlock | BenefitsBlock) | undefined;
+  const hero        = effectiveBlocks.find(b => b.type === "hero")                               as HeroBlock     | undefined;
+  const formBlk     = effectiveBlocks.find(b => b.type === "form")                               as FormBlock     | undefined;
+  const priceBlk    = effectiveBlocks.find(b => b.type === "price")                              as PriceBlock    | undefined;
+  const featBlk     = effectiveBlocks.find(b => b.type === "features" || b.type === "benefits")  as (FeaturesBlock | BenefitsBlock) | undefined;
   const benefitsType = featBlk?.type ?? "benefits";
 
   const patchBlock = (type: string, patch: Record<string, unknown>) =>
@@ -256,14 +260,14 @@ function LandingEditorInner() {
         {/* ── Center: preview ──────────────────────────────────────── */}
         <main style={{ flex: 1, background: C.bg, overflow: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: preview === "desktop" ? "24px 32px" : "24px 16px" }}>
 
-          {blocks.length === 0 ? (
+          {effectiveBlocks.length === 0 ? (
             /* ── Empty state ── */
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 16, textAlign: "center", padding: 40 }}>
               <div style={{ width: 64, height: 64, borderRadius: 18, background: C.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>📄</div>
               <div>
                 <p style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: 0 }}>Контент лендинга пустой</p>
                 <p style={{ fontSize: 13, color: C.muted, marginTop: 6, maxWidth: 320, lineHeight: 1.6 }}>
-                  Блоки не сохранились при создании. Удалите этот лендинг и создайте новый — AI сгенерирует полноценную страницу.
+                  Блоки не сохранились при создании. Удалите этот лендинг и создайте новый.
                 </p>
               </div>
               <button
@@ -284,7 +288,7 @@ function LandingEditorInner() {
                   <span style={{ fontSize: 11, color: C.muted }}>mvira.uz/l/{landing.slug}</span>
                 </div>
               </div>
-              <LandingRenderer blocks={blocks} bgImage={landing.bg_image || undefined} brandColor={brandColor} />
+              <LandingRenderer blocks={effectiveBlocks} bgImage={landing.bg_image || undefined} brandColor={brandColor} />
             </div>
           ) : (
             <div style={{ width: 375, flexShrink: 0 }}>
@@ -292,7 +296,7 @@ function LandingEditorInner() {
               <div style={{ background: "#1C1C1E", borderRadius: 50, padding: "16px 10px 24px", boxShadow: "0 32px 80px rgba(0,0,0,0.4), 0 0 0 2px #3A3A3C" }}>
                 <div style={{ background: "#1C1C1E", width: 90, height: 24, borderRadius: 12, margin: "0 auto 10px" }} />
                 <div style={{ borderRadius: 38, overflow: "hidden", maxHeight: 620, overflowY: "auto" }}>
-                  <LandingRenderer blocks={blocks} bgImage={landing.bg_image || undefined} brandColor={brandColor} preview />
+                  <LandingRenderer blocks={effectiveBlocks} bgImage={landing.bg_image || undefined} brandColor={brandColor} preview />
                 </div>
               </div>
             </div>
