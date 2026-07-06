@@ -23,7 +23,7 @@ function loadTabs(): WizardTab[] {
     const d = localStorage.getItem(TABS_KEY);
     if (d) return JSON.parse(d);
   } catch {}
-  return [{ id: "1", title: "Новая кампания" }];
+  return [];
 }
 function saveTabs(tabs: WizardTab[]) {
   try {
@@ -479,12 +479,20 @@ function CampaignsPageInner() {
   // Persist wizard tabs
   const [wizardTabs, setWizardTabs] = useState<WizardTab[]>(() => {
     if (typeof window !== "undefined") return loadTabs();
-    return [{ id: "1", title: "Новая кампания" }];
+    return [];
   });
   const [activeWizardId, setActiveWizardId] = useState<string>(() => {
     if (typeof window !== "undefined") return loadActiveId();
     return "1";
   });
+
+  // Count tabs that have real draft data (step > 0 or name filled)
+  const inProgressCount = wizardTabs.filter((tab) => {
+    try {
+      const d = JSON.parse(localStorage.getItem(`wizard_draft_v5_${tab.id}`) ?? "null");
+      return d && (d.step > 0 || (d.name && d.name.trim().length > 0));
+    } catch { return false; }
+  }).length;
 
   // Project selector state
   const [showProjectSelector, setShowProjectSelector] = useState(false);
@@ -767,8 +775,8 @@ function CampaignsPageInner() {
                   gap: 5,
                   padding: "6px 14px",
                   border: "none",
-                  borderRight: wizardTabs.length > 0 ? "0.5px solid rgba(255,255,255,0.25)" : "none",
-                  borderRadius: wizardTabs.length > 0 ? "8px 0 0 8px" : "8px",
+                  borderRight: inProgressCount > 0 ? "0.5px solid rgba(255,255,255,0.25)" : "none",
+                  borderRadius: inProgressCount > 0 ? "8px 0 0 8px" : "8px",
                   background: "var(--pos)",
                   color: "#fff",
                   fontSize: 12,
@@ -779,9 +787,9 @@ function CampaignsPageInner() {
               >
                 + Создать
               </button>
-              {wizardTabs.length > 0 && (
+              {inProgressCount > 0 && (
                 <button
-                  onClick={handleCreateClick}
+                  onClick={() => setDraftsDropOpen((v) => !v)}
                   title="Черновики в процессе"
                   style={{
                     display: "flex",
@@ -813,14 +821,14 @@ function CampaignsPageInner() {
                       fontWeight: 700,
                     }}
                   >
-                    {wizardTabs.length}
+                    {inProgressCount}
                   </span>
                 </button>
               )}
             </div>
 
             {/* Drafts dropdown */}
-            {draftsDropOpen && wizardTabs.length > 0 && (
+            {draftsDropOpen && inProgressCount > 0 && (
               <div
                 style={{
                   position: "absolute",

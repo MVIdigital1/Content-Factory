@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Sparkles, Lock, Check, ExternalLink, Edit3, Building2 } from "lucide-react";
+import LandingRenderer from "@/components/landing/LandingRenderer";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type Step1 = {
@@ -90,6 +91,7 @@ function CreateLandingPageInner() {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<{ id: string; slug: string } | null>(null);
+  const [createdContent, setCreatedContent] = useState<{ blocks: any[]; brandColor: string; bgImage?: string } | null>(null);
 
   // Project selection
   const [projects, setProjects] = useState<Project[]>([]);
@@ -182,6 +184,17 @@ function CreateLandingPageInner() {
         router.push(`/${locale}/campaigns?${resumeParams.toString()}`);
       } else {
         setCreated({ id, slug });
+        // Fetch landing content for preview (works regardless of published status)
+        fetch(`/api/landings/${id}`)
+          .then((r) => r.json())
+          .then((data) => {
+            const cnt = (data.content ?? {}) as any;
+            const blocks = cnt.blocks ?? data.blocks ?? [];
+            const brandColor = cnt.settings?.brandColor ?? data.brandColor ?? "#6366f1";
+            const bgImage = cnt.bg_image ?? data.bgImage ?? undefined;
+            setCreatedContent({ blocks, brandColor, bgImage });
+          })
+          .catch(() => {});
       }
     } catch (e: any) {
       setError(e.message);
@@ -244,7 +257,25 @@ function CreateLandingPageInner() {
                 mvira.uz/l/{created.slug}
               </div>
             </div>
-            <iframe src={`/l/${created.slug}`} style={{ width: "100%", height: 560, border: "none", display: "block" }} title="Предпросмотр лендинга" />
+            <div style={{ height: 560, overflow: "hidden", position: "relative", background: "var(--bg)" }}>
+              {createdContent && createdContent.blocks.length > 0 ? (
+                <div style={{ pointerEvents: "none" }}>
+                  <LandingRenderer
+                    blocks={createdContent.blocks}
+                    brandColor={createdContent.brandColor}
+                    bgImage={createdContent.bgImage}
+                    preview={true}
+                  />
+                </div>
+              ) : (
+                <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ textAlign: "center", color: "var(--tx-3)", fontSize: 13 }}>
+                    <div style={{ fontSize: 36, marginBottom: 12 }}>🌐</div>
+                    <p>Загрузка превью...</p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           <div style={{ display: "flex", gap: 10 }}>

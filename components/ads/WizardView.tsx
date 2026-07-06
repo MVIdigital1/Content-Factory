@@ -11,6 +11,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
+import LandingRenderer from "@/components/landing/LandingRenderer";
 
 const ALL_STEP_DEFS = [
   { key: "goal" as const, label: "Цель" },
@@ -2340,7 +2341,6 @@ export function WizardView({
       {/* ══ STEP 1: Лендинг ══ */}
       {currentStepKey === "landing" && (() => {
         const selectedLp = (landingPages as any[]).find((lp: any) => lp.id === landingId) ?? null;
-        const IFRAME_W = 1280;
         const selectLanding = (id: string) => {
           setLandingId(id);
           setTimeout(() => landingPreviewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
@@ -2359,33 +2359,30 @@ export function WizardView({
                   style={{ background: "var(--panel-2)" }}
                 >
                   <div className="flex gap-0" style={{ minHeight: 180 }}>
-                    {/* iframe thumbnail */}
+                    {/* LandingRenderer preview */}
                     <div
                       style={{
                         width: 300, minWidth: 300, height: 188,
                         overflow: "hidden", position: "relative",
-                        background: "#f5f5f5", borderRight: "1px solid var(--line)",
+                        background: "var(--bg)", borderRight: "1px solid var(--line)",
                         flexShrink: 0,
                       }}
                     >
-                      {selectedLp.published ? (
-                        <iframe
-                          src={`/l/${selectedLp.slug}`}
-                          title={selectedLp.title}
-                          style={{
-                            width: IFRAME_W, height: 705,
-                            transform: `scale(${300 / IFRAME_W})`,
-                            transformOrigin: "top left",
-                            pointerEvents: "none",
-                            border: "none",
-                          }}
-                        />
-                      ) : (
-                        <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                          <span style={{ fontSize: 32 }}>🌐</span>
-                          <span style={{ fontSize: 10, color: "var(--tx-3)", textAlign: "center", padding: "0 12px" }}>Черновик — превью недоступно до публикации</span>
-                        </div>
-                      )}
+                      {(() => {
+                        const cnt = (selectedLp.content ?? {}) as any;
+                        const blocks = cnt.blocks ?? [];
+                        const brandColor = cnt.settings?.brandColor ?? "#6366f1";
+                        const bgImage = cnt.bg_image ?? undefined;
+                        return blocks.length > 0 ? (
+                          <div style={{ width: 960, transform: "scale(0.3125)", transformOrigin: "top left", pointerEvents: "none" }}>
+                            <LandingRenderer blocks={blocks} brandColor={brandColor} bgImage={bgImage} preview={true} />
+                          </div>
+                        ) : (
+                          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <span style={{ fontSize: 32 }}>🌐</span>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Info panel */}
@@ -2459,7 +2456,6 @@ export function WizardView({
               <div className="space-y-2">
                 {(landingPages as any[]).map((lp: any) => {
                   const isSelected = landingId === lp.id;
-                  const thumbScale = 88 / IFRAME_W;
                   return (
                     <button
                       key={lp.id}
@@ -2478,29 +2474,27 @@ export function WizardView({
                         style={{
                           width: 88, minWidth: 88, height: 55,
                           overflow: "hidden", borderRadius: 6,
-                          background: "#f5f5f5",
+                          background: "var(--bg)",
                           border: "1px solid var(--line)",
                           flexShrink: 0,
                           position: "relative",
                         }}
                       >
-                        {lp.published ? (
-                          <iframe
-                            src={`/l/${lp.slug}`}
-                            title={lp.title}
-                            style={{
-                              width: IFRAME_W, height: 412,
-                              transform: `scale(${thumbScale})`,
-                              transformOrigin: "top left",
-                              pointerEvents: "none",
-                              border: "none",
-                            }}
-                          />
-                        ) : (
-                          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            <span style={{ fontSize: 20 }}>🌐</span>
-                          </div>
-                        )}
+                        {(() => {
+                          const cnt = (lp.content ?? {}) as any;
+                          const blocks = cnt.blocks ?? [];
+                          const brandColor = cnt.settings?.brandColor ?? "#6366f1";
+                          const bgImage = cnt.bg_image ?? undefined;
+                          return blocks.length > 0 ? (
+                            <div style={{ width: 960, transform: "scale(0.0917)", transformOrigin: "top left", pointerEvents: "none" }}>
+                              <LandingRenderer blocks={blocks} brandColor={brandColor} bgImage={bgImage} preview={true} />
+                            </div>
+                          ) : (
+                            <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <span style={{ fontSize: 20 }}>🌐</span>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Text info */}
