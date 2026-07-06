@@ -511,6 +511,234 @@ export function BulkScheduleModal({
   );
 }
 
+function LaunchStep({
+  name, goal, product, audience, budget,
+  selectedPlatforms, realPlatforms,
+  landingId, landingPages,
+  generatedCreatives, projectAgent,
+  launchProgress, launching,
+  step, setStep, handleLaunch,
+}: {
+  name: string; goal: string; product: string; audience: string; budget: string;
+  selectedPlatforms: Set<string>; realPlatforms: any[];
+  landingId: string | null; landingPages: any[];
+  generatedCreatives: any[]; projectAgent: any;
+  launchProgress: string; launching: boolean;
+  step: number; setStep: (s: number) => void; handleLaunch: () => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [explanation, setExplanation] = useState("");
+  const [explaining, setExplaining] = useState(false);
+
+  const selectedLanding = landingId ? landingPages.find((l: any) => l.id === landingId) : null;
+  const budgetNum = budget ? Number(budget) : null;
+
+  const getExplanation = async () => {
+    setExplaining(true);
+    try {
+      const res = await fetch("/api/ai/explain-campaign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name, goal,
+          platforms: [...selectedPlatforms],
+          budget: budgetNum,
+          audience,
+        }),
+      });
+      const data = await res.json();
+      setExplanation(data.explanation ?? "");
+    } catch {
+      setExplanation("Не удалось получить объяснение. Попробуйте ещё раз.");
+    } finally {
+      setExplaining(false);
+    }
+  };
+
+  const inp = "w-full px-3 py-2 rounded-[7px] border border-line bg-panel-2 text-[12px] text-tx-1 outline-none focus:border-accent/50";
+
+  return (
+    <div className="flex gap-5 p-5">
+      {/* Left — campaign summary (60%) */}
+      <div className="flex-[3] min-w-0 space-y-4">
+        {/* Name + goal */}
+        <div className="p-4 bg-panel-2 border border-line rounded-[12px]">
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div>
+              <h2 className="text-[15px] font-semibold text-tx-1 leading-tight">{name || "Без названия"}</h2>
+              <p className="text-[11px] text-tx-3 mt-0.5">{goal}</p>
+            </div>
+            <span className="shrink-0 px-2.5 py-1 rounded-full bg-accent/10 text-[10px] font-medium text-accent border border-accent/20">Готово к запуску</span>
+          </div>
+          {product && <p className="text-[11px] text-tx-2 leading-relaxed">{product}</p>}
+          {audience && (
+            <div className="mt-2 flex items-center gap-1.5 text-[10px] text-tx-3">
+              <span>👥</span>
+              <span>{audience}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Budget */}
+        {budgetNum && (
+          <div className="p-4 bg-panel-2 border border-line rounded-[12px]">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-medium text-tx-2">Бюджет кампании</span>
+              <span className="text-[13px] font-semibold text-tx-1">{budgetNum.toLocaleString("ru")} ₽</span>
+            </div>
+            <div className="w-full h-1.5 bg-line rounded-full overflow-hidden">
+              <div className="h-full bg-accent rounded-full" style={{ width: "0%" }} />
+            </div>
+            <p className="text-[10px] text-tx-3 mt-1.5">Израсходовано 0 ₽ · Осталось {budgetNum.toLocaleString("ru")} ₽</p>
+          </div>
+        )}
+
+        {/* Platforms */}
+        {selectedPlatforms.size > 0 && (
+          <div className="p-4 bg-panel-2 border border-line rounded-[12px]">
+            <p className="text-[11px] font-medium text-tx-2 mb-2.5">Платформы</p>
+            <div className="flex flex-wrap gap-2">
+              {[...selectedPlatforms].map((key) => {
+                const rp = realPlatforms.find((p: any) => p.key === key);
+                const meta = (PLATFORM_META as any)[key];
+                const color = rp?.color ?? meta?.color ?? "#6366f1";
+                const abbr = rp?.abbr ?? meta?.abbr ?? key.slice(0, 2).toUpperCase();
+                const pname = rp?.name ?? meta?.name ?? key;
+                return (
+                  <div key={key} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] border border-line bg-panel text-[11px] text-tx-1">
+                    <span className="w-5 h-5 rounded-[5px] flex items-center justify-center text-[9px] font-bold text-white" style={{ background: color }}>{abbr}</span>
+                    {pname}
+                    {rp && <span className="text-[9px] text-tx-3">· подключён</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Landing preview */}
+        {selectedLanding && (
+          <div className="p-4 bg-panel-2 border border-line rounded-[12px]">
+            <p className="text-[11px] font-medium text-tx-2 mb-2">Лендинг</p>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-[8px] bg-accent/10 border border-accent/20 flex items-center justify-center text-lg">🌐</div>
+              <div className="min-w-0">
+                <p className="text-[12px] font-medium text-tx-1 truncate">{selectedLanding.title}</p>
+                {selectedLanding.slug && (
+                  <p className="text-[10px] text-tx-3 truncate">/l/{selectedLanding.slug}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Creatives count */}
+        {generatedCreatives.length > 0 && (
+          <div className="p-4 bg-panel-2 border border-line rounded-[12px]">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🎨</span>
+              <div>
+                <p className="text-[12px] font-medium text-tx-1">{generatedCreatives.length} {generatedCreatives.length === 1 ? "креатив" : "креатива"} готово</p>
+                <p className="text-[10px] text-tx-3">Будут опубликованы при запуске</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* AI explanation */}
+        <div className="p-4 bg-panel-2 border border-line rounded-[12px]">
+          {explanation ? (
+            <div>
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="text-[10px] font-semibold text-accent uppercase tracking-wider">✦ AI-анализ</span>
+              </div>
+              <p className="text-[12px] text-tx-1 leading-relaxed">{explanation}</p>
+              <button onClick={getExplanation} disabled={explaining} className="mt-2 text-[10px] text-tx-3 hover:text-accent cursor-pointer underline underline-offset-2">
+                Обновить
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={getExplanation}
+              disabled={explaining}
+              className="w-full py-2.5 border border-dashed border-accent/40 rounded-[8px] text-[12px] text-accent hover:bg-accent/5 cursor-pointer disabled:opacity-50 transition-colors"
+            >
+              {explaining ? "⟳ Анализирую кампанию..." : "✦ Объяснить кампанию"}
+            </button>
+          )}
+        </div>
+
+        {/* AI agent */}
+        {projectAgent && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-accent/5 border border-accent/20 rounded-[8px]">
+            <span className="text-sm">🤖</span>
+            <p className="text-[11px] text-tx-2">AI-агент <span className="font-medium text-accent">{projectAgent.name}</span> будет отслеживать кампанию</p>
+          </div>
+        )}
+      </div>
+
+      {/* Right — approval + launch (40%) */}
+      <div className="flex-[2] min-w-0 space-y-4">
+        {/* Согласование */}
+        <div className="p-4 bg-panel-2 border border-line rounded-[12px]">
+          <h3 className="text-[12px] font-semibold text-tx-1 mb-3">Согласовать с командой</h3>
+          <p className="text-[11px] text-tx-3 mb-3 leading-relaxed">Отправьте ссылку на согласование руководителю или клиенту перед запуском.</p>
+          <input
+            type="email"
+            placeholder="email@company.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={inp + " mb-2"}
+          />
+          <button
+            onClick={() => alert("Функция в разработке — вскоре вы сможете отправлять кампании на согласование.")}
+            className="w-full py-2 border border-line rounded-[7px] text-[11px] text-tx-2 hover:bg-hover cursor-pointer"
+          >
+            Отправить на согласование
+          </button>
+          <p className="text-[10px] text-tx-3 mt-2 text-center">Функция в разработке</p>
+        </div>
+
+        {/* Checklist */}
+        <div className="p-4 bg-panel-2 border border-line rounded-[12px] space-y-2">
+          <p className="text-[11px] font-medium text-tx-2 mb-3">Перед запуском</p>
+          {[
+            { ok: !!name.trim(), label: "Название кампании" },
+            { ok: selectedPlatforms.size > 0, label: "Выбраны платформы" },
+            { ok: !!budget, label: "Указан бюджет" },
+            { ok: !!audience.trim(), label: "Описана аудитория" },
+          ].map(({ ok, label }) => (
+            <div key={label} className="flex items-center gap-2 text-[11px]">
+              <span className={ok ? "text-green-500" : "text-tx-3"}>{ok ? "✓" : "○"}</span>
+              <span className={ok ? "text-tx-1" : "text-tx-3"}>{label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Launch */}
+        <div className="p-4 bg-panel-2 border border-line rounded-[12px]">
+          {launchProgress && (
+            <p className="text-[11px] text-accent mb-3 text-center">{launchProgress}</p>
+          )}
+          <button
+            onClick={handleLaunch}
+            disabled={launching}
+            className="w-full py-3 bg-accent text-on-accent text-[13px] font-semibold rounded-[10px] hover:opacity-90 cursor-pointer disabled:opacity-50 transition-opacity"
+          >
+            {launching ? "⟳ Запускаю..." : "🚀 Запустить кампанию"}
+          </button>
+          <button
+            onClick={() => setStep(step - 1)}
+            className="w-full mt-2 py-2 text-[11px] text-tx-3 hover:text-tx-2 cursor-pointer"
+          >
+            ← Вернуться назад
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function WizardView({
   onClose,
   projectId: defaultProjectId,
@@ -564,7 +792,11 @@ export function WizardView({
     ),
   );
   const [landingId, setLandingId] = useState<string | null>(draft?.landingId ?? null);
-  const [campaignTools, setCampaignTools] = useState<Set<string>>(new Set(draft?.campaignTools ?? []));
+  const [campaignTools, setCampaignTools] = useState<Set<string>>(() => {
+    const tools = new Set<string>(draft?.campaignTools ?? []);
+    if (draft?.landingId) tools.add("landing");
+    return tools;
+  });
   const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(draft?.selectedAgentId ?? null);
   const [budgetSuggesting, setBudgetSuggesting] = useState(false);
@@ -743,11 +975,13 @@ export function WizardView({
 
   const { data: landingPages = [] } = useQuery({
     queryKey: ["landings_wizard"],
+    staleTime: 0,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       const res = await fetch("/api/landings");
       if (!res.ok) return [];
       const data = await res.json();
-      return (data ?? []).filter((l: any) => l.published);
+      return data ?? [];
     },
   });
 
@@ -771,6 +1005,7 @@ export function WizardView({
         subtypes: subtypesSer,
         draftId,
         landingId,
+        campaignTools: [...campaignTools],
         step,
         maxStep,
         campaignNiche,
@@ -795,6 +1030,7 @@ export function WizardView({
     selectedPlatforms,
     selectedSubtypes,
     landingId,
+    campaignTools,
     step,
     maxStep,
   ]);
@@ -2117,7 +2353,7 @@ export function WizardView({
                 <p className="text-[11px] text-tx-3 mb-4">Создайте лендинг и он появится здесь</p>
                 <button
                   onClick={() => {
-                    const params = new URLSearchParams({ from: "campaign", goal, ...(product && { product }), ...(audience && { audience }), ...(name && { campaign_name: name }) });
+                    const params = new URLSearchParams({ from: "campaign", goal, ...(product && { product }), ...(audience && { audience }), ...(name && { campaign_name: name }), ...(draftId && { campaign_id: draftId }) });
                     router.push(`/${locale}/landings/create?${params}`);
                   }}
                   className="px-4 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] cursor-pointer hover:opacity-90"
@@ -2169,7 +2405,7 @@ export function WizardView({
             {(landingPages as any[]).length > 0 && (
               <button
                 onClick={() => {
-                  const params = new URLSearchParams({ from: "campaign", goal, ...(product && { product }), ...(audience && { audience }), ...(name && { campaign_name: name }) });
+                  const params = new URLSearchParams({ from: "campaign", goal, ...(product && { product }), ...(audience && { audience }), ...(name && { campaign_name: name }), ...(draftId && { campaign_id: draftId }) });
                   router.push(`/${locale}/landings/create?${params}`);
                 }}
                 className="mt-3 w-full py-2 border border-dashed border-line rounded-[10px] text-[12px] text-tx-3 hover:border-accent hover:text-accent cursor-pointer transition-colors"
@@ -2497,76 +2733,24 @@ export function WizardView({
 
       {/* ══ STEP 5: Launch ══ */}
       {currentStepKey === "launch" && (
-        <div>
-          <div className="ui-surface p-4 mb-4 space-y-2">
-            {[
-              { l: "Название", v: name },
-              { l: "Проект", v: (activeProject as any)?.name ?? "—" },
-              { l: "Цель", v: goal },
-              {
-                l: "Платформы",
-                v:
-                  [...selectedPlatforms]
-                    .map(
-                      (k) =>
-                        realPlatforms.find((p) => p.key === k)?.name ??
-                        PLATFORM_META[k]?.name ??
-                        k,
-                    )
-                    .join(", ") || "—",
-              },
-              {
-                l: "Бюджет",
-                v: budget ? `₽${Number(budget).toLocaleString("ru")}` : "—",
-              },
-              { l: "Лендинг", v: (() => { const lp = (landingPages as any[]).find((l: any) => l.id === landingId); return lp ? `${lp.name} (/${lp.slug})` : "—"; })() },
-              { l: "Креативов", v: `${generatedCreatives.length} штук готово` },
-              ...(projectAgent
-                ? [{ l: "AI агент", v: `${projectAgent.name} (${projectAgent.type ?? "агент"})` }]
-                : []),
-            ].map((row) => (
-              <div
-                key={row.l}
-                className="flex gap-3 text-[11px] py-1.5 border-b border-line last:border-0"
-              >
-                <span className="w-24 text-tx-3 flex-shrink-0">{row.l}</span>
-                <span className="font-medium text-tx-1">{row.v}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="p-3 bg-chip/30 rounded-[9px] mb-5 flex items-start gap-2">
-            <span>✦</span>
-            <p className="text-[11px] text-tx-2">
-              После запуска кампания станет активной, а{" "}
-              {generatedCreatives.length} креативов сохранятся в библиотеке. На
-              странице кампании можно запланировать публикации.
-            </p>
-          </div>
-
-          {launchProgress && (
-            <div className="flex items-center gap-3 p-3 bg-accent-dim border border-accent/20 rounded-[9px] mb-4">
-              <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin flex-shrink-0" />
-              <p className="text-[11px] text-accent">{launchProgress}</p>
-            </div>
-          )}
-
-          <div className="flex justify-between">
-            <button
-              onClick={() => setStep(step - 1)}
-              className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
-            >
-              ← Назад
-            </button>
-            <button
-              onClick={handleLaunch}
-              disabled={launching}
-              className="px-6 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-60"
-            >
-              {launching ? "⟳ Генерирую..." : "🚀 Запустить и сгенерировать"}
-            </button>
-          </div>
-        </div>
+        <LaunchStep
+          name={name}
+          goal={goal}
+          product={product}
+          audience={audience}
+          budget={budget}
+          selectedPlatforms={selectedPlatforms}
+          realPlatforms={realPlatforms}
+          landingId={landingId}
+          landingPages={landingPages as any[]}
+          generatedCreatives={generatedCreatives}
+          projectAgent={projectAgent}
+          launchProgress={launchProgress}
+          launching={launching}
+          step={step}
+          setStep={setStep}
+          handleLaunch={handleLaunch}
+        />
       )}
 
       {/* Connect platform modal */}

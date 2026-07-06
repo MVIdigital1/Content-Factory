@@ -2,6 +2,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "next-intl";
+import { useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Sparkles, Lock, Check, ExternalLink, Edit3, Building2 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -65,7 +66,9 @@ function CreateLandingPageInner() {
   const router = useRouter();
   const locale = useLocale();
   const searchParams = useSearchParams();
+  const qc = useQueryClient();
   const fromCampaign = searchParams.get("from") === "campaign";
+  const campaignId = searchParams.get("campaign_id");
 
   // step 0 = project selection, 1 = business details, 2 = template
   const [step, setStep] = useState(0);
@@ -170,11 +173,16 @@ function CreateLandingPageInner() {
         sessionStorage.removeItem(STORAGE_KEY);
         sessionStorage.removeItem(STORAGE_KEY + "_tpl");
       } catch {}
-      setCreated({ id, slug });
-      const editUrl = fromCampaign
-        ? `/${locale}/landings/${id}/edit?from=campaign`
-        : `/${locale}/landings/${id}/edit`;
-      router.push(editUrl);
+      qc.invalidateQueries({ queryKey: ["landing_pages"] });
+      qc.invalidateQueries({ queryKey: ["landings_wizard"] });
+      if (fromCampaign) {
+        const resumeParams = new URLSearchParams({ tab: "wizard" });
+        if (campaignId) resumeParams.set("resume", campaignId);
+        resumeParams.set("landing", id);
+        router.push(`/${locale}/campaigns?${resumeParams.toString()}`);
+      } else {
+        setCreated({ id, slug });
+      }
     } catch (e: any) {
       setError(e.message);
       setGenerating(false);

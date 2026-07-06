@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useState, useEffect, useRef } from "react";
+import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { CampaignsView } from "@/components/ads/CampaignsView";
@@ -612,6 +612,51 @@ function CampaignsPageInner() {
       ),
     );
   };
+
+  // Handle ?resume=campaignId&landing=landingId redirect from landing creation
+  const resumeHandledRef = useRef(false);
+  const resumeCampaignId = searchParams.get("resume");
+  const resumeLandingId = searchParams.get("landing");
+  useEffect(() => {
+    if (!resumeCampaignId || !resumeLandingId || resumeHandledRef.current) return;
+    resumeHandledRef.current = true;
+
+    let targetTabId: string | null = null;
+    for (const wTab of wizardTabs) {
+      try {
+        const d = JSON.parse(localStorage.getItem(`wizard_draft_v5_${wTab.id}`) ?? "null");
+        if (d?.draftId === resumeCampaignId) { targetTabId = wTab.id; break; }
+      } catch {}
+    }
+
+    if (!targetTabId) {
+      const id = String(Date.now());
+      const newTab: WizardTab = { id, title: "Новая кампания" };
+      try {
+        localStorage.setItem(`wizard_draft_v5_${id}`, JSON.stringify({
+          landingId: resumeLandingId, campaignTools: ["landing"], draftId: resumeCampaignId,
+        }));
+      } catch {}
+      setWizardTabs(prev => [...prev, newTab]);
+      setActiveWizardId(id);
+      saveActiveId(id);
+    } else {
+      setActiveWizardId(targetTabId);
+      saveActiveId(targetTabId);
+      try {
+        const existing = JSON.parse(localStorage.getItem(`wizard_draft_v5_${targetTabId}`) ?? "null") ?? {};
+        const tools = new Set<string>(existing.campaignTools ?? []);
+        tools.add("landing");
+        localStorage.setItem(`wizard_draft_v5_${targetTabId}`, JSON.stringify({
+          ...existing, landingId: resumeLandingId, campaignTools: [...tools],
+        }));
+      } catch {}
+    }
+
+    const p = new URLSearchParams();
+    p.set("tab", "wizard");
+    router.replace(`${pathname}?${p.toString()}`);
+  }, [resumeCampaignId, resumeLandingId]);
 
   // When switching wizard tabs, sync projectId
   useEffect(() => {

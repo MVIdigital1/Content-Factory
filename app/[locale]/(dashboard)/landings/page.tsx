@@ -86,6 +86,7 @@ export default function LandingsPage() {
     onSuccess: () => {
       setDeletingId(null);
       qc.invalidateQueries({ queryKey: ["landing_pages"] });
+      qc.invalidateQueries({ queryKey: ["landings_wizard"] });
     },
   });
 

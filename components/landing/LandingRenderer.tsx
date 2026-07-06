@@ -82,9 +82,15 @@ export type TextBlock = {
   body?: string;
 };
 
+export type MascotBlock = {
+  type: "mascot";
+  side?: "left" | "right";
+  message?: string;
+};
+
 export type Block =
   | HeroBlock | SocialProofBlock | BenefitsBlock | FeaturesBlock
-  | ShowcaseBlock | PriceBlock | FormBlock | FaqBlock | CtaBlock | TextBlock;
+  | ShowcaseBlock | PriceBlock | FormBlock | FaqBlock | CtaBlock | TextBlock | MascotBlock;
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 type Props = {
@@ -616,6 +622,89 @@ export default function LandingRenderer({
                 {block.body && <p style={{ fontSize: px(17, 12), color: "#64748B", lineHeight: 1.7 }}>{block.body}</p>}
               </div>
             </section>
+          );
+        }
+
+        // ── Mascot ────────────────────────────────────────────────────────────
+        if (block.type === "mascot") {
+          if (preview) return null;
+          const side = block.side ?? "right";
+          return (
+            <div key={i} style={{
+              position: "fixed",
+              bottom: 90,
+              [side]: 20,
+              zIndex: 998,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: side === "right" ? "flex-end" : "flex-start",
+              gap: 8,
+              pointerEvents: "none",
+            }}>
+              {block.message && (
+                <div style={{
+                  background: "#1A1A18",
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: 500,
+                  padding: "8px 12px",
+                  borderRadius: 12,
+                  maxWidth: 160,
+                  lineHeight: 1.4,
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+                  position: "relative",
+                }}>
+                  {block.message}
+                  <div style={{
+                    position: "absolute",
+                    bottom: -6,
+                    [side === "right" ? "right" : "left"]: 16,
+                    width: 0, height: 0,
+                    borderLeft: "6px solid transparent",
+                    borderRight: "6px solid transparent",
+                    borderTop: "6px solid #1A1A18",
+                  }} />
+                </div>
+              )}
+              <style>{`
+                @keyframes mascot-wave {
+                  0%, 100% { transform: rotate(0deg); }
+                  25% { transform: rotate(20deg); }
+                  75% { transform: rotate(-10deg); }
+                }
+                @keyframes mascot-jump {
+                  0%, 100% { transform: translateY(0); }
+                  50% { transform: translateY(-10px); }
+                }
+                .mascot-svg { animation: mascot-jump 2s ease-in-out infinite; }
+                .mascot-svg:hover { animation: mascot-jump 0.4s ease-in-out infinite; }
+                .mascot-arm { transform-origin: 10px 5px; animation: mascot-wave 1.5s ease-in-out infinite; }
+              `}</style>
+              <svg className="mascot-svg" width="60" height="80" viewBox="0 0 60 80" fill="none">
+                {/* Head */}
+                <circle cx="30" cy="14" r="12" fill="#FBBF24" stroke="#1A1A18" strokeWidth="1.5"/>
+                {/* Eyes */}
+                <circle cx="25" cy="12" r="2" fill="#1A1A18"/>
+                <circle cx="35" cy="12" r="2" fill="#1A1A18"/>
+                {/* Smile */}
+                <path d="M24 18 Q30 23 36 18" stroke="#1A1A18" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+                {/* Body */}
+                <rect x="20" y="27" width="20" height="22" rx="5" fill="#4F46E5" stroke="#1A1A18" strokeWidth="1.5"/>
+                {/* Left arm */}
+                <line x1="20" y1="32" x2="10" y2="42" stroke="#1A1A18" strokeWidth="3" strokeLinecap="round"/>
+                {/* Right arm (waving) */}
+                <g className="mascot-arm">
+                  <line x1="40" y1="32" x2="52" y2="24" stroke="#1A1A18" strokeWidth="3" strokeLinecap="round"/>
+                  <circle cx="53" cy="22" r="4" fill="#FBBF24" stroke="#1A1A18" strokeWidth="1.5"/>
+                </g>
+                {/* Left leg */}
+                <line x1="25" y1="49" x2="22" y2="66" stroke="#1A1A18" strokeWidth="3" strokeLinecap="round"/>
+                <ellipse cx="20" cy="68" rx="5" ry="3" fill="#1A1A18"/>
+                {/* Right leg */}
+                <line x1="35" y1="49" x2="38" y2="66" stroke="#1A1A18" strokeWidth="3" strokeLinecap="round"/>
+                <ellipse cx="40" cy="68" rx="5" ry="3" fill="#1A1A18"/>
+              </svg>
+            </div>
           );
         }
 

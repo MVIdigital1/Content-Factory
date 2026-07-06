@@ -31,9 +31,9 @@ ${name ? `Название бренда: ${name}` : "Определи назва
   "keywords": "8-12 ключевых слов через запятую для SEO и рекламы"
 }`;
 
-      const imageSource = isUrl
-        ? { type: "url" as const, url: logoBase64.startsWith("/") ? `${process.env.NEXT_PUBLIC_APP_URL}${logoBase64}` : logoBase64 }
-        : { type: "base64" as const, media_type: mime, data: logoBase64.includes(",") ? logoBase64.split(",")[1] : logoBase64 };
+      const imageSource = (isUrl
+        ? { type: "url", url: logoBase64.startsWith("/") ? `${process.env.NEXT_PUBLIC_APP_URL}${logoBase64}` : logoBase64 }
+        : { type: "base64", media_type: mime, data: logoBase64.includes(",") ? logoBase64.split(",")[1] : logoBase64 }) as any;
 
       const message = await client.messages.create({
         model: "claude-sonnet-4-6",

@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronLeft, Copy, Check, ExternalLink, Edit3,
   Eye, EyeOff, Zap, Database, CreditCard,
+  MessageCircle, Phone, Users, BarChart2, Bot,
 } from "lucide-react";
 import LandingRenderer, { Block } from "@/components/landing/LandingRenderer";
 
@@ -15,6 +16,7 @@ type Settings = {
   tone?: string;
   autoCloseDays?: number | null;
   routing?: { aiCallback?: boolean; crm?: boolean; payments?: boolean };
+  widgets?: { chat?: boolean; quickCall?: boolean };
 };
 
 type LP = {
@@ -49,8 +51,11 @@ function LandingDetailInner() {
   const qc     = useQueryClient();
 
   const [copied, setCopied]     = useState(false);
+  const [activeTab, setActiveTab] = useState<"overview" | "leads" | "ai" | "analytics">("overview");
   const [routing, setRouting] = useState({ aiCallback: true, crm: true, payments: false });
   const [routingInit, setRoutingInit] = useState(false);
+  const [widgets, setWidgets] = useState({ chat: false, quickCall: false });
+  const [widgetsInit, setWidgetsInit] = useState(false);
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
   const { data: landing, isLoading } = useQuery<LP>({
@@ -72,6 +77,16 @@ function LandingDetailInner() {
       setRoutingInit(true);
     }
   }, [landing, routingInit]);
+
+  useEffect(() => {
+    if (landing && !widgetsInit) {
+      setWidgets({
+        chat:      landing.settings?.widgets?.chat ?? false,
+        quickCall: landing.settings?.widgets?.quickCall ?? false,
+      });
+      setWidgetsInit(true);
+    }
+  }, [landing, widgetsInit]);
 
   // ── Mutations ─────────────────────────────────────────────────────────────
   const patchMutation = useMutation({
@@ -100,6 +115,17 @@ function LandingDetailInner() {
     patchMutation.mutate({ content });
   };
 
+  const saveWidgets = (next: typeof widgets) => {
+    setWidgets(next);
+    if (!landing) return;
+    const content = {
+      settings: { ...landing.settings, widgets: next },
+      template_id: landing.template_id,
+      bg_image: landing.bg_image,
+    };
+    patchMutation.mutate({ content });
+  };
+
   const togglePublish = () => {
     if (!landing) return;
     patchMutation.mutate({ published: !landing.published });
@@ -112,6 +138,16 @@ function LandingDetailInner() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  // ── Leads query ──────────────────────────────────────────────────────────
+  const { data: leads = [] } = useQuery({
+    queryKey: ["landing_leads", id],
+    enabled: activeTab === "leads",
+    queryFn: async () => {
+      const res = await fetch(`/api/leads?landing_id=${id}`);
+      return res.ok ? res.json() : [];
+    },
+  });
 
   // ── Date helpers ──────────────────────────────────────────────────────────
   const fmtDate = (iso: string) =>
@@ -158,7 +194,7 @@ function LandingDetailInner() {
       </button>
 
       {/* ── Title row ───────────────────────────────────────────────────── */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 28, gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20, gap: 16 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--tx-1)", margin: 0 }}>{landing.title}</h1>
           <p style={{ fontSize: 13, color: "var(--tx-3)", margin: "4px 0 0" }}>
@@ -173,8 +209,118 @@ function LandingDetailInner() {
         </button>
       </div>
 
-      {/* ── Two-column layout ───────────────────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 400px", gap: 28, alignItems: "start" }}>
+      {/* ── Tabs ───────────────────────────────────────────────────────── */}
+      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--line)", marginBottom: 28 }}>
+        {([
+          { key: "overview",   label: "Обзор",       Icon: Eye },
+          { key: "leads",      label: "Заявки",      Icon: Users },
+          { key: "ai",         label: "AI Оператор", Icon: Bot },
+          { key: "analytics",  label: "Аналитика",   Icon: BarChart2 },
+        ] as { key: typeof activeTab; label: string; Icon: any }[]).map(({ key, label, Icon }) => (
+          <button key={key} onClick={() => setActiveTab(key)} style={{
+            display: "flex", alignItems: "center", gap: 6, padding: "10px 18px",
+            fontSize: 13, fontWeight: activeTab === key ? 600 : 400,
+            color: activeTab === key ? "var(--accent)" : "var(--tx-3)",
+            background: "none", borderBottom: activeTab === key ? "2px solid var(--accent)" : "2px solid transparent",
+            cursor: "pointer", fontFamily: "inherit", marginBottom: -1,
+          }}>
+            <Icon size={14} /> {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Tab: Leads ────────────────────────────────────────────────── */}
+      {activeTab === "leads" && (
+        <div>
+          {(leads as any[]).length === 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "64px 24px", background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, textAlign: "center" }}>
+              <Users size={32} style={{ color: "var(--tx-3)", marginBottom: 12 }} />
+              <p style={{ fontSize: 14, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>Заявок пока нет</p>
+              <p style={{ fontSize: 12, color: "var(--tx-3)", marginTop: 4 }}>Как только кто-то оставит заявку — она появится здесь</p>
+            </div>
+          ) : (
+            <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, overflow: "hidden" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--line)", background: "var(--panel-2)" }}>
+                    {["Имя", "Телефон", "Email", "Сообщение", "Дата"].map(h => (
+                      <th key={h} style={{ padding: "10px 16px", textAlign: "left", fontWeight: 600, color: "var(--tx-3)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(leads as any[]).map((lead: any) => (
+                    <tr key={lead.id} style={{ borderBottom: "1px solid var(--line)" }}>
+                      <td style={{ padding: "10px 16px", color: "var(--tx-1)", fontWeight: 500 }}>{lead.name || "—"}</td>
+                      <td style={{ padding: "10px 16px", color: "var(--tx-2)" }}>{lead.phone || "—"}</td>
+                      <td style={{ padding: "10px 16px", color: "var(--tx-2)" }}>{lead.email || "—"}</td>
+                      <td style={{ padding: "10px 16px", color: "var(--tx-3)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.message || "—"}</td>
+                      <td style={{ padding: "10px 16px", color: "var(--tx-3)", whiteSpace: "nowrap" }}>{new Date(lead.created_at).toLocaleDateString("ru-RU")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Tab: AI Operator ──────────────────────────────────────────── */}
+      {activeTab === "ai" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "20px 24px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: routing.aiCallback ? "var(--accent)" : "var(--panel-2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Zap size={18} style={{ color: routing.aiCallback ? "var(--on-accent)" : "var(--tx-3)" }} />
+              </div>
+              <div>
+                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>AI-оператор</p>
+                <p style={{ fontSize: 12, color: routing.aiCallback ? "#059669" : "var(--tx-3)", margin: 0 }}>{routing.aiCallback ? "Активен" : "Отключён"}</p>
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: "var(--tx-2)", lineHeight: 1.6 }}>
+              Автоматически перезванивает новым лидам в течение 1 минуты, квалифицирует заявки и записывает в CRM.
+            </div>
+            {[{ l: "Звонков совершено", v: "0" }, { l: "Конверсия звонков", v: "—" }, { l: "Среднее время ответа", v: "< 1 мин" }].map(row => (
+              <div key={row.l} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: "1px solid var(--line)", fontSize: 12 }}>
+                <span style={{ color: "var(--tx-3)" }}>{row.l}</span>
+                <span style={{ fontWeight: 600, color: "var(--tx-1)" }}>{row.v}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "20px 24px" }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 }}>Виджеты чата</p>
+            {[{ l: "Чат", v: widgets.chat ? "Включён" : "Выключен" }, { l: "Быстрый звонок", v: widgets.quickCall ? "Включён" : "Выключен" }].map(row => (
+              <div key={row.l} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--line)", fontSize: 12 }}>
+                <span style={{ color: "var(--tx-3)" }}>{row.l}</span>
+                <span style={{ fontWeight: 600, color: "var(--tx-1)" }}>{row.v}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Tab: Analytics ────────────────────────────────────────────── */}
+      {activeTab === "analytics" && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+          {[
+            { label: "Просмотры",  value: (landing as any).views > 0 ? String((landing as any).views) : "—", Icon: Eye },
+            { label: "Заявок",     value: (leads as any[]).length > 0 ? String((leads as any[]).length) : "—", Icon: Users },
+            { label: "Конверсия",  value: (landing as any).views > 0 && (leads as any[]).length > 0 ? `${Math.round((leads as any[]).length / (landing as any).views * 100)}%` : "—", Icon: BarChart2 },
+          ].map(({ label, value, Icon }) => (
+            <div key={label} style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "24px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <Icon size={16} style={{ color: "var(--tx-3)" }} />
+                <p style={{ fontSize: 11, fontWeight: 600, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.05em", margin: 0 }}>{label}</p>
+              </div>
+              <p style={{ fontSize: 28, fontWeight: 700, color: "var(--tx-1)", margin: 0 }}>{value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Tab: Overview (two-column layout) ───────────────────────── */}
+      {activeTab === "overview" && <div style={{ display: "grid", gridTemplateColumns: "1fr 400px", gap: 28, alignItems: "start" }}>
 
         {/* ── Left: phone preview ────────────────────────────────────── */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 20, padding: "32px 24px" }}>
@@ -330,6 +476,30 @@ function LandingDetailInner() {
             ))}
           </div>
 
+          {/* 5b. Widgets */}
+          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "18px 20px" }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 }}>
+              Виджеты взаимодействия
+            </p>
+            {[
+              { key: "chat"      as const, Icon: MessageCircle, label: "Чат на лендинге",   sub: "Кнопка чата в правом нижнем углу" },
+              { key: "quickCall" as const, Icon: Phone,          label: "Быстрый звонок",    sub: "AI перезвонит в течение 1 минуты"  },
+            ].map(({ key, Icon, label, sub }) => (
+              <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--line)" }}>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 9, background: "var(--panel-2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Icon size={15} style={{ color: "var(--tx-2)" }} />
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: "var(--tx-1)", margin: 0 }}>{label}</p>
+                    <p style={{ fontSize: 11, color: "var(--tx-3)", margin: 0 }}>{sub}</p>
+                  </div>
+                </div>
+                <Toggle on={widgets[key]} onChange={v => saveWidgets({ ...widgets, [key]: v })} />
+              </div>
+            ))}
+          </div>
+
           {/* 6. Publish button */}
           <button
             onClick={togglePublish}
@@ -348,7 +518,7 @@ function LandingDetailInner() {
             {landing.published ? <><EyeOff size={16} /> Снять с публикации</> : <><Eye size={16} /> Опубликовать лендинг</>}
           </button>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
