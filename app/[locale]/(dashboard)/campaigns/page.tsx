@@ -789,7 +789,7 @@ function CampaignsPageInner() {
               </button>
               {inProgressCount > 0 && (
                 <button
-                  onClick={() => setDraftsDropOpen((v) => !v)}
+                  onClick={handleCreateClick}
                   title="Черновики в процессе"
                   style={{
                     display: "flex",
