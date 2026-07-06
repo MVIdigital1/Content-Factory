@@ -853,6 +853,7 @@ export function WizardView({
   );
   const imgRef = useRef<HTMLInputElement>(null);
   const productImgRef = useRef<HTMLInputElement>(null);
+  const landingPreviewRef = useRef<HTMLDivElement>(null);
 
   // ── Queries ──────────────────────────────────────────────────────────────────
   const { data: projects = [], refetch: refetchProjects } = useQuery({
@@ -2337,19 +2338,112 @@ export function WizardView({
       )}
 
       {/* ══ STEP 1: Лендинг ══ */}
-      {currentStepKey === "landing" && (
-        <div className="space-y-5">
+      {currentStepKey === "landing" && (() => {
+        const selectedLp = (landingPages as any[]).find((lp: any) => lp.id === landingId) ?? null;
+        const IFRAME_W = 1280;
+        const selectLanding = (id: string) => {
+          setLandingId(id);
+          setTimeout(() => landingPreviewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+        };
+        return (
+        <div className="space-y-4">
           <div>
-            <p className="text-[13px] font-semibold text-tx-1 mb-1">Посадочная страница</p>
+            <p className="text-[13px] font-semibold text-tx-1 mb-0.5">Посадочная страница</p>
             <p className="text-[11px] text-tx-3 mb-4">Выберите лендинг, на который будет вести реклама (необязательно)</p>
 
+            {/* ── Expanded preview of selected landing ── */}
+            <div ref={landingPreviewRef}>
+              {selectedLp && (
+                <div
+                  className="mb-4 border border-accent rounded-[12px] overflow-hidden"
+                  style={{ background: "var(--panel-2)" }}
+                >
+                  <div className="flex gap-0" style={{ minHeight: 180 }}>
+                    {/* iframe thumbnail */}
+                    <div
+                      style={{
+                        width: 300, minWidth: 300, height: 188,
+                        overflow: "hidden", position: "relative",
+                        background: "#f5f5f5", borderRight: "1px solid var(--line)",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {selectedLp.published ? (
+                        <iframe
+                          src={`/l/${selectedLp.slug}`}
+                          title={selectedLp.title}
+                          style={{
+                            width: IFRAME_W, height: 705,
+                            transform: `scale(${300 / IFRAME_W})`,
+                            transformOrigin: "top left",
+                            pointerEvents: "none",
+                            border: "none",
+                          }}
+                        />
+                      ) : (
+                        <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                          <span style={{ fontSize: 32 }}>🌐</span>
+                          <span style={{ fontSize: 10, color: "var(--tx-3)", textAlign: "center", padding: "0 12px" }}>Черновик — превью недоступно до публикации</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Info panel */}
+                    <div className="flex-1 p-4 flex flex-col justify-between min-w-0">
+                      <div>
+                        <div className="flex items-start gap-2 mb-2">
+                          <h3 className="text-[14px] font-semibold text-tx-1 leading-tight flex-1 min-w-0 truncate">{selectedLp.title}</h3>
+                          <span
+                            className="shrink-0 text-[9px] font-semibold px-2 py-0.5 rounded-full"
+                            style={selectedLp.published
+                              ? { background: "rgba(74,186,116,0.15)", color: "#4ABA74", border: "1px solid rgba(74,186,116,0.3)" }
+                              : { background: "var(--chip)", color: "var(--tx-3)", border: "1px solid var(--line)" }}
+                          >
+                            {selectedLp.published ? "Опубликован" : "Черновик"}
+                          </span>
+                        </div>
+                        {selectedLp.slug && (
+                          <p className="text-[11px] text-tx-3 mb-3 truncate">/l/{selectedLp.slug}</p>
+                        )}
+                        <span
+                          className="inline-flex items-center text-[10px] font-semibold px-2.5 py-1 rounded-full"
+                          style={{ background: "var(--accent)", color: "var(--on-accent)" }}
+                        >
+                          ✓ Выбран
+                        </span>
+                      </div>
+                      <div className="flex gap-2 mt-3">
+                        {selectedLp.published && selectedLp.slug && (
+                          <a
+                            href={`/l/${selectedLp.slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 py-1.5 text-center border border-line rounded-[7px] text-[11px] text-tx-2 hover:bg-hover cursor-pointer"
+                          >
+                            Открыть ↗
+                          </a>
+                        )}
+                        <button
+                          onClick={() => setLandingId(null)}
+                          className="flex-1 py-1.5 border border-line rounded-[7px] text-[11px] text-tx-3 hover:bg-hover cursor-pointer"
+                        >
+                          ✕ Убрать
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── Landing list ── */}
             {(landingPages as any[]).length === 0 ? (
               <div
                 className="flex flex-col items-center py-14 border border-dashed border-line rounded-[12px]"
                 style={{ background: "var(--panel-2)" }}
               >
                 <div style={{ fontSize: 36, marginBottom: 10 }}>🌐</div>
-                <p className="text-[13px] font-semibold text-tx-1 mb-1">Нет опубликованных лендингов</p>
+                <p className="text-[13px] font-semibold text-tx-1 mb-1">Нет лендингов</p>
                 <p className="text-[11px] text-tx-3 mb-4">Создайте лендинг и он появится здесь</p>
                 <button
                   onClick={() => {
@@ -2362,46 +2456,85 @@ export function WizardView({
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setLandingId(null)}
-                  className={`flex flex-col items-center p-4 border rounded-[10px] cursor-pointer transition-colors text-center ${landingId === null ? "border-accent bg-chip" : "border-line hover:border-line-strong hover:bg-hover"}`}
-                >
-                  <div style={{ fontSize: 22, marginBottom: 6 }}>🚫</div>
-                  <p className="text-[12px] font-semibold text-tx-1">Без лендинга</p>
-                  <p className="text-[10px] text-tx-3 mt-1">Трафик без посадочной страницы</p>
-                  {landingId === null && (
-                    <span
-                      className="mt-2 text-[9px] font-semibold px-2 py-0.5 rounded-full"
-                      style={{ background: "var(--accent)", color: "var(--on-accent)" }}
+              <div className="space-y-2">
+                {(landingPages as any[]).map((lp: any) => {
+                  const isSelected = landingId === lp.id;
+                  const thumbScale = 88 / IFRAME_W;
+                  return (
+                    <button
+                      key={lp.id}
+                      onClick={() => selectLanding(lp.id)}
+                      className="w-full text-left cursor-pointer"
+                      style={{
+                        display: "flex", alignItems: "center", gap: 12,
+                        padding: "10px 14px", borderRadius: 10,
+                        border: isSelected ? "1.5px solid var(--accent)" : "1px solid var(--line)",
+                        background: isSelected ? "var(--chip)" : "var(--panel-2)",
+                        transition: "border-color 0.15s, background 0.15s",
+                      }}
                     >
-                      ✓ Выбрано
-                    </span>
-                  )}
-                </button>
-                {(landingPages as any[]).map((lp: any) => (
-                  <button
-                    key={lp.id}
-                    onClick={() => setLandingId(lp.id)}
-                    className={`flex flex-col items-start p-4 border rounded-[10px] cursor-pointer transition-colors text-left ${landingId === lp.id ? "border-accent bg-chip" : "border-line hover:border-line-strong hover:bg-hover"}`}
-                  >
-                    <div style={{ fontSize: 20, marginBottom: 6 }}>🌐</div>
-                    <p className="text-[12px] font-semibold text-tx-1 leading-tight mb-1">{lp.title || lp.name}</p>
-                    <p className="text-[10px] text-tx-3">/{lp.slug}</p>
-                    {landingId === lp.id && (
-                      <span
-                        className="mt-2 text-[9px] font-semibold px-2 py-0.5 rounded-full"
-                        style={{ background: "var(--accent)", color: "var(--on-accent)" }}
+                      {/* Small thumbnail */}
+                      <div
+                        style={{
+                          width: 88, minWidth: 88, height: 55,
+                          overflow: "hidden", borderRadius: 6,
+                          background: "#f5f5f5",
+                          border: "1px solid var(--line)",
+                          flexShrink: 0,
+                          position: "relative",
+                        }}
                       >
-                        ✓ Выбран
-                      </span>
-                    )}
-                  </button>
-                ))}
+                        {lp.published ? (
+                          <iframe
+                            src={`/l/${lp.slug}`}
+                            title={lp.title}
+                            style={{
+                              width: IFRAME_W, height: 412,
+                              transform: `scale(${thumbScale})`,
+                              transformOrigin: "top left",
+                              pointerEvents: "none",
+                              border: "none",
+                            }}
+                          />
+                        ) : (
+                          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <span style={{ fontSize: 20 }}>🌐</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Text info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12px] font-semibold text-tx-1 truncate leading-tight mb-0.5">{lp.title}</p>
+                        {lp.slug && <p className="text-[10px] text-tx-3 truncate">/l/{lp.slug}</p>}
+                      </div>
+
+                      {/* Status + selected badge */}
+                      <div className="flex flex-col items-end gap-1.5 shrink-0">
+                        <span
+                          className="text-[9px] font-semibold px-2 py-0.5 rounded-full"
+                          style={lp.published
+                            ? { background: "rgba(74,186,116,0.15)", color: "#4ABA74" }
+                            : { background: "var(--chip)", color: "var(--tx-3)" }}
+                        >
+                          {lp.published ? "Опубликован" : "Черновик"}
+                        </span>
+                        {isSelected && (
+                          <span
+                            className="text-[9px] font-semibold px-2 py-0.5 rounded-full"
+                            style={{ background: "var(--accent)", color: "var(--on-accent)" }}
+                          >
+                            ✓
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
 
-            {/* Create new landing button — always shown */}
+            {/* Create new landing button */}
             {(landingPages as any[]).length > 0 && (
               <button
                 onClick={() => {
@@ -2434,7 +2567,8 @@ export function WizardView({
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* ══ STEP 4: Creatives ══ */}
       {currentStepKey === "creatives" && (
