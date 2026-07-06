@@ -2342,56 +2342,61 @@ export function WizardView({
       {currentStepKey === "landing" && (() => {
         const selectedLp = (landingPages as any[]).find((lp: any) => lp.id === landingId) ?? null;
         const pages = landingPages as any[];
+        const selCnt = (selectedLp?.content ?? {}) as any;
+        const selBlocks = selCnt.blocks ?? [];
+        const selBrandColor = selCnt.settings?.brandColor ?? "#4F46E5";
+        const selBgImage = selCnt.bg_image ?? undefined;
         return (
         <div>
-          {/* Two-column layout: big preview left, list right */}
-          <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+          {/* Two-column layout: phone preview left, list right */}
+          <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
 
-            {/* ── Left: big landing preview ── */}
-            <div style={{ flex: "1 1 0", minWidth: 0 }}>
-              <div
-                ref={landingPreviewRef}
-                style={{
-                  border: selectedLp ? "1.5px solid var(--accent)" : "1px solid var(--line)",
-                  borderRadius: 12, overflow: "hidden",
-                  background: "var(--panel-2)",
-                  height: 480,
-                  display: "flex", flexDirection: "column",
-                }}
-              >
-                {selectedLp ? (
-                  <>
-                    {/* Top bar */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", borderBottom: "1px solid var(--line)", background: "var(--panel)", flexShrink: 0 }}>
-                      <div style={{ display: "flex", gap: 4 }}>
-                        {["#ff5f57","#febc2e","#28c840"].map((c) => (
-                          <div key={c} style={{ width: 9, height: 9, borderRadius: "50%", background: c }} />
-                        ))}
-                      </div>
-                      <div style={{ flex: 1, background: "var(--panel-2)", borderRadius: 5, padding: "3px 10px", fontSize: 10, color: "var(--tx-3)" }}>
-                        mvira.uz/l/{selectedLp.slug}
-                      </div>
-                      <button
-                        onClick={() => setLandingId(null)}
-                        style={{ background: "none", border: "none", color: "var(--tx-3)", cursor: "pointer", fontSize: 14, padding: "0 2px", lineHeight: 1 }}
-                        title="Убрать выбор"
-                      >✕</button>
+            {/* ── Left: phone frame (same as landings/[id]/page) ── */}
+            <div ref={landingPreviewRef} style={{ flex: "1 1 0", minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "24px 16px" }}>
+              {selectedLp ? (
+                <>
+                  {/* Phone */}
+                  <div style={{
+                    width: 270, flexShrink: 0,
+                    background: "#1C1C1E",
+                    borderRadius: 44,
+                    padding: "14px 8px 20px",
+                    boxShadow: "0 24px 64px rgba(0,0,0,0.35), 0 0 0 2px #3A3A3C",
+                  }}>
+                    <div style={{ width: 80, height: 20, background: "#1C1C1E", borderRadius: 10, margin: "0 auto 8px" }} />
+                    <div style={{ borderRadius: 32, overflow: "hidden", height: 480, overflowY: "auto", background: "#fff" }}>
+                      {selBlocks.length > 0 ? (
+                        <LandingRenderer
+                          blocks={selBlocks}
+                          bgImage={selBgImage}
+                          brandColor={selBrandColor}
+                          preview={true}
+                        />
+                      ) : (
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#999", fontSize: 13 }}>
+                          Нет контента
+                        </div>
+                      )}
                     </div>
-                    {/* iframe */}
-                    <iframe
-                      src={`/${locale}/lp/${selectedLp.id}`}
-                      style={{ flex: 1, border: "none", width: "100%", display: "block" }}
-                      title={selectedLp.title}
-                    />
-                  </>
-                ) : (
-                  <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, color: "var(--tx-3)" }}>
-                    <span style={{ fontSize: 40 }}>🌐</span>
-                    <p style={{ fontSize: 13, margin: 0, fontWeight: 500 }}>Выберите лендинг справа</p>
-                    <p style={{ fontSize: 11, margin: 0 }}>Он откроется здесь для просмотра</p>
                   </div>
-                )}
-              </div>
+                  {/* Name + remove */}
+                  <div style={{ textAlign: "center" }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", margin: "0 0 4px" }}>{selectedLp.title}</p>
+                    <button
+                      onClick={() => setLandingId(null)}
+                      style={{ background: "none", border: "none", fontSize: 11, color: "var(--tx-3)", cursor: "pointer", textDecoration: "underline" }}
+                    >
+                      ✕ Убрать выбор
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div style={{ height: 500, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, color: "var(--tx-3)" }}>
+                  <span style={{ fontSize: 48 }}>📱</span>
+                  <p style={{ fontSize: 13, margin: 0, fontWeight: 500, color: "var(--tx-2)" }}>Выберите лендинг</p>
+                  <p style={{ fontSize: 11, margin: 0 }}>Превью откроется здесь</p>
+                </div>
+              )}
             </div>
 
             {/* ── Right: landing list ── */}
