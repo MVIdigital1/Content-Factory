@@ -20,6 +20,8 @@ type Step1 = {
   oldPrice: string;
   newPrice: string;
   productEmoji: string;
+  heroImage: string;
+  bgImage: string;
 };
 
 type Project = {
@@ -42,6 +44,8 @@ const EMPTY_STEP1: Step1 = {
   oldPrice: "",
   newPrice: "",
   productEmoji: "",
+  heroImage: "",
+  bgImage: "",
 };
 
 const NICHES = [
@@ -99,6 +103,29 @@ function CreateLandingPageInner() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [fillingFromProject, setFillingFromProject] = useState(false);
   const [filledFromProject, setFilledFromProject] = useState<string | null>(null);
+  const [uploadingImg, setUploadingImg] = useState<"hero" | "bg" | null>(null);
+
+  const uploadImage = async (file: File, field: "heroImage" | "bgImage") => {
+    const type = field === "heroImage" ? "hero" : "bg";
+    setUploadingImg(type);
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((res, rej) => {
+        reader.onload = () => res(reader.result as string);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+      const r = await fetch("/api/upload/landing-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base64, name: file.name }),
+      });
+      const data = await r.json();
+      if (data.url) setStep1((p) => ({ ...p, [field]: data.url }));
+    } catch { /* ignore */ } finally {
+      setUploadingImg(null);
+    }
+  };
 
   useEffect(() => {
     fetch("/api/projects")
@@ -164,7 +191,7 @@ function CreateLandingPageInner() {
       const res = await fetch("/api/landings/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...step1, templateId }),
+        body: JSON.stringify({ ...step1, templateId, heroImage: step1.heroImage || undefined, bgImage: step1.bgImage || undefined }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -475,6 +502,73 @@ function CreateLandingPageInner() {
                 {TONES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </Field>
+
+            {/* ── Image uploads ─────────────────────────────────────── */}
+            <div style={{ borderTop: "1px solid var(--line)", paddingTop: 20 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", marginBottom: 4 }}>Изображения (необязательно)</p>
+              <p style={{ fontSize: 12, color: "var(--tx-3)", marginBottom: 16 }}>AI вставит ваши фото в лендинг — вместо заглушек</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                {/* Hero image */}
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 500, color: "var(--tx-2)", marginBottom: 8 }}>Фото товара / услуги</p>
+                  <label style={{ display: "block", cursor: "pointer" }}>
+                    <div style={{
+                      height: 120, borderRadius: 10, border: "2px dashed var(--line)",
+                      background: "var(--panel)", display: "flex", flexDirection: "column",
+                      alignItems: "center", justifyContent: "center", gap: 6,
+                      overflow: "hidden", position: "relative",
+                      transition: "border-color 0.15s",
+                    }}>
+                      {step1.heroImage ? (
+                        <>
+                          <img src={step1.heroImage} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          <button
+                            onClick={(e) => { e.preventDefault(); setStep1((p) => ({ ...p, heroImage: "" })); }}
+                            style={{ position: "absolute", top: 6, right: 6, width: 22, height: 22, borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "none", color: "#fff", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}
+                          >✕</button>
+                        </>
+                      ) : uploadingImg === "hero" ? (
+                        <><div style={{ width: 20, height: 20, border: "2px solid var(--accent)", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} /><span style={{ fontSize: 11, color: "var(--tx-3)" }}>Загружаю...</span></>
+                      ) : (
+                        <><span style={{ fontSize: 28 }}>🖼️</span><span style={{ fontSize: 11, color: "var(--tx-3)" }}>Нажмите для загрузки</span><span style={{ fontSize: 10, color: "var(--tx-3)" }}>JPG, PNG, WEBP</span></>
+                      )}
+                    </div>
+                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f, "heroImage"); e.target.value = ""; }} />
+                  </label>
+                </div>
+
+                {/* Background image */}
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 500, color: "var(--tx-2)", marginBottom: 8 }}>Фоновое изображение</p>
+                  <label style={{ display: "block", cursor: "pointer" }}>
+                    <div style={{
+                      height: 120, borderRadius: 10, border: "2px dashed var(--line)",
+                      background: step1.bgImage ? `url(${step1.bgImage}) center/cover` : "var(--panel)",
+                      display: "flex", flexDirection: "column",
+                      alignItems: "center", justifyContent: "center", gap: 6,
+                      overflow: "hidden", position: "relative",
+                      transition: "border-color 0.15s",
+                    }}>
+                      {step1.bgImage ? (
+                        <>
+                          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)" }} />
+                          <span style={{ position: "relative", fontSize: 11, color: "#fff", fontWeight: 500 }}>✓ Фон загружен</span>
+                          <button
+                            onClick={(e) => { e.preventDefault(); setStep1((p) => ({ ...p, bgImage: "" })); }}
+                            style={{ position: "absolute", top: 6, right: 6, width: 22, height: 22, borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "none", color: "#fff", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}
+                          >✕</button>
+                        </>
+                      ) : uploadingImg === "bg" ? (
+                        <><div style={{ width: 20, height: 20, border: "2px solid var(--accent)", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} /><span style={{ fontSize: 11, color: "var(--tx-3)" }}>Загружаю...</span></>
+                      ) : (
+                        <><span style={{ fontSize: 28 }}>🎨</span><span style={{ fontSize: 11, color: "var(--tx-3)" }}>Нажмите для загрузки</span><span style={{ fontSize: 10, color: "var(--tx-3)" }}>JPG, PNG, WEBP</span></>
+                      )}
+                    </div>
+                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f, "bgImage"); e.target.value = ""; }} />
+                  </label>
+                </div>
+              </div>
+            </div>
 
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
               <button onClick={goBack} style={backBtnStyle}><ChevronLeft size={16} /> Назад</button>

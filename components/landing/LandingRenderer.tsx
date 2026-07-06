@@ -232,23 +232,31 @@ export default function LandingRenderer({
                   </div>
 
                   {/* Right: visual card (desktop only) */}
-                  {!preview && (
-                    <div style={{
-                      background: "linear-gradient(145deg, #F8FAFC 0%, #EEF2FF 100%)",
-                      border: "1px solid #E2E8F0",
-                      borderRadius: 24, overflow: "hidden",
-                      aspectRatio: "4/3",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      position: "relative",
-                    }}>
-                      {/* Deco circles */}
-                      <div style={{ position: "absolute", width: 200, height: 200, borderRadius: "50%", background: `${accent}10`, top: -60, right: -40 }} />
-                      <div style={{ position: "absolute", width: 100, height: 100, borderRadius: "50%", background: `${accent}08`, bottom: -20, left: 20 }} />
-                      <span style={{ fontSize: 80, position: "relative", zIndex: 1, filter: "drop-shadow(0 8px 16px rgba(0,0,0,0.08))" }}>
-                        {visual}
-                      </span>
-                    </div>
-                  )}
+                  {!preview && (() => {
+                    const isUrl = visual.startsWith("http") || visual.startsWith("/uploads");
+                    return (
+                      <div style={{
+                        background: isUrl ? "transparent" : "linear-gradient(145deg, #F8FAFC 0%, #EEF2FF 100%)",
+                        border: isUrl ? "none" : "1px solid #E2E8F0",
+                        borderRadius: 24, overflow: "hidden",
+                        aspectRatio: "4/3",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        position: "relative",
+                      }}>
+                        {isUrl ? (
+                          <img src={visual} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 24 }} />
+                        ) : (
+                          <>
+                            <div style={{ position: "absolute", width: 200, height: 200, borderRadius: "50%", background: `${accent}10`, top: -60, right: -40 }} />
+                            <div style={{ position: "absolute", width: 100, height: 100, borderRadius: "50%", background: `${accent}08`, bottom: -20, left: 20 }} />
+                            <span style={{ fontSize: 80, position: "relative", zIndex: 1, filter: "drop-shadow(0 8px 16px rgba(0,0,0,0.08))" }}>
+                              {visual}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </section>

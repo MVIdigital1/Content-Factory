@@ -399,7 +399,7 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
-    const { businessName, offer, audience, brandColor, templateId, bgImage, tone } = body;
+    const { businessName, offer, audience, brandColor, templateId, bgImage, heroImage, tone } = body;
 
     if (!businessName || !offer || !audience) {
       return NextResponse.json({ error: "Заполните обязательные поля" }, { status: 400 });
@@ -427,6 +427,17 @@ export async function POST(req: NextRequest) {
 
     const slug = toSlug(businessName);
 
+    // Inject heroImage into the first hero block if provided
+    let blocks = (parsed.blocks || []) as any[];
+    if (heroImage) {
+      const heroIdx = blocks.findIndex((b: any) => b.type === "hero");
+      if (heroIdx !== -1) {
+        blocks = blocks.map((b: any, i: number) =>
+          i === heroIdx ? { ...b, visual: heroImage } : b
+        );
+      }
+    }
+
     const landing = await queryOne<{ id: string }>(
       `INSERT INTO landings (user_id, title, slug, content, published)
        VALUES ($1, $2, $3, $4, false) RETURNING id`,
@@ -435,7 +446,7 @@ export async function POST(req: NextRequest) {
         parsed.title || businessName,
         slug,
         JSON.stringify({
-          blocks: parsed.blocks || [],
+          blocks,
           template_id: templateId || "form",
           bg_image: bgImage || null,
           settings: { brandColor: brandColor || "#4F46E5", tone },
