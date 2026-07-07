@@ -7,9 +7,9 @@ import LandingRenderer, {
   Block, HeroBlock, FormBlock, PriceBlock, FeaturesBlock, BenefitsBlock,
 } from "@/components/landing/LandingRenderer";
 import {
-  Type, Palette, Image, FileText, Search, Globe, BarChart2,
-  Monitor, Smartphone, ExternalLink, ChevronLeft, Eye, EyeOff,
-  TrendingUp, Users, MousePointer, ChevronRight,
+  Type, Palette, FileText, Search, Globe, BarChart2,
+  ExternalLink, ChevronLeft, Eye, EyeOff,
+  TrendingUp, Users, MousePointer,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -46,7 +46,7 @@ const LIFECYCLE = [
   { value: null, label: "Бессрочно" },
 ];
 
-// ── Colour tokens (premium palette) ──────────────────────────────────────────
+// ── Colour tokens ─────────────────────────────────────────────────────────────
 const C = {
   bg:       "#F8FAFC",
   surface:  "#FFFFFF",
@@ -69,7 +69,6 @@ function LandingEditorInner() {
   const fromCampaign = sp.get("from") === "campaign";
 
   const [activeSection, setActiveSection] = useState("content");
-  const [preview, setPreview]             = useState<"desktop" | "mobile">("desktop");
   const [blocks, setBlocks]               = useState<Block[]>([]);
   const [templateType, setTemplateType]   = useState("product");
   const [brandColor, setBrandColor]       = useState("#4F46E5");
@@ -143,11 +142,8 @@ function LandingEditorInner() {
     onError: () => setSaving(false),
   });
 
-  // ── Effective blocks: fall back to query data while local state is still empty
-  // (happens when navigating from cached detail page — useEffect fires after first render)
   const effectiveBlocks: Block[] = blocks.length > 0 ? blocks : (landing?.blocks ?? []);
 
-  // ── Block helpers ──────────────────────────────────────────────────────────
   const hero        = effectiveBlocks.find(b => b.type === "hero")                               as HeroBlock     | undefined;
   const formBlk     = effectiveBlocks.find(b => b.type === "form")                               as FormBlock     | undefined;
   const priceBlk    = effectiveBlocks.find(b => b.type === "price")                              as PriceBlock    | undefined;
@@ -157,7 +153,6 @@ function LandingEditorInner() {
   const patchBlock = (type: string, patch: Record<string, unknown>) =>
     setBlocks(prev => prev.map(b => b.type === type ? { ...b, ...patch } as Block : b));
 
-  // Auto-save after 2s idle
   const touch = () => {
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => saveMutation.mutate(undefined), 2000);
@@ -192,17 +187,6 @@ function LandingEditorInner() {
           {landing.title}
         </span>
 
-        {/* Desktop / Mobile toggle */}
-        <div style={{ display: "flex", background: C.bg, borderRadius: 8, border: `1px solid ${C.border}`, padding: 2, gap: 1 }}>
-          {(["desktop", "mobile"] as const).map(m => (
-            <button key={m} onClick={() => setPreview(m)}
-              style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 6, border: "none", background: preview === m ? C.surface : "transparent", color: preview === m ? C.text : C.muted, fontSize: 12, fontWeight: preview === m ? 600 : 400, cursor: "pointer", boxShadow: preview === m ? "0 1px 3px rgba(0,0,0,0.08)" : "none", transition: "all 0.15s", fontFamily: "inherit" }}>
-              {m === "desktop" ? <Monitor size={13} /> : <Smartphone size={13} />}
-              {m === "desktop" ? "Desktop" : "Mobile"}
-            </button>
-          ))}
-        </div>
-
         <button onClick={() => saveMutation.mutate(undefined)} disabled={saving}
           style={{ padding: "6px 14px", borderRadius: 7, border: `1px solid ${C.border}`, background: "transparent", color: saved ? C.success : C.muted, fontSize: 13, fontWeight: 500, cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit", transition: "color 0.2s" }}>
           {saved ? "✓ Сохранено" : saving ? "..." : "Сохранить"}
@@ -221,349 +205,328 @@ function LandingEditorInner() {
         )}
       </header>
 
-      {/* ── Body ─────────────────────────────────────────────────────────── */}
+      {/* ── Body: phone left + settings right (как в landing.html) ──────── */}
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
 
-        {/* ── Left nav ─────────────────────────────────────────────── */}
-        <nav style={{ width: 220, borderRight: `1px solid ${C.border}`, background: C.surface, display: "flex", flexDirection: "column", padding: "12px 8px", gap: 1, flexShrink: 0, overflowY: "auto" }}>
-          <p style={{ fontSize: 10, fontWeight: 600, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", padding: "4px 10px", marginBottom: 4 }}>
-            Редактор
-          </p>
-          {NAV.filter(n => n.id !== "analytics" || landing.published).map(({ id: nid, label, Icon }) => {
-            const active = activeSection === nid;
-            return (
-              <button key={nid} onClick={() => setActiveSection(nid)}
-                style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, border: "none", background: active ? `${C.indigo}12` : "transparent", color: active ? C.indigo : C.muted, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%", transition: "all 0.15s", borderLeft: active ? `2px solid ${C.indigo}` : "2px solid transparent" }}>
-                <Icon size={15} />
-                {label}
-              </button>
-            );
-          })}
+        {/* ── Left: phone preview ──────────────────────────────────────── */}
+        <div style={{ width: 290, background: "#F1F5F9", borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", alignItems: "center", padding: "18px 12px", gap: 12, flexShrink: 0, overflowY: "auto" }}>
 
-          <div style={{ flex: 1 }} />
-
-          {/* Landing URL */}
-          <div style={{ padding: "10px 12px", borderTop: `1px solid ${C.border}`, marginTop: 8 }}>
-            <p style={{ fontSize: 10, color: C.muted, marginBottom: 4 }}>Адрес страницы</p>
-            <p style={{ fontSize: 11, fontWeight: 600, color: C.text, wordBreak: "break-all" }}>
-              /l/{landing.slug}
-            </p>
-            <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: landing.published ? C.success : C.muted }} />
-              <span style={{ fontSize: 11, color: landing.published ? C.success : C.muted, fontWeight: 500 }}>
-                {landing.published ? "Опубликован" : "Черновик"}
-              </span>
-            </div>
+          {/* URL bar */}
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "5px 10px", display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: C.muted, width: "100%", overflow: "hidden", boxSizing: "border-box" as const }}>
+            <span style={{ color: "#10B981", fontSize: 12 }}>🔒</span>
+            <span style={{ fontWeight: 700, color: C.text, flexShrink: 0 }}>mvira.uz/l/</span>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{landing.slug}</span>
           </div>
-        </nav>
-
-        {/* ── Center: preview ──────────────────────────────────────── */}
-        <main style={{ flex: 1, background: C.bg, overflow: "hidden", padding: preview === "desktop" ? "24px 32px" : "24px 16px" }}>
 
           {effectiveBlocks.length === 0 ? (
-            /* ── Empty state ── */
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "calc(100vh - 100px)", gap: 16, textAlign: "center", padding: 40 }}>
-              <div style={{ width: 64, height: 64, borderRadius: 18, background: C.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>📄</div>
-              <div>
-                <p style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: 0 }}>Контент лендинга пустой</p>
-                <p style={{ fontSize: 13, color: C.muted, marginTop: 6, maxWidth: 320, lineHeight: 1.6 }}>
-                  Блоки не сохранились при создании. Удалите этот лендинг и создайте новый.
-                </p>
-              </div>
-              <button
-                onClick={() => router.push(`/${locale}/landings/create`)}
-                style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: C.indigo, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
-              >
-                Создать новый лендинг
-              </button>
-            </div>
-          ) : preview === "desktop" ? (
-            <div style={{ width: "100%", maxWidth: 960, margin: "0 auto", background: C.surface, borderRadius: 12, overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.06)" }}>
-              {/* Browser bar */}
-              <div style={{ height: 36, background: "#F1F5F9", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 14px", gap: 8 }}>
-                <div style={{ display: "flex", gap: 5 }}>
-                  {["#F87171", "#FBBF24", "#34D399"].map(c => <div key={c} style={{ width: 10, height: 10, borderRadius: "50%", background: c }} />)}
-                </div>
-                <div style={{ flex: 1, background: C.surface, borderRadius: 5, height: 20, margin: "0 12px", display: "flex", alignItems: "center", padding: "0 10px" }}>
-                  <span style={{ fontSize: 11, color: C.muted }}>mvira.uz/l/{landing.slug}</span>
-                </div>
-              </div>
-              <div style={{ height: "calc(100vh - 136px)", overflowY: "scroll" }}>
-                <LandingRenderer blocks={effectiveBlocks} bgImage={landing.bg_image || undefined} brandColor={brandColor} />
-              </div>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 10, textAlign: "center", padding: 16 }}>
+              <div style={{ width: 52, height: 52, borderRadius: 14, background: C.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>📄</div>
+              <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Контент пустой</p>
             </div>
           ) : (
-            <div style={{ width: 375, margin: "0 auto" }}>
+            <>
               {/* Phone frame */}
-              <div style={{ background: "#1C1C1E", borderRadius: 50, padding: "16px 10px 24px", boxShadow: "0 32px 80px rgba(0,0,0,0.4), 0 0 0 2px #3A3A3C" }}>
-                <div style={{ background: "#1C1C1E", width: 90, height: 24, borderRadius: 12, margin: "0 auto 10px" }} />
-                <div style={{ borderRadius: 38, overflow: "hidden", maxHeight: 620, overflowY: "auto" }}>
-                  <LandingRenderer blocks={effectiveBlocks} bgImage={landing.bg_image || undefined} brandColor={brandColor} preview />
+              <div style={{ background: "#1A1A18", borderRadius: 30, padding: "8px 8px 12px", boxShadow: "0 20px 40px -12px rgba(0,0,0,.25)", width: 252, flexShrink: 0 }}>
+                <div style={{ background: "#fff", borderRadius: 23, overflow: "hidden", height: "calc(100vh - 210px)" }}>
+                  <div style={{ padding: "9px 14px 4px", display: "flex", justifyContent: "space-between", fontSize: 9, fontWeight: 600, color: "#1A1A18" }}>
+                    <span>9:41</span><span>📶 🔋</span>
+                  </div>
+                  <div style={{ padding: "4px 14px 6px", background: "#F2F1ED", display: "flex", alignItems: "center", gap: 5, fontSize: 9, color: "#5B5B57", margin: "0 8px", borderRadius: 6 }}>
+                    <span style={{ color: "#0A6E3A" }}>🔒</span>
+                    <span style={{ fontWeight: 700, color: "#1A1A18" }}>mvira.uz/l/</span>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{landing.slug}</span>
+                  </div>
+                  <div style={{ overflowY: "auto", height: "calc(100% - 42px)" }}>
+                    <LandingRenderer blocks={effectiveBlocks} bgImage={landing.bg_image || undefined} brandColor={brandColor} preview />
+                  </div>
                 </div>
               </div>
-            </div>
+
+              {/* Status */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: landing.published ? C.success : C.muted }} />
+                <span style={{ color: landing.published ? C.success : C.muted, fontWeight: 500 }}>
+                  {landing.published ? "Опубликован" : "Черновик"}
+                </span>
+              </div>
+            </>
           )}
-        </main>
+        </div>
 
-        {/* ── Right panel ──────────────────────────────────────────── */}
-        <aside style={{ width: 320, borderLeft: `1px solid ${C.border}`, background: C.surface, display: "flex", flexDirection: "column", overflowY: "auto", flexShrink: 0 }}>
+        {/* ── Right: settings panel ────────────────────────────────────── */}
+        <div style={{ flex: 1, background: C.surface, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
-          {/* ─ Контент ─ */}
-          {activeSection === "content" && (
-            <Panel title="Контент">
-              <Section label="Hero блок">
-                <F label="Акционная метка / бейдж">
-                  <input value={(hero as any)?.badge || (hero as any)?.eyebrow || ""} onChange={e => patchAndTouch("hero", { badge: e.target.value })} style={inp} placeholder="напр. Скидка 30% до конца июля" />
-                </F>
-                <F label="Главный заголовок *">
-                  <textarea value={(hero as any)?.headline || ""} onChange={e => patchAndTouch("hero", { headline: e.target.value })} rows={2} style={{ ...inp, resize: "vertical" }} />
-                </F>
-                <F label="Подзаголовок">
-                  <textarea value={(hero as any)?.subheadline || ""} onChange={e => patchAndTouch("hero", { subheadline: e.target.value })} rows={2} style={{ ...inp, resize: "vertical" }} />
-                </F>
-                <F label="Кнопка (CTA)">
-                  <input value={(hero as any)?.cta || ""} onChange={e => patchAndTouch("hero", { cta: e.target.value })} style={inp} placeholder="напр. Получить предложение" />
-                </F>
-                <F label="Визуальный эмодзи (правая сторона)">
-                  <input value={(hero as any)?.visual || (hero as any)?.emoji || ""} onChange={e => patchAndTouch("hero", { visual: e.target.value, emoji: e.target.value })} style={inp} placeholder="🛒" />
-                </F>
-              </Section>
-              {priceBlk && (
-                <Section label="Блок цены">
-                  <F label="Бейдж акции">
-                    <input value={(priceBlk as any).badge || ""} onChange={e => patchAndTouch("price", { badge: e.target.value })} style={inp} placeholder="Выгода 30%" />
+          {/* Horizontal nav tabs */}
+          <div style={{ borderBottom: `1px solid ${C.border}`, display: "flex", padding: "0 8px", background: C.surface, flexShrink: 0, overflowX: "auto" }}>
+            {NAV.filter(n => n.id !== "analytics" || landing.published).map(({ id: nid, label, Icon }) => {
+              const active = activeSection === nid;
+              return (
+                <button key={nid} onClick={() => setActiveSection(nid)}
+                  style={{ display: "flex", alignItems: "center", gap: 7, padding: "12px 14px", fontSize: 13, fontWeight: active ? 600 : 400, color: active ? C.indigo : C.muted, background: "none", border: "none", borderBottom: active ? `2px solid ${C.indigo}` : "2px solid transparent", cursor: "pointer", marginBottom: -1, fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 }}>
+                  <Icon size={14} />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Settings content */}
+          <div style={{ flex: 1, overflowY: "auto" }}>
+
+            {/* ─ Контент ─ */}
+            {activeSection === "content" && (
+              <Panel title="Контент">
+                <Section label="Hero блок">
+                  <F label="Акционная метка / бейдж">
+                    <input value={(hero as any)?.badge || (hero as any)?.eyebrow || ""} onChange={e => patchAndTouch("hero", { badge: e.target.value })} style={inp} placeholder="напр. Скидка 30% до конца июля" />
                   </F>
-                  <F label="Старая цена">
-                    <input value={priceBlk.oldPrice || ""} onChange={e => patchAndTouch("price", { oldPrice: e.target.value })} style={inp} placeholder="150 000 сум" />
+                  <F label="Главный заголовок *">
+                    <textarea value={(hero as any)?.headline || ""} onChange={e => patchAndTouch("hero", { headline: e.target.value })} rows={2} style={{ ...inp, resize: "vertical" }} />
                   </F>
-                  <F label="Новая цена *">
-                    <input value={priceBlk.newPrice || ""} onChange={e => patchAndTouch("price", { newPrice: e.target.value })} style={inp} placeholder="99 000 сум" />
+                  <F label="Подзаголовок">
+                    <textarea value={(hero as any)?.subheadline || ""} onChange={e => patchAndTouch("hero", { subheadline: e.target.value })} rows={2} style={{ ...inp, resize: "vertical" }} />
                   </F>
-                  <F label="Кнопка">
-                    <input value={priceBlk.cta || ""} onChange={e => patchAndTouch("price", { cta: e.target.value })} style={inp} placeholder="Заказать сейчас" />
+                  <F label="Кнопка (CTA)">
+                    <input value={(hero as any)?.cta || ""} onChange={e => patchAndTouch("hero", { cta: e.target.value })} style={inp} placeholder="напр. Получить предложение" />
+                  </F>
+                  <F label="Визуальный эмодзи (правая сторона)">
+                    <input value={(hero as any)?.visual || (hero as any)?.emoji || ""} onChange={e => patchAndTouch("hero", { visual: e.target.value, emoji: e.target.value })} style={inp} placeholder="🛒" />
                   </F>
                 </Section>
-              )}
-              {featBlk && (
-                <Section label="Преимущества / Услуги">
-                  <F label="Заголовок раздела">
-                    <input value={featBlk.title || ""} onChange={e => patchAndTouch(benefitsType, { title: e.target.value })} style={inp} />
-                  </F>
-                  {(featBlk.items || []).map((item, fi) => (
-                    <div key={fi} style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 6 }}>
-                      <p style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 500 }}>Пункт {fi + 1}</p>
-                      <input value={item.icon || ""} onChange={e => {
-                        const items = [...(featBlk.items || [])];
-                        items[fi] = { ...items[fi], icon: e.target.value };
-                        patchAndTouch(benefitsType, { items });
-                      }} style={{ ...inp, marginBottom: 5 }} placeholder="Иконка (эмодзи)" />
-                      <input value={item.title} onChange={e => {
-                        const items = [...(featBlk.items || [])];
-                        items[fi] = { ...items[fi], title: e.target.value };
-                        patchAndTouch(benefitsType, { items });
-                      }} style={{ ...inp, marginBottom: 5 }} placeholder="Заголовок пункта" />
-                      <input value={item.desc || ""} onChange={e => {
-                        const items = [...(featBlk.items || [])];
-                        items[fi] = { ...items[fi], desc: e.target.value };
-                        patchAndTouch(benefitsType, { items });
-                      }} style={inp} placeholder="Описание" />
-                    </div>
-                  ))}
-                </Section>
-              )}
-            </Panel>
-          )}
-
-          {/* ─ Дизайн ─ */}
-          {activeSection === "design" && (
-            <Panel title="Дизайн">
-              <Section label="Цвет бренда">
-                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <input type="color" value={brandColor} onChange={e => { setBrandColor(e.target.value); touch(); }}
-                    style={{ width: 42, height: 38, border: `1px solid ${C.border}`, borderRadius: 8, padding: 2, cursor: "pointer", flexShrink: 0 }} />
-                  <input value={brandColor} onChange={e => { setBrandColor(e.target.value); touch(); }}
-                    style={{ ...inp, flex: 1, fontFamily: "monospace", fontSize: 13 }} />
-                </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
-                  {["#4F46E5","#0EA5E9","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#1E293B"].map(c => (
-                    <div key={c} onClick={() => { setBrandColor(c); touch(); }}
-                      style={{ width: 28, height: 28, borderRadius: "50%", background: c, cursor: "pointer", border: brandColor === c ? `2px solid ${C.text}` : "2px solid transparent", transition: "border 0.15s" }} />
-                  ))}
-                </div>
-              </Section>
-              <Section label="Тип лендинга">
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
-                  {TEMPLATE_TYPES.map(t => {
-                    const active = templateType === t.id;
-                    return (
-                      <button key={t.id} onClick={() => { setTemplateType(t.id); touch(); }}
-                        style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "10px 4px", borderRadius: 8, border: `1.5px solid ${active ? C.indigo : C.border}`, background: active ? `${C.indigo}10` : "transparent", cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}>
-                        <span style={{ fontSize: 18 }}>{t.icon}</span>
-                        <span style={{ fontSize: 10, fontWeight: active ? 700 : 400, color: active ? C.indigo : C.muted }}>{t.name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </Section>
-            </Panel>
-          )}
-
-          {/* ─ Форма ─ */}
-          {activeSection === "form" && (
-            <Panel title="Форма захвата лидов">
-              <Section label="Текст формы">
-                <F label="Заголовок">
-                  <input value={formBlk?.title || ""} onChange={e => patchAndTouch("form", { title: e.target.value })} style={inp} />
-                </F>
-                <F label="Подзаголовок">
-                  <input value={formBlk?.subtitle || ""} onChange={e => patchAndTouch("form", { subtitle: e.target.value })} style={inp} />
-                </F>
-                <F label="Кнопка отправки">
-                  <input value={formBlk?.button || ""} onChange={e => patchAndTouch("form", { button: e.target.value })} style={inp} placeholder="Отправить заявку" />
-                </F>
-                <F label="Подпись под кнопкой">
-                  <input value={formBlk?.note || ""} onChange={e => patchAndTouch("form", { note: e.target.value })} style={inp} placeholder="AI перезвонит за 1 минуту" />
-                </F>
-              </Section>
-              <Section label="Стиль">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <p style={{ fontSize: 13, fontWeight: 500, color: C.text }}>Тёмный фон</p>
-                    <p style={{ fontSize: 11, color: C.muted }}>Форма на чёрном фоне</p>
-                  </div>
-                  <Toggle on={!!(formBlk as any)?.dark} onChange={v => patchAndTouch("form", { dark: v })} />
-                </div>
-              </Section>
-            </Panel>
-          )}
-
-          {/* ─ SEO ─ */}
-          {activeSection === "seo" && (
-            <Panel title="SEO">
-              <Section label="Метаданные">
-                <F label="Заголовок страницы">
-                  <input value={landing.title || ""} readOnly style={{ ...inp, background: C.bg }} />
-                </F>
-                <F label="URL страницы">
-                  <input value={`mvira.uz/l/${landing.slug}`} readOnly style={{ ...inp, background: C.bg, fontFamily: "monospace", fontSize: 12 }} />
-                </F>
-              </Section>
-              <div style={{ padding: "12px 20px", background: `${C.indigo}08`, margin: "0 -20px", borderTop: `1px solid ${C.border}` }}>
-                <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
-                  SEO-заголовок и описание генерируется AI автоматически на основе контента лендинга.
-                </p>
-              </div>
-            </Panel>
-          )}
-
-          {/* ─ Публикация ─ */}
-          {activeSection === "publish" && (
-            <Panel title="Публикация">
-              <Section label="Статус">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: landing.published ? "#F0FDF4" : C.bg, borderRadius: 10, border: `1px solid ${landing.published ? "#BBF7D0" : C.border}` }}>
-                  <div>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: landing.published ? C.success : C.text }}>
-                      {landing.published ? "Опубликован" : "Черновик"}
-                    </p>
-                    <p style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
-                      {landing.published ? `mvira.uz/l/${landing.slug}` : "Не виден для посетителей"}
-                    </p>
-                  </div>
-                  <button onClick={() => saveMutation.mutate(!landing.published)}
-                    style={{ padding: "6px 14px", borderRadius: 7, border: "none", background: landing.published ? "#FEE2E2" : C.indigo, color: landing.published ? "#DC2626" : "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                    {landing.published ? "Снять" : "Опубликовать"}
-                  </button>
-                </div>
-              </Section>
-              <Section label="Жизненный цикл">
-                <F label="Авто-закрытие">
-                  <select value={autoCloseDays === null ? "null" : String(autoCloseDays)} onChange={e => { setAutoCloseDays(e.target.value === "null" ? null : Number(e.target.value)); touch(); }}
-                    style={{ ...inp, cursor: "pointer" }}>
-                    {LIFECYCLE.map(o => <option key={String(o.value)} value={String(o.value)}>{o.label}</option>)}
-                  </select>
-                </F>
-              </Section>
-              <Section label="Куда идут лиды">
-                {[
-                  { key: "aiCallback" as const, label: "AI-менеджер перезванивает", desc: "Автоматический звонок", icon: "🤖" },
-                  { key: "crm" as const,        label: "Сохранить в CRM",           desc: "Раздел Заявки",       icon: "📊" },
-                  { key: "payments" as const,   label: "PayMall платёжи",            desc: "Подключить оплату",   icon: "💳" },
-                ].map(item => (
-                  <div key={item.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
-                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                      <span style={{ fontSize: 18 }}>{item.icon}</span>
-                      <div>
-                        <p style={{ fontSize: 12, fontWeight: 500, color: C.text }}>{item.label}</p>
-                        <p style={{ fontSize: 11, color: C.muted }}>{item.desc}</p>
-                      </div>
-                    </div>
-                    <Toggle on={routing[item.key]} onChange={v => { setRouting(p => ({ ...p, [item.key]: v })); touch(); }} />
-                  </div>
-                ))}
-              </Section>
-            </Panel>
-          )}
-
-          {/* ─ Аналитика ─ */}
-          {activeSection === "analytics" && landing.published && (
-            <Panel title="Аналитика">
-              {/* Stat cards */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 4 }}>
-                <StatCard icon={<MousePointer size={14} />} label="Просмотры" value={views} color={C.indigo} />
-                <StatCard icon={<Users size={14} />} label="Заявки" value={leadCount} color={C.success} />
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <StatCard icon={<TrendingUp size={14} />} label="Конверсия" value={cvr} color="#F59E0B" />
-                <StatCard icon={<BarChart2 size={14} />} label="Статус" value={landing.published ? "Live" : "Draft"} color={landing.published ? C.success : C.muted} />
-              </div>
-
-              {/* Mini chart */}
-              {leadCount > 0 && (
-                <Section label="Заявки за 7 дней">
-                  <MiniChart leads={leads} />
-                </Section>
-              )}
-
-              {/* Recent leads */}
-              {leads.length > 0 && (
-                <Section label={`Последние заявки (${leads.length})`}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {leads.slice(0, 6).map(l => (
-                      <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 12px", background: C.bg, borderRadius: 9, border: `1px solid ${C.border}` }}>
-                        <div>
-                          <p style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{l.name || "—"}</p>
-                          <p style={{ fontSize: 11, color: C.muted }}>{l.phone || "—"}</p>
-                        </div>
-                        <div style={{ textAlign: "right" }}>
-                          <p style={{ fontSize: 10, color: C.muted }}>{new Date(l.created_at).toLocaleDateString("ru")}</p>
-                          <span style={{ fontSize: 10, fontWeight: 600, color: C.success, background: "#F0FDF4", padding: "2px 7px", borderRadius: 10 }}>
-                            {l.status === "new" ? "Новый" : l.status}
-                          </span>
-                        </div>
+                {priceBlk && (
+                  <Section label="Блок цены">
+                    <F label="Бейдж акции">
+                      <input value={(priceBlk as any).badge || ""} onChange={e => patchAndTouch("price", { badge: e.target.value })} style={inp} placeholder="Выгода 30%" />
+                    </F>
+                    <F label="Старая цена">
+                      <input value={priceBlk.oldPrice || ""} onChange={e => patchAndTouch("price", { oldPrice: e.target.value })} style={inp} placeholder="150 000 сум" />
+                    </F>
+                    <F label="Новая цена *">
+                      <input value={priceBlk.newPrice || ""} onChange={e => patchAndTouch("price", { newPrice: e.target.value })} style={inp} placeholder="99 000 сум" />
+                    </F>
+                    <F label="Кнопка">
+                      <input value={priceBlk.cta || ""} onChange={e => patchAndTouch("price", { cta: e.target.value })} style={inp} placeholder="Заказать сейчас" />
+                    </F>
+                  </Section>
+                )}
+                {featBlk && (
+                  <Section label="Преимущества / Услуги">
+                    <F label="Заголовок раздела">
+                      <input value={featBlk.title || ""} onChange={e => patchAndTouch(benefitsType, { title: e.target.value })} style={inp} />
+                    </F>
+                    {(featBlk.items || []).map((item, fi) => (
+                      <div key={fi} style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 6 }}>
+                        <p style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 500 }}>Пункт {fi + 1}</p>
+                        <input value={item.icon || ""} onChange={e => {
+                          const items = [...(featBlk.items || [])];
+                          items[fi] = { ...items[fi], icon: e.target.value };
+                          patchAndTouch(benefitsType, { items });
+                        }} style={{ ...inp, marginBottom: 5 }} placeholder="Иконка (эмодзи)" />
+                        <input value={item.title} onChange={e => {
+                          const items = [...(featBlk.items || [])];
+                          items[fi] = { ...items[fi], title: e.target.value };
+                          patchAndTouch(benefitsType, { items });
+                        }} style={{ ...inp, marginBottom: 5 }} placeholder="Заголовок пункта" />
+                        <input value={item.desc || ""} onChange={e => {
+                          const items = [...(featBlk.items || [])];
+                          items[fi] = { ...items[fi], desc: e.target.value };
+                          patchAndTouch(benefitsType, { items });
+                        }} style={inp} placeholder="Описание" />
                       </div>
                     ))}
-                    {leads.length > 6 && (
-                      <button onClick={() => router.push(`/${locale}/landings`)}
-                        style={{ fontSize: 12, color: C.indigo, background: "none", border: "none", cursor: "pointer", textAlign: "center", padding: "4px", fontFamily: "inherit" }}>
-                        Все заявки → {leads.length - 6} ещё
-                      </button>
-                    )}
+                  </Section>
+                )}
+              </Panel>
+            )}
+
+            {/* ─ Дизайн ─ */}
+            {activeSection === "design" && (
+              <Panel title="Дизайн">
+                <Section label="Цвет бренда">
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <input type="color" value={brandColor} onChange={e => { setBrandColor(e.target.value); touch(); }}
+                      style={{ width: 42, height: 38, border: `1px solid ${C.border}`, borderRadius: 8, padding: 2, cursor: "pointer", flexShrink: 0 }} />
+                    <input value={brandColor} onChange={e => { setBrandColor(e.target.value); touch(); }}
+                      style={{ ...inp, flex: 1, fontFamily: "monospace", fontSize: 13 }} />
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+                    {["#4F46E5","#0EA5E9","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#1E293B"].map(c => (
+                      <div key={c} onClick={() => { setBrandColor(c); touch(); }}
+                        style={{ width: 28, height: 28, borderRadius: "50%", background: c, cursor: "pointer", border: brandColor === c ? `2px solid ${C.text}` : "2px solid transparent", transition: "border 0.15s" }} />
+                    ))}
                   </div>
                 </Section>
-              )}
+                <Section label="Тип лендинга">
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+                    {TEMPLATE_TYPES.map(t => {
+                      const active = templateType === t.id;
+                      return (
+                        <button key={t.id} onClick={() => { setTemplateType(t.id); touch(); }}
+                          style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "10px 4px", borderRadius: 8, border: `1.5px solid ${active ? C.indigo : C.border}`, background: active ? `${C.indigo}10` : "transparent", cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}>
+                          <span style={{ fontSize: 18 }}>{t.icon}</span>
+                          <span style={{ fontSize: 10, fontWeight: active ? 700 : 400, color: active ? C.indigo : C.muted }}>{t.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Section>
+              </Panel>
+            )}
 
-              {leadCount === 0 && (
-                <div style={{ textAlign: "center", padding: "32px 20px", color: C.muted }}>
-                  <BarChart2 size={32} style={{ margin: "0 auto 12px", opacity: 0.3 }} />
-                  <p style={{ fontSize: 13, fontWeight: 500 }}>Пока нет заявок</p>
-                  <p style={{ fontSize: 12, marginTop: 4 }}>Появятся после первых визитов</p>
+            {/* ─ Форма ─ */}
+            {activeSection === "form" && (
+              <Panel title="Форма захвата лидов">
+                <Section label="Текст формы">
+                  <F label="Заголовок">
+                    <input value={formBlk?.title || ""} onChange={e => patchAndTouch("form", { title: e.target.value })} style={inp} />
+                  </F>
+                  <F label="Подзаголовок">
+                    <input value={formBlk?.subtitle || ""} onChange={e => patchAndTouch("form", { subtitle: e.target.value })} style={inp} />
+                  </F>
+                  <F label="Кнопка отправки">
+                    <input value={formBlk?.button || ""} onChange={e => patchAndTouch("form", { button: e.target.value })} style={inp} placeholder="Отправить заявку" />
+                  </F>
+                  <F label="Подпись под кнопкой">
+                    <input value={formBlk?.note || ""} onChange={e => patchAndTouch("form", { note: e.target.value })} style={inp} placeholder="AI перезвонит за 1 минуту" />
+                  </F>
+                </Section>
+                <Section label="Стиль">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 500, color: C.text }}>Тёмный фон</p>
+                      <p style={{ fontSize: 11, color: C.muted }}>Форма на чёрном фоне</p>
+                    </div>
+                    <Toggle on={!!(formBlk as any)?.dark} onChange={v => patchAndTouch("form", { dark: v })} />
+                  </div>
+                </Section>
+              </Panel>
+            )}
+
+            {/* ─ SEO ─ */}
+            {activeSection === "seo" && (
+              <Panel title="SEO">
+                <Section label="Метаданные">
+                  <F label="Заголовок страницы">
+                    <input value={landing.title || ""} readOnly style={{ ...inp, background: C.bg }} />
+                  </F>
+                  <F label="URL страницы">
+                    <input value={`mvira.uz/l/${landing.slug}`} readOnly style={{ ...inp, background: C.bg, fontFamily: "monospace", fontSize: 12 }} />
+                  </F>
+                </Section>
+                <div style={{ padding: "12px 20px", background: `${C.indigo}08`, margin: "0 -20px", borderTop: `1px solid ${C.border}` }}>
+                  <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
+                    SEO-заголовок и описание генерируется AI автоматически на основе контента лендинга.
+                  </p>
                 </div>
-              )}
-            </Panel>
-          )}
+              </Panel>
+            )}
 
-        </aside>
-      </div>
+            {/* ─ Публикация ─ */}
+            {activeSection === "publish" && (
+              <Panel title="Публикация">
+                <Section label="Статус">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: landing.published ? "#F0FDF4" : C.bg, borderRadius: 10, border: `1px solid ${landing.published ? "#BBF7D0" : C.border}` }}>
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: landing.published ? C.success : C.text }}>
+                        {landing.published ? "Опубликован" : "Черновик"}
+                      </p>
+                      <p style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                        {landing.published ? `mvira.uz/l/${landing.slug}` : "Не виден для посетителей"}
+                      </p>
+                    </div>
+                    <button onClick={() => saveMutation.mutate(!landing.published)}
+                      style={{ padding: "6px 14px", borderRadius: 7, border: "none", background: landing.published ? "#FEE2E2" : C.indigo, color: landing.published ? "#DC2626" : "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                      {landing.published ? "Снять" : "Опубликовать"}
+                    </button>
+                  </div>
+                </Section>
+                <Section label="Жизненный цикл">
+                  <F label="Авто-закрытие">
+                    <select value={autoCloseDays === null ? "null" : String(autoCloseDays)} onChange={e => { setAutoCloseDays(e.target.value === "null" ? null : Number(e.target.value)); touch(); }}
+                      style={{ ...inp, cursor: "pointer" }}>
+                      {LIFECYCLE.map(o => <option key={String(o.value)} value={String(o.value)}>{o.label}</option>)}
+                    </select>
+                  </F>
+                </Section>
+                <Section label="Куда идут лиды">
+                  {[
+                    { key: "aiCallback" as const, label: "AI-менеджер перезванивает", desc: "Автоматический звонок", icon: "🤖" },
+                    { key: "crm" as const,        label: "Сохранить в CRM",           desc: "Раздел Заявки",       icon: "📊" },
+                    { key: "payments" as const,   label: "PayMall платёжи",            desc: "Подключить оплату",   icon: "💳" },
+                  ].map(item => (
+                    <div key={item.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
+                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                        <span style={{ fontSize: 18 }}>{item.icon}</span>
+                        <div>
+                          <p style={{ fontSize: 12, fontWeight: 500, color: C.text }}>{item.label}</p>
+                          <p style={{ fontSize: 11, color: C.muted }}>{item.desc}</p>
+                        </div>
+                      </div>
+                      <Toggle on={routing[item.key]} onChange={v => { setRouting(p => ({ ...p, [item.key]: v })); touch(); }} />
+                    </div>
+                  ))}
+                </Section>
+              </Panel>
+            )}
+
+            {/* ─ Аналитика ─ */}
+            {activeSection === "analytics" && landing.published && (
+              <Panel title="Аналитика">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 4 }}>
+                  <StatCard icon={<MousePointer size={14} />} label="Просмотры" value={views} color={C.indigo} />
+                  <StatCard icon={<Users size={14} />} label="Заявки" value={leadCount} color={C.success} />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <StatCard icon={<TrendingUp size={14} />} label="Конверсия" value={cvr} color="#F59E0B" />
+                  <StatCard icon={<BarChart2 size={14} />} label="Статус" value={landing.published ? "Live" : "Draft"} color={landing.published ? C.success : C.muted} />
+                </div>
+
+                {leadCount > 0 && (
+                  <Section label="Заявки за 7 дней">
+                    <MiniChart leads={leads} />
+                  </Section>
+                )}
+
+                {leads.length > 0 && (
+                  <Section label={`Последние заявки (${leads.length})`}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {leads.slice(0, 6).map(l => (
+                        <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 12px", background: C.bg, borderRadius: 9, border: `1px solid ${C.border}` }}>
+                          <div>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{l.name || "—"}</p>
+                            <p style={{ fontSize: 11, color: C.muted }}>{l.phone || "—"}</p>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <p style={{ fontSize: 10, color: C.muted }}>{new Date(l.created_at).toLocaleDateString("ru")}</p>
+                            <span style={{ fontSize: 10, fontWeight: 600, color: C.success, background: "#F0FDF4", padding: "2px 7px", borderRadius: 10 }}>
+                              {l.status === "new" ? "Новый" : l.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                      {leads.length > 6 && (
+                        <button onClick={() => router.push(`/${locale}/landings`)}
+                          style={{ fontSize: 12, color: C.indigo, background: "none", border: "none", cursor: "pointer", textAlign: "center", padding: "4px", fontFamily: "inherit" }}>
+                          Все заявки → {leads.length - 6} ещё
+                        </button>
+                      )}
+                    </div>
+                  </Section>
+                )}
+
+                {leadCount === 0 && (
+                  <div style={{ textAlign: "center", padding: "32px 20px", color: C.muted }}>
+                    <BarChart2 size={32} style={{ margin: "0 auto 12px", opacity: 0.3 }} />
+                    <p style={{ fontSize: 13, fontWeight: 500 }}>Пока нет заявок</p>
+                    <p style={{ fontSize: 12, marginTop: 4 }}>Появятся после первых визитов</p>
+                  </div>
+                )}
+              </Panel>
+            )}
+
+          </div>{/* end settings content */}
+        </div>{/* end right panel */}
+      </div>{/* end body */}
     </div>
   );
 }

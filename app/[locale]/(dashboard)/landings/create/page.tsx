@@ -75,7 +75,7 @@ function CreateLandingPageInner() {
   const fromCampaign = searchParams.get("from") === "campaign";
   const campaignId = searchParams.get("campaign_id");
 
-  // step 0 = project selection, 1 = business details, 2 = template
+  // step 0 = project selection, 1 = business details, 2 = template, 3 = launch settings
   const [step, setStep] = useState(0);
   const [step1, setStep1] = useState<Step1>(() => {
     const offer = searchParams.get("product") || "";
@@ -92,6 +92,8 @@ function CreateLandingPageInner() {
   const [templateId, setTemplateId] = useState<string>(() => {
     try { return sessionStorage.getItem(STORAGE_KEY + "_tpl") || "classic"; } catch { return "classic"; }
   });
+  const [autoCloseDays, setAutoCloseDays] = useState<number | null>(null);
+  const [routing, setRouting] = useState({ aiCallback: true, crm: true, payments: false });
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<{ id: string; slug: string } | null>(null);
@@ -191,7 +193,7 @@ function CreateLandingPageInner() {
       const res = await fetch("/api/landings/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...step1, templateId, heroImage: step1.heroImage || undefined, bgImage: step1.bgImage || undefined }),
+        body: JSON.stringify({ ...step1, templateId, heroImage: step1.heroImage || undefined, bgImage: step1.bgImage || undefined, autoCloseDays, routing }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -237,7 +239,7 @@ function CreateLandingPageInner() {
     }
   };
 
-  const STEPS = ["Проект", "Детали", "Шаблон"];
+  const STEPS = ["Проект", "Детали", "Шаблон", "Запуск"];
 
   // ── Success screen ─────────────────────────────────────────────────────
   if (created) {
@@ -637,8 +639,76 @@ function CreateLandingPageInner() {
               </div>
             )}
 
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <button onClick={goBack} style={backBtnStyle}><ChevronLeft size={16} /> Назад</button>
+              <button onClick={() => setStep(3)} style={nextBtnStyle(false)}>
+                Далее <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 3 — Launch settings ───────────────────────────────────── */}
+        {step === 3 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <p style={{ fontSize: 14, color: "var(--tx-2)", marginBottom: 4 }}>
+              Настройте жизненный цикл и маршрутизацию заявок. Лендинг будет создан как черновик — опубликуете вручную.
+            </p>
+
+            {/* Lifecycle */}
+            <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: "18px 20px" }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                ⚡ Жизненный цикл
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <label style={{ fontSize: 13, fontWeight: 500, color: "var(--tx-2)" }}>Авто-закрытие</label>
+                <select
+                  value={autoCloseDays === null ? "null" : String(autoCloseDays)}
+                  onChange={e => setAutoCloseDays(e.target.value === "null" ? null : Number(e.target.value))}
+                  style={{ padding: "9px 12px", background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 8, fontSize: 14, color: "var(--tx-1)", outline: "none", cursor: "pointer" }}
+                >
+                  <option value="null">Бессрочно</option>
+                  <option value="1">24 часа</option>
+                  <option value="3">3 дня</option>
+                  <option value="7">7 дней</option>
+                  <option value="30">30 дней</option>
+                </select>
+                <p style={{ fontSize: 11, color: "var(--tx-3)", margin: 0 }}>
+                  Лендинг автоматически закроется через указанный срок
+                </p>
+              </div>
+            </div>
+
+            {/* Routing */}
+            <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: "18px 20px" }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                🔀 Куда идут заявки
+              </p>
+              {[
+                { key: "aiCallback" as const, label: "AI-оператор обрабатывает", desc: "Звонок + WhatsApp за 1 минуту", icon: "🤖" },
+                { key: "crm"        as const, label: "Запись в CRM",             desc: "Автоматически в воронку",     icon: "📊" },
+                { key: "payments"   as const, label: "Payme / Click оплата",      desc: "Прямо в форме",               icon: "💳" },
+              ].map(item => (
+                <div key={item.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 0", borderBottom: "1px solid var(--line)" }}>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <span style={{ fontSize: 20 }}>{item.icon}</span>
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 500, color: "var(--tx-1)", margin: 0 }}>{item.label}</p>
+                      <p style={{ fontSize: 11, color: "var(--tx-3)", margin: 0 }}>{item.desc}</p>
+                    </div>
+                  </div>
+                  <div
+                    onClick={() => setRouting(p => ({ ...p, [item.key]: !p[item.key] }))}
+                    style={{ width: 38, height: 22, borderRadius: 11, background: routing[item.key] ? "var(--accent)" : "var(--line)", cursor: "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0 }}
+                  >
+                    <div style={{ position: "absolute", top: 3, left: routing[item.key] ? 19 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+
             {error && (
-              <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#dc2626", marginBottom: 16 }}>
+              <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#dc2626" }}>
                 {error}
               </div>
             )}
@@ -651,7 +721,7 @@ function CreateLandingPageInner() {
                 style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--accent)", color: "var(--on-accent)", border: "none", borderRadius: 10, padding: "11px 24px", fontSize: 14, fontWeight: 700, cursor: generating ? "not-allowed" : "pointer", opacity: generating ? 0.7 : 1 }}
               >
                 <Sparkles size={16} />
-                {generating ? "Создаём с AI..." : "Создать с AI"}
+                {generating ? "Создаём с AI..." : "Создать черновик"}
               </button>
             </div>
           </div>

@@ -399,7 +399,7 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
-    const { businessName, offer, audience, brandColor, templateId, bgImage, heroImage, tone } = body;
+    const { businessName, offer, audience, brandColor, templateId, bgImage, heroImage, tone, autoCloseDays, routing } = body;
 
     if (!businessName || !offer || !audience) {
       return NextResponse.json({ error: "Заполните обязательные поля" }, { status: 400 });
@@ -449,7 +449,7 @@ export async function POST(req: NextRequest) {
           blocks,
           template_id: templateId || "form",
           bg_image: bgImage || null,
-          settings: { brandColor: brandColor || "#4F46E5", tone },
+          settings: { brandColor: brandColor || "#4F46E5", tone, autoCloseDays: autoCloseDays ?? null, routing: routing ?? { aiCallback: true, crm: true, payments: false } },
         }),
       ]
     );
