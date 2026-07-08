@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronLeft, Copy, Check, ExternalLink, Edit3,
   Eye, EyeOff, Zap, Database, CreditCard,
-  MessageCircle, Phone, Users, BarChart2, Bot,
+  MessageSquare, Phone, Mail, BarChart2,
 } from "lucide-react";
 import LandingRenderer, { Block } from "@/components/landing/LandingRenderer";
 
@@ -16,7 +16,7 @@ type Settings = {
   tone?: string;
   autoCloseDays?: number | null;
   routing?: { aiCallback?: boolean; crm?: boolean; payments?: boolean };
-  widgets?: { chat?: boolean; quickCall?: boolean };
+  logoUrl?: string | null;
 };
 
 type LP = {
@@ -42,20 +42,73 @@ const TEMPLATES = [
   { id: "callback",    name: "Звонок",  icon: "📞" },
 ];
 
+// ── Mini chart ────────────────────────────────────────────────────────────────
+function MiniChart({ leads }: { leads: { created_at: string }[] }) {
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return d;
+  });
+  const counts = days.map(day =>
+    leads.filter(l => new Date(l.created_at).toDateString() === day.toDateString()).length
+  );
+  const max = Math.max(...counts, 1);
+  return (
+    <svg width="100%" height={72} viewBox="0 0 260 72" style={{ display: "block" }}>
+      {counts.map((n, i) => {
+        const barH = Math.max((n / max) * 48, n > 0 ? 4 : 2);
+        const x = i * 38;
+        return (
+          <g key={i}>
+            <rect x={x + 2} y={52 - barH} width={30} height={barH} rx={4}
+              fill={n > 0 ? "var(--accent)" : "var(--line)"} opacity={n > 0 ? 0.85 : 1} />
+            <text x={x + 17} y={68} textAnchor="middle" fontSize={9} fill="var(--tx-3)">
+              {days[i].getDate()}
+            </text>
+            {n > 0 && (
+              <text x={x + 17} y={52 - barH - 4} textAnchor="middle" fontSize={9} fill="var(--accent)" fontWeight="600">
+                {n}
+              </text>
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// ── Toggle ────────────────────────────────────────────────────────────────────
+function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div
+      onClick={() => onChange(!on)}
+      style={{ width: 40, height: 23, borderRadius: 12, background: on ? "var(--accent)" : "var(--line)", cursor: "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0 }}
+    >
+      <div style={{ position: "absolute", top: 3, left: on ? 20 : 3, width: 17, height: 17, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }} />
+    </div>
+  );
+}
+
 // ── Detail inner ──────────────────────────────────────────────────────────────
 function LandingDetailInner() {
-  const params = useParams();
-  const id     = params.id as string;
-  const router = useRouter();
-  const locale = useLocale();
-  const qc     = useQueryClient();
+  const params  = useParams();
+  const id      = params.id as string;
+  const router  = useRouter();
+  const locale  = useLocale();
+  const qc      = useQueryClient();
 
-  const [copied, setCopied]     = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "leads" | "ai" | "analytics">("overview");
-  const [routing, setRouting] = useState({ aiCallback: true, crm: true, payments: false });
+  const [copied, setCopied]           = useState(false);
+  const [tab, setTab]                 = useState<"leads" | "ai" | "analytics">("leads");
+  const [routing, setRouting]         = useState({ aiCallback: true, crm: true, payments: false });
   const [routingInit, setRoutingInit] = useState(false);
-  const [widgets, setWidgets] = useState({ chat: false, quickCall: false });
-  const [widgetsInit, setWidgetsInit] = useState(false);
+
+  // AI operator local state (demo, not saved to DB)
+  const [pipeline, setPipeline]       = useState("mvira-assistant-v1");
+  const [workStart, setWorkStart]     = useState("09:00");
+  const [workEnd, setWorkEnd]         = useState("18:00");
+  const [escalation, setEscalation]   = useState(true);
+  const [aiCall, setAiCall]           = useState(true);
+  const [aiAssistant, setAiAssistant] = useState(false);
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
   const { data: landing, isLoading } = useQuery<LP>({
@@ -78,15 +131,29 @@ function LandingDetailInner() {
     }
   }, [landing, routingInit]);
 
-  useEffect(() => {
-    if (landing && !widgetsInit) {
-      setWidgets({
-        chat:      landing.settings?.widgets?.chat ?? false,
-        quickCall: landing.settings?.widgets?.quickCall ?? false,
-      });
-      setWidgetsInit(true);
-    }
-  }, [landing, widgetsInit]);
+  // ── Leads ─────────────────────────────────────────────────────────────────
+  const { data: leads = [] } = useQuery({
+    queryKey: ["landing_leads", id],
+    enabled: tab === "leads" || tab === "analytics",
+    queryFn: async () => {
+      const res = await fetch(`/api/leads?landing_id=${id}`);
+      return res.ok ? res.json() : [];
+    },
+  });
+
+  // ── Stats ─────────────────────────────────────────────────────────────────
+  const { data: stats } = useQuery({
+    queryKey: ["landing_detail_stats", id],
+    enabled: tab === "analytics",
+    queryFn: async () => {
+      try {
+        const res = await fetch(`/api/landings/${id}/stats`);
+        return res.ok ? res.json() : { views: 0 };
+      } catch {
+        return { views: 0 };
+      }
+    },
+  });
 
   // ── Mutations ─────────────────────────────────────────────────────────────
   const patchMutation = useMutation({
@@ -108,18 +175,8 @@ function LandingDetailInner() {
     setRouting(next);
     if (!landing) return;
     const content = {
+      blocks: landing.blocks,
       settings: { ...landing.settings, routing: next },
-      template_id: landing.template_id,
-      bg_image: landing.bg_image,
-    };
-    patchMutation.mutate({ content });
-  };
-
-  const saveWidgets = (next: typeof widgets) => {
-    setWidgets(next);
-    if (!landing) return;
-    const content = {
-      settings: { ...landing.settings, widgets: next },
       template_id: landing.template_id,
       bg_image: landing.bg_image,
     };
@@ -131,7 +188,6 @@ function LandingDetailInner() {
     patchMutation.mutate({ published: !landing.published });
   };
 
-  // ── Copy URL ──────────────────────────────────────────────────────────────
   const copyUrl = () => {
     if (!landing) return;
     navigator.clipboard.writeText(`https://mvira.uz/l/${landing.slug}`);
@@ -139,19 +195,12 @@ function LandingDetailInner() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // ── Leads query ──────────────────────────────────────────────────────────
-  const { data: leads = [] } = useQuery({
-    queryKey: ["landing_leads", id],
-    enabled: activeTab === "leads",
-    queryFn: async () => {
-      const res = await fetch(`/api/leads?landing_id=${id}`);
-      return res.ok ? res.json() : [];
-    },
-  });
-
   // ── Date helpers ──────────────────────────────────────────────────────────
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+
+  const fmtShort = (iso: string) =>
+    new Date(iso).toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
 
   const autoCloseDays = landing?.settings?.autoCloseDays ?? null;
   let expiryBadge = { label: "Бессрочно", color: "#64748B", bg: "#F8FAFC" };
@@ -175,156 +224,49 @@ function LandingDetailInner() {
       <div style={{ padding: "32px 32px 64px", maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ height: 20, width: 120, background: "var(--panel-2)", borderRadius: 6, marginBottom: 24 }} />
         <div style={{ height: 500, background: "var(--panel)", borderRadius: 16, border: "1px solid var(--line)", animation: "pulse 1.5s ease-in-out infinite" }} />
+        <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }`}</style>
       </div>
     );
   }
 
-  const landingUrl = `https://mvira.uz/l/${landing.slug}`;
-  const tpl = TEMPLATES.find(t => t.id === landing.template_id) ?? TEMPLATES[1];
+  const tpl      = TEMPLATES.find(t => t.id === landing.template_id) ?? TEMPLATES[1];
+  const leadsArr = leads as any[];
+  const views    = (stats as any)?.views ?? 0;
 
   return (
-    <div style={{ padding: "28px 32px 64px", maxWidth: 1100, margin: "0 auto" }}>
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--bg)" }}>
 
-      {/* ── Back nav ────────────────────────────────────────────────────── */}
-      <button
-        onClick={() => router.push(`/${locale}/landings`)}
-        style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--tx-3)", background: "none", border: "none", cursor: "pointer", padding: "4px 0", marginBottom: 20, fontFamily: "inherit" }}
-      >
-        <ChevronLeft size={14} /> Лендинги
-      </button>
-
-      {/* ── Title row ───────────────────────────────────────────────────── */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20, gap: 16 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--tx-1)", margin: 0 }}>{landing.title}</h1>
-          <p style={{ fontSize: 13, color: "var(--tx-3)", margin: "4px 0 0" }}>
-            {tpl.icon} {tpl.name} · {landing.published ? "Опубликован" : "Черновик"}
-          </p>
-        </div>
+      {/* ── Header ──────────────────────────────────────────────────────── */}
+      <div style={{ height: 52, display: "flex", alignItems: "center", gap: 12, padding: "0 20px", borderBottom: "1px solid var(--line)", background: "var(--panel)", flexShrink: 0 }}>
+        <button
+          onClick={() => router.push(`/${locale}/landings`)}
+          style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, color: "var(--tx-3)", background: "none", border: "none", cursor: "pointer", padding: "4px 8px", fontFamily: "inherit", borderRadius: 6, flexShrink: 0 }}
+        >
+          <ChevronLeft size={14} /> Лендинги
+        </button>
+        <span style={{ flex: 1, fontSize: 15, fontWeight: 600, color: "var(--tx-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {landing.title}
+        </span>
         <button
           onClick={() => router.push(`/${locale}/landings/${id}/edit`)}
-          style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 10, border: "1px solid var(--line)", background: "var(--panel)", color: "var(--tx-2)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
+          style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--panel-2)", color: "var(--tx-2)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 }}
         >
-          <Edit3 size={14} /> Редактировать
+          <Edit3 size={13} /> Редактировать
+        </button>
+        <button
+          onClick={togglePublish}
+          disabled={patchMutation.isPending}
+          style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "none", background: landing.published ? "#FEF2F2" : "var(--accent)", color: landing.published ? "#DC2626" : "var(--on-accent)", fontSize: 13, fontWeight: 600, cursor: patchMutation.isPending ? "not-allowed" : "pointer", fontFamily: "inherit", whiteSpace: "nowrap", opacity: patchMutation.isPending ? 0.7 : 1, flexShrink: 0 }}
+        >
+          {landing.published ? <><EyeOff size={13} /> Снять</> : <><Eye size={13} /> Опубликовать</>}
         </button>
       </div>
 
-      {/* ── Tabs ───────────────────────────────────────────────────────── */}
-      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--line)", marginBottom: 28 }}>
-        {([
-          { key: "overview",   label: "Обзор",       Icon: Eye },
-          { key: "leads",      label: "Заявки",      Icon: Users },
-          { key: "ai",         label: "AI Оператор", Icon: Bot },
-          { key: "analytics",  label: "Аналитика",   Icon: BarChart2 },
-        ] as { key: typeof activeTab; label: string; Icon: any }[]).map(({ key, label, Icon }) => (
-          <button key={key} onClick={() => setActiveTab(key)} style={{
-            display: "flex", alignItems: "center", gap: 6, padding: "10px 18px",
-            fontSize: 13, fontWeight: activeTab === key ? 600 : 400,
-            color: activeTab === key ? "var(--accent)" : "var(--tx-3)",
-            background: "none", borderBottom: activeTab === key ? "2px solid var(--accent)" : "2px solid transparent",
-            cursor: "pointer", fontFamily: "inherit", marginBottom: -1,
-          }}>
-            <Icon size={14} /> {label}
-          </button>
-        ))}
-      </div>
+      {/* ── Body ────────────────────────────────────────────────────────── */}
+      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-      {/* ── Tab: Leads ────────────────────────────────────────────────── */}
-      {activeTab === "leads" && (
-        <div>
-          {(leads as any[]).length === 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "64px 24px", background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, textAlign: "center" }}>
-              <Users size={32} style={{ color: "var(--tx-3)", marginBottom: 12 }} />
-              <p style={{ fontSize: 14, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>Заявок пока нет</p>
-              <p style={{ fontSize: 12, color: "var(--tx-3)", marginTop: 4 }}>Как только кто-то оставит заявку — она появится здесь</p>
-            </div>
-          ) : (
-            <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, overflow: "hidden" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--line)", background: "var(--panel-2)" }}>
-                    {["Имя", "Телефон", "Email", "Сообщение", "Дата"].map(h => (
-                      <th key={h} style={{ padding: "10px 16px", textAlign: "left", fontWeight: 600, color: "var(--tx-3)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(leads as any[]).map((lead: any) => (
-                    <tr key={lead.id} style={{ borderBottom: "1px solid var(--line)" }}>
-                      <td style={{ padding: "10px 16px", color: "var(--tx-1)", fontWeight: 500 }}>{lead.name || "—"}</td>
-                      <td style={{ padding: "10px 16px", color: "var(--tx-2)" }}>{lead.phone || "—"}</td>
-                      <td style={{ padding: "10px 16px", color: "var(--tx-2)" }}>{lead.email || "—"}</td>
-                      <td style={{ padding: "10px 16px", color: "var(--tx-3)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.message || "—"}</td>
-                      <td style={{ padding: "10px 16px", color: "var(--tx-3)", whiteSpace: "nowrap" }}>{new Date(lead.created_at).toLocaleDateString("ru-RU")}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Tab: AI Operator ──────────────────────────────────────────── */}
-      {activeTab === "ai" && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "20px 24px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 12, background: routing.aiCallback ? "var(--accent)" : "var(--panel-2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Zap size={18} style={{ color: routing.aiCallback ? "var(--on-accent)" : "var(--tx-3)" }} />
-              </div>
-              <div>
-                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>AI-оператор</p>
-                <p style={{ fontSize: 12, color: routing.aiCallback ? "#059669" : "var(--tx-3)", margin: 0 }}>{routing.aiCallback ? "Активен" : "Отключён"}</p>
-              </div>
-            </div>
-            <div style={{ fontSize: 12, color: "var(--tx-2)", lineHeight: 1.6 }}>
-              Автоматически перезванивает новым лидам в течение 1 минуты, квалифицирует заявки и записывает в CRM.
-            </div>
-            {[{ l: "Звонков совершено", v: "0" }, { l: "Конверсия звонков", v: "—" }, { l: "Среднее время ответа", v: "< 1 мин" }].map(row => (
-              <div key={row.l} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: "1px solid var(--line)", fontSize: 12 }}>
-                <span style={{ color: "var(--tx-3)" }}>{row.l}</span>
-                <span style={{ fontWeight: 600, color: "var(--tx-1)" }}>{row.v}</span>
-              </div>
-            ))}
-          </div>
-          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "20px 24px" }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 }}>Виджеты чата</p>
-            {[{ l: "Чат", v: widgets.chat ? "Включён" : "Выключен" }, { l: "Быстрый звонок", v: widgets.quickCall ? "Включён" : "Выключен" }].map(row => (
-              <div key={row.l} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--line)", fontSize: 12 }}>
-                <span style={{ color: "var(--tx-3)" }}>{row.l}</span>
-                <span style={{ fontWeight: 600, color: "var(--tx-1)" }}>{row.v}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Tab: Analytics ────────────────────────────────────────────── */}
-      {activeTab === "analytics" && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-          {[
-            { label: "Просмотры",  value: (landing as any).views > 0 ? String((landing as any).views) : "—", Icon: Eye },
-            { label: "Заявок",     value: (leads as any[]).length > 0 ? String((leads as any[]).length) : "—", Icon: Users },
-            { label: "Конверсия",  value: (landing as any).views > 0 && (leads as any[]).length > 0 ? `${Math.round((leads as any[]).length / (landing as any).views * 100)}%` : "—", Icon: BarChart2 },
-          ].map(({ label, value, Icon }) => (
-            <div key={label} style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "24px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                <Icon size={16} style={{ color: "var(--tx-3)" }} />
-                <p style={{ fontSize: 11, fontWeight: 600, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.05em", margin: 0 }}>{label}</p>
-              </div>
-              <p style={{ fontSize: 28, fontWeight: 700, color: "var(--tx-1)", margin: 0 }}>{value}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ── Tab: Overview (two-column layout) ───────────────────────── */}
-      {activeTab === "overview" && <div style={{ display: "grid", gridTemplateColumns: "1fr 400px", gap: 28, alignItems: "start" }}>
-
-        {/* ── Left: phone preview ────────────────────────────────────── */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 20, padding: "32px 24px" }}>
-          {/* Phone frame */}
+        {/* ── Left: phone preview ──────────────────────────────────────── */}
+        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: "28px 24px", gap: 16, background: "var(--bg)" }}>
           <div style={{
             width: 300, flexShrink: 0,
             background: "#1C1C1E",
@@ -332,9 +274,7 @@ function LandingDetailInner() {
             padding: "14px 8px 20px",
             boxShadow: "0 24px 64px rgba(0,0,0,0.35), 0 0 0 2px #3A3A3C",
           }}>
-            {/* Notch */}
             <div style={{ width: 80, height: 20, background: "#1C1C1E", borderRadius: 10, margin: "0 auto 8px" }} />
-            {/* Screen */}
             <div style={{ borderRadius: 32, overflow: "hidden", height: 560, overflowY: "auto", background: "#fff" }}>
               {(landing.blocks ?? []).length > 0 ? (
                 <LandingRenderer
@@ -346,191 +286,295 @@ function LandingDetailInner() {
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", padding: 24, textAlign: "center", background: "var(--panel-2)" }}>
                   <EyeOff size={28} style={{ color: "var(--tx-3)", marginBottom: 10 }} />
-                  <p style={{ fontSize: 12, color: "var(--tx-3)" }}>Нет контента</p>
+                  <p style={{ fontSize: 12, color: "var(--tx-3)", marginBottom: 12 }}>Контент не загружен. Откройте редактор.</p>
+                  <button
+                    onClick={() => router.push(`/${locale}/landings/${id}/edit`)}
+                    style={{ fontSize: 12, padding: "6px 14px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--panel)", color: "var(--tx-2)", cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    Открыть редактор
+                  </button>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Open link */}
-          {landing.published && (
-            <a href={`/l/${landing.slug}`} target="_blank" rel="noopener noreferrer"
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--tx-3)", textDecoration: "none" }}>
-              <ExternalLink size={12} /> Открыть в браузере
-            </a>
+          {landing.settings?.logoUrl ? (
+            <img src={landing.settings.logoUrl} alt="" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }} />
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--tx-3)" }}>
+              <span style={{ fontSize: 20 }}>{tpl.icon}</span>
+              <span>{tpl.name}</span>
+            </div>
           )}
         </div>
 
-        {/* ── Right: config panel ────────────────────────────────────── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* ── Right: panel ─────────────────────────────────────────────── */}
+        <div style={{ width: 420, display: "flex", flexDirection: "column", overflow: "hidden", borderLeft: "1px solid var(--line)", background: "var(--panel)" }}>
 
-          {/* 1. Header card */}
-          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "18px 20px" }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
-              AI-лендинг
-            </p>
-            <p style={{ fontSize: 14, color: "var(--tx-2)", lineHeight: 1.55 }}>
-              Лендинг создан с помощью AI и привязан к кампании. Настройте маршрутизацию заявок и жизненный цикл страницы.
-            </p>
-          </div>
+          {/* Block A: Tabs (~55%) */}
+          <div style={{ flex: "0 0 55%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
-          {/* 2. URL */}
-          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "18px 20px" }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>
-              Адрес страницы
-            </p>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 10, padding: "9px 12px" }}>
-              <span style={{ flex: 1, fontSize: 13, color: "var(--tx-1)", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                mvira.uz/l/{landing.slug}
-              </span>
-              <button onClick={copyUrl} style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 7, border: "1px solid var(--line)", background: "var(--panel)", color: copied ? "#059669" : "var(--tx-2)", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
-                {copied ? <><Check size={12} /> Скопировано</> : <><Copy size={12} /> Копировать</>}
-              </button>
-              {landing.published && (
-                <a href={landingUrl} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", color: "var(--tx-3)", padding: 4 }}>
-                  <ExternalLink size={13} />
-                </a>
+            {/* Tab bar */}
+            <div style={{ display: "flex", borderBottom: "1px solid var(--line)", flexShrink: 0 }}>
+              {([
+                { key: "leads" as const, label: "Заявки" },
+                { key: "ai" as const, label: "AI-оператор" },
+                { key: "analytics" as const, label: "Аналитика" },
+              ]).map(({ key, label }) => (
+                <button key={key} onClick={() => setTab(key)} style={{
+                  flex: 1, padding: "10px 4px", fontSize: 12, fontWeight: tab === key ? 600 : 400,
+                  color: tab === key ? "var(--accent)" : "var(--tx-3)",
+                  background: "none", border: "none",
+                  borderBottom: tab === key ? "2px solid var(--accent)" : "2px solid transparent",
+                  cursor: "pointer", fontFamily: "inherit", marginBottom: -1,
+                }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab content */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
+
+              {/* ── Заявки ─────────────────────────────────────────────── */}
+              {tab === "leads" && (
+                leadsArr.length === 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", textAlign: "center", padding: "20px 0" }}>
+                    <MessageSquare size={28} style={{ color: "var(--tx-3)", marginBottom: 10 }} />
+                    <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>Нет заявок</p>
+                    <p style={{ fontSize: 11, color: "var(--tx-3)", marginTop: 4 }}>Появятся когда посетители заполнят форму на лендинге</p>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {leadsArr.map((lead: any) => (
+                      <div key={lead.id} style={{ padding: "10px 14px", border: "1px solid var(--line)", borderRadius: 10, background: "var(--panel)" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{ width: 34, height: 34, borderRadius: "50%", background: "var(--chip)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 13, fontWeight: 700, color: "var(--tx-2)" }}>
+                            {lead.name ? lead.name[0].toUpperCase() : "?"}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)" }}>{lead.name || "Без имени"}</span>
+                              <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 6, background: lead.status === "new" ? "#dbeafe" : "var(--chip)", color: lead.status === "new" ? "#1d4ed8" : "var(--tx-3)", fontWeight: 600 }}>
+                                {lead.status === "new" ? "Новая" : lead.status}
+                              </span>
+                            </div>
+                            <div style={{ display: "flex", gap: 10 }}>
+                              {lead.phone && <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--tx-2)" }}><Phone size={10} /> {lead.phone}</span>}
+                              {lead.email && <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--tx-2)" }}><Mail size={10} /> {lead.email}</span>}
+                            </div>
+                          </div>
+                          <span style={{ fontSize: 10, color: "var(--tx-3)", flexShrink: 0 }}>{fmtShort(lead.created_at)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+
+              {/* ── AI-оператор ────────────────────────────────────────── */}
+              {tab === "ai" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  <div>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-1)", marginBottom: 12 }}>Настройки оператора</p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      <div>
+                        <label style={{ fontSize: 11, color: "var(--tx-3)", display: "block", marginBottom: 4 }}>Pipeline</label>
+                        <input
+                          value={pipeline}
+                          onChange={e => setPipeline(e.target.value)}
+                          placeholder="mvira-assistant-v1"
+                          style={{ width: "100%", padding: "8px 10px", border: "1px solid var(--line)", borderRadius: 7, fontSize: 12, color: "var(--tx-1)", background: "var(--panel-2)", outline: "none", boxSizing: "border-box" }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, color: "var(--tx-3)", display: "block", marginBottom: 4 }}>Часы работы</label>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <input type="time" value={workStart} onChange={e => setWorkStart(e.target.value)}
+                            style={{ flex: 1, padding: "8px 10px", border: "1px solid var(--line)", borderRadius: 7, fontSize: 12, color: "var(--tx-1)", background: "var(--panel-2)", outline: "none" }} />
+                          <span style={{ fontSize: 12, color: "var(--tx-3)" }}>—</span>
+                          <input type="time" value={workEnd} onChange={e => setWorkEnd(e.target.value)}
+                            style={{ flex: 1, padding: "8px 10px", border: "1px solid var(--line)", borderRadius: 7, fontSize: 12, color: "var(--tx-1)", background: "var(--panel-2)", outline: "none" }} />
+                        </div>
+                      </div>
+                      {([
+                        { state: escalation, setState: setEscalation, label: "Эскалация на человека", sub: "Передать оператору при запросе" },
+                        { state: aiCall,     setState: setAiCall,     label: "AI-колл оператор",      sub: "Автоматический звонок за 60 сек" },
+                        { state: aiAssistant, setState: setAiAssistant, label: "AI-ассистент",         sub: "Отвечает в чате на сайте" },
+                      ] as { state: boolean; setState: (v: boolean) => void; label: string; sub: string }[]).map(({ state, setState, label, sub }) => (
+                        <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
+                          <div>
+                            <p style={{ fontSize: 12, fontWeight: 500, color: "var(--tx-1)", margin: 0 }}>{label}</p>
+                            <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0 }}>{sub}</p>
+                          </div>
+                          <Toggle on={state} onChange={setState} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>Живой транскрипт</p>
+                      <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: "#dcfce7", color: "#16a34a", fontWeight: 600 }}>AI понимает контекст</span>
+                    </div>
+                    <div style={{ height: 200, overflowY: "auto", background: "var(--panel-2)", borderRadius: 10, border: "1px solid var(--line)", padding: "12px 10px", display: "flex", flexDirection: "column", gap: 8 }}>
+                      {[
+                        { who: "visitor", time: "14:02", text: "Здравствуйте, интересует ваша услуга, сколько стоит?" },
+                        { who: "ai",      time: "14:02", text: "Добрый день! Стоимость зависит от объёма работ. Оставьте номер — позвоню за 1 минуту и всё расскажу 🙌" },
+                        { who: "visitor", time: "14:03", text: "Хорошо, +998 90 123 45 67" },
+                        { who: "ai",      time: "14:03", text: "Принято! Звоню прямо сейчас..." },
+                      ].map((msg, idx) => (
+                        <div key={idx} style={{ display: "flex", flexDirection: "column", alignItems: msg.who === "ai" ? "flex-end" : "flex-start" }}>
+                          <div style={{
+                            maxWidth: "85%", padding: "7px 10px", borderRadius: 10, fontSize: 11, lineHeight: 1.4,
+                            background: msg.who === "ai" ? "var(--accent)" : "var(--chip)",
+                            color: msg.who === "ai" ? "var(--on-accent)" : "var(--tx-1)",
+                          }}>
+                            {msg.text}
+                          </div>
+                          <span style={{ fontSize: 9, color: "var(--tx-3)", marginTop: 2, marginLeft: 4, marginRight: 4 }}>
+                            {msg.who === "visitor" ? "Посетитель" : "AI"} {msg.time}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+                      <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e" }} />
+                      <span style={{ fontSize: 11, color: "var(--tx-3)" }}>Live • Подключён</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Аналитика ──────────────────────────────────────────── */}
+              {tab === "analytics" && (
+                leadsArr.length === 0 && views === 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", textAlign: "center", padding: "20px 0" }}>
+                    <BarChart2 size={28} style={{ color: "var(--tx-3)", marginBottom: 10 }} />
+                    <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>Пока нет данных</p>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                      {[
+                        { label: "Просмотры", value: views > 0 ? views : "—" },
+                        { label: "Заявки",    value: leadsArr.length > 0 ? leadsArr.length : "—" },
+                        { label: "Конверсия", value: views > 0 && leadsArr.length > 0 ? `${Math.round(leadsArr.length / views * 100)}%` : "—" },
+                      ].map(({ label, value }) => (
+                        <div key={label} style={{ padding: "10px 8px", background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 10, textAlign: "center" }}>
+                          <p style={{ fontSize: 18, fontWeight: 700, color: "var(--tx-1)", margin: 0 }}>{value}</p>
+                          <p style={{ fontSize: 10, color: "var(--tx-3)", margin: "2px 0 0" }}>{label}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <MiniChart leads={leadsArr} />
+                    {leadsArr.length > 0 && (
+                      <div>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Последние заявки</p>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {leadsArr.slice(0, 5).map((lead: any) => (
+                            <div key={lead.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", background: "var(--panel-2)", borderRadius: 8 }}>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <span style={{ fontSize: 12, fontWeight: 500, color: "var(--tx-1)" }}>{lead.name || "—"}</span>
+                                {lead.phone && <span style={{ fontSize: 11, color: "var(--tx-3)", marginLeft: 8 }}>{lead.phone}</span>}
+                              </div>
+                              <span style={{ fontSize: 10, color: "var(--tx-3)", flexShrink: 0 }}>{fmtShort(lead.created_at)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
               )}
             </div>
           </div>
 
-          {/* 3. Template grid */}
-          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "18px 20px" }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 }}>
-              Шаблон
-            </p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
-              {TEMPLATES.map(t => {
-                const active = landing.template_id === t.id;
-                return (
-                  <div key={t.id} style={{
-                    display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-                    padding: "10px 6px", borderRadius: 10,
-                    border: `1.5px solid ${active ? "var(--accent)" : "var(--line)"}`,
-                    background: active ? "rgba(var(--accent-rgb, 99 102 241) / 0.06)" : "transparent",
-                  }}>
-                    <span style={{ fontSize: 18 }}>{t.icon}</span>
-                    <span style={{ fontSize: 10, fontWeight: active ? 700 : 400, color: active ? "var(--accent)" : "var(--tx-3)" }}>
-                      {t.name}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          {/* Block B: Info cards */}
+          <div style={{ flex: 1, overflowY: "auto", borderTop: "1px solid var(--line)" }}>
 
-          {/* 4. Lifecycle */}
-          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "18px 20px" }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 }}>
-              Жизненный цикл
-            </p>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>
-                  {landing.published ? "Опубликован" : "Черновик"}
-                </p>
-                <p style={{ fontSize: 12, color: "var(--tx-3)", marginTop: 2 }}>
-                  {fmtDate(landing.created_at)}
-                </p>
-                {autoCloseDays !== null && (
-                  <p style={{ fontSize: 12, color: "var(--tx-3)", marginTop: 4 }}>
-                    Авто-закрытие через {autoCloseDays} дней
-                  </p>
+            {/* URL */}
+            <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)" }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>Адрес страницы</p>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 8, padding: "7px 10px" }}>
+                <span style={{ flex: 1, fontSize: 12, color: "var(--tx-1)", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  /l/{landing.slug}
+                </span>
+                <button onClick={copyUrl} style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel)", color: copied ? "#059669" : "var(--tx-2)", fontSize: 11, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+                  {copied ? <><Check size={10} /> Скопировано</> : <><Copy size={10} /> Копировать</>}
+                </button>
+                {landing.published && (
+                  <a href={`https://mvira.uz/l/${landing.slug}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--tx-3)", display: "flex" }}>
+                    <ExternalLink size={13} />
+                  </a>
                 )}
               </div>
-              <span style={{
-                fontSize: 11, fontWeight: 600,
-                padding: "4px 10px", borderRadius: 20,
-                color: expiryBadge.color,
-                background: expiryBadge.bg,
-                border: `1px solid ${expiryBadge.color}30`,
-                whiteSpace: "nowrap",
-              }}>
-                {expiryBadge.label}
-              </span>
+            </div>
+
+            {/* Template grid */}
+            <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)" }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>Шаблон</p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 5 }}>
+                {TEMPLATES.map(t => {
+                  const active = landing.template_id === t.id;
+                  return (
+                    <div key={t.id} style={{
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                      padding: "8px 4px", borderRadius: 8,
+                      border: `1.5px solid ${active ? "var(--accent)" : "var(--line)"}`,
+                      background: active ? "rgba(var(--accent-rgb, 99 102 241) / 0.06)" : "transparent",
+                    }}>
+                      <span style={{ fontSize: 16 }}>{t.icon}</span>
+                      <span style={{ fontSize: 9, fontWeight: active ? 700 : 400, color: active ? "var(--accent)" : "var(--tx-3)" }}>{t.name}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Lifecycle */}
+            <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)" }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>Жизненный цикл</p>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>{landing.published ? "Опубликован" : "Черновик"}</p>
+                  <p style={{ fontSize: 11, color: "var(--tx-3)", marginTop: 2 }}>{fmtDate(landing.created_at)}</p>
+                  {autoCloseDays !== null && (
+                    <p style={{ fontSize: 11, color: "var(--tx-3)", marginTop: 2 }}>Авто-закрытие через {autoCloseDays} дней</p>
+                  )}
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 16, color: expiryBadge.color, background: expiryBadge.bg, border: `1px solid ${expiryBadge.color}30`, whiteSpace: "nowrap" }}>
+                  {expiryBadge.label}
+                </span>
+              </div>
+            </div>
+
+            {/* Routing toggles */}
+            <div style={{ padding: "14px 16px" }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>Куда идут заявки</p>
+              {([
+                { key: "aiCallback" as const, Icon: Zap,        label: "AI-оператор обрабатывает", sub: "Звонок + WhatsApp за 1 минуту" },
+                { key: "crm"        as const, Icon: Database,   label: "Запись в CRM",              sub: "Автоматически в воронку"       },
+                { key: "payments"   as const, Icon: CreditCard, label: "Payme / Click оплата",      sub: "Прямо в форме"                 },
+              ] as { key: keyof typeof routing; Icon: any; label: string; sub: string }[]).map(({ key, Icon, label, sub }) => (
+                <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <div style={{ width: 30, height: 30, borderRadius: 8, background: "var(--panel-2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Icon size={13} style={{ color: "var(--tx-2)" }} />
+                    </div>
+                    <div>
+                      <p style={{ fontSize: 12, fontWeight: 500, color: "var(--tx-1)", margin: 0 }}>{label}</p>
+                      <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0 }}>{sub}</p>
+                    </div>
+                  </div>
+                  <Toggle on={routing[key]} onChange={v => saveRouting({ ...routing, [key]: v })} />
+                </div>
+              ))}
             </div>
           </div>
-
-          {/* 5. Routing toggles */}
-          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "18px 20px" }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 }}>
-              Куда идут заявки
-            </p>
-            {[
-              { key: "aiCallback" as const, Icon: Zap,        label: "AI-оператор обрабатывает", sub: "Звонок + WhatsApp за 1 минуту" },
-              { key: "crm"        as const, Icon: Database,   label: "Запись в CRM",              sub: "Автоматически в воронку"       },
-              { key: "payments"   as const, Icon: CreditCard, label: "Payme / Click оплата",      sub: "Прямо в форме"                  },
-            ].map(({ key, Icon, label, sub }) => (
-              <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--line)" }}>
-                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <div style={{ width: 34, height: 34, borderRadius: 9, background: "var(--panel-2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Icon size={15} style={{ color: "var(--tx-2)" }} />
-                  </div>
-                  <div>
-                    <p style={{ fontSize: 13, fontWeight: 500, color: "var(--tx-1)", margin: 0 }}>{label}</p>
-                    <p style={{ fontSize: 11, color: "var(--tx-3)", margin: 0 }}>{sub}</p>
-                  </div>
-                </div>
-                <Toggle on={routing[key]} onChange={v => saveRouting({ ...routing, [key]: v })} />
-              </div>
-            ))}
-          </div>
-
-          {/* 5b. Widgets */}
-          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 16, padding: "18px 20px" }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 }}>
-              Виджеты взаимодействия
-            </p>
-            {[
-              { key: "chat"      as const, Icon: MessageCircle, label: "Чат на лендинге",   sub: "Кнопка чата в правом нижнем углу" },
-              { key: "quickCall" as const, Icon: Phone,          label: "Быстрый звонок",    sub: "AI перезвонит в течение 1 минуты"  },
-            ].map(({ key, Icon, label, sub }) => (
-              <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--line)" }}>
-                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <div style={{ width: 34, height: 34, borderRadius: 9, background: "var(--panel-2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Icon size={15} style={{ color: "var(--tx-2)" }} />
-                  </div>
-                  <div>
-                    <p style={{ fontSize: 13, fontWeight: 500, color: "var(--tx-1)", margin: 0 }}>{label}</p>
-                    <p style={{ fontSize: 11, color: "var(--tx-3)", margin: 0 }}>{sub}</p>
-                  </div>
-                </div>
-                <Toggle on={widgets[key]} onChange={v => saveWidgets({ ...widgets, [key]: v })} />
-              </div>
-            ))}
-          </div>
-
-          {/* 6. Publish button */}
-          <button
-            onClick={togglePublish}
-            disabled={patchMutation.isPending}
-            style={{
-              width: "100%", height: 48,
-              border: "none", borderRadius: 12,
-              background: landing.published ? "#FEF2F2" : "var(--accent)",
-              color: landing.published ? "#DC2626" : "var(--on-accent)",
-              fontSize: 14, fontWeight: 600, cursor: patchMutation.isPending ? "not-allowed" : "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              fontFamily: "inherit",
-              opacity: patchMutation.isPending ? 0.7 : 1,
-            }}
-          >
-            {landing.published ? <><EyeOff size={16} /> Снять с публикации</> : <><Eye size={16} /> Опубликовать лендинг</>}
-          </button>
         </div>
-      </div>}
-    </div>
-  );
-}
-
-// ── Toggle component ──────────────────────────────────────────────────────────
-function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <div
-      onClick={() => onChange(!on)}
-      style={{ width: 40, height: 23, borderRadius: 12, background: on ? "var(--accent)" : "var(--line)", cursor: "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0 }}
-    >
-      <div style={{ position: "absolute", top: 3, left: on ? 20 : 3, width: 17, height: 17, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }} />
+      </div>
     </div>
   );
 }

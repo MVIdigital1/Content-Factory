@@ -449,7 +449,7 @@ export async function POST(req: NextRequest) {
           blocks,
           template_id: templateId || "form",
           bg_image: bgImage || null,
-          settings: { brandColor: brandColor || "#4F46E5", tone, autoCloseDays: autoCloseDays ?? null, routing: routing ?? { aiCallback: true, crm: true, payments: false } },
+          settings: { brandColor: brandColor || "#4F46E5", tone, autoCloseDays: autoCloseDays ?? null, routing: routing ?? { aiCallback: true, crm: true, payments: false }, logoUrl: body.logoUrl || null },
         }),
       ]
     );

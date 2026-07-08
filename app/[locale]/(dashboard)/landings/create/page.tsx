@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
@@ -22,6 +22,7 @@ type Step1 = {
   productEmoji: string;
   heroImage: string;
   bgImage: string;
+  logoUrl: string;
 };
 
 type Project = {
@@ -46,6 +47,7 @@ const EMPTY_STEP1: Step1 = {
   productEmoji: "",
   heroImage: "",
   bgImage: "",
+  logoUrl: "",
 };
 
 const NICHES = [
@@ -65,6 +67,27 @@ const TEMPLATES = [
 ];
 
 const STORAGE_KEY = "landing_draft_v1";
+
+// ── Image resize helper ────────────────────────────────────────────────────
+function resizeImage(file: File, maxSide: number, quality: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const ratio = Math.min(maxSide / img.width, maxSide / img.height, 1);
+      const w = Math.round(img.width * ratio);
+      const h = Math.round(img.height * ratio);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
 
 // ── Component ──────────────────────────────────────────────────────────────
 function CreateLandingPageInner() {
@@ -106,6 +129,7 @@ function CreateLandingPageInner() {
   const [fillingFromProject, setFillingFromProject] = useState(false);
   const [filledFromProject, setFilledFromProject] = useState<string | null>(null);
   const [uploadingImg, setUploadingImg] = useState<"hero" | "bg" | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const uploadImage = async (file: File, field: "heroImage" | "bgImage") => {
     const type = field === "heroImage" ? "hero" : "bg";
@@ -482,6 +506,61 @@ function CreateLandingPageInner() {
                 </div>
               </Field>
             </div>
+
+            <Field label="Логотип / аватарка бизнеса">
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div
+                  onClick={() => logoInputRef.current?.click()}
+                  style={{
+                    width: 72, height: 72, borderRadius: 14, border: "1.5px dashed var(--line)",
+                    background: "var(--panel-2)", display: "flex", alignItems: "center",
+                    justifyContent: "center", cursor: "pointer", overflow: "hidden", flexShrink: 0,
+                  }}
+                >
+                  {step1.logoUrl ? (
+                    <img src={step1.logoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <Building2 size={24} color="var(--tx-3)" />
+                  )}
+                </div>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => logoInputRef.current?.click()}
+                    style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--chip)", border: "1px solid var(--line)", borderRadius: 8, padding: "7px 14px", fontSize: 13, color: "var(--tx-2)", cursor: "pointer" }}
+                  >
+                    {step1.logoUrl ? "Сменить логотип" : "Загрузить логотип"}
+                  </button>
+                  {step1.logoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setStep1(p => ({ ...p, logoUrl: "" }))}
+                      style={{ marginTop: 4, background: "none", border: "none", color: "var(--tx-3)", fontSize: 12, cursor: "pointer", padding: 0, display: "block" }}
+                    >
+                      Удалить
+                    </button>
+                  )}
+                  <p style={{ fontSize: 11, color: "var(--tx-3)", marginTop: 4 }}>JPG/PNG, до 5 МБ</p>
+                </div>
+              </div>
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  try {
+                    const dataUrl = await resizeImage(file, 400, 0.8);
+                    setStep1(p => ({ ...p, logoUrl: dataUrl }));
+                  } catch {
+                    // ignore resize error
+                  }
+                  e.target.value = "";
+                }}
+              />
+            </Field>
 
             <Field label="Главный оффер — что предлагаете *">
               <textarea value={step1.offer} onChange={set1("offer")} placeholder="напр. Лечение зубов без боли за 1 визит" rows={2} style={{ ...inputStyle, resize: "vertical" }} />

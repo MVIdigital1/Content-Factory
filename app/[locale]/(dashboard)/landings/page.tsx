@@ -14,6 +14,7 @@ type LandingPage = {
   slug: string;
   published: boolean;
   template_id: string | null;
+  logo_url: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -198,7 +199,11 @@ export default function LandingsPage() {
                 onClick={() => router.push(`/${locale}/landings/${landing.id}`)}
               >
                 <div style={{ height: 140, background: "var(--panel-2)", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-                  <FileText size={32} style={{ color: "var(--tx-3)" }} />
+                  {landing.logo_url ? (
+                    <img src={landing.logo_url} alt="" style={{ width: 60, height: 60, borderRadius: 14, objectFit: "cover", boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }} />
+                  ) : (
+                    <FileText size={32} style={{ color: "var(--tx-3)" }} />
+                  )}
                   <div style={{ position: "absolute", top: 10, right: 10, padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, background: landing.published ? "#dcfce7" : "var(--chip)", color: landing.published ? "#16a34a" : "var(--tx-3)" }}>
                     {landing.published ? "Опубликован" : "Черновик"}
                   </div>
