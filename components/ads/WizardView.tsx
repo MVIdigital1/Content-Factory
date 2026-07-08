@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
 import LandingRenderer from "@/components/landing/LandingRenderer";
+import LandingDetail from "@/components/landing/LandingDetail";
 
 const ALL_STEP_DEFS = [
   { key: "goal" as const, label: "Цель" },
@@ -793,6 +794,7 @@ export function WizardView({
     ),
   );
   const [landingId, setLandingId] = useState<string | null>(draft?.landingId ?? null);
+  const [landingDetailId, setLandingDetailId] = useState<string | null>(null);
   const [campaignTools, setCampaignTools] = useState<Set<string>>(() => {
     const tools = new Set<string>(draft?.campaignTools ?? []);
     if (draft?.landingId) tools.add("landing");
@@ -2342,14 +2344,6 @@ export function WizardView({
         const selectedLp = (landingPages as any[]).find((lp: any) => lp.id === landingId) ?? null;
         const pages = landingPages as any[];
 
-        const goToLandingPage = (lpId: string) => {
-          const params = new URLSearchParams({
-            from: "campaign",
-            ...(draftId && { campaign_id: draftId }),
-          });
-          router.push(`/${locale}/landings/${lpId}?${params}`);
-        };
-
         const goToCreate = () => {
           const params = new URLSearchParams({
             from: "campaign",
@@ -2361,6 +2355,15 @@ export function WizardView({
           });
           router.push(`/${locale}/landings/create?${params}`);
         };
+
+        if (landingDetailId !== null) {
+          return (
+            <LandingDetail
+              id={landingDetailId}
+              onBack={() => setLandingDetailId(null)}
+            />
+          );
+        }
 
         return (
           <div>
@@ -2380,29 +2383,6 @@ export function WizardView({
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
-                {/* Selected landing banner */}
-                {selectedLp && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", background: "var(--panel)", border: "1.5px solid var(--accent)", borderRadius: 12 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 9, background: "var(--chip)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 18 }}>🌐</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: "var(--tx-1)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedLp.title}</p>
-                      <p style={{ fontSize: 11, color: "var(--tx-3)", margin: 0 }}>mvira.uz/l/{selectedLp.slug}</p>
-                    </div>
-                    <button
-                      onClick={() => goToLandingPage(selectedLp.id)}
-                      style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", background: "var(--accent)", color: "var(--on-accent)", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}
-                    >
-                      Открыть страницу →
-                    </button>
-                    <button
-                      onClick={() => setLandingId(null)}
-                      style={{ padding: "6px 10px", background: "transparent", border: "1px solid var(--line)", borderRadius: 7, fontSize: 12, color: "var(--tx-3)", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                )}
-
                 {/* Landing cards */}
                 <div>
                   <p style={{ fontSize: 11, fontWeight: 600, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>
@@ -2420,7 +2400,7 @@ export function WizardView({
                           key={lp.id}
                           onClick={() => {
                             setLandingId(lp.id);
-                            goToLandingPage(lp.id);
+                            setLandingDetailId(lp.id);
                           }}
                           style={{ display: "flex", flexDirection: "column", gap: 0, padding: 0, cursor: "pointer", border: isSelected ? "1.5px solid var(--accent)" : "1px solid var(--line)", borderRadius: 10, overflow: "hidden", background: "var(--panel-2)", transition: "border-color 0.15s", textAlign: "left" }}
                         >
