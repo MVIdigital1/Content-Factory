@@ -2364,30 +2364,6 @@ export function WizardView({
 
         return (
           <div>
-            {/* MVI OS cycle */}
-            <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: "14px 18px", marginBottom: 18, display: "flex", alignItems: "center", gap: 0, overflowX: "auto" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.07em", marginRight: 14, flexShrink: 0 }}>MVI OS цикл</div>
-              {[
-                { icon: "✍️", label: "Контент", active: false },
-                { icon: "📢", label: "Реклама", active: false },
-                { icon: "🌐", label: "Лендинг", active: true },
-                { icon: "🎧", label: "AI-Оператор", active: false },
-                { icon: "💰", label: "Продажа", active: false },
-                { icon: "📊", label: "Аналитика", active: false },
-              ].map((node, i, arr) => (
-                <div key={node.label} style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "6px 10px", borderRadius: 10, background: node.active ? "var(--accent)" : "transparent", border: node.active ? "none" : "1px solid var(--line)" }}>
-                    <span style={{ fontSize: 16 }}>{node.icon}</span>
-                    <span style={{ fontSize: 9, fontWeight: node.active ? 700 : 500, color: node.active ? "var(--on-accent)" : "var(--tx-3)", whiteSpace: "nowrap" }}>{node.label}</span>
-                  </div>
-                  {i < arr.length - 1 && <div style={{ width: 20, height: 1, background: "var(--line)", margin: "0 2px", flexShrink: 0 }} />}
-                </div>
-              ))}
-              <div style={{ marginLeft: 14, fontSize: 11, color: "var(--tx-3)", flexShrink: 0 }}>
-                Заявки с лендинга идут в AI — перезвон за 1 минуту
-              </div>
-            </div>
-
             {/* Empty state */}
             {pages.length === 0 ? (
               <div style={{ padding: "48px 24px", textAlign: "center", border: "1px dashed var(--line)", borderRadius: 14, background: "var(--panel)" }}>
