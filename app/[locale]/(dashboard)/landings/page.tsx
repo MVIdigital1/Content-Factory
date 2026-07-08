@@ -7,6 +7,7 @@ import {
   Plus, Globe, Edit3, Trash2, Copy, Eye, EyeOff,
   FileText, ExternalLink, MessageSquare, Phone, Mail, Clock,
 } from "lucide-react";
+import LandingDetail from "@/components/landing/LandingDetail";
 
 type LandingPage = {
   id: string;
@@ -36,6 +37,7 @@ export default function LandingsPage() {
   const qc = useQueryClient();
   const locale = useLocale();
   const router = useRouter();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<"landings" | "leads">("landings");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -105,6 +107,15 @@ export default function LandingsPage() {
     new Date(iso).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
   const publishedCount = landings.filter((l) => l.published).length;
+
+  if (selectedId !== null) {
+    return (
+      <LandingDetail
+        id={selectedId}
+        onBack={() => setSelectedId(null)}
+      />
+    );
+  }
 
   return (
     <div style={{ padding: "32px 32px 64px", maxWidth: 1100, margin: "0 auto" }}>
@@ -196,7 +207,7 @@ export default function LandingsPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
             {landings.map((landing) => (
               <div key={landing.id} style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column", cursor: "pointer" }}
-                onClick={() => router.push(`/${locale}/landings/${landing.id}`)}
+                onClick={() => setSelectedId(landing.id)}
               >
                 <div style={{ height: 140, background: "var(--panel-2)", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
                   {landing.logo_url ? (
@@ -219,7 +230,7 @@ export default function LandingsPage() {
                 </div>
 
                 <div style={{ display: "flex", gap: 6, padding: "0 12px 12px", borderTop: "1px solid var(--line)", paddingTop: 10 }} onClick={(e) => e.stopPropagation()}>
-                  <button onClick={() => router.push(`/${locale}/landings/${landing.id}`)} title="Открыть карточку" style={iconBtnStyle}>
+                  <button onClick={() => setSelectedId(landing.id)} title="Открыть карточку" style={iconBtnStyle}>
                     <Edit3 size={14} />
                   </button>
                   <button onClick={() => togglePublishMutation.mutate({ id: landing.id, published: !landing.published })} title={landing.published ? "Снять с публикации" : "Опубликовать"} style={iconBtnStyle}>
