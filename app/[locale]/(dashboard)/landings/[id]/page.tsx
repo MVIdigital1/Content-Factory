@@ -1,6 +1,6 @@
 "use client";
 import { Suspense, useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "next-intl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -102,11 +102,14 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
 
 // ── Detail inner ──────────────────────────────────────────────────────────────
 function LandingDetailInner() {
-  const params  = useParams();
-  const id      = params.id as string;
-  const router  = useRouter();
-  const locale  = useLocale();
-  const qc      = useQueryClient();
+  const params       = useParams();
+  const id           = params.id as string;
+  const router       = useRouter();
+  const locale       = useLocale();
+  const qc           = useQueryClient();
+  const sp           = useSearchParams();
+  const fromCampaign = sp.get("from") === "campaign";
+  const campaignId   = sp.get("campaign_id");
 
   const [copied, setCopied]             = useState(false);
   const [activeTab, setActiveTab]       = useState<"leads" | "ai" | "analytics">("leads");
@@ -206,20 +209,10 @@ function LandingDetailInner() {
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 
-  // ── Skeleton ──────────────────────────────────────────────────────────────
-  if (isLoading || !landing) {
-    return (
-      <div style={{ padding: "32px 32px 64px", maxWidth: 1100, margin: "0 auto" }}>
-        <div style={{ height: 20, width: 120, background: "var(--panel-2)", borderRadius: 6, marginBottom: 24 }} />
-        <div style={{ height: 500, background: "var(--panel)", borderRadius: 16, border: "1px solid var(--line)", animation: "pulse 1.5s ease-in-out infinite" }} />
-        <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }`}</style>
-      </div>
-    );
-  }
-
-  const autoCloseDays = landing.settings?.autoCloseDays ?? null;
+  // ── Derived data (only when landing loaded) ───────────────────────────────
+  const autoCloseDays = landing?.settings?.autoCloseDays ?? null;
   let expiryBadge = { label: "Бессрочно", color: "#64748B", bg: "#F8FAFC" };
-  if (autoCloseDays !== null) {
+  if (landing && autoCloseDays !== null) {
     const expiry = new Date(landing.created_at);
     expiry.setDate(expiry.getDate() + autoCloseDays);
     const diffDays = Math.ceil((expiry.getTime() - Date.now()) / 86_400_000);
@@ -227,36 +220,42 @@ function LandingDetailInner() {
     else if (diffDays <= 3)  expiryBadge = { label: `Через ${diffDays} дн.`, color: "#D97706", bg: "#FFFBEB" };
     else                     expiryBadge = { label: `Через ${diffDays} дн.`, color: "#059669", bg: "#ECFDF5" };
   }
+  void fmtDate; void autoCloseDays; void expiryBadge;
 
   const views      = statsData?.views ?? 0;
   const leadCount  = leads.length;
   const cvr        = views > 0 ? ((leadCount / views) * 100).toFixed(1) + "%" : "—";
-  const landingUrl = `https://mvira.uz/l/${landing.slug}`;
-  const tpl        = TEMPLATES.find(t => t.id === landing.template_id) ?? TEMPLATES[1];
+  const landingUrl = landing ? `https://mvira.uz/l/${landing.slug}` : "";
+  const tpl        = TEMPLATES.find(t => t.id === landing?.template_id) ?? TEMPLATES[1];
 
-  // suppress unused-var warnings for kept helpers
-  void fmtDate; void autoCloseDays; void expiryBadge;
+  const handleBack = () => {
+    if (fromCampaign && campaignId) {
+      router.push(`/${locale}/campaigns?tab=wizard&resume=${campaignId}&landing=${id}`);
+    } else {
+      router.push(`/${locale}/landings`);
+    }
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", background: "var(--bg)" }}>
 
-      {/* ── Шапка ───────────────────────────────────────────────────────── */}
+      {/* ── Шапка — всегда видна ────────────────────────────────────────── */}
       <header style={{
         height: 52, flexShrink: 0, borderBottom: "1px solid var(--line)",
         background: "var(--panel)", display: "flex", alignItems: "center",
         gap: 12, padding: "0 20px", zIndex: 10,
       }}>
         <button
-          onClick={() => router.push(`/${locale}/landings`)}
+          onClick={handleBack}
           style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 7, border: "1px solid var(--line)", background: "transparent", color: "var(--tx-3)", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}
         >
-          <ChevronLeft size={14} /> Лендинги
+          <ChevronLeft size={14} /> {fromCampaign ? "К кампании" : "Лендинги"}
         </button>
 
         <div style={{ width: 1, height: 20, background: "var(--line)" }} />
 
         <span style={{ fontSize: 14, fontWeight: 600, color: "var(--tx-1)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {landing.title}
+          {landing?.title ?? "Загрузка..."}
         </span>
 
         <button
@@ -266,17 +265,30 @@ function LandingDetailInner() {
           <Edit3 size={13} /> Редактировать
         </button>
 
-        <button
-          onClick={togglePublish}
-          disabled={patchMutation.isPending}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 16px", borderRadius: 7, border: "none", background: landing.published ? "#FEE2E2" : "var(--accent)", color: landing.published ? "#DC2626" : "var(--on-accent)", fontSize: 13, fontWeight: 600, cursor: patchMutation.isPending ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: patchMutation.isPending ? 0.7 : 1 }}
-        >
-          {landing.published ? <><EyeOff size={13} /> Снять</> : <><Eye size={13} /> Опубликовать</>}
-        </button>
+        {landing && (
+          <button
+            onClick={togglePublish}
+            disabled={patchMutation.isPending}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 16px", borderRadius: 7, border: "none", background: landing.published ? "#FEE2E2" : "var(--accent)", color: landing.published ? "#DC2626" : "var(--on-accent)", fontSize: 13, fontWeight: 600, cursor: patchMutation.isPending ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: patchMutation.isPending ? 0.7 : 1 }}
+          >
+            {landing.published ? <><EyeOff size={13} /> Снять</> : <><Eye size={13} /> Опубликовать</>}
+          </button>
+        )}
       </header>
 
+      {/* ── Скелетон (пока данные грузятся) ─────────────────────────────── */}
+      {(isLoading || !landing) && (
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: 480, display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ height: 14, width: "60%", background: "var(--panel-2)", borderRadius: 6, animation: "pulse 1.5s ease-in-out infinite" }} />
+            <div style={{ height: 500, background: "var(--panel)", borderRadius: 16, border: "1px solid var(--line)", animation: "pulse 1.5s ease-in-out infinite" }} />
+            <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }`}</style>
+          </div>
+        </div>
+      )}
+
       {/* ── Тело ────────────────────────────────────────────────────────── */}
-      <div style={{ display: "flex", flex: 1, overflow: "hidden", paddingLeft: 70, paddingTop: 28, paddingBottom: 28, paddingRight: 28, gap: 28 }}>
+      {landing && <div style={{ display: "flex", flex: 1, overflow: "hidden", paddingLeft: 70, paddingTop: 28, paddingBottom: 28, paddingRight: 28, gap: 28 }}>
 
         {/* ── Левая колонка — телефон ──────────────────────────────────── */}
         <div style={{ width: 340, flexShrink: 0, display: "flex", flexDirection: "column" }}>
@@ -587,7 +599,7 @@ function LandingDetailInner() {
 
           </div>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
