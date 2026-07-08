@@ -3,7 +3,7 @@ import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Sparkles, Lock, Check, ExternalLink, Edit3, Building2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Sparkles, Check, ExternalLink, Edit3, Building2 } from "lucide-react";
 import LandingRenderer from "@/components/landing/LandingRenderer";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -57,14 +57,6 @@ const NICHES = [
 
 const TONES = ["профессиональный", "дружелюбный", "молодёжный", "экспертный", "вдохновляющий"];
 
-const TEMPLATES = [
-  { id: "product",     name: "Товар",    desc: "Продажа товара со скидкой и ценой",   pro: false, preview: "🛒" },
-  { id: "form",        name: "Заявка",   desc: "Форма сбора лидов для услуг",         pro: false, preview: "📋" },
-  { id: "appointment", name: "Запись",   desc: "Запись на консультацию или приём",    pro: false, preview: "📅" },
-  { id: "event",       name: "Событие",  desc: "Мероприятие, вебинар или тренинг",   pro: false, preview: "🎉" },
-  { id: "menu",        name: "Меню",     desc: "Каталог блюд, услуг или позиций",    pro: false, preview: "🍽️" },
-  { id: "callback",    name: "Звонок",   desc: "Обратный звонок — AI перезвонит",    pro: false, preview: "📞" },
-];
 
 const STORAGE_KEY = "landing_draft_v1";
 
@@ -98,7 +90,7 @@ function CreateLandingPageInner() {
   const fromCampaign = searchParams.get("from") === "campaign";
   const campaignId = searchParams.get("campaign_id");
 
-  // step 0 = project selection, 1 = business details, 2 = template, 3 = launch settings
+  // step 0 = project selection, 1 = business details, 2 = launch settings
   const [step, setStep] = useState(0);
   const [step1, setStep1] = useState<Step1>(() => {
     const offer = searchParams.get("product") || "";
@@ -111,9 +103,6 @@ function CreateLandingPageInner() {
       }
     } catch {}
     return { ...EMPTY_STEP1, offer, audience };
-  });
-  const [templateId, setTemplateId] = useState<string>(() => {
-    try { return sessionStorage.getItem(STORAGE_KEY + "_tpl") || "classic"; } catch { return "classic"; }
   });
   const [autoCloseDays, setAutoCloseDays] = useState<number | null>(null);
   const [routing, setRouting] = useState({ aiCallback: true, crm: true, payments: false });
@@ -165,9 +154,6 @@ function CreateLandingPageInner() {
   useEffect(() => {
     try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(step1)); } catch {}
   }, [step1]);
-  useEffect(() => {
-    try { sessionStorage.setItem(STORAGE_KEY + "_tpl", templateId); } catch {}
-  }, [templateId]);
 
   const set1 = (field: keyof Step1) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -217,7 +203,7 @@ function CreateLandingPageInner() {
       const res = await fetch("/api/landings/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...step1, templateId, heroImage: step1.heroImage || undefined, bgImage: step1.bgImage || undefined, autoCloseDays, routing }),
+        body: JSON.stringify({ ...step1, heroImage: step1.heroImage || undefined, bgImage: step1.bgImage || undefined, autoCloseDays, routing }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -226,7 +212,6 @@ function CreateLandingPageInner() {
       const { id, slug } = await res.json();
       try {
         sessionStorage.removeItem(STORAGE_KEY);
-        sessionStorage.removeItem(STORAGE_KEY + "_tpl");
       } catch {}
       qc.invalidateQueries({ queryKey: ["landing_pages"] });
       qc.invalidateQueries({ queryKey: ["landings_wizard"] });
@@ -263,7 +248,7 @@ function CreateLandingPageInner() {
     }
   };
 
-  const STEPS = ["Проект", "Детали", "Шаблон", "Запуск"];
+  const STEPS = ["Проект", "Детали", "Запуск"];
 
   // ── Success screen ─────────────────────────────────────────────────────
   if (created) {
@@ -339,7 +324,7 @@ function CreateLandingPageInner() {
               ← Все лендинги
             </button>
             <button
-              onClick={() => { setCreated(null); setStep(0); setStep1(EMPTY_STEP1); setTemplateId("classic"); setFilledFromProject(null); setSelectedProjectId(null); }}
+              onClick={() => { setCreated(null); setStep(0); setStep1(EMPTY_STEP1); setFilledFromProject(null); setSelectedProjectId(null); }}
               style={{ padding: "10px 20px", border: "1px solid var(--line)", borderRadius: 9, background: "var(--panel)", color: "var(--tx-1)", fontSize: 13, cursor: "pointer" }}
             >
               + Создать ещё
@@ -651,6 +636,23 @@ function CreateLandingPageInner() {
               </div>
             </div>
 
+            {/* ── Price fields (optional) ──────────────────────────────────── */}
+            <div style={{ borderTop: "1px solid var(--line)", paddingTop: 20 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", marginBottom: 4 }}>🏷️ Цена (необязательно)</p>
+              <p style={{ fontSize: 12, color: "var(--tx-3)", marginBottom: 16 }}>Если у вас есть цена — AI автоматически добавит блок с ценой в лендинг</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                <Field label="Старая цена (перечёркнутая)">
+                  <input value={step1.oldPrice} onChange={set1("oldPrice")} placeholder="напр. 150 000 сум" style={inputStyle} />
+                </Field>
+                <Field label="Новая цена (зелёная)">
+                  <input value={step1.newPrice} onChange={set1("newPrice")} placeholder="напр. 99 000 сум" style={inputStyle} />
+                </Field>
+                <Field label="Эмодзи товара">
+                  <input value={step1.productEmoji} onChange={set1("productEmoji")} placeholder="напр. 🛍️" style={inputStyle} />
+                </Field>
+              </div>
+            </div>
+
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
               <button onClick={goBack} style={backBtnStyle}><ChevronLeft size={16} /> Назад</button>
               <button onClick={() => setStep(2)} disabled={!canNext1} style={nextBtnStyle(!canNext1)}>
@@ -660,75 +662,8 @@ function CreateLandingPageInner() {
           </div>
         )}
 
-        {/* ── Step 2 — Template ──────────────────────────────────────── */}
+        {/* ── Step 2 — Launch settings ───────────────────────────────────── */}
         {step === 2 && (
-          <div>
-            <p style={{ fontSize: 14, color: "var(--tx-2)", marginBottom: 24 }}>
-              Выберите тип лендинга — AI сгенерирует подходящую структуру.
-            </p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14, marginBottom: 24 }}>
-              {TEMPLATES.map((tpl) => {
-                const selected = templateId === tpl.id;
-                return (
-                  <div
-                    key={tpl.id}
-                    onClick={() => !tpl.pro && setTemplateId(tpl.id)}
-                    style={{ position: "relative", border: selected ? "2px solid var(--accent)" : "1px solid var(--line)", borderRadius: 12, overflow: "hidden", cursor: tpl.pro ? "default" : "pointer", opacity: tpl.pro ? 0.6 : 1, background: "var(--panel)", transition: "border 0.15s" }}
-                  >
-                    <div style={{ height: 100, background: "var(--panel-2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, position: "relative" }}>
-                      {tpl.preview}
-                      {tpl.pro && (
-                        <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <Lock size={20} color="#fff" />
-                        </div>
-                      )}
-                      {selected && (
-                        <div style={{ position: "absolute", top: 6, right: 6, width: 20, height: 20, borderRadius: "50%", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <Check size={11} color="white" />
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ padding: "10px 12px 12px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)" }}>{tpl.name}</span>
-                        {tpl.pro && <span style={{ fontSize: 9, fontWeight: 700, background: "#fbbf24", color: "#78350f", padding: "1px 6px", borderRadius: 4, textTransform: "uppercase" }}>Pro</span>}
-                      </div>
-                      <p style={{ fontSize: 11, color: "var(--tx-3)", margin: 0 }}>{tpl.desc}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Price fields — shown only for product template */}
-            {templateId === "product" && (
-              <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: "16px 16px 20px", marginBottom: 24 }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", marginBottom: 14 }}>🏷️ Цена товара</p>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                  <Field label="Старая цена (перечёркнутая)">
-                    <input value={step1.oldPrice} onChange={set1("oldPrice")} placeholder="напр. 150 000 сум" style={inputStyle} />
-                  </Field>
-                  <Field label="Новая цена (зелёная)">
-                    <input value={step1.newPrice} onChange={set1("newPrice")} placeholder="напр. 99 000 сум" style={inputStyle} />
-                  </Field>
-                  <Field label="Эмодзи товара">
-                    <input value={step1.productEmoji} onChange={set1("productEmoji")} placeholder="напр. 🛍️" style={inputStyle} />
-                  </Field>
-                </div>
-              </div>
-            )}
-
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <button onClick={goBack} style={backBtnStyle}><ChevronLeft size={16} /> Назад</button>
-              <button onClick={() => setStep(3)} style={nextBtnStyle(false)}>
-                Далее <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 3 — Launch settings ───────────────────────────────────── */}
-        {step === 3 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <p style={{ fontSize: 14, color: "var(--tx-2)", marginBottom: 4 }}>
               Настройте жизненный цикл и маршрутизацию заявок. Лендинг будет создан как черновик — опубликуете вручную.
