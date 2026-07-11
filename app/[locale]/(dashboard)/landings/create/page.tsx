@@ -3,8 +3,8 @@ import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Sparkles, Check, ExternalLink, Edit3, Building2 } from "lucide-react";
-import LandingRenderer from "@/components/landing/LandingRenderer";
+import { ChevronLeft, ChevronRight, Sparkles, Check, ExternalLink, Building2 } from "lucide-react";
+import LandingEditor from "@/components/landing/LandingEditor";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type Step1 = {
@@ -20,7 +20,6 @@ type Step1 = {
   oldPrice: string;
   newPrice: string;
   productEmoji: string;
-  heroImage: string;
   bgImage: string;
   logoUrl: string;
 };
@@ -45,7 +44,6 @@ const EMPTY_STEP1: Step1 = {
   oldPrice: "",
   newPrice: "",
   productEmoji: "",
-  heroImage: "",
   bgImage: "",
   logoUrl: "",
 };
@@ -56,7 +54,6 @@ const NICHES = [
 ];
 
 const TONES = ["профессиональный", "дружелюбный", "молодёжный", "экспертный", "вдохновляющий"];
-
 
 const STORAGE_KEY = "landing_draft_v1";
 
@@ -90,7 +87,7 @@ function CreateLandingPageInner() {
   const fromCampaign = searchParams.get("from") === "campaign";
   const campaignId = searchParams.get("campaign_id");
 
-  // step 0 = project selection, 1 = business details, 2 = launch settings
+  // step 0 = project selection, 1 = business details, 2 = preview (LandingEditor), 3 = launch settings
   const [step, setStep] = useState(0);
   const [step1, setStep1] = useState<Step1>(() => {
     const offer = searchParams.get("product") || "";
@@ -107,9 +104,10 @@ function CreateLandingPageInner() {
   const [autoCloseDays, setAutoCloseDays] = useState<number | null>(null);
   const [routing, setRouting] = useState({ aiCallback: true, crm: true, payments: false });
   const [generating, setGenerating] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<{ id: string; slug: string } | null>(null);
-  const [createdContent, setCreatedContent] = useState<{ blocks: any[]; brandColor: string; bgImage?: string } | null>(null);
+  const [finished, setFinished] = useState(false);
 
   // Project selection
   const [projects, setProjects] = useState<Project[]>([]);
@@ -117,30 +115,7 @@ function CreateLandingPageInner() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [fillingFromProject, setFillingFromProject] = useState(false);
   const [filledFromProject, setFilledFromProject] = useState<string | null>(null);
-  const [uploadingImg, setUploadingImg] = useState<"hero" | "bg" | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
-
-  const uploadImage = async (file: File, field: "heroImage" | "bgImage") => {
-    const type = field === "heroImage" ? "hero" : "bg";
-    setUploadingImg(type);
-    try {
-      const reader = new FileReader();
-      const base64 = await new Promise<string>((res, rej) => {
-        reader.onload = () => res(reader.result as string);
-        reader.onerror = rej;
-        reader.readAsDataURL(file);
-      });
-      const r = await fetch("/api/upload/landing-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ base64, name: file.name }),
-      });
-      const data = await r.json();
-      if (data.url) setStep1((p) => ({ ...p, [field]: data.url }));
-    } catch { /* ignore */ } finally {
-      setUploadingImg(null);
-    }
-  };
 
   useEffect(() => {
     fetch("/api/projects")
@@ -150,7 +125,6 @@ function CreateLandingPageInner() {
       .finally(() => setProjectsLoading(false));
   }, []);
 
-  // Persist to sessionStorage
   useEffect(() => {
     try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(step1)); } catch {}
   }, [step1]);
@@ -203,16 +177,14 @@ function CreateLandingPageInner() {
       const res = await fetch("/api/landings/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...step1, heroImage: step1.heroImage || undefined, bgImage: step1.bgImage || undefined, autoCloseDays, routing }),
+        body: JSON.stringify({ ...step1, bgImage: step1.bgImage || undefined }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || "Ошибка генерации");
       }
       const { id, slug } = await res.json();
-      try {
-        sessionStorage.removeItem(STORAGE_KEY);
-      } catch {}
+      try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
       qc.invalidateQueries({ queryKey: ["landing_pages"] });
       qc.invalidateQueries({ queryKey: ["landings_wizard"] });
       if (fromCampaign) {
@@ -222,21 +194,37 @@ function CreateLandingPageInner() {
         router.push(`/${locale}/campaigns?${resumeParams.toString()}`);
       } else {
         setCreated({ id, slug });
-        // Fetch landing content for preview (works regardless of published status)
-        fetch(`/api/landings/${id}`)
-          .then((r) => r.json())
-          .then((data) => {
-            const cnt = (data.content ?? {}) as any;
-            const blocks = cnt.blocks ?? data.blocks ?? [];
-            const brandColor = cnt.settings?.brandColor ?? data.brandColor ?? "#6366f1";
-            const bgImage = cnt.bg_image ?? data.bgImage ?? undefined;
-            setCreatedContent({ blocks, brandColor, bgImage });
-          })
-          .catch(() => {});
+        setStep(2);
       }
     } catch (e: any) {
       setError(e.message);
+    } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    if (!created) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/landings/${created.id}`);
+      const current = await r.json();
+      const existingContent = current.content ?? {};
+      const patchedContent = {
+        ...existingContent,
+        settings: { ...(existingContent.settings ?? {}), routing, autoCloseDays },
+      };
+      await fetch(`/api/landings/${created.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: patchedContent }),
+      });
+      setFinished(true);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -248,83 +236,35 @@ function CreateLandingPageInner() {
     }
   };
 
-  const STEPS = ["Проект", "Детали", "Запуск"];
+  const STEPS = ["Проект", "Детали", "Превью", "Запуск"];
 
   // ── Success screen ─────────────────────────────────────────────────────
-  if (created) {
+  if (finished && created) {
     return (
-      <div style={{ minHeight: "100vh", background: "var(--bg)", padding: "32px 24px 64px" }}>
-        <div style={{ maxWidth: 820, margin: "0 auto" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28, padding: "16px 20px", background: "var(--chip)", border: "1px solid var(--line)", borderRadius: 14 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 12, background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <Check size={22} color="white" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 16, fontWeight: 700, color: "var(--tx-1)", margin: 0 }}>Лендинг создан!</p>
-              <p style={{ fontSize: 13, color: "var(--tx-3)", margin: "2px 0 0" }}>
-                Страница доступна по адресу{" "}
-                <a href={`/l/${created.slug}`} target="_blank" rel="noreferrer" style={{ color: "var(--accent)", fontWeight: 600 }}>
-                  /l/{created.slug}
-                </a>
-              </p>
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={() => router.push(`/${locale}/landings/${created.id}/edit`)}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", border: "1px solid var(--line)", borderRadius: 9, background: "var(--panel)", color: "var(--tx-1)", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
-              >
-                <Edit3 size={14} /> Редактировать
-              </button>
-              <a
-                href={`/l/${created.slug}`} target="_blank" rel="noreferrer"
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", border: "none", borderRadius: 9, background: "var(--accent)", color: "var(--on-accent)", fontSize: 13, fontWeight: 600, cursor: "pointer", textDecoration: "none" }}
-              >
-                <ExternalLink size={14} /> Открыть
-              </a>
-            </div>
+      <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ maxWidth: 480, width: "100%", padding: "0 24px", textAlign: "center" }}>
+          <div style={{ width: 64, height: 64, borderRadius: 18, background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
+            <Check size={28} color="white" />
           </div>
-
-          <div style={{ border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden", marginBottom: 20 }}>
-            <div style={{ padding: "8px 16px", background: "var(--panel-2)", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ display: "flex", gap: 5 }}>
-                {["#ff5f57", "#febc2e", "#28c840"].map((c) => (
-                  <div key={c} style={{ width: 10, height: 10, borderRadius: "50%", background: c }} />
-                ))}
-              </div>
-              <div style={{ flex: 1, background: "var(--bg)", borderRadius: 6, padding: "4px 12px", fontSize: 11, color: "var(--tx-3)" }}>
-                mvira.uz/l/{created.slug}
-              </div>
-            </div>
-            <div style={{ height: 560, overflow: "hidden", position: "relative", background: "var(--bg)" }}>
-              {createdContent && createdContent.blocks.length > 0 ? (
-                <div style={{ pointerEvents: "none" }}>
-                  <LandingRenderer
-                    blocks={createdContent.blocks}
-                    brandColor={createdContent.brandColor}
-                    bgImage={createdContent.bgImage}
-                    preview={true}
-                  />
-                </div>
-              ) : (
-                <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <div style={{ textAlign: "center", color: "var(--tx-3)", fontSize: 13 }}>
-                    <div style={{ fontSize: 36, marginBottom: 12 }}>🌐</div>
-                    <p>Загрузка превью...</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: 10 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--tx-1)", marginBottom: 8 }}>Лендинг готов!</h1>
+          <p style={{ fontSize: 14, color: "var(--tx-3)", marginBottom: 28 }}>mvira.uz/l/{created.slug}</p>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
             <button
               onClick={() => router.push(`/${locale}/landings`)}
               style={{ padding: "10px 20px", border: "1px solid var(--line)", borderRadius: 9, background: "transparent", color: "var(--tx-2)", fontSize: 13, cursor: "pointer" }}
             >
               ← Все лендинги
             </button>
+            <a
+              href={`/l/${created.slug}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", border: "none", borderRadius: 9, background: "var(--accent)", color: "var(--on-accent)", fontSize: 13, fontWeight: 600, textDecoration: "none" }}
+            >
+              <ExternalLink size={14} /> Открыть
+            </a>
             <button
-              onClick={() => { setCreated(null); setStep(0); setStep1(EMPTY_STEP1); setFilledFromProject(null); setSelectedProjectId(null); }}
+              onClick={() => { setFinished(false); setCreated(null); setStep(0); setStep1(EMPTY_STEP1); setFilledFromProject(null); setSelectedProjectId(null); }}
               style={{ padding: "10px 20px", border: "1px solid var(--line)", borderRadius: 9, background: "var(--panel)", color: "var(--tx-1)", fontSize: 13, cursor: "pointer" }}
             >
               + Создать ещё
@@ -332,6 +272,17 @@ function CreateLandingPageInner() {
           </div>
         </div>
       </div>
+    );
+  }
+
+  // ── LandingEditor inline (step 2 = Превью) ────────────────────────────
+  if (step === 2 && created) {
+    return (
+      <LandingEditor
+        id={created.id}
+        onBack={() => setStep(1)}
+        onDone={() => setStep(3)}
+      />
     );
   }
 
@@ -496,11 +447,7 @@ function CreateLandingPageInner() {
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div
                   onClick={() => logoInputRef.current?.click()}
-                  style={{
-                    width: 72, height: 72, borderRadius: 14, border: "1.5px dashed var(--line)",
-                    background: "var(--panel-2)", display: "flex", alignItems: "center",
-                    justifyContent: "center", cursor: "pointer", overflow: "hidden", flexShrink: 0,
-                  }}
+                  style={{ width: 72, height: 72, borderRadius: 14, border: "1.5px dashed var(--line)", background: "var(--panel-2)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", overflow: "hidden", flexShrink: 0 }}
                 >
                   {step1.logoUrl ? (
                     <img src={step1.logoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -539,9 +486,7 @@ function CreateLandingPageInner() {
                   try {
                     const dataUrl = await resizeImage(file, 400, 0.8);
                     setStep1(p => ({ ...p, logoUrl: dataUrl }));
-                  } catch {
-                    // ignore resize error
-                  }
+                  } catch {}
                   e.target.value = "";
                 }}
               />
@@ -569,74 +514,45 @@ function CreateLandingPageInner() {
               </select>
             </Field>
 
-            {/* ── Image uploads ─────────────────────────────────────── */}
+            {/* ── Background image ─────────────────────────────────────── */}
             <div style={{ borderTop: "1px solid var(--line)", paddingTop: 20 }}>
               <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", marginBottom: 4 }}>Изображения (необязательно)</p>
-              <p style={{ fontSize: 12, color: "var(--tx-3)", marginBottom: 16 }}>AI вставит ваши фото в лендинг — вместо заглушек</p>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                {/* Hero image */}
-                <div>
-                  <p style={{ fontSize: 12, fontWeight: 500, color: "var(--tx-2)", marginBottom: 8 }}>Фото товара / услуги</p>
-                  <label style={{ display: "block", cursor: "pointer" }}>
-                    <div style={{
-                      height: 120, borderRadius: 10, border: "2px dashed var(--line)",
-                      background: "var(--panel)", display: "flex", flexDirection: "column",
-                      alignItems: "center", justifyContent: "center", gap: 6,
-                      overflow: "hidden", position: "relative",
-                      transition: "border-color 0.15s",
-                    }}>
-                      {step1.heroImage ? (
-                        <>
-                          <img src={step1.heroImage} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                          <button
-                            onClick={(e) => { e.preventDefault(); setStep1((p) => ({ ...p, heroImage: "" })); }}
-                            style={{ position: "absolute", top: 6, right: 6, width: 22, height: 22, borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "none", color: "#fff", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}
-                          >✕</button>
-                        </>
-                      ) : uploadingImg === "hero" ? (
-                        <><div style={{ width: 20, height: 20, border: "2px solid var(--accent)", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} /><span style={{ fontSize: 11, color: "var(--tx-3)" }}>Загружаю...</span></>
-                      ) : (
-                        <><span style={{ fontSize: 28 }}>🖼️</span><span style={{ fontSize: 11, color: "var(--tx-3)" }}>Нажмите для загрузки</span><span style={{ fontSize: 10, color: "var(--tx-3)" }}>JPG, PNG, WEBP</span></>
-                      )}
-                    </div>
-                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f, "heroImage"); e.target.value = ""; }} />
-                  </label>
+              <p style={{ fontSize: 12, color: "var(--tx-3)", marginBottom: 16 }}>Фоновое фото для лендинга — AI вставит его вместо заглушки</p>
+              <label style={{ display: "block", cursor: "pointer" }}>
+                <div style={{
+                  height: 120, borderRadius: 10, border: "2px dashed var(--line)",
+                  background: step1.bgImage ? `url(${step1.bgImage}) center/cover` : "var(--panel)",
+                  display: "flex", flexDirection: "column",
+                  alignItems: "center", justifyContent: "center", gap: 6,
+                  overflow: "hidden", position: "relative",
+                }}>
+                  {step1.bgImage ? (
+                    <>
+                      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)" }} />
+                      <span style={{ position: "relative", fontSize: 11, color: "#fff", fontWeight: 500 }}>✓ Фон загружен</span>
+                      <button
+                        onClick={(e) => { e.preventDefault(); setStep1((p) => ({ ...p, bgImage: "" })); }}
+                        style={{ position: "absolute", top: 6, right: 6, width: 22, height: 22, borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "none", color: "#fff", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}
+                      >✕</button>
+                    </>
+                  ) : (
+                    <><span style={{ fontSize: 28 }}>🎨</span><span style={{ fontSize: 11, color: "var(--tx-3)" }}>Нажмите для загрузки</span><span style={{ fontSize: 10, color: "var(--tx-3)" }}>JPG, PNG, WEBP</span></>
+                  )}
                 </div>
-
-                {/* Background image */}
-                <div>
-                  <p style={{ fontSize: 12, fontWeight: 500, color: "var(--tx-2)", marginBottom: 8 }}>Фоновое изображение</p>
-                  <label style={{ display: "block", cursor: "pointer" }}>
-                    <div style={{
-                      height: 120, borderRadius: 10, border: "2px dashed var(--line)",
-                      background: step1.bgImage ? `url(${step1.bgImage}) center/cover` : "var(--panel)",
-                      display: "flex", flexDirection: "column",
-                      alignItems: "center", justifyContent: "center", gap: 6,
-                      overflow: "hidden", position: "relative",
-                      transition: "border-color 0.15s",
-                    }}>
-                      {step1.bgImage ? (
-                        <>
-                          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)" }} />
-                          <span style={{ position: "relative", fontSize: 11, color: "#fff", fontWeight: 500 }}>✓ Фон загружен</span>
-                          <button
-                            onClick={(e) => { e.preventDefault(); setStep1((p) => ({ ...p, bgImage: "" })); }}
-                            style={{ position: "absolute", top: 6, right: 6, width: 22, height: 22, borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "none", color: "#fff", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}
-                          >✕</button>
-                        </>
-                      ) : uploadingImg === "bg" ? (
-                        <><div style={{ width: 20, height: 20, border: "2px solid var(--accent)", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} /><span style={{ fontSize: 11, color: "var(--tx-3)" }}>Загружаю...</span></>
-                      ) : (
-                        <><span style={{ fontSize: 28 }}>🎨</span><span style={{ fontSize: 11, color: "var(--tx-3)" }}>Нажмите для загрузки</span><span style={{ fontSize: 10, color: "var(--tx-3)" }}>JPG, PNG, WEBP</span></>
-                      )}
-                    </div>
-                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f, "bgImage"); e.target.value = ""; }} />
-                  </label>
-                </div>
-              </div>
+                <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  if (f) {
+                    try {
+                      const dataUrl = await resizeImage(f, 1920, 0.7);
+                      setStep1(p => ({ ...p, bgImage: dataUrl }));
+                    } catch {}
+                  }
+                  e.target.value = "";
+                }} />
+              </label>
             </div>
 
-            {/* ── Price fields (optional) ──────────────────────────────────── */}
+            {/* ── Price fields ─────────────────────────────────────────── */}
             <div style={{ borderTop: "1px solid var(--line)", paddingTop: 20 }}>
               <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", marginBottom: 4 }}>🏷️ Цена (необязательно)</p>
               <p style={{ fontSize: 12, color: "var(--tx-3)", marginBottom: 16 }}>Если у вас есть цена — AI автоматически добавит блок с ценой в лендинг</p>
@@ -653,25 +569,35 @@ function CreateLandingPageInner() {
               </div>
             </div>
 
+            {error && (
+              <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#dc2626" }}>
+                {error}
+              </div>
+            )}
+
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
               <button onClick={goBack} style={backBtnStyle}><ChevronLeft size={16} /> Назад</button>
-              <button onClick={() => setStep(2)} disabled={!canNext1} style={nextBtnStyle(!canNext1)}>
-                Далее <ChevronRight size={16} />
+              <button
+                onClick={handleGenerate}
+                disabled={!canNext1 || generating}
+                style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--accent)", color: "var(--on-accent)", border: "none", borderRadius: 10, padding: "11px 24px", fontSize: 14, fontWeight: 700, cursor: (!canNext1 || generating) ? "not-allowed" : "pointer", opacity: (!canNext1 || generating) ? 0.6 : 1 }}
+              >
+                <Sparkles size={15} style={generating ? { animation: "spin 1s linear infinite" } : undefined} />
+                {generating ? "Создаём с AI..." : "Создать и редактировать"}
               </button>
             </div>
           </div>
         )}
 
-        {/* ── Step 2 — Launch settings ───────────────────────────────────── */}
-        {step === 2 && (
+        {/* ── Step 3 — Launch settings ───────────────────────────────────── */}
+        {step === 3 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <p style={{ fontSize: 14, color: "var(--tx-2)", marginBottom: 4 }}>
-              Настройте жизненный цикл и маршрутизацию заявок. Лендинг будет создан как черновик — опубликуете вручную.
+              Настройте жизненный цикл и маршрутизацию заявок.
             </p>
 
-            {/* Lifecycle */}
             <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: "18px 20px" }}>
-              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", marginBottom: 14 }}>
                 ⚡ Жизненный цикл
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -687,15 +613,12 @@ function CreateLandingPageInner() {
                   <option value="7">7 дней</option>
                   <option value="30">30 дней</option>
                 </select>
-                <p style={{ fontSize: 11, color: "var(--tx-3)", margin: 0 }}>
-                  Лендинг автоматически закроется через указанный срок
-                </p>
+                <p style={{ fontSize: 11, color: "var(--tx-3)", margin: 0 }}>Лендинг автоматически закроется через указанный срок</p>
               </div>
             </div>
 
-            {/* Routing */}
             <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 12, padding: "18px 20px" }}>
-              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", marginBottom: 14 }}>
                 🔀 Куда идут заявки
               </p>
               {[
@@ -730,12 +653,12 @@ function CreateLandingPageInner() {
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <button onClick={goBack} style={backBtnStyle}><ChevronLeft size={16} /> Назад</button>
               <button
-                onClick={handleGenerate}
-                disabled={generating}
-                style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--accent)", color: "var(--on-accent)", border: "none", borderRadius: 10, padding: "11px 24px", fontSize: 14, fontWeight: 700, cursor: generating ? "not-allowed" : "pointer", opacity: generating ? 0.7 : 1 }}
+                onClick={handleSaveSettings}
+                disabled={saving}
+                style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--accent)", color: "var(--on-accent)", border: "none", borderRadius: 10, padding: "11px 24px", fontSize: 14, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}
               >
-                <Sparkles size={16} />
-                {generating ? "Создаём с AI..." : "Создать черновик"}
+                <Check size={16} />
+                {saving ? "Сохраняем..." : "Применить и завершить"}
               </button>
             </div>
           </div>

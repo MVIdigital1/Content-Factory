@@ -211,7 +211,7 @@ export default function LandingsPage() {
               >
                 <div style={{ height: 140, background: "var(--panel-2)", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
                   {landing.logo_url ? (
-                    <img src={landing.logo_url} alt="" style={{ width: 60, height: 60, borderRadius: 14, objectFit: "cover", boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }} />
+                    <img src={landing.logo_url} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
                   ) : (
                     <FileText size={32} style={{ color: "var(--tx-3)" }} />
                   )}
