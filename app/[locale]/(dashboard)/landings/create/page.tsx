@@ -66,6 +66,7 @@ const ANIMATION_PRESETS = [
 type AnimPresetId = typeof ANIMATION_PRESETS[number]["id"];
 
 const STORAGE_KEY = "landing_draft_v1";
+const WIZARD_STATE_KEY = "landing_wizard_state_v1";
 
 // ── Image resize helper ────────────────────────────────────────────────────
 function resizeImage(file: File, maxSide: number, quality: number): Promise<string> {
@@ -98,7 +99,17 @@ function CreateLandingPageInner() {
   const campaignId = searchParams.get("campaign_id");
 
   // step 0 = project selection, 1 = business details, 2 = preview (LandingEditor), 3 = launch settings
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState<number>(() => {
+    try {
+      const saved = sessionStorage.getItem(WIZARD_STATE_KEY);
+      if (saved) {
+        const d = JSON.parse(saved);
+        if ((d.step === 2 || d.step === 3 || d.step === 4) && !d.created) return 1;
+        return d.step ?? 0;
+      }
+    } catch {}
+    return 0;
+  });
   const [step1, setStep1] = useState<Step1>(() => {
     const offer = searchParams.get("product") || "";
     const audience = searchParams.get("audience") || "";
@@ -116,7 +127,16 @@ function CreateLandingPageInner() {
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [created, setCreated] = useState<{ id: string; slug: string } | null>(null);
+  const [created, setCreated] = useState<{ id: string; slug: string } | null>(() => {
+    try {
+      const saved = sessionStorage.getItem(WIZARD_STATE_KEY);
+      if (saved) {
+        const d = JSON.parse(saved);
+        return d.created ?? null;
+      }
+    } catch {}
+    return null;
+  });
   const [finished, setFinished] = useState(false);
   const [animPreset, setAnimPreset] = useState<AnimPresetId>("float");
   const [productPhoto, setProductPhoto] = useState<string>("");
@@ -141,6 +161,12 @@ function CreateLandingPageInner() {
   useEffect(() => {
     try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(step1)); } catch {}
   }, [step1]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(WIZARD_STATE_KEY, JSON.stringify({ step, created }));
+    } catch {}
+  }, [step, created]);
 
   const set1 = (field: keyof Step1) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -263,7 +289,10 @@ function CreateLandingPageInner() {
           <p style={{ fontSize: 14, color: "var(--tx-3)", marginBottom: 28 }}>mvira.uz/l/{created.slug}</p>
           <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
             <button
-              onClick={() => router.push(`/${locale}/landings`)}
+              onClick={() => {
+                try { sessionStorage.removeItem(WIZARD_STATE_KEY); sessionStorage.removeItem(STORAGE_KEY); } catch {}
+                router.push(`/${locale}/landings`);
+              }}
               style={{ padding: "10px 20px", border: "1px solid var(--line)", borderRadius: 9, background: "transparent", color: "var(--tx-2)", fontSize: 13, cursor: "pointer" }}
             >
               ← Все лендинги
@@ -277,7 +306,10 @@ function CreateLandingPageInner() {
               <ExternalLink size={14} /> Открыть
             </a>
             <button
-              onClick={() => { setFinished(false); setCreated(null); setStep(0); setStep1(EMPTY_STEP1); setFilledFromProject(null); setSelectedProjectId(null); }}
+              onClick={() => {
+                try { sessionStorage.removeItem(WIZARD_STATE_KEY); sessionStorage.removeItem(STORAGE_KEY); } catch {}
+                setFinished(false); setCreated(null); setStep(0); setStep1(EMPTY_STEP1); setFilledFromProject(null); setSelectedProjectId(null);
+              }}
               style={{ padding: "10px 20px", border: "1px solid var(--line)", borderRadius: 9, background: "var(--panel)", color: "var(--tx-1)", fontSize: 13, cursor: "pointer" }}
             >
               + Создать ещё
@@ -626,12 +658,12 @@ function CreateLandingPageInner() {
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
               <button onClick={goBack} style={backBtnStyle}><ChevronLeft size={16} /> Назад</button>
               <button
-                onClick={handleGenerate}
+                onClick={() => created ? setStep(2) : handleGenerate()}
                 disabled={!canNext1 || generating}
                 style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--accent)", color: "var(--on-accent)", border: "none", borderRadius: 10, padding: "11px 24px", fontSize: 14, fontWeight: 700, cursor: (!canNext1 || generating) ? "not-allowed" : "pointer", opacity: (!canNext1 || generating) ? 0.6 : 1 }}
               >
                 <Sparkles size={15} style={generating ? { animation: "spin 1s linear infinite" } : undefined} />
-                {generating ? "Создаём с AI..." : "Создать и редактировать"}
+                {generating ? "Создаём с AI..." : created ? "Далее →" : "Создать и редактировать"}
               </button>
             </div>
           </div>
