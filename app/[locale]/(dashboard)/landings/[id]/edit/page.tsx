@@ -12,10 +12,12 @@ function EditPage() {
   const fromCampaign = sp.get("from") === "campaign";
   const id = params.id as string;
   return (
-    <LandingEditor
-      id={id}
-      onBack={() => fromCampaign ? router.back() : router.push(`/${locale}/landings`)}
-    />
+    <div style={{ height: "100vh" }}>
+      <LandingEditor
+        id={id}
+        onBack={() => fromCampaign ? router.back() : router.push(`/${locale}/landings`)}
+      />
+    </div>
   );
 }
 

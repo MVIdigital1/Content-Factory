@@ -169,7 +169,7 @@ export default function LandingEditor({ id, onBack, onDone }: LandingEditorProps
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "'Inter', -apple-system, sans-serif", background: C.bg, color: C.text, overflow: "hidden" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", fontFamily: "'Inter', -apple-system, sans-serif", background: C.bg, color: C.text, overflow: "hidden" }}>
 
       {/* ── Top bar ──────────────────────────────────────────────────────── */}
       <header style={{ height: 52, borderBottom: `1px solid ${C.border}`, background: C.surface, display: "flex", alignItems: "center", gap: 12, padding: "0 20px", flexShrink: 0, zIndex: 10 }}>

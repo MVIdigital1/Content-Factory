@@ -278,11 +278,43 @@ function CreateLandingPageInner() {
   // ── LandingEditor inline (step 2 = Превью) ────────────────────────────
   if (step === 2 && created) {
     return (
-      <LandingEditor
-        id={created.id}
-        onBack={() => setStep(1)}
-        onDone={() => setStep(3)}
-      />
+      <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", background: "var(--bg)" }}>
+        {/* Step indicator strip */}
+        <div style={{ padding: "12px 24px", borderBottom: "1px solid var(--line)", flexShrink: 0 }}>
+          <div style={{ display: "flex", gap: 0, alignItems: "center", maxWidth: 760, margin: "0 auto" }}>
+            {STEPS.map((label, i) => {
+              const done = step > i;
+              const active = step === i;
+              return (
+                <div key={i} style={{ display: "flex", alignItems: "center", flex: i < STEPS.length - 1 ? 1 : "none" }}>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    onClick={() => { if (i < step) setStep(i); }}
+                  >
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, background: done || active ? "var(--accent)" : "var(--chip)", color: done || active ? "var(--on-accent)" : "var(--tx-3)", flexShrink: 0, cursor: i < step ? "pointer" : "default" }}>
+                      {done ? <Check size={13} /> : i + 1}
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: active ? 600 : 400, color: active ? "var(--tx-1)" : "var(--tx-3)", whiteSpace: "nowrap", cursor: i < step ? "pointer" : "default" }}>
+                      {label}
+                    </span>
+                  </div>
+                  {i < STEPS.length - 1 && (
+                    <div style={{ flex: 1, height: 1, background: done ? "var(--accent)" : "var(--line)", margin: "0 12px" }} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        {/* Editor fills remaining height */}
+        <div style={{ flex: 1, overflow: "hidden" }}>
+          <LandingEditor
+            id={created.id}
+            onBack={() => setStep(1)}
+            onDone={() => setStep(3)}
+          />
+        </div>
+      </div>
     );
   }
 
@@ -307,11 +339,14 @@ function CreateLandingPageInner() {
             const active = step === i;
             return (
               <div key={i} style={{ display: "flex", alignItems: "center", flex: i < STEPS.length - 1 ? 1 : "none" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, background: done || active ? "var(--accent)" : "var(--chip)", color: done || active ? "var(--on-accent)" : "var(--tx-3)", flexShrink: 0 }}>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: 8 }}
+                  onClick={() => { if (i < step) setStep(i); }}
+                >
+                  <div style={{ width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, background: done || active ? "var(--accent)" : "var(--chip)", color: done || active ? "var(--on-accent)" : "var(--tx-3)", flexShrink: 0, cursor: i < step ? "pointer" : "default" }}>
                     {done ? <Check size={13} /> : i + 1}
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: active ? 600 : 400, color: active ? "var(--tx-1)" : "var(--tx-3)", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: 13, fontWeight: active ? 600 : 400, color: active ? "var(--tx-1)" : "var(--tx-3)", whiteSpace: "nowrap", cursor: i < step ? "pointer" : "default" }}>
                     {label}
                   </span>
                 </div>
