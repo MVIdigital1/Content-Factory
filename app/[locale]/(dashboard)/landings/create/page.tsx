@@ -55,6 +55,16 @@ const NICHES = [
 
 const TONES = ["профессиональный", "дружелюбный", "молодёжный", "экспертный", "вдохновляющий"];
 
+const ANIMATION_PRESETS = [
+  { id: "float",  label: "Парение"   },
+  { id: "swing",  label: "Качание"   },
+  { id: "tilt3d", label: "3D-наклон" },
+  { id: "pulse",  label: "Пульс"     },
+  { id: "combo",  label: "Комбо"     },
+] as const;
+
+type AnimPresetId = typeof ANIMATION_PRESETS[number]["id"];
+
 const STORAGE_KEY = "landing_draft_v1";
 
 // ── Image resize helper ────────────────────────────────────────────────────
@@ -108,6 +118,9 @@ function CreateLandingPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<{ id: string; slug: string } | null>(null);
   const [finished, setFinished] = useState(false);
+  const [animPreset, setAnimPreset] = useState<AnimPresetId>("float");
+  const [productPhoto, setProductPhoto] = useState<string>("");
+  const productPhotoInputRef = useRef<HTMLInputElement>(null);
 
   // Project selection
   const [projects, setProjects] = useState<Project[]>([]);
@@ -236,7 +249,7 @@ function CreateLandingPageInner() {
     }
   };
 
-  const STEPS = ["Проект", "Детали", "Превью", "Запуск"];
+  const STEPS = ["Проект", "Детали", "Превью", "Анимация", "Запуск"];
 
   // ── Success screen ─────────────────────────────────────────────────────
   if (finished && created) {
@@ -624,8 +637,168 @@ function CreateLandingPageInner() {
           </div>
         )}
 
-        {/* ── Step 3 — Launch settings ───────────────────────────────────── */}
+        {/* ── Step 3 — Анимация товара ─────────────────────────────── */}
         {step === 3 && (
+          <>
+            <style>{`
+              @keyframes anim-float {
+                0%,100% { transform: translateY(0); }
+                50%      { transform: translateY(-14px); }
+              }
+              @keyframes anim-swing {
+                0%,100% { transform: rotate(0deg); }
+                25%     { transform: rotate(-9deg); }
+                75%     { transform: rotate(9deg); }
+              }
+              @keyframes anim-tilt3d {
+                0%,100% { transform: perspective(500px) rotateY(0deg) rotateX(0deg); }
+                25%     { transform: perspective(500px) rotateY(18deg) rotateX(6deg); }
+                75%     { transform: perspective(500px) rotateY(-18deg) rotateX(-6deg); }
+              }
+              @keyframes anim-pulse {
+                0%,100% { transform: scale(1); }
+                50%     { transform: scale(1.12); }
+              }
+              @keyframes anim-combo {
+                0%,100% { transform: translateY(0) rotate(0deg); }
+                50%     { transform: translateY(-12px) rotate(4deg); }
+              }
+            `}</style>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 20 }}>
+
+              {/* ── Левая колонка: бесплатная CSS-анимация ────────── */}
+              <div style={{ flex: "1 1 300px", display: "flex", flexDirection: "column", gap: 16, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "20px 22px" }}>
+                <div>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "var(--tx-1)", marginBottom: 2 }}>Бесплатно — CSS-анимация</p>
+                  <p style={{ fontSize: 12, color: "var(--tx-3)" }}>Загрузите фото товара и выберите эффект</p>
+                </div>
+
+                {/* Зона загрузки */}
+                <div
+                  onClick={() => productPhotoInputRef.current?.click()}
+                  style={{ height: 160, borderRadius: 10, border: "2px dashed var(--line)", background: "var(--panel-2)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer", overflow: "hidden", position: "relative", transition: "border-color 0.15s" }}
+                >
+                  {productPhoto ? (
+                    <>
+                      <div style={{ pointerEvents: "none", width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <img
+                          src={productPhoto}
+                          alt="preview"
+                          style={{
+                            maxHeight: 140,
+                            maxWidth: "100%",
+                            objectFit: "contain",
+                            animationName: `anim-${animPreset}`,
+                            animationDuration: animPreset === "swing" || animPreset === "pulse" ? "2s" : animPreset === "tilt3d" ? "4s" : "3s",
+                            animationTimingFunction: "ease-in-out",
+                            animationIterationCount: "infinite",
+                            transformOrigin: animPreset === "swing" ? "top center" : "center center",
+                          }}
+                        />
+                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setProductPhoto(""); }}
+                        style={{ position: "absolute", top: 6, right: 6, width: 22, height: 22, borderRadius: "50%", background: "rgba(0,0,0,0.55)", border: "none", color: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}
+                      >✕</button>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: 32 }}>🖼️</span>
+                      <span style={{ fontSize: 12, color: "var(--tx-3)", fontWeight: 500 }}>Нажмите или перетащите фото</span>
+                      <span style={{ fontSize: 11, color: "var(--tx-3)" }}>JPG, PNG, WEBP</span>
+                    </>
+                  )}
+                </div>
+                <input
+                  ref={productPhotoInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    try {
+                      const dataUrl = await resizeImage(f, 800, 0.85);
+                      setProductPhoto(dataUrl);
+                    } catch {}
+                    e.target.value = "";
+                  }}
+                />
+
+                {/* Выбор пресета */}
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-2)", marginBottom: 8 }}>Эффект анимации</p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {ANIMATION_PRESETS.map((p) => {
+                      const active = animPreset === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          onClick={() => setAnimPreset(p.id)}
+                          style={{ padding: "7px 14px", borderRadius: 8, border: `1.5px solid ${active ? "var(--accent)" : "var(--line)"}`, background: active ? "color-mix(in srgb, var(--accent) 12%, var(--panel))" : "var(--panel)", color: active ? "var(--accent)" : "var(--tx-2)", fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", transition: "all 0.15s" }}
+                        >
+                          {p.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {!productPhoto && (
+                  <p style={{ fontSize: 11, color: "var(--tx-3)", textAlign: "center" }}>
+                    Загрузите фото чтобы увидеть анимацию
+                  </p>
+                )}
+              </div>
+
+              {/* ── Правая колонка: 3D-анимация (заглушка) ────────── */}
+              <div style={{ flex: "1 1 300px", display: "flex", flexDirection: "column", gap: 16, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 14, padding: "20px 22px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "var(--tx-1)", margin: 0 }}>3D-анимация (Pro)</p>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 20, background: "color-mix(in srgb, var(--accent) 15%, var(--panel-2))", color: "var(--accent)" }}>$0.40</span>
+                </div>
+
+                {/* Видео-заглушка */}
+                <div style={{ borderRadius: 10, overflow: "hidden", background: "var(--panel-2)", border: "1px solid var(--line)" }}>
+                  <video
+                    src=""
+                    controls
+                    style={{ width: "100%", display: "block", maxHeight: 180, background: "#000" }}
+                  />
+                  <p style={{ fontSize: 11, color: "var(--tx-3)", textAlign: "center", padding: "8px 0" }}>
+                    Пример 3D-анимации
+                  </p>
+                </div>
+
+                <p style={{ fontSize: 13, color: "var(--tx-2)", lineHeight: 1.6, margin: 0 }}>
+                  Загрузите фото товара → получите вращающуюся 3D-модель товара, готовую для рекламы.
+                </p>
+
+                <div style={{ marginTop: "auto" }}>
+                  <button
+                    disabled
+                    style={{ width: "100%", padding: "11px 0", borderRadius: 10, border: "1px solid var(--line)", background: "var(--chip)", color: "var(--tx-3)", fontSize: 14, fontWeight: 600, cursor: "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                  >
+                    Создать 3D за $0.40
+                  </button>
+                  <p style={{ fontSize: 11, color: "var(--tx-3)", textAlign: "center", marginTop: 6 }}>Скоро</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Навигация */}
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+              <button onClick={goBack} style={backBtnStyle}><ChevronLeft size={16} /> Назад</button>
+              <button onClick={() => setStep(4)} style={nextBtnStyle(false)}>
+                Далее <ChevronRight size={16} />
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── Step 4 — Launch settings ───────────────────────────────────── */}
+        {step === 4 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <p style={{ fontSize: 14, color: "var(--tx-2)", marginBottom: 4 }}>
               Настройте жизненный цикл и маршрутизацию заявок.
