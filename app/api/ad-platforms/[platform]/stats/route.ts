@@ -38,6 +38,86 @@ async function getMetaStats(rec: any, days: number, leads: number) {
     conversion: clicks > 0 ? Number(((leads / clicks) * 100).toFixed(2)) : 0 });
 }
 
+async function getYandexStats(
+  rec: any,
+  days: number,
+  leads: number,
+  userId: number | string
+): Promise<NextResponse> {
+  const today = new Date();
+  const dateFrom = new Date(today.getTime() - days * 86_400_000).toISOString().split("T")[0];
+  const dateTo = today.toISOString().split("T")[0];
+
+  const reportBody = JSON.stringify({
+    params: {
+      SelectionCriteria: { DateFrom: dateFrom, DateTo: dateTo },
+      FieldNames: ["Impressions", "Clicks", "Cost"],
+      ReportName: "mvira-stats",
+      ReportType: "CAMPAIGN_PERFORMANCE_REPORT",
+      DateRangeType: "CUSTOM_DATE",
+      Format: "TSV",
+      IncludeVAT: "NO",
+      IncludeDiscount: "NO",
+    },
+  });
+  const reportHeaders: Record<string, string> = {
+    Authorization: `Bearer ${rec.access_token}`,
+    "Content-Type": "application/json; charset=utf-8",
+    "Accept-Language": "ru",
+    skipReportHeader: "true",
+    skipReportSummary: "true",
+    returnMoneyInMicros: "false",
+  };
+
+  const deadline = Date.now() + 25_000;
+  let tsv: string | null = null;
+  while (Date.now() < deadline) {
+    const res = await fetch("https://api.direct.yandex.com/v5/reports", {
+      method: "POST",
+      headers: reportHeaders,
+      body: reportBody,
+    });
+    if (res.status === 401) {
+      await query(
+        "UPDATE ad_platforms SET is_active = false WHERE user_id = $1 AND platform_key = 'yandex'",
+        [userId]
+      );
+      return NextResponse.json({ error: "token_expired", needs_reconnect: true }, { status: 401 });
+    }
+    if (res.status === 200) { tsv = await res.text(); break; }
+    if (res.status === 400) {
+      const err = await res.json().catch(() => ({})) as any;
+      throw new Error(err?.error?.errorCode ?? "yandex_bad_request");
+    }
+    await new Promise(r => setTimeout(r, 3000));
+  }
+  if (!tsv) throw new Error("yandex_report_timeout");
+
+  const lines = tsv.trim().split("\n");
+  const colNames = lines[0].split("\t");
+  const idx = (name: string) => colNames.indexOf(name);
+  let totalImpressions = 0, totalClicks = 0, totalCost = 0;
+  for (const line of lines.slice(1).filter(l => l.trim())) {
+    const cols = line.split("\t");
+    totalImpressions += Number(cols[idx("Impressions")]) || 0;
+    totalClicks += Number(cols[idx("Clicks")]) || 0;
+    totalCost += Number(cols[idx("Cost")]) || 0;
+  }
+  const ctr = totalImpressions > 0
+    ? Number(((totalClicks / totalImpressions) * 100).toFixed(2))
+    : 0;
+  return NextResponse.json({
+    connected: true,
+    isMock: false,
+    spend: totalCost,
+    impressions: totalImpressions,
+    clicks: totalClicks,
+    ctr,
+    leads,
+    conversion: totalClicks > 0 ? Number(((leads / totalClicks) * 100).toFixed(2)) : 0,
+  });
+}
+
 function mockStats(rec: any, leads: number) {
   const spend = rec.monthly_spend ?? Math.round(Math.random() * 45000 + 5000);
   const impressions = Math.round(spend * 38);
@@ -68,7 +148,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plat
   try {
     if (platform === "google" && rec.access_token && rec.ad_account_id) return await getGoogleStats(rec, days, leads);
     if (platform === "meta" && rec.access_token && rec.ad_account_id) return await getMetaStats(rec, days, leads);
-  } catch {}
+    if (platform === "yandex" && rec.access_token) return await getYandexStats(rec, days, leads, user.id);
+  } catch (e: any) {
+    if (platform === "yandex") {
+      return NextResponse.json({ connected: true, isMock: false, error: String(e?.message ?? "api_error") });
+    }
+  }
 
   return mockStats(rec, leads);
 }

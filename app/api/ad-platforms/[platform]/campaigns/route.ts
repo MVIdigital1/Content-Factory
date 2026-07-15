@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
-import { queryOne } from "@/lib/db";
+import { query, queryOne } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 
 const MOCK_NAMES: Record<string, string[]> = {
@@ -67,7 +67,81 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plat
           clicks: Number(ins.clicks) || 0, ctr: Number(Number(ins.ctr || 0).toFixed(2)), leads: 0, isMock: false };
       }) });
     }
-  } catch {}
+    if (platform === "yandex" && rec.access_token) {
+      const today = new Date();
+      const dateFrom = new Date(today.getTime() - 30 * 86_400_000).toISOString().split("T")[0];
+      const dateTo = today.toISOString().split("T")[0];
+
+      const reportBody = JSON.stringify({
+        params: {
+          SelectionCriteria: { DateFrom: dateFrom, DateTo: dateTo },
+          FieldNames: ["CampaignId", "CampaignName", "CampaignStatus", "Impressions", "Clicks", "Cost", "Ctr"],
+          ReportName: "mvira-campaigns",
+          ReportType: "CAMPAIGN_PERFORMANCE_REPORT",
+          DateRangeType: "CUSTOM_DATE",
+          Format: "TSV",
+          IncludeVAT: "NO",
+          IncludeDiscount: "NO",
+        },
+      });
+      const reportHeaders: Record<string, string> = {
+        Authorization: `Bearer ${rec.access_token}`,
+        "Content-Type": "application/json; charset=utf-8",
+        "Accept-Language": "ru",
+        skipReportHeader: "true",
+        skipReportSummary: "true",
+        returnMoneyInMicros: "false",
+      };
+
+      const deadline = Date.now() + 25_000;
+      let tsv: string | null = null;
+      while (Date.now() < deadline) {
+        const res = await fetch("https://api.direct.yandex.com/v5/reports", {
+          method: "POST",
+          headers: reportHeaders,
+          body: reportBody,
+        });
+        if (res.status === 401) {
+          await query(
+            "UPDATE ad_platforms SET is_active = false WHERE user_id = $1 AND platform_key = 'yandex'",
+            [user.id]
+          );
+          return NextResponse.json({ error: "token_expired", needs_reconnect: true }, { status: 401 });
+        }
+        if (res.status === 200) { tsv = await res.text(); break; }
+        if (res.status === 400) {
+          const err = await res.json().catch(() => ({})) as any;
+          throw new Error(err?.error?.errorCode ?? "yandex_bad_request");
+        }
+        // 201 (queued) or 202 (processing) — wait 3s and retry
+        await new Promise(r => setTimeout(r, 3000));
+      }
+      if (!tsv) throw new Error("yandex_report_timeout");
+
+      const lines = tsv.trim().split("\n");
+      const colNames = lines[0].split("\t");
+      const idx = (name: string) => colNames.indexOf(name);
+      const campaigns = lines.slice(1).filter(l => l.trim()).map(line => {
+        const cols = line.split("\t");
+        return {
+          id: cols[idx("CampaignId")] ?? "",
+          name: cols[idx("CampaignName")] ?? "",
+          status: cols[idx("CampaignStatus")] === "SERVING" ? "active" : "paused",
+          spend: Number(cols[idx("Cost")]) || 0,
+          impressions: Number(cols[idx("Impressions")]) || 0,
+          clicks: Number(cols[idx("Clicks")]) || 0,
+          ctr: Number(Number(cols[idx("Ctr")] || 0).toFixed(2)),
+          leads: 0,
+          isMock: false,
+        };
+      });
+      return NextResponse.json({ connected: true, campaigns });
+    }
+  } catch (e: any) {
+    if (platform === "yandex") {
+      return NextResponse.json({ connected: true, campaigns: [], error: String(e?.message ?? "api_error") });
+    }
+  }
 
   return NextResponse.json({ connected: true, campaigns: mockCampaigns(platform), isMock: true });
 }
