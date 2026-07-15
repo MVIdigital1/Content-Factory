@@ -30,8 +30,7 @@ export async function GET(req: NextRequest) {
 
   await query(
     `INSERT INTO ad_platforms (user_id, platform_key, name, color, abbr, access_token, refresh_token, is_active, status, updated_at)
-     VALUES ($1, 'yandex', 'Яндекс Директ', '#FFDB4D', 'Я', $2, $3, true, 'active', NOW())
-     ON CONFLICT (user_id, platform_key) DO UPDATE SET access_token = $2, refresh_token = $3, is_active = true, updated_at = NOW()`,
+     VALUES ($1, 'yandex', 'Яндекс Директ', '#FFDB4D', 'Я', $2, $3, true, 'active', NOW())`,
     [user.id, tokens.access_token, tokens.refresh_token ?? null]
   );
 

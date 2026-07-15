@@ -131,11 +131,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plat
   const { platform } = await params;
   const period = req.nextUrl.searchParams.get("period") ?? "30d";
   const days = PERIOD_DAYS[period] ?? 30;
+  const accountId = req.nextUrl.searchParams.get("id");
 
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const rec = await queryOne<any>("SELECT * FROM ad_platforms WHERE user_id = $1 AND platform_key = $2 AND is_active = true", [user.id, platform]);
+  const rec = accountId
+    ? await queryOne<any>("SELECT * FROM ad_platforms WHERE id = $1 AND user_id = $2 AND is_active = true", [accountId, user.id])
+    : await queryOne<any>("SELECT * FROM ad_platforms WHERE user_id = $1 AND platform_key = $2 AND is_active = true ORDER BY created_at LIMIT 1", [user.id, platform]);
   if (!rec) return NextResponse.json({ connected: false });
 
   const since = new Date(Date.now() - days * 86_400_000).toISOString();

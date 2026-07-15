@@ -1309,14 +1309,6 @@ function IntegrationsPageInner() {
 
   // Modals / drawers
   const [addTgModal, setAddTgModal] = useState(false);
-  const [adDrawer, setAdDrawer] = useState<{
-    platform: (typeof AD_PLATFORMS)[0];
-    record: any;
-  } | null>(null);
-  const [selectedPlatform, setSelectedPlatform] = useState<{
-    platform: (typeof AD_PLATFORMS)[0];
-    record: any;
-  } | null>(null);
   const [channelModal, setChannelModal] = useState<{
     integration: Integration;
     platform: any;
@@ -1601,350 +1593,125 @@ function IntegrationsPageInner() {
 
         {/* Ad platforms */}
         {activeTab === "ads" && (
-          <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+          <div style={{ maxWidth: 680, display: "flex", flexDirection: "column", gap: 10 }}>
+            {AD_PLATFORMS.map((p) => {
+              const records = (adPlatforms as any[]).filter(
+                (a) => (a.platform_key ?? a.platform) === p.key,
+              );
+              const isConnected = records.length > 0;
+              const isSoon = !!(p as any).soon;
 
-            {/* ── Left column ── */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              {/* Три метрики вверху */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(3, 1fr)",
-                  gap: 10,
-                  marginBottom: 20,
-                }}
-              >
-                {[
-                  { label: "Подключено", value: adPlatforms.length, unit: "кабинетов" },
-                  { label: "Расход за месяц", value: "₽0", unit: "" },
-                  { label: "Лидов за месяц", value: "0", unit: "" },
-                ].map((m) => (
-                  <div
-                    key={m.label}
-                    style={{
-                      padding: "14px 16px",
-                      background: "var(--panel)",
-                      border: "0.5px solid var(--line)",
-                      borderRadius: 12,
-                    }}
-                  >
-                    <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0, marginBottom: 6 }}>
-                      {m.label}
-                    </p>
-                    <p style={{ fontSize: 22, fontWeight: 700, color: "var(--tx-1)", margin: 0 }}>
-                      {m.value}
-                    </p>
-                    {m.unit && (
-                      <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0, marginTop: 2 }}>
-                        {m.unit}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Карточки платформ */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {AD_PLATFORMS.map((p) => {
-                  const record = (adPlatforms as any[]).find(
-                    (a) => (a.platform_key ?? a.platform) === p.key,
-                  );
-                  const isConnected = !!record;
-                  const isSelected = selectedPlatform?.platform.key === p.key;
-
-                  return (
-                    <div
-                      key={p.key}
-                      onClick={() => {
-                        if (isConnected) setSelectedPlatform({ platform: p, record });
-                      }}
-                      style={{
-                        background: isSelected ? "var(--hover)" : "var(--panel)",
-                        border: `0.5px solid ${
-                          isSelected
-                            ? "var(--accent)"
-                            : isConnected
-                            ? "color-mix(in srgb, var(--pos) 30%, transparent)"
-                            : "var(--line)"
-                        }`,
-                        borderRadius: 12,
-                        padding: "14px 16px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 14,
-                        cursor: isConnected ? "pointer" : "default",
-                        transition: "border-color 0.15s, background 0.15s",
-                      }}
-                      onMouseEnter={(e) => {
-                        if (isConnected && !isSelected)
-                          (e.currentTarget as HTMLElement).style.background = "var(--hover)";
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isSelected)
-                          (e.currentTarget as HTMLElement).style.background = "var(--panel)";
-                      }}
-                    >
-                      <PlatformIcon
-                        color={p.color}
-                        abbr={p.abbr}
-                        textColor={(p as any).textColor}
-                        size={44}
-                      />
-
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
-                          <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>
-                            {p.name}
-                          </p>
-                          {isConnected && (
-                            <span
-                              style={{
-                                fontSize: 9,
-                                padding: "2px 7px",
-                                borderRadius: 7,
-                                background: "var(--pos-dim)",
-                                color: "var(--pos)",
-                                fontWeight: 700,
-                              }}
-                            >
-                              Активен
-                            </span>
-                          )}
-                          {(p as any).soon && !isConnected && (
-                            <span
-                              style={{
-                                fontSize: 9,
-                                padding: "2px 7px",
-                                borderRadius: 7,
-                                background: "var(--chip)",
-                                color: "var(--tx-3)",
-                                fontWeight: 600,
-                              }}
-                            >
-                              Скоро
-                            </span>
-                          )}
-                        </div>
-                        <p style={{ fontSize: 11, color: "var(--tx-3)", margin: 0 }}>
-                          {isConnected
-                            ? record.ad_account_id ?? record.account_name ?? p.desc
-                            : p.desc}
-                        </p>
-                      </div>
-
-                      {isConnected ? (
-                        <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
-                          <div style={{ textAlign: "right" }}>
-                            <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0 }}>Расход</p>
-                            <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>
-                              ₽0
-                            </p>
-                          </div>
-                          <div style={{ textAlign: "right" }}>
-                            <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0 }}>Лиды</p>
-                            <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", margin: 0 }}>
-                              0
-                            </p>
-                          </div>
-                          <div
-                            style={{
-                              width: 7,
-                              height: 7,
-                              borderRadius: "50%",
-                              background: "var(--pos)",
-                              flexShrink: 0,
-                            }}
-                          />
-                        </div>
-                      ) : (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if ((p as any).soon) return;
-                            if (p.key === "meta") connectMetaAds();
-                            else if (p.key === "google") connectGoogleAds();
-                            else if (p.key === "yandex") connectYandexAds();
-                          }}
-                          disabled={!!(p as any).soon}
-                          style={{
-                            padding: "7px 16px",
-                            borderRadius: 8,
-                            border: "0.5px solid var(--accent)",
-                            background: "transparent",
-                            color: "var(--accent)",
-                            fontSize: 11,
-                            fontWeight: 600,
-                            cursor: (p as any).soon ? "default" : "pointer",
-                            fontFamily: "inherit",
-                            opacity: (p as any).soon ? 0.35 : 1,
-                            flexShrink: 0,
-                            transition: "opacity 0.15s",
-                          }}
-                        >
-                          {(p as any).soon ? "Скоро" : "Подключить"}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* ── Right panel ── */}
-            {selectedPlatform && (
-              <div
-                style={{
-                  width: 280,
-                  flexShrink: 0,
-                  background: "var(--panel)",
-                  border: "0.5px solid var(--line)",
-                  borderRadius: 14,
-                  padding: "20px 18px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 16,
-                  position: "sticky",
-                  top: 16,
-                }}
-              >
-                {/* Header */}
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <PlatformIcon
-                    color={selectedPlatform.platform.color}
-                    abbr={selectedPlatform.platform.abbr}
-                    textColor={(selectedPlatform.platform as any).textColor}
-                    size={40}
-                  />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "var(--tx-1)" }}>
-                      {selectedPlatform.platform.name}
-                    </p>
-                    <p style={{ margin: 0, fontSize: 11, color: "var(--tx-3)", marginTop: 2 }}>
-                      {selectedPlatform.record.ad_account_id ?? "—"}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setSelectedPlatform(null)}
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      cursor: "pointer",
-                      color: "var(--tx-3)",
-                      padding: 4,
-                      lineHeight: 1,
-                      fontSize: 16,
-                    }}
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                {/* Status */}
+              return (
                 <div
+                  key={p.key}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "7px 10px",
-                    borderRadius: 8,
-                    background: "color-mix(in srgb, var(--pos) 12%, transparent)",
+                    background: "var(--panel)",
+                    border: "0.5px solid var(--line)",
+                    borderRadius: 12,
+                    overflow: "hidden",
                   }}
                 >
-                  <span
-                    style={{
-                      width: 7,
-                      height: 7,
-                      borderRadius: "50%",
-                      background: "var(--pos)",
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span style={{ fontSize: 12, color: "var(--pos)", fontWeight: 600 }}>
-                    Активен
-                  </span>
-                </div>
-
-                {/* Metrics */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  {[
-                    { label: "Расход", value: "₽0" },
-                    { label: "Клики", value: "0" },
-                    { label: "Лиды", value: "0" },
-                    { label: "CTR", value: "0%" },
-                  ].map((m) => (
-                    <div
-                      key={m.label}
-                      style={{
-                        padding: "10px 12px",
-                        background: "var(--panel-2)",
-                        borderRadius: 10,
-                        border: "0.5px solid var(--line)",
-                      }}
-                    >
-                      <p style={{ margin: 0, fontSize: 10, color: "var(--tx-3)" }}>{m.label}</p>
-                      <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--tx-1)", marginTop: 3 }}>
-                        {m.value}
-                      </p>
+                  {/* Platform header */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px" }}>
+                    <PlatformIcon
+                      color={p.color}
+                      abbr={p.abbr}
+                      textColor={(p as any).textColor}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: "var(--tx-1)" }}>
+                          {p.name}
+                        </p>
+                        {isSoon && (
+                          <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 10, background: "var(--chip)", color: "var(--tx-3)", fontWeight: 600 }}>
+                            Скоро
+                          </span>
+                        )}
+                        {isConnected && (
+                          <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 10, background: "var(--pos-dim)", color: "var(--pos)", fontWeight: 600 }}>
+                            {records.length > 1 ? `${records.length} подключено` : "Подключён"}
+                          </span>
+                        )}
+                      </div>
+                      <p style={{ fontSize: 11, color: "var(--tx-3)" }}>{p.desc}</p>
                     </div>
-                  ))}
-                </div>
+                    {!isSoon && (
+                      <button
+                        onClick={() => {
+                          if (p.key === "meta") connectMetaAds();
+                          else if (p.key === "google") connectGoogleAds();
+                          else if (p.key === "yandex") connectYandexAds();
+                        }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 5,
+                          padding: "7px 14px",
+                          borderRadius: 8,
+                          border: "none",
+                          background: isConnected ? "var(--chip)" : "var(--accent)",
+                          color: isConnected ? "var(--tx-2)" : "var(--on-accent)",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        <Plus size={13} strokeWidth={2.5} />
+                        {isConnected ? "Добавить ещё" : "Подключить"}
+                      </button>
+                    )}
+                  </div>
 
-                {/* Connected date */}
-                {selectedPlatform.record.updated_at && (
-                  <p style={{ margin: 0, fontSize: 11, color: "var(--tx-3)" }}>
-                    Подключён:{" "}
-                    {new Date(selectedPlatform.record.updated_at).toLocaleDateString("ru-RU")}
-                  </p>
-                )}
-
-                {/* Actions */}
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
-                  <button
-                    onClick={() =>
-                      router.push(`/${locale}/integrations/${selectedPlatform.platform.key}`)
-                    }
-                    style={{
-                      padding: "9px 0",
-                      borderRadius: 9,
-                      background: "var(--accent)",
-                      color: "var(--on-accent)",
-                      border: "none",
-                      cursor: "pointer",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      fontFamily: "inherit",
-                      width: "100%",
-                    }}
-                  >
-                    Подробная статистика →
-                  </button>
-                  <button
-                    onClick={() => {
-                      deleteMutation.mutate({
-                        id: selectedPlatform.record.id,
-                        table: "ad_platforms",
-                      });
-                      setSelectedPlatform(null);
-                      showToast(`${selectedPlatform.platform.name} отключён`);
-                    }}
-                    style={{
-                      padding: "9px 0",
-                      borderRadius: 9,
-                      background: "transparent",
-                      color: "var(--neg)",
-                      border: "0.5px solid color-mix(in srgb, var(--neg) 40%, transparent)",
-                      cursor: "pointer",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      fontFamily: "inherit",
-                      width: "100%",
-                    }}
-                  >
-                    Отключить
-                  </button>
+                  {/* Connected accounts sub-list */}
+                  {records.length > 0 && (
+                    <div style={{ borderTop: "0.5px solid var(--line)", padding: "10px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
+                      {records.map((rec: any, idx: number) => (
+                        <div
+                          key={rec.id}
+                          style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "var(--panel-2)", borderRadius: 9, border: "0.5px solid var(--line)" }}
+                        >
+                          <div
+                            style={{ width: 28, height: 28, borderRadius: 8, background: p.color, display: "flex", alignItems: "center", justifyContent: "center", color: (p as any).textColor ?? "#fff", fontSize: 11, fontWeight: 700, flexShrink: 0 }}
+                          >
+                            {p.abbr}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-1)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {rec.label ?? (records.length > 1 ? `${p.name} #${idx + 1}` : p.name)}
+                            </p>
+                            <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0 }}>
+                              {rec.account_id ?? new Date(rec.updated_at).toLocaleDateString("ru-RU")}
+                            </p>
+                          </div>
+                          <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 10, background: rec.is_active ? "var(--pos-dim)" : "var(--chip)", color: rec.is_active ? "var(--pos)" : "var(--tx-3)", fontWeight: 600, flexShrink: 0 }}>
+                            {rec.is_active ? "Активен" : "Остановлен"}
+                          </span>
+                          <button
+                            onClick={() => router.push(`/${locale}/integrations/${p.key}?id=${rec.id}`)}
+                            style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 7, border: "0.5px solid var(--line)", background: "var(--accent)", color: "var(--on-accent)", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}
+                          >
+                            Открыть →
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Отключить этот кабинет?`)) {
+                                deleteMutation.mutate({ id: rec.id, table: "ad_platforms" });
+                                showToast(`${p.name} отключён`);
+                              }
+                            }}
+                            style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 7, border: "0.5px solid var(--line)", background: "transparent", color: "var(--tx-3)", cursor: "pointer", flexShrink: 0 }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })}
           </div>
         )}
       </div>
@@ -1956,24 +1723,6 @@ function IntegrationsPageInner() {
           onSuccess={() => {
             qc.invalidateQueries({ queryKey: ["integrations"] });
             showToast("✓ Канал подключён!");
-          }}
-        />
-      )}
-
-      {/* Ad platform drawer */}
-      {adDrawer && (
-        <AdPlatformDrawer
-          platform={adDrawer.platform}
-          record={adDrawer.record}
-          onClose={() => setAdDrawer(null)}
-          onDisconnect={() => {
-            deleteMutation.mutate({ id: adDrawer.record.id, table: "ad_platforms" });
-            setAdDrawer(null);
-            showToast(`${adDrawer.platform.name} отключён`);
-          }}
-          onRefresh={() => {
-            qc.invalidateQueries({ queryKey: ["ad_platforms_real"] });
-            showToast("Данные обновлены");
           }}
         />
       )}
