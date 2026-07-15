@@ -6,7 +6,7 @@ const PERIOD_DAYS: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90 };
 const SOURCE_MAP: Record<string, string> = { meta: "meta_ads", google: "google_ads", yandex: "yandex" };
 
 async function getGoogleStats(rec: any, days: number, leads: number) {
-  const customerId = (rec.ad_account_id ?? "").replace(/\D/g, "");
+  const customerId = (rec.account_id ?? "").replace(/\D/g, "");
   if (!customerId) throw new Error("no customer id");
   const dateRange = days === 7 ? "LAST_7_DAYS" : days === 90 ? "LAST_90_DAYS" : "LAST_30_DAYS";
   const res = await fetch(`https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:search`, {
@@ -25,9 +25,9 @@ async function getGoogleStats(rec: any, days: number, leads: number) {
 }
 
 async function getMetaStats(rec: any, days: number, leads: number) {
-  if (!rec.access_token || !rec.ad_account_id) throw new Error("no token");
+  if (!rec.access_token || !rec.account_id) throw new Error("no token");
   const datePreset = days === 7 ? "last_7_days" : days === 90 ? "last_90_days" : "last_30_days";
-  const accountId = rec.ad_account_id.startsWith("act_") ? rec.ad_account_id : `act_${rec.ad_account_id}`;
+  const accountId = rec.account_id.startsWith("act_") ? rec.account_id : `act_${rec.account_id}`;
   const res = await fetch(`https://graph.facebook.com/v18.0/${accountId}/insights?fields=spend,impressions,clicks,ctr&date_preset=${datePreset}&access_token=${rec.access_token}`);
   const json = await res.json();
   if (json.error) throw new Error(json.error.message);
@@ -146,8 +146,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plat
   const leads = Number(leadsRow?.count || 0);
 
   try {
-    if (platform === "google" && rec.access_token && rec.ad_account_id) return await getGoogleStats(rec, days, leads);
-    if (platform === "meta" && rec.access_token && rec.ad_account_id) return await getMetaStats(rec, days, leads);
+    if (platform === "google" && rec.access_token && rec.account_id) return await getGoogleStats(rec, days, leads);
+    if (platform === "meta" && rec.access_token && rec.account_id) return await getMetaStats(rec, days, leads);
     if (platform === "yandex" && rec.access_token) return await getYandexStats(rec, days, leads, user.id);
   } catch (e: any) {
     if (platform === "yandex") {

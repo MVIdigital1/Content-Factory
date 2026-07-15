@@ -26,7 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plat
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const rec = await queryOne<{ access_token: string; ad_account_id: string | null }>(
+  const rec = await queryOne<{ access_token: string; account_id: string | null }>(
     "SELECT * FROM ad_platforms WHERE user_id = $1 AND platform_key = $2 AND is_active = true",
     [user.id, platform]
   );
@@ -34,8 +34,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plat
   if (!rec) return NextResponse.json({ connected: false, campaigns: [] });
 
   try {
-    if (platform === "google" && rec.access_token && rec.ad_account_id) {
-      const customerId = (rec.ad_account_id ?? "").replace(/\D/g, "");
+    if (platform === "google" && rec.access_token && rec.account_id) {
+      const customerId = (rec.account_id ?? "").replace(/\D/g, "");
       if (!customerId) throw new Error("no customer id");
       const res = await fetch(`https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:search`, {
         method: "POST",
@@ -55,8 +55,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plat
       })) });
     }
 
-    if (platform === "meta" && rec.access_token && rec.ad_account_id) {
-      const accountId = rec.ad_account_id.startsWith("act_") ? rec.ad_account_id : `act_${rec.ad_account_id}`;
+    if (platform === "meta" && rec.access_token && rec.account_id) {
+      const accountId = rec.account_id.startsWith("act_") ? rec.account_id : `act_${rec.account_id}`;
       const res = await fetch(`https://graph.facebook.com/v18.0/${accountId}/campaigns?fields=id,name,status,insights{spend,impressions,clicks,ctr}&access_token=${rec.access_token}`);
       const json = await res.json();
       if (json.error) throw new Error(json.error.message);

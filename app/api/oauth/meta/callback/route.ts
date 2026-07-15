@@ -32,9 +32,9 @@ export async function GET(req: NextRequest) {
   const firstAccount = accountData.data?.[0];
 
   await query(
-    `INSERT INTO ad_platforms (user_id, platform_key, name, color, abbr, access_token, ad_account_id, is_active, status, updated_at)
+    `INSERT INTO ad_platforms (user_id, platform_key, name, color, abbr, access_token, account_id, is_active, status, updated_at)
      VALUES ($1, 'meta', 'Meta Ads', '#1877F2', 'M', $2, $3, true, 'active', NOW())
-     ON CONFLICT (user_id, platform_key) DO UPDATE SET access_token = $2, ad_account_id = $3, is_active = true, updated_at = NOW()`,
+     ON CONFLICT (user_id, platform_key) DO UPDATE SET access_token = $2, account_id = $3, is_active = true, updated_at = NOW()`,
     [user.id, tokens.access_token, firstAccount?.id ?? null]
   );
 

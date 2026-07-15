@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
       code,
       client_id: process.env.NEXT_PUBLIC_YANDEX_CLIENT_ID ?? "",
       client_secret: process.env.YANDEX_CLIENT_SECRET ?? "",
+      redirect_uri: process.env.NEXT_PUBLIC_YANDEX_REDIRECT_URI ?? "",
     }),
   });
 
