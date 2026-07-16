@@ -1335,6 +1335,9 @@ function IntegrationsPageInner() {
       showToast("✓ Яндекс Директ подключён!");
       qc.invalidateQueries({ queryKey: ["ad_platforms_real"] });
     } else if (e) showToast(`Ошибка: ${decodeURIComponent(e)}`, false);
+    if (s || e) {
+      router.replace(`/${locale}/integrations?tab=ads`);
+    }
   }, [searchParams]);
 
   const { data: integrations = [] } = useQuery({
