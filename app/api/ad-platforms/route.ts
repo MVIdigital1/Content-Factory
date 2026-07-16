@@ -8,7 +8,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const projectId = url.searchParams.get("project_id");
-  let sql = "SELECT id, platform_key, name, color, abbr, account_id, label, is_active, status, monthly_spend, updated_at FROM ad_platforms WHERE user_id = $1";
+  let sql = "SELECT id, platform_key, name, color, abbr, account_id, account_name, is_active, status, updated_at FROM ad_platforms WHERE user_id = $1";
   const vals: any[] = [user.id];
   if (projectId) { vals.push(projectId); sql += ` AND project_id = $${vals.length}`; }
   sql += " ORDER BY created_at";

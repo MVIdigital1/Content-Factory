@@ -1305,7 +1305,6 @@ function IntegrationsPageInner() {
   const router = useRouter();
   const locale = useLocale();
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [activeTab, setActiveTab] = useState<"social" | "ads">("social");
 
   // Modals / drawers
   const [addTgModal, setAddTgModal] = useState(false);
@@ -1336,7 +1335,7 @@ function IntegrationsPageInner() {
       qc.invalidateQueries({ queryKey: ["ad_platforms_real"] });
     } else if (e) showToast(`Ошибка: ${decodeURIComponent(e)}`, false);
     if (s || e) {
-      router.replace(`/${locale}/integrations?tab=ads`);
+      router.replace(`/${locale}/integrations`);
     }
   }, [searchParams]);
 
@@ -1527,56 +1526,14 @@ function IntegrationsPageInner() {
         </div>
       )}
 
-      <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
-        {/* Tabs */}
-        <div
-          style={{
-            display: "flex",
-            gap: 2,
-            padding: 3,
-            background: "var(--panel-2)",
-            border: "0.5px solid var(--line)",
-            borderRadius: 10,
-            width: "fit-content",
-            marginBottom: 20,
-          }}
-        >
-          {[
-            { key: "social", label: "Соцсети" },
-            { key: "ads", label: "Рекламные кабинеты" },
-          ].map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setActiveTab(t.key as any)}
-              style={{
-                padding: "6px 16px",
-                borderRadius: 8,
-                border: "none",
-                background:
-                  activeTab === t.key ? "var(--panel)" : "transparent",
-                color: activeTab === t.key ? "var(--tx-1)" : "var(--tx-3)",
-                fontSize: 12,
-                fontWeight: activeTab === t.key ? 600 : 400,
-                cursor: "pointer",
-                fontFamily: "inherit",
-                transition: "all 0.15s",
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+        <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
 
-        {/* Social platforms */}
-        {activeTab === "social" && (
-          <div
-            style={{
-              maxWidth: 680,
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-            }}
-          >
+          {/* Левый столбец — Соцсети */}
+          <div style={{ flex: "0 0 52%", display: "flex", flexDirection: "column", gap: 10 }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+              Соцсети
+            </p>
             {SOCIAL_PLATFORMS.map((p) => (
               <PlatformRow
                 key={p.key}
@@ -1592,11 +1549,12 @@ function IntegrationsPageInner() {
               />
             ))}
           </div>
-        )}
 
-        {/* Ad platforms */}
-        {activeTab === "ads" && (
-          <div style={{ maxWidth: 680, display: "flex", flexDirection: "column", gap: 10 }}>
+          {/* Правый столбец — Рекламные кабинеты */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+              Рекламные кабинеты
+            </p>
             {AD_PLATFORMS.map((p) => {
               const records = (adPlatforms as any[]).filter(
                 (a) => (a.platform_key ?? a.platform) === p.key,
@@ -1646,7 +1604,8 @@ function IntegrationsPageInner() {
                     </div>
                     {!isSoon && (
                       <button
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           if (p.key === "meta") connectMetaAds();
                           else if (p.key === "google") connectGoogleAds();
                           else if (p.key === "yandex") connectYandexAds();
@@ -1690,7 +1649,7 @@ function IntegrationsPageInner() {
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-1)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {rec.label ?? (records.length > 1 ? `${p.name} #${idx + 1}` : p.name)}
+                              {rec.account_name ?? (records.length > 1 ? `${p.name} #${idx + 1}` : p.name)}
                             </p>
                             <p style={{ fontSize: 10, color: "var(--tx-3)", margin: 0 }}>
                               {rec.account_id ?? new Date(rec.updated_at).toLocaleDateString("ru-RU")}
@@ -1720,7 +1679,8 @@ function IntegrationsPageInner() {
               );
             })}
           </div>
-        )}
+
+        </div>
       </div>
 
       {/* Add Telegram modal */}
