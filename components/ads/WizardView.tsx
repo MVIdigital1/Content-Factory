@@ -2884,31 +2884,10 @@ export function WizardView({
                 </div>
               </div>
             ) : (
-              <div className="space-y-3">
-                <p className="text-[11px] text-tx-3 bg-panel-2 border border-line rounded-[8px] p-3 leading-relaxed">
-                  Введите токен доступа от рекламного кабинета. Токен можно
-                  получить в настройках API платформы.
+              <div className="space-y-4">
+                <p className="text-[12px] text-tx-2 bg-panel-2 border border-line rounded-[10px] p-3 leading-relaxed">
+                  Подключите <strong className="text-tx-1">{PLATFORM_META[connectModal]?.name}</strong> на странице Интеграции, затем вернитесь сюда — платформа появится автоматически.
                 </p>
-                <div>
-                  <label className="block ui-label mb-1">Access Token</label>
-                  <input
-                    value={tokenInput}
-                    onChange={(e) => setTokenInput(e.target.value)}
-                    placeholder="Вставьте токен..."
-                    className={inp}
-                  />
-                </div>
-                <div>
-                  <label className="block ui-label mb-1">
-                    ID кабинета (необязательно)
-                  </label>
-                  <input
-                    value={accountIdInput}
-                    onChange={(e) => setAccountIdInput(e.target.value)}
-                    placeholder="account_12345"
-                    className={inp}
-                  />
-                </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setConnectModal(null)}
@@ -2916,13 +2895,12 @@ export function WizardView({
                   >
                     Отмена
                   </button>
-                  <button
-                    onClick={handleConnectPlatform}
-                    disabled={connectingPlatform}
-                    className="flex-1 py-2.5 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-50"
+                  <a
+                    href="/ru/integrations"
+                    className="flex-1 py-2.5 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer text-center no-underline flex items-center justify-center"
                   >
-                    {connectingPlatform ? "Подключение..." : "Подключить"}
-                  </button>
+                    Перейти в Интеграции →
+                  </a>
                 </div>
               </div>
             )}
