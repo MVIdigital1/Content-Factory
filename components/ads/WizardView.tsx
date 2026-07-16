@@ -184,8 +184,11 @@ async function generateCreativeContent(params: {
   audience: string;
   projectName: string;
   niche?: string;
+  tone?: string;
+  keywords?: string;
+  budget?: string;
   variationIndex?: number;
-}): Promise<{ title: string; caption: string; hook?: string }> {
+}): Promise<Record<string, any>> {
   const res = await fetch("/api/ai/generate-creative", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1320,15 +1323,17 @@ export function WizardView({
       ? Math.max(1, Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000))
       : 0;
     const perType = days > 0 ? (days < 7 ? 1 : days < 30 ? 2 : 3) : 2;
-    const creatives: any[] = [];
-    let globalVariationIndex = 0;
+    const tasks: Promise<any>[] = [];
+    let vi = 0;
     for (const platformKey of selectedPlatforms) {
       const rp = realPlatforms.find((p) => p.key === platformKey);
       const subs = selectedSubtypes[platformKey] ?? new Set();
       for (const subtype of subs) {
         for (let i = 0; i < perType; i++) {
-          try {
-            const content = await generateCreativeContent({
+          const currentVi = vi++;
+          const id = `${platformKey}__${subtype}__${currentVi}__${i}`;
+          tasks.push(
+            generateCreativeContent({
               platform: platformKey,
               subtype,
               product: product || (activeProject as any)?.description || "",
@@ -1336,21 +1341,19 @@ export function WizardView({
               audience,
               projectName: (activeProject as any)?.name ?? name,
               niche: (activeProject as any)?.niche ?? "",
-              variationIndex: globalVariationIndex,
-            });
-            creatives.push({
-              id: `${platformKey}__${subtype}__${Date.now()}__${i}`,
-              platform: platformKey,
-              subtype,
-              ...content,
-              rp,
-            });
-          } catch {}
-          globalVariationIndex++;
+              tone: (activeProject as any)?.tone ?? "",
+              keywords: (activeProject as any)?.keywords ?? "",
+              budget: budget ?? "",
+              variationIndex: currentVi,
+            })
+              .then((content) => ({ id, platform: platformKey, subtype, ...content, rp }))
+              .catch(() => null)
+          );
         }
       }
     }
-    setGeneratedCreatives(creatives);
+    const results = await Promise.all(tasks);
+    setGeneratedCreatives(results.filter(Boolean));
     setGenerating(false);
   };
 
@@ -2674,18 +2677,87 @@ export function WizardView({
                           ✕
                         </button>
                       </div>
-                      <div className="p-3 flex-1 flex flex-col min-h-0">
-                        <p className="text-[11px] font-semibold text-tx-1 mb-1 leading-tight">
-                          {c.title}
-                        </p>
-                        {c.hook && (
-                          <p className="text-[10px] text-accent mb-1.5 italic leading-snug">
-                            {c.hook}
-                          </p>
+                      <div className="p-3 flex-1 flex flex-col min-h-0 gap-1.5">
+                        {/* Google Ads */}
+                        {c.platform === "google" && c.headlines && (
+                          <>
+                            <div className="bg-panel-2 rounded-[6px] p-2 border border-line">
+                              <p className="text-[9px] text-tx-3 mb-1 uppercase tracking-wide">Заголовки (≤30 симв.)</p>
+                              {(c.headlines as string[]).map((h: string, i: number) => (
+                                <p key={i} className="text-[10px] font-semibold text-[#1a73e8] leading-snug">{h}</p>
+                              ))}
+                            </div>
+                            <div>
+                              <p className="text-[9px] text-tx-3 mb-0.5 uppercase tracking-wide">Описания (≤90 симв.)</p>
+                              {(c.descriptions as string[]).map((d: string, i: number) => (
+                                <p key={i} className="text-[10px] text-tx-2 leading-relaxed">{d}</p>
+                              ))}
+                            </div>
+                          </>
                         )}
-                        <p className="text-[10px] text-tx-2 leading-relaxed line-clamp-3">
-                          {c.caption}
-                        </p>
+                        {/* Yandex Direct */}
+                        {c.platform === "yandex" && c.headline && (
+                          <>
+                            <p className="text-[10px] font-semibold text-[#fc3f1d] leading-snug">{c.headline}</p>
+                            <p className="text-[10px] text-tx-2 leading-relaxed line-clamp-3">{c.text}</p>
+                          </>
+                        )}
+                        {/* Meta Ads */}
+                        {c.platform === "meta" && (
+                          <>
+                            <p className="text-[10px] text-tx-2 leading-relaxed line-clamp-2">{c.primary_text}</p>
+                            {c.headline && <p className="text-[10px] font-semibold text-tx-1 leading-snug">{c.headline}</p>}
+                            {c.description && <p className="text-[9px] text-tx-3">{c.description}</p>}
+                          </>
+                        )}
+                        {/* Instagram post/feed */}
+                        {c.platform === "instagram" && (c.subtype === "post" || c.subtype === "feed") && (
+                          <>
+                            <p className="text-[10px] text-tx-2 leading-relaxed line-clamp-3">{c.caption}</p>
+                            {c.hashtags && (
+                              <p className="text-[9px] text-[#0095f6] leading-relaxed line-clamp-2">
+                                {(c.hashtags as string[]).join(" ")}
+                              </p>
+                            )}
+                          </>
+                        )}
+                        {/* Instagram Reels / TikTok */}
+                        {(c.subtype === "reels" || c.platform === "tiktok") && (
+                          <>
+                            {c.hook && <p className="text-[10px] font-semibold text-accent leading-snug">🎬 {c.hook}</p>}
+                            {c.script && <p className="text-[10px] text-tx-2 leading-relaxed line-clamp-2">{c.script}</p>}
+                            {c.hashtags && (
+                              <p className="text-[9px] text-[#0095f6] leading-relaxed line-clamp-1">
+                                {(c.hashtags as string[]).join(" ")}
+                              </p>
+                            )}
+                          </>
+                        )}
+                        {/* Instagram Stories */}
+                        {c.platform === "instagram" && c.subtype === "stories" && (
+                          <>
+                            <p className="text-[11px] font-semibold text-tx-1 leading-snug">{c.text}</p>
+                            {c.cta && <span className="self-start px-2 py-0.5 bg-accent text-on-accent text-[9px] rounded-full">{c.cta}</span>}
+                            {c.hashtags && (
+                              <p className="text-[9px] text-[#0095f6]">{(c.hashtags as string[]).join(" ")}</p>
+                            )}
+                          </>
+                        )}
+                        {/* Telegram */}
+                        {c.platform === "telegram" && (
+                          <>
+                            {c.hook && <p className="text-[10px] font-semibold text-accent leading-snug">▶ {c.hook}</p>}
+                            <p className="text-[10px] text-tx-2 leading-relaxed line-clamp-3">{c.caption}</p>
+                          </>
+                        )}
+                        {/* Fallback */}
+                        {!["google","yandex","meta","instagram","telegram","tiktok"].includes(c.platform) && (
+                          <>
+                            {c.title && <p className="text-[11px] font-semibold text-tx-1 leading-tight">{c.title}</p>}
+                            {c.hook && <p className="text-[10px] text-accent italic leading-snug">{c.hook}</p>}
+                            <p className="text-[10px] text-tx-2 leading-relaxed line-clamp-3">{c.caption}</p>
+                          </>
+                        )}
                       </div>
                       <div className="border-t border-line flex flex-shrink-0">
                         <button
