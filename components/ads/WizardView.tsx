@@ -2896,7 +2896,7 @@ export function WizardView({
                     Отмена
                   </button>
                   <a
-                    href="/ru/integrations"
+                    href={`/${locale}/integrations?from=campaigns`}
                     className="flex-1 py-2.5 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer text-center no-underline flex items-center justify-center"
                   >
                     Перейти в Интеграции →

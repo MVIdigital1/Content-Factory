@@ -1305,6 +1305,7 @@ function IntegrationsPageInner() {
   const router = useRouter();
   const locale = useLocale();
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [backToCampaigns, setBackToCampaigns] = useState(false);
 
   // Modals / drawers
   const [addTgModal, setAddTgModal] = useState(false);
@@ -1317,6 +1318,13 @@ function IntegrationsPageInner() {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 3000);
   };
+
+  useEffect(() => {
+    if (searchParams.get("from") === "campaigns") {
+      sessionStorage.setItem("integrations_back", "campaigns");
+    }
+    setBackToCampaigns(sessionStorage.getItem("integrations_back") === "campaigns");
+  }, []);
 
   useEffect(() => {
     const s = searchParams.get("success");
@@ -1504,6 +1512,44 @@ function IntegrationsPageInner() {
           </span>
         )}
       </div>
+
+      {/* Back to campaigns banner */}
+      {backToCampaigns && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "8px 16px",
+            background: "var(--panel-2)",
+            borderBottom: "0.5px solid var(--line)",
+            flexShrink: 0,
+          }}
+        >
+          <p style={{ fontSize: 11, color: "var(--tx-2)" }}>
+            Подключите платформу и вернитесь к созданию кампании
+          </p>
+          <button
+            onClick={() => {
+              sessionStorage.removeItem("integrations_back");
+              router.push(`/${locale}/campaigns`);
+            }}
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--accent)",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "4px 8px",
+              borderRadius: 6,
+              whiteSpace: "nowrap",
+            }}
+          >
+            ← Вернуться к кампании
+          </button>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (
