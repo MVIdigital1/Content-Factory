@@ -1612,7 +1612,12 @@ function IntegrationsPageInner() {
                   }}
                 >
                   {/* Platform header */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px" }}>
+                  <div
+                    onClick={() => {
+                      if (records.length === 1) router.push(`/${locale}/integrations/${p.key}?id=${records[0].id}`);
+                    }}
+                    style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", cursor: records.length === 1 ? "pointer" : "default" }}
+                  >
                     <PlatformIcon
                       color={p.color}
                       abbr={p.abbr}
@@ -1668,9 +1673,12 @@ function IntegrationsPageInner() {
                   {records.length > 0 && (
                     <div style={{ borderTop: "0.5px solid var(--line)", padding: "10px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
                       {records.map((rec: any, idx: number) => (
-                        <div
+                        <button
                           key={rec.id}
-                          style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "var(--panel-2)", borderRadius: 9, border: "0.5px solid var(--line)" }}
+                          onClick={() => router.push(`/${locale}/integrations/${p.key}?id=${rec.id}`)}
+                          style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "var(--panel-2)", borderRadius: 9, border: "0.5px solid var(--line)", cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%", transition: "border-color 0.15s" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
+                          onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--line)")}
                         >
                           <div
                             style={{ width: 28, height: 28, borderRadius: 8, background: p.color, display: "flex", alignItems: "center", justifyContent: "center", color: (p as any).textColor ?? "#fff", fontSize: 11, fontWeight: 700, flexShrink: 0 }}
@@ -1688,14 +1696,10 @@ function IntegrationsPageInner() {
                           <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 10, background: rec.is_active ? "var(--pos-dim)" : "var(--chip)", color: rec.is_active ? "var(--pos)" : "var(--tx-3)", fontWeight: 600, flexShrink: 0 }}>
                             {rec.is_active ? "Активен" : "Остановлен"}
                           </span>
+                          <Settings size={13} style={{ color: "var(--tx-3)", flexShrink: 0 }} />
                           <button
-                            onClick={() => router.push(`/${locale}/integrations/${p.key}?id=${rec.id}`)}
-                            style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 7, border: "0.5px solid var(--line)", background: "var(--accent)", color: "var(--on-accent)", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}
-                          >
-                            Открыть →
-                          </button>
-                          <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               if (confirm(`Отключить этот кабинет?`)) {
                                 deleteMutation.mutate({ id: rec.id, table: "ad_platforms" });
                                 showToast(`${p.name} отключён`);
@@ -1705,7 +1709,7 @@ function IntegrationsPageInner() {
                           >
                             <Trash2 size={13} />
                           </button>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   )}
