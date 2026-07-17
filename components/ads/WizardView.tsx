@@ -2721,16 +2721,24 @@ export function WizardView({
                 {/* Карточки контента */}
                 {generatedCreatives.length > 0 && (
                   <div>
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                       <p className="text-[13px] font-semibold text-tx-1">
                         ✦ Готово: {generatedCreatives.length} единиц контента
                       </p>
-                      <button
-                        onClick={() => { setContentPlanApproved(false); setGeneratedCreatives([]); }}
-                        className="text-[11px] text-tx-3 hover:text-tx-1 cursor-pointer"
-                      >
-                        Пересоздать
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setShowBulkSchedule(true)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 border border-accent text-accent text-[11px] font-medium rounded-[7px] hover:bg-accent/10 cursor-pointer"
+                        >
+                          🤖 AI распланирует сам
+                        </button>
+                        <button
+                          onClick={() => { setContentPlanApproved(false); setGeneratedCreatives([]); }}
+                          className="text-[11px] text-tx-3 hover:text-tx-1 cursor-pointer"
+                        >
+                          Пересоздать
+                        </button>
+                      </div>
                     </div>
                     <div className="grid grid-cols-1 gap-3">
                       {generatedCreatives.map((c: any) => {
@@ -2781,6 +2789,42 @@ export function WizardView({
                                 )}
                               </div>
                             )}
+                            {/* Кнопки публикации */}
+                            <div className="flex gap-2 mt-3 pt-3 border-t border-line">
+                              <button
+                                onClick={() => setScheduleModal({
+                                  creativeId: c.id,
+                                  platform: c.platform,
+                                  title: c.caption || c.headline || c.hook || c.subtype,
+                                })}
+                                className="flex-1 py-1.5 border border-line rounded-[7px] text-[11px] text-tx-2 hover:bg-hover cursor-pointer"
+                              >
+                                📅 Запланировать
+                              </button>
+                              <button
+                                disabled={publishingNow === c.id}
+                                onClick={async () => {
+                                  setPublishingNow(c.id);
+                                  try {
+                                    await fetch("/api/scheduled-posts", {
+                                      method: "POST",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({
+                                        content_id: c.id,
+                                        platform: c.platform,
+                                        scheduled_at: new Date().toISOString(),
+                                        status: "pending",
+                                      }),
+                                    });
+                                  } finally {
+                                    setPublishingNow(null);
+                                  }
+                                }}
+                                className="flex-1 py-1.5 bg-accent text-on-accent rounded-[7px] text-[11px] font-medium hover:opacity-90 cursor-pointer disabled:opacity-50"
+                              >
+                                {publishingNow === c.id ? "..." : "▶ Сейчас"}
+                              </button>
+                            </div>
                           </div>
                         );
                       })}
@@ -3025,6 +3069,14 @@ export function WizardView({
             </div>
           </div>
         </div>
+      )}
+
+      {showBulkSchedule && (
+        <BulkScheduleModal
+          creatives={generatedCreatives}
+          onClose={() => setShowBulkSchedule(false)}
+          onScheduled={() => setShowBulkSchedule(false)}
+        />
       )}
     </div>
   );
