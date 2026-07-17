@@ -1394,6 +1394,78 @@ export function WizardView({
     setGenerating(false);
   };
 
+  const generateFromPlan = async () => {
+    if (!contentPlan) return;
+    setGenerating(true);
+    setGeneratedCreatives([]);
+    const tasks: Promise<any>[] = [];
+    let vi = 0;
+
+    const socialData = contentPlan.socialMedia ?? {};
+    for (const [platformKey, data] of Object.entries(socialData)) {
+      const formats = Object.entries(data as Record<string, any>).filter(
+        ([k, v]) => k !== "reasoning" && typeof v === "number"
+      );
+      for (const [subtype, count] of formats) {
+        for (let i = 0; i < (count as number); i++) {
+          const currentVi = vi++;
+          const id = `${platformKey}__${subtype}__${currentVi}`;
+          tasks.push(
+            generateCreativeContent({
+              platform: platformKey,
+              subtype,
+              product: product || (activeProject as any)?.description || "",
+              goal,
+              audience,
+              projectName: (activeProject as any)?.name ?? name,
+              niche: (activeProject as any)?.niche ?? "",
+              tone: (activeProject as any)?.tone ?? "",
+              keywords: (activeProject as any)?.keywords ?? "",
+              budget: budget ?? "",
+              variationIndex: currentVi,
+            })
+              .then((content) => ({ id, platform: platformKey, subtype, ...content }))
+              .catch(() => null)
+          );
+        }
+      }
+    }
+
+    const adData = contentPlan.adPlatforms ?? {};
+    for (const [platformKey, data] of Object.entries(adData)) {
+      const formats = Object.entries(data as Record<string, any>).filter(
+        ([k, v]) => k !== "reasoning" && typeof v === "number"
+      );
+      for (const [subtype, count] of formats) {
+        for (let i = 0; i < (count as number); i++) {
+          const currentVi = vi++;
+          const id = `${platformKey}__${subtype}__${currentVi}`;
+          tasks.push(
+            generateCreativeContent({
+              platform: platformKey,
+              subtype,
+              product: product || (activeProject as any)?.description || "",
+              goal,
+              audience,
+              projectName: (activeProject as any)?.name ?? name,
+              niche: (activeProject as any)?.niche ?? "",
+              tone: (activeProject as any)?.tone ?? "",
+              keywords: (activeProject as any)?.keywords ?? "",
+              budget: budget ?? "",
+              variationIndex: currentVi,
+            })
+              .then((content) => ({ id, platform: platformKey, subtype, ...content }))
+              .catch(() => null)
+          );
+        }
+      }
+    }
+
+    const results = await Promise.all(tasks);
+    setGeneratedCreatives(results.filter(Boolean));
+    setGenerating(false);
+  };
+
   const handleGoToCreatives = () => {
     const pos = activeSteps.findIndex(s => s.key === "content");
     const target = pos !== -1 ? pos : activeSteps.length - 1;
@@ -2626,7 +2698,7 @@ export function WizardView({
                     Пересоздать план
                   </button>
                   <button
-                    onClick={() => setContentPlanApproved(true)}
+                    onClick={() => { setContentPlanApproved(true); generateFromPlan(); }}
                     className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[9px] hover:opacity-90 cursor-pointer"
                   >
                     ✓ Одобрить и создать контент
@@ -2636,9 +2708,95 @@ export function WizardView({
             )}
 
             {contentPlanApproved && (
-              <div className="border border-line rounded-[12px] p-4 bg-panel-2 text-center text-tx-2 text-[13px] mb-4">
-                <span className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin inline-block mr-2" />
-                Генерация контента... (будет реализовано в следующем шаге)
+              <div className="mb-4">
+                {/* Спиннер пока генерируется */}
+                {generating && generatedCreatives.length === 0 && (
+                  <div className="border border-line rounded-[12px] p-8 bg-panel-2 text-center mb-4">
+                    <div className="w-8 h-8 border-[3px] border-accent border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                    <p className="text-[13px] font-semibold text-tx-1">✦ AI генерирует контент</p>
+                    <p className="text-[11px] text-tx-3 mt-1">Это займёт ~10-20 секунд</p>
+                  </div>
+                )}
+
+                {/* Карточки контента */}
+                {generatedCreatives.length > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-[13px] font-semibold text-tx-1">
+                        ✦ Готово: {generatedCreatives.length} единиц контента
+                      </p>
+                      <button
+                        onClick={() => { setContentPlanApproved(false); setGeneratedCreatives([]); }}
+                        className="text-[11px] text-tx-3 hover:text-tx-1 cursor-pointer"
+                      >
+                        Пересоздать
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3">
+                      {generatedCreatives.map((c: any) => {
+                        const meta = (PLATFORM_META as any)[c.platform];
+                        return (
+                          <div key={c.id} className="border border-line rounded-[12px] p-4 bg-panel hover:border-line-strong transition-colors">
+                            <div className="flex items-center gap-2 mb-3">
+                              <span
+                                className="text-[10px] font-bold px-2 py-0.5 rounded-[5px] text-white"
+                                style={{ background: meta?.color ?? "var(--accent)" }}
+                              >
+                                {meta?.abbr ?? c.platform}
+                              </span>
+                              <span className="text-[11px] text-tx-3 capitalize">{c.subtype}</span>
+                            </div>
+                            {c.platform === "google" && (
+                              <div>
+                                {(c.headlines ?? []).map((h: string, i: number) => (
+                                  <p key={i} className="text-[13px] font-semibold text-[#1a73e8]">{h}</p>
+                                ))}
+                                {(c.descriptions ?? []).map((d: string, i: number) => (
+                                  <p key={i} className="text-[12px] text-tx-2 mt-1">{d}</p>
+                                ))}
+                              </div>
+                            )}
+                            {c.platform === "yandex" && (
+                              <div>
+                                <p className="text-[13px] font-semibold text-[#fc3f1d]">{c.headline}</p>
+                                <p className="text-[12px] text-tx-2 mt-1">{c.text}</p>
+                              </div>
+                            )}
+                            {c.platform === "meta" && (
+                              <div>
+                                <p className="text-[12px] text-tx-1">{c.primary_text}</p>
+                                <p className="text-[13px] font-semibold text-tx-1 mt-1">{c.headline}</p>
+                                <p className="text-[11px] text-tx-3">{c.description}</p>
+                              </div>
+                            )}
+                            {["instagram", "telegram", "tiktok"].includes(c.platform) && (
+                              <div>
+                                {c.hook && <p className="text-[11px] text-tx-3 mb-1">🎬 {c.hook}</p>}
+                                {c.script && <p className="text-[11px] text-tx-2 mb-1 whitespace-pre-line">{c.script}</p>}
+                                {c.text && <p className="text-[13px] font-semibold text-tx-1 mb-1">{c.text}</p>}
+                                {c.caption && <p className="text-[12px] text-tx-1">{c.caption}</p>}
+                                {c.cta && <span className="inline-block mt-1 px-2 py-0.5 bg-accent/10 text-accent text-[11px] rounded-[5px]">{c.cta}</span>}
+                                {c.hashtags && (
+                                  <p className="text-[11px] mt-1 text-[#0095f6]">{(c.hashtags as string[]).join(" ")}</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Кнопка запуска генерации (если не запустилась автоматически) */}
+                {!generating && generatedCreatives.length === 0 && (
+                  <button
+                    onClick={generateFromPlan}
+                    className="px-5 py-2.5 bg-accent text-on-accent text-[13px] font-medium rounded-[9px] hover:opacity-90 cursor-pointer"
+                  >
+                    ✦ Генерировать контент
+                  </button>
+                )}
               </div>
             )}
 
