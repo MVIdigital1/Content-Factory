@@ -3,7 +3,6 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlatformLogo } from "@/components/ui/PlatformLogo";
 import { PLATFORM_META } from "./data";
-import CreateCreativesStep from "./CreateCreativesStep";
 import {
   useCreateAdCampaign,
   useCreateAdCreative,
@@ -18,8 +17,7 @@ const ALL_STEP_DEFS = [
   { key: "goal" as const, label: "Цель" },
   { key: "landing" as const, label: "Лендинг" },
   { key: "platforms" as const, label: "Платформы" },
-  { key: "create" as const, label: "Создать" },
-  { key: "creatives" as const, label: "Креативы" },
+  { key: "content" as const, label: "Контент" },
   { key: "launch" as const, label: "Запуск" },
 ];
 
@@ -857,6 +855,14 @@ export function WizardView({
   const [productImagePreview, setProductImagePreview] = useState<string | null>(
     null,
   );
+
+  // Content plan step
+  const [contentPlan, setContentPlan] = useState<any>(null);
+  const [contentPlanLoading, setContentPlanLoading] = useState(false);
+  const [contentPlanError, setContentPlanError] = useState("");
+  const [contentPlanApproved, setContentPlanApproved] = useState(false);
+  const [activeContentSection, setActiveContentSection] = useState<"social" | "ads">("social");
+
   const imgRef = useRef<HTMLInputElement>(null);
   const productImgRef = useRef<HTMLInputElement>(null);
 
@@ -1107,7 +1113,8 @@ export function WizardView({
   const activeSteps = ALL_STEP_DEFS.filter(s => {
     if (s.key === "goal" || s.key === "platforms" || s.key === "launch") return true;
     if (s.key === "landing") return campaignTools.has("landing");
-    return campaignTools.has("creatives") || campaignTools.has("content");
+    if (s.key === "content") return campaignTools.has("creatives") || campaignTools.has("content") || selectedPlatforms.size > 0;
+    return false;
   });
   const currentStepKey = activeSteps[step]?.key ?? "goal";
 
@@ -1138,6 +1145,36 @@ export function WizardView({
       setBudgetError(e.message || "Не удалось получить AI совет");
     } finally {
       setBudgetSuggesting(false);
+    }
+  };
+
+  const generateContentPlan = async () => {
+    setContentPlanLoading(true);
+    setContentPlanError("");
+    setContentPlan(null);
+    setContentPlanApproved(false);
+    try {
+      const res = await fetch("/api/ai/content-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          niche: campaignNiche || (activeProject as any)?.niche,
+          goal,
+          product,
+          audience,
+          budget,
+          dateFrom,
+          dateTo,
+          platforms: [...selectedPlatforms],
+        }),
+      });
+      if (!res.ok) throw new Error("Ошибка сервера");
+      const data = await res.json();
+      setContentPlan(data);
+    } catch (e: any) {
+      setContentPlanError(e.message || "Не удалось создать план");
+    } finally {
+      setContentPlanLoading(false);
     }
   };
 
@@ -1358,11 +1395,10 @@ export function WizardView({
   };
 
   const handleGoToCreatives = () => {
-    const pos = activeSteps.findIndex(s => s.key === "creatives");
+    const pos = activeSteps.findIndex(s => s.key === "content");
     const target = pos !== -1 ? pos : activeSteps.length - 1;
     setStep(target);
     setMaxStep((prev: number) => Math.max(prev, target));
-    generateAllCreatives();
   };
 
   // Generate ALL creatives via Claude API then save to DB
@@ -2331,17 +2367,6 @@ export function WizardView({
         );
       })()}
 
-      {/* ══ STEP 3: Создать ══ */}
-      {currentStepKey === "create" && (
-        <CreateCreativesStep
-          projectId={projectId}
-          campaignId={draftId ?? ""}
-          selectedPlatforms={[...selectedPlatforms]}
-          onBack={() => setStep(step - 1)}
-          onNext={handleGoToCreatives}
-        />
-      )}
-
       {/* ══ STEP 1: Лендинг ══ */}
       {currentStepKey === "landing" && (() => {
         const selectedLp = (landingPages as any[]).find((lp: any) => lp.id === landingId) ?? null;
@@ -2462,349 +2487,171 @@ export function WizardView({
         );
       })()}
 
-      {/* ══ STEP 4: Creatives ══ */}
-      {currentStepKey === "creatives" && (
-        <div style={{ position: "relative" }}>
-          {/* Auto-gen loading overlay */}
-          {generating && generatedCreatives.length === 0 && (
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                zIndex: 10,
-                background: "var(--panel)",
-                borderRadius: 12,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 16,
-                minHeight: 200,
-              }}
-            >
-              <div className="w-8 h-8 border-[3px] border-accent border-t-transparent rounded-full animate-spin" />
-              <div style={{ textAlign: "center" }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)" }}>
-                  ✦ AI генерирует креативы
-                </p>
-                <p style={{ fontSize: 11, color: "var(--tx-3)", marginTop: 4 }}>
-                  Создаю тексты для каждой платформы...
-                </p>
+      {/* ══ STEP 4: Контент ══ */}
+      {currentStepKey === "content" && (() => {
+        const socialKeys = ["instagram", "telegram", "tiktok", "youtube"];
+        const adKeys = ["meta", "google", "yandex"];
+        const sectionPlatforms = [...selectedPlatforms].filter(p =>
+          activeContentSection === "social" ? socialKeys.includes(p) : adKeys.includes(p)
+        );
+
+        return (
+          <div>
+            {/* Секции: Соцсети / Рекламные кабинеты */}
+            <div className="flex gap-2 mb-5">
+              {[
+                { key: "social" as const, label: "Соцсети", icon: "📱" },
+                { key: "ads" as const, label: "Рекламные кабинеты", icon: "📊" },
+              ].map(sec => (
+                <button
+                  key={sec.key}
+                  onClick={() => setActiveContentSection(sec.key)}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-[8px] text-[12px] font-medium border transition-colors cursor-pointer ${
+                    activeContentSection === sec.key
+                      ? "bg-accent text-on-accent border-accent"
+                      : "border-line text-tx-2 hover:bg-hover"
+                  }`}
+                >
+                  {sec.icon} {sec.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Список платформ в секции */}
+            {sectionPlatforms.length === 0 ? (
+              <div className="border border-dashed border-line rounded-xl py-12 text-center text-tx-3 text-[12px] mb-5">
+                {activeContentSection === "social"
+                  ? "Нет подключённых соцсетей. Добавь их на шаге «Платформы»."
+                  : "Нет подключённых рекламных кабинетов. Добавь их на шаге «Платформы»."}
               </div>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3 p-3 bg-chip/30 rounded-[9px] flex-1 mr-3">
-              <span className="text-[16px]">✦</span>
-              <div>
-                <p className="text-[11px] font-medium text-tx-1">
-                  AI генерирует реальные тексты для каждого типа
-                </p>
-                <p className="text-[10px] text-tx-3">
-                  Удалите что не нравится — остальное попадёт в кампанию
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={generateAllCreatives}
-              disabled={generating}
-              className="px-4 py-2.5 bg-accent text-on-accent text-[11px] font-medium rounded-[8px] hover:opacity-90 cursor-pointer disabled:opacity-60 flex items-center gap-2 flex-shrink-0"
-            >
-              {generating ? (
-                <>
-                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Генерирую...
-                </>
-              ) : (
-                <>✦ {generatedCreatives.length > 0 ? "Перегенерировать" : "Сгенерировать"}</>
-              )}
-            </button>
-          </div>
-
-          {/* Platform filter */}
-          {generatedCreatives.length > 0 && (
-            <div className="flex gap-2 mb-4 flex-wrap">
-              <button
-                onClick={() => setCreativePlatformFilter("all")}
-                className={`px-3 py-1.5 rounded-full text-[11px] border cursor-pointer transition-colors ${creativePlatformFilter === "all" ? "bg-accent text-on-accent border-accent" : "border-line text-tx-3 hover:bg-hover"}`}
-              >
-                Все · {generatedCreatives.length}
-              </button>
-              {[...selectedPlatforms].map((key) => {
-                const rp = realPlatforms.find((p) => p.key === key);
-                const count = generatedCreatives.filter(
-                  (c) => c.platform === key,
-                ).length;
-                if (count === 0) return null;
-                return (
-                  <button
-                    key={key}
-                    onClick={() => setCreativePlatformFilter(key)}
-                    style={
-                      creativePlatformFilter === key
-                        ? {
-                            background: rp?.color,
-                            color: rp?.textColor ?? "#fff",
-                            borderColor: rp?.color,
-                          }
-                        : {}
-                    }
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] border cursor-pointer transition-colors ${creativePlatformFilter !== key ? "border-line text-tx-3 hover:bg-hover" : ""}`}
-                  >
-                    <div
-                      style={{
-                        width: 14,
-                        height: 10,
-                        borderRadius: 2,
-                        background:
-                          creativePlatformFilter === key
-                            ? "rgba(255,255,255,0.3)"
-                            : (rp?.color ?? "#888"),
-                        color: "#fff",
-                        fontSize: 7,
-                        fontWeight: 700,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      {rp?.abbr ?? "?"}
-                    </div>
-                    {rp?.name.split(" ")[0] ?? key} · {count}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Empty state */}
-          {!generating && generatedCreatives.length === 0 && (
-            <div className="ui-surface flex flex-col items-center py-16 text-center">
-              <span className="text-[40px] mb-3">✦</span>
-              <p className="text-[13px] font-medium text-tx-1 mb-2">
-                Нажмите «Сгенерировать»
-              </p>
-              <p className="text-[11px] text-tx-3 max-w-[280px] leading-relaxed">
-                AI создаст реальные тексты постов для каждого типа и платформы
-              </p>
-            </div>
-          )}
-
-          {/* Loading */}
-          {generating && (
-            <div className="ui-surface flex flex-col items-center py-16 text-center">
-              <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mb-4" />
-              <p className="text-[13px] font-medium text-tx-1 mb-2">
-                AI создаёт креативы...
-              </p>
-              <p className="text-[11px] text-tx-3">
-                Генерирую тексты для {[...selectedPlatforms].length} платформ
-              </p>
-            </div>
-          )}
-
-          {/* Grid - horizontal 4 columns */}
-          {!generating && generatedCreatives.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-              {generatedCreatives
-                .filter(
-                  (c) =>
-                    creativePlatformFilter === "all" ||
-                    c.platform === creativePlatformFilter,
-                )
-                .map((c, idx) => {
-                  const rp = realPlatforms.find((p) => p.key === c.platform);
-                  const meta = PLATFORM_META[c.platform];
-                  const color = rp?.color ?? meta?.color ?? "#333";
-                  const abbr = rp?.abbr ?? meta?.abbr ?? "?";
-                  const emojiMap: Record<string, string> = {
-                    post: "📝",
-                    video: "🎬",
-                    ad: "📣",
-                    reels: "🎬",
-                    stories: "⭕",
-                    feed: "📱",
-                    search: "🔍",
-                    rsya: "📊",
-                    display: "🖼",
-                    banner: "🖼",
-                  };
+            ) : (
+              <div className="flex gap-2 flex-wrap mb-5">
+                {sectionPlatforms.map(p => {
+                  const meta = (PLATFORM_META as any)[p];
                   return (
                     <div
-                      key={c.id}
-                      className="ui-surface overflow-hidden flex flex-col"
+                      key={p}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] border border-line text-[12px] text-tx-1"
+                      style={{ borderColor: meta?.color ?? "var(--line)" }}
                     >
-                      <div
-                        className="h-14 flex items-center justify-center relative flex-shrink-0"
-                        style={{
-                          background: `linear-gradient(135deg, ${color}, #111)`,
-                        }}
-                      >
-                        <span className="text-[24px]">
-                          {emojiMap[c.subtype] ?? "📝"}
-                        </span>
-                        <div className="absolute top-2 left-2 flex items-center gap-1">
-                          <div
-                            style={{
-                              width: 18,
-                              height: 13,
-                              borderRadius: 2,
-                              background: color,
-                              color: "#fff",
-                              fontSize: 7,
-                              fontWeight: 700,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              opacity: 0.85,
-                            }}
-                          >
-                            {abbr}
-                          </div>
-                          <span className="text-[8px] text-white/70">
-                            {c.subtype}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() =>
-                            setGeneratedCreatives((prev) =>
-                              prev.filter((cr) => cr.id !== c.id),
-                            )
-                          }
-                          className="absolute top-1.5 right-1.5 w-5 h-5 bg-black/50 hover:bg-black/80 text-white rounded-full flex items-center justify-center text-[9px] cursor-pointer transition-colors"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                      <div className="p-3 flex-1 flex flex-col min-h-0 gap-1.5">
-                        {/* Google Ads */}
-                        {c.platform === "google" && c.headlines && (
-                          <>
-                            <div className="bg-panel-2 rounded-[6px] p-2 border border-line">
-                              <p className="text-[9px] text-tx-3 mb-1 uppercase tracking-wide">Заголовки (≤30 симв.)</p>
-                              {(c.headlines as string[]).map((h: string, i: number) => (
-                                <p key={i} className="text-[10px] font-semibold text-[#1a73e8] leading-snug">{h}</p>
-                              ))}
-                            </div>
-                            <div>
-                              <p className="text-[9px] text-tx-3 mb-0.5 uppercase tracking-wide">Описания (≤90 симв.)</p>
-                              {(c.descriptions as string[]).map((d: string, i: number) => (
-                                <p key={i} className="text-[10px] text-tx-2 leading-relaxed">{d}</p>
-                              ))}
-                            </div>
-                          </>
-                        )}
-                        {/* Yandex Direct */}
-                        {c.platform === "yandex" && c.headline && (
-                          <>
-                            <p className="text-[10px] font-semibold text-[#fc3f1d] leading-snug">{c.headline}</p>
-                            <p className="text-[10px] text-tx-2 leading-relaxed line-clamp-3">{c.text}</p>
-                          </>
-                        )}
-                        {/* Meta Ads */}
-                        {c.platform === "meta" && (
-                          <>
-                            <p className="text-[10px] text-tx-2 leading-relaxed line-clamp-2">{c.primary_text}</p>
-                            {c.headline && <p className="text-[10px] font-semibold text-tx-1 leading-snug">{c.headline}</p>}
-                            {c.description && <p className="text-[9px] text-tx-3">{c.description}</p>}
-                          </>
-                        )}
-                        {/* Instagram post/feed */}
-                        {c.platform === "instagram" && (c.subtype === "post" || c.subtype === "feed") && (
-                          <>
-                            <p className="text-[10px] text-tx-2 leading-relaxed line-clamp-3">{c.caption}</p>
-                            {c.hashtags && (
-                              <p className="text-[9px] text-[#0095f6] leading-relaxed line-clamp-2">
-                                {(c.hashtags as string[]).join(" ")}
-                              </p>
-                            )}
-                          </>
-                        )}
-                        {/* Instagram Reels / TikTok */}
-                        {(c.subtype === "reels" || c.platform === "tiktok") && (
-                          <>
-                            {c.hook && <p className="text-[10px] font-semibold text-accent leading-snug">🎬 {c.hook}</p>}
-                            {c.script && <p className="text-[10px] text-tx-2 leading-relaxed line-clamp-2">{c.script}</p>}
-                            {c.hashtags && (
-                              <p className="text-[9px] text-[#0095f6] leading-relaxed line-clamp-1">
-                                {(c.hashtags as string[]).join(" ")}
-                              </p>
-                            )}
-                          </>
-                        )}
-                        {/* Instagram Stories */}
-                        {c.platform === "instagram" && c.subtype === "stories" && (
-                          <>
-                            <p className="text-[11px] font-semibold text-tx-1 leading-snug">{c.text}</p>
-                            {c.cta && <span className="self-start px-2 py-0.5 bg-accent text-on-accent text-[9px] rounded-full">{c.cta}</span>}
-                            {c.hashtags && (
-                              <p className="text-[9px] text-[#0095f6]">{(c.hashtags as string[]).join(" ")}</p>
-                            )}
-                          </>
-                        )}
-                        {/* Telegram */}
-                        {c.platform === "telegram" && (
-                          <>
-                            {c.hook && <p className="text-[10px] font-semibold text-accent leading-snug">▶ {c.hook}</p>}
-                            <p className="text-[10px] text-tx-2 leading-relaxed line-clamp-3">{c.caption}</p>
-                          </>
-                        )}
-                        {/* Fallback */}
-                        {!["google","yandex","meta","instagram","telegram","tiktok"].includes(c.platform) && (
-                          <>
-                            {c.title && <p className="text-[11px] font-semibold text-tx-1 leading-tight">{c.title}</p>}
-                            {c.hook && <p className="text-[10px] text-accent italic leading-snug">{c.hook}</p>}
-                            <p className="text-[10px] text-tx-2 leading-relaxed line-clamp-3">{c.caption}</p>
-                          </>
-                        )}
-                      </div>
-                      <div className="border-t border-line flex flex-shrink-0">
-                        <button
-                          onClick={() =>
-                            setScheduleModal({
-                              creativeId: c.id,
-                              platform: c.platform,
-                              title: c.title,
-                            })
-                          }
-                          className="flex-1 py-1.5 text-[9px] text-tx-2 hover:bg-hover cursor-pointer border-r border-line text-center"
-                        >
-                          📅 Запланировать
-                        </button>
-                        <button className="flex-1 py-1.5 text-[9px] text-tx-2 hover:bg-hover cursor-pointer text-center">
-                          🚀 Сейчас
-                        </button>
-                      </div>
+                      <span style={{ color: meta?.color }}>{meta?.abbr ?? p}</span>
+                      {meta?.name ?? p}
                     </div>
                   );
                 })}
-            </div>
-          )}
+              </div>
+            )}
 
-          <div className="flex justify-between items-center pt-2">
-            <button
-              onClick={() => setStep(step - 1)}
-              className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
-            >
-              ← Назад
-            </button>
-            <div className="flex gap-2">
-              {generatedCreatives.length > 0 && (
-                <button
-                  onClick={() => setShowBulkSchedule(true)}
-                  className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer flex items-center gap-1.5"
-                >
-                  📅 Запланировать всё
-                </button>
-              )}
+            {/* Кнопка создать план */}
+            {!contentPlan && (
+              <button
+                onClick={generateContentPlan}
+                disabled={contentPlanLoading}
+                className="flex items-center gap-2 px-5 py-2.5 bg-accent text-on-accent text-[13px] font-medium rounded-[9px] hover:opacity-90 cursor-pointer disabled:opacity-60 mb-4"
+              >
+                {contentPlanLoading ? (
+                  <><span className="w-4 h-4 border-2 border-on-accent border-t-transparent rounded-full animate-spin" /> Анализирую тренды...</>
+                ) : "✦ Создать план контента"}
+              </button>
+            )}
+
+            {contentPlanError && (
+              <p className="text-[12px] text-neg mb-4">{contentPlanError}</p>
+            )}
+
+            {/* Отображение плана */}
+            {contentPlan && !contentPlanApproved && (
+              <div className="border border-line rounded-[12px] p-4 bg-panel-2 mb-4">
+                <p className="text-[13px] font-semibold text-tx-1 mb-3">✦ План контента от AI</p>
+
+                {contentPlan.strategy && (
+                  <p className="text-[12px] text-tx-2 mb-4 leading-relaxed">{contentPlan.strategy}</p>
+                )}
+
+                {contentPlan.socialMedia && Object.keys(contentPlan.socialMedia).length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-[11px] font-semibold text-tx-3 uppercase tracking-wide mb-2">Соцсети</p>
+                    {Object.entries(contentPlan.socialMedia).map(([platform, data]: [string, any]) => (
+                      <div key={platform} className="mb-3 p-3 bg-panel rounded-[9px] border border-line">
+                        <p className="text-[12px] font-semibold text-tx-1 mb-1.5 capitalize">{(PLATFORM_META as any)[platform]?.name ?? platform}</p>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {Object.entries(data)
+                            .filter(([k]) => k !== "reasoning" && typeof data[k] === "number")
+                            .map(([format, count]) => (
+                              <span key={format} className="px-2 py-1 bg-accent/10 text-accent text-[11px] rounded-[6px]">
+                                {format}: {count as number} шт.
+                              </span>
+                            ))}
+                        </div>
+                        {data.reasoning && (
+                          <p className="text-[11px] text-tx-3 leading-relaxed">{data.reasoning}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {contentPlan.adPlatforms && Object.keys(contentPlan.adPlatforms).length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-[11px] font-semibold text-tx-3 uppercase tracking-wide mb-2">Рекламные кабинеты</p>
+                    {Object.entries(contentPlan.adPlatforms).map(([platform, data]: [string, any]) => (
+                      <div key={platform} className="mb-3 p-3 bg-panel rounded-[9px] border border-line">
+                        <p className="text-[12px] font-semibold text-tx-1 mb-1.5 capitalize">{(PLATFORM_META as any)[platform]?.name ?? platform}</p>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {Object.entries(data)
+                            .filter(([k]) => k !== "reasoning" && typeof data[k] === "number")
+                            .map(([format, count]) => (
+                              <span key={format} className="px-2 py-1 bg-accent/10 text-accent text-[11px] rounded-[6px]">
+                                {format}: {count as number} шт.
+                              </span>
+                            ))}
+                        </div>
+                        {data.reasoning && (
+                          <p className="text-[11px] text-tx-3 leading-relaxed">{data.reasoning}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {contentPlan.postingSchedule && (
+                  <p className="text-[11px] text-tx-2 border-t border-line pt-3 mt-1">📅 {contentPlan.postingSchedule}</p>
+                )}
+
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={() => { setContentPlan(null); setContentPlanApproved(false); }}
+                    className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
+                  >
+                    Пересоздать план
+                  </button>
+                  <button
+                    onClick={() => setContentPlanApproved(true)}
+                    className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[9px] hover:opacity-90 cursor-pointer"
+                  >
+                    ✓ Одобрить и создать контент
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {contentPlanApproved && (
+              <div className="border border-line rounded-[12px] p-4 bg-panel-2 text-center text-tx-2 text-[13px] mb-4">
+                <span className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin inline-block mr-2" />
+                Генерация контента... (будет реализовано в следующем шаге)
+              </div>
+            )}
+
+            {/* Навигация */}
+            <div className="flex justify-between pt-4 mt-4 border-t border-line">
+              <button
+                onClick={() => setStep(step - 1)}
+                className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
+              >
+                ← Назад
+              </button>
               <button
                 onClick={() => {
-                  if (generatedCreatives.length === 0) {
-                    setError("Сначала сгенерируйте креативы");
-                    return;
-                  }
-                  setError("");
                   const next = Math.min(step + 1, activeSteps.length - 1);
                   setStep(next);
                   setMaxStep((prev: number) => Math.max(prev, next));
@@ -2815,16 +2662,8 @@ export function WizardView({
               </button>
             </div>
           </div>
-
-          {showBulkSchedule && (
-            <BulkScheduleModal
-              creatives={generatedCreatives}
-              onClose={() => setShowBulkSchedule(false)}
-              onScheduled={() => setShowBulkSchedule(false)}
-            />
-          )}
-        </div>
-      )}
+        );
+      })()}
 
       {/* ══ STEP 5: Launch ══ */}
       {currentStepKey === "launch" && (
