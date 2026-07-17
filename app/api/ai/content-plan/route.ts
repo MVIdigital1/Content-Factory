@@ -77,7 +77,8 @@ export async function POST(request: Request) {
 ${trendsBlock || "данные недоступны — опирайся на общие знания о рынке"}
 
 ЗАДАЧА:
-Составь детальный план контента для этой кампании. Для каждой платформы из списка укажи:
+Составь план контента СТРОГО только для платформ из списка. Если соцсети не указаны — socialMedia должен быть {}. Если рекламные кабинеты не указаны — adPlatforms должен быть {}. НЕ добавляй платформы которых нет в списке.
+Для каждой выбранной платформы укажи:
 1. Какие форматы использовать и сколько штук каждого
 2. Краткое объяснение почему именно так (1-2 предложения)
 
@@ -125,6 +126,18 @@ ${trendsBlock || "данные недоступны — опирайся на о
 
     try {
       const plan = JSON.parse(clean);
+
+      if (plan.socialMedia && Array.isArray(platforms)) {
+        plan.socialMedia = Object.fromEntries(
+          Object.entries(plan.socialMedia).filter(([k]) => platforms.includes(k))
+        );
+      }
+      if (plan.adPlatforms && Array.isArray(platforms)) {
+        plan.adPlatforms = Object.fromEntries(
+          Object.entries(plan.adPlatforms).filter(([k]) => platforms.includes(k))
+        );
+      }
+
       return NextResponse.json(plan);
     } catch {
       return NextResponse.json({ error: "AI вернул невалидный JSON", raw }, { status: 500 });

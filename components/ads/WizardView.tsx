@@ -828,6 +828,7 @@ export function WizardView({
   const [generatedCreatives, setGeneratedCreatives] = useState<any[]>([]);
   const [generating, setGenerating] = useState(false);
   const [creativePlatformFilter, setCreativePlatformFilter] = useState("all");
+  const [creativeFilter, setCreativeFilter] = useState<string>("all");
 
   // Connect platform inline
   const [connectModal, setConnectModal] = useState<string | null>(null);
@@ -2740,27 +2741,61 @@ export function WizardView({
                         </button>
                       </div>
                     </div>
+                    {/* Фильтр по платформе */}
+                    {(() => {
+                      const platforms = [...new Set(generatedCreatives.map((c: any) => c.platform))];
+                      if (platforms.length <= 1) return null;
+                      return (
+                        <div className="flex gap-1.5 flex-wrap mb-3">
+                          <button
+                            onClick={() => setCreativeFilter("all")}
+                            className={`px-2.5 py-1 text-[11px] rounded-[7px] border cursor-pointer transition-colors ${creativeFilter === "all" ? "bg-accent text-on-accent border-accent" : "border-line text-tx-2 hover:bg-hover"}`}
+                          >
+                            Все ({generatedCreatives.length})
+                          </button>
+                          {platforms.map(p => {
+                            const meta = (PLATFORM_META as any)[p];
+                            const count = generatedCreatives.filter((c: any) => c.platform === p).length;
+                            return (
+                              <button
+                                key={p}
+                                onClick={() => setCreativeFilter(p)}
+                                className={`px-2.5 py-1 text-[11px] rounded-[7px] border cursor-pointer transition-colors ${creativeFilter === p ? "bg-accent text-on-accent border-accent" : "border-line text-tx-2 hover:bg-hover"}`}
+                              >
+                                {meta?.name ?? p} ({count})
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+
                     <div className="grid grid-cols-1 gap-3">
-                      {generatedCreatives.map((c: any) => {
+                      {generatedCreatives.filter((c: any) => creativeFilter === "all" || c.platform === creativeFilter).map((c: any) => {
                         const meta = (PLATFORM_META as any)[c.platform];
                         return (
                           <div key={c.id} className="border border-line rounded-[12px] p-4 bg-panel hover:border-line-strong transition-colors">
-                            <div className="flex items-center gap-2 mb-3">
-                              <span
-                                className="text-[10px] font-bold px-2 py-0.5 rounded-[5px] text-white"
-                                style={{ background: meta?.color ?? "var(--accent)" }}
-                              >
-                                {meta?.abbr ?? c.platform}
-                              </span>
-                              <span className="text-[11px] text-tx-3 capitalize">{c.subtype}</span>
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="text-[10px] font-bold px-2 py-0.5 rounded-[5px] text-white"
+                                  style={{ background: meta?.color ?? "var(--accent)" }}
+                                >
+                                  {meta?.abbr ?? c.platform}
+                                </span>
+                                <span className="text-[11px] text-tx-2 font-medium">{meta?.name ?? c.platform}</span>
+                                <span className="text-[10px] text-tx-3 capitalize bg-panel-2 px-1.5 py-0.5 rounded-[4px]">{c.subtype}</span>
+                              </div>
                             </div>
                             {c.platform === "google" && (
-                              <div>
+                              <div className="space-y-1">
+                                <p className="text-[10px] text-tx-3 uppercase tracking-wide mb-1">Заголовки</p>
                                 {(c.headlines ?? []).map((h: string, i: number) => (
                                   <p key={i} className="text-[13px] font-semibold text-[#1a73e8]">{h}</p>
                                 ))}
+                                <p className="text-[10px] text-tx-3 uppercase tracking-wide mt-2 mb-1">Описания</p>
                                 {(c.descriptions ?? []).map((d: string, i: number) => (
-                                  <p key={i} className="text-[12px] text-tx-2 mt-1">{d}</p>
+                                  <p key={i} className="text-[12px] text-tx-2">{d}</p>
                                 ))}
                               </div>
                             )}
@@ -2771,22 +2806,35 @@ export function WizardView({
                               </div>
                             )}
                             {c.platform === "meta" && (
-                              <div>
-                                <p className="text-[12px] text-tx-1">{c.primary_text}</p>
-                                <p className="text-[13px] font-semibold text-tx-1 mt-1">{c.headline}</p>
+                              <div className="space-y-1">
+                                <p className="text-[12px] text-tx-1 leading-relaxed">{c.primary_text}</p>
+                                <p className="text-[13px] font-semibold text-tx-1">{c.headline}</p>
                                 <p className="text-[11px] text-tx-3">{c.description}</p>
                               </div>
                             )}
-                            {["instagram", "telegram", "tiktok"].includes(c.platform) && (
+                            {c.platform === "instagram" && (
                               <div>
-                                {c.hook && <p className="text-[11px] text-tx-3 mb-1">🎬 {c.hook}</p>}
-                                {c.script && <p className="text-[11px] text-tx-2 mb-1 whitespace-pre-line">{c.script}</p>}
+                                {c.hook && <p className="text-[11px] font-medium text-accent mb-1">🎬 Hook: {c.hook}</p>}
                                 {c.text && <p className="text-[13px] font-semibold text-tx-1 mb-1">{c.text}</p>}
+                                {c.cta && <span className="inline-block mb-1 px-2 py-0.5 bg-accent/10 text-accent text-[11px] rounded-[5px]">CTA: {c.cta}</span>}
+                                {c.caption && <p className="text-[12px] text-tx-1 leading-relaxed">{c.caption}</p>}
+                                {c.script && <p className="text-[11px] text-tx-2 whitespace-pre-line mt-1">{c.script}</p>}
+                                {c.hashtags && <p className="text-[11px] mt-1 text-[#0095f6]">{(c.hashtags as string[]).join(" ")}</p>}
+                              </div>
+                            )}
+                            {c.platform === "telegram" && (
+                              <div>
+                                {c.hook && <p className="text-[11px] font-medium text-accent mb-1">🎬 Hook: {c.hook}</p>}
+                                {c.caption && <p className="text-[12px] text-tx-1 leading-relaxed whitespace-pre-line">{c.caption}</p>}
+                                {c.script && <p className="text-[11px] text-tx-2 whitespace-pre-line mt-1">{c.script}</p>}
+                              </div>
+                            )}
+                            {c.platform === "tiktok" && (
+                              <div>
+                                {c.hook && <p className="text-[11px] font-medium text-accent mb-1">🎬 Hook: {c.hook}</p>}
+                                {c.script && <p className="text-[11px] text-tx-2 whitespace-pre-line mb-1">{c.script}</p>}
                                 {c.caption && <p className="text-[12px] text-tx-1">{c.caption}</p>}
-                                {c.cta && <span className="inline-block mt-1 px-2 py-0.5 bg-accent/10 text-accent text-[11px] rounded-[5px]">{c.cta}</span>}
-                                {c.hashtags && (
-                                  <p className="text-[11px] mt-1 text-[#0095f6]">{(c.hashtags as string[]).join(" ")}</p>
-                                )}
+                                {c.hashtags && <p className="text-[11px] mt-1 text-[#010101]">{(c.hashtags as string[]).join(" ")}</p>}
                               </div>
                             )}
                             {/* Кнопки публикации */}
