@@ -68,6 +68,10 @@ export default function CampaignDetailPage() {
   const [generating, setGenerating] = useState(false);
   const [creativeFilter, setCreativeFilter] = useState<string>("all");
   const [publishingNow, setPublishingNow] = useState<string | null>(null);
+  const [planModal, setPlanModal] = useState<"social" | "ads" | null>(null);
+  const [planModalEdit, setPlanModalEdit] = useState<any>(null);
+  const [editingPlatforms, setEditingPlatforms] = useState(false);
+  const [platformsDraft, setPlatformsDraft] = useState<string[]>([]);
 
   const { data: campaign, isLoading } = useQuery({
     queryKey: ["ad_campaign", id],
@@ -407,6 +411,20 @@ export default function CampaignDetailPage() {
     setGenerating(false);
   };
 
+  const openPlanModal = (section: "social" | "ads") => {
+    const p = section === "social" ? socialPlan : adsPlan;
+    if (!p) return;
+    setPlanModalEdit(JSON.parse(JSON.stringify(p)));
+    setPlanModal(section);
+  };
+  const closePlanModal = () => { setPlanModal(null); setPlanModalEdit(null); };
+  const applyPlanEdit = () => {
+    if (!planModal || !planModalEdit) return;
+    if (planModal === "social") { setSocialPlan(planModalEdit); setSocialPlanApproved(true); }
+    else { setAdsPlan(planModalEdit); setAdsPlanApproved(true); }
+    setPlanModal(null); setPlanModalEdit(null);
+  };
+
   const inp =
     "w-full px-3 py-2.5 rounded-[8px] border border-line text-[12px] outline-none focus:border-line-strong bg-panel text-tx-1 placeholder:text-tx-3";
 
@@ -497,10 +515,16 @@ export default function CampaignDetailPage() {
               <div className="flex items-center gap-2 mb-4">
                 <span className="text-[12px] text-green-500 font-medium">✓ План утверждён</span>
                 <button
-                  onClick={() => { setPlan(null); setPlanApproved(false); }}
-                  className="ml-auto text-[11px] text-tx-3 hover:text-accent cursor-pointer"
+                  onClick={() => openPlanModal(section)}
+                  className="ml-1 text-[11px] text-accent hover:opacity-80 cursor-pointer"
                 >
-                  ← Изменить
+                  👁 Просмотреть
+                </button>
+                <button
+                  onClick={() => { setPlan(null); setPlanApproved(false); }}
+                  className="ml-auto text-[11px] text-tx-3 hover:text-neg cursor-pointer"
+                >
+                  ← Сброс
                 </button>
               </div>
               <button
@@ -512,48 +536,19 @@ export default function CampaignDetailPage() {
               </button>
             </div>
           ) : plan ? (
-            <div>
-              <p className="text-[11px] font-semibold text-tx-2 mb-3 uppercase tracking-wider">Контент-план</p>
-              {Object.entries(planData).map(([platform, data]: [string, any]) => (
-                <div key={platform} className="mb-3 pb-3 border-b border-line last:border-0 last:pb-0 last:mb-0">
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <span
-                      className="w-4 h-4 rounded-[4px] flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
-                      style={{ background: PLATFORM_META[platform]?.color ?? "#888" }}
-                    >
-                      {PLATFORM_META[platform]?.abbr ?? platform.slice(0, 2).toUpperCase()}
-                    </span>
-                    <span className="text-[11px] font-medium text-tx-1">
-                      {PLATFORM_META[platform]?.name ?? platform}
-                    </span>
-                  </div>
-                  {Object.entries(data)
-                    .filter(([k, v]) => k !== "reasoning" && typeof v === "number")
-                    .map(([subtype, count]) => (
-                      <div key={subtype} className="flex justify-between text-[11px] py-0.5 pl-6">
-                        <span className="text-tx-3">{subtype}</span>
-                        <span className="font-medium text-tx-2">{String(count)} шт.</span>
-                      </div>
-                    ))}
-                  {data.reasoning && (
-                    <p className="text-[10px] text-tx-3 pl-6 mt-1 italic leading-relaxed">{data.reasoning}</p>
-                  )}
-                </div>
-              ))}
-              <div className="flex gap-2 pt-3 border-t border-line mt-3">
-                <button
-                  onClick={() => { setPlan(null); setPlanApproved(false); }}
-                  className="flex-1 py-2 border border-line rounded-[7px] text-[11px] text-tx-2 hover:bg-hover cursor-pointer"
-                >
-                  Отклонить
-                </button>
-                <button
-                  onClick={() => setPlanApproved(true)}
-                  className="flex-1 py-2 bg-accent text-on-accent text-[11px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
-                >
-                  Утвердить план
-                </button>
-              </div>
+            <div className="space-y-2">
+              <button
+                onClick={() => openPlanModal(section)}
+                className="w-full py-3 border border-dashed border-accent/40 rounded-[8px] text-[12px] text-accent hover:bg-accent/5 cursor-pointer transition-colors flex items-center justify-center gap-2"
+              >
+                📋 Просмотреть и утвердить план
+              </button>
+              <button
+                onClick={() => { setPlan(null); setPlanApproved(false); }}
+                className="w-full py-1.5 text-[11px] text-tx-3 hover:text-neg cursor-pointer"
+              >
+                ✕ Сбросить план
+              </button>
             </div>
           ) : (
             <div>
@@ -571,6 +566,7 @@ export default function CampaignDetailPage() {
       </div>
     );
   };
+
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -616,7 +612,7 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* Title + meta */}
-      <div className="px-5 pt-5 pb-3">
+      <div className="px-5 pt-5 pb-3 max-w-[960px] mx-auto w-full">
         <div className="flex items-center gap-3 mb-1">
           <h1 className="text-[20px] font-semibold text-tx-1">{campaign.name}</h1>
           <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-chip text-tx-2">
@@ -647,7 +643,7 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* KPIs */}
-      <div className="px-5 pb-4 grid grid-cols-5 gap-3">
+      <div className="px-5 pb-4 grid grid-cols-5 gap-3 max-w-[960px] mx-auto w-full">
         {[
           { l: "Расход", v: fmt(spent) },
           { l: "CTR", v: campaign.ctr > 0 ? `${campaign.ctr.toFixed(1)}%` : "—" },
@@ -664,7 +660,7 @@ export default function CampaignDetailPage() {
 
       {/* Budget bar */}
       {total > 0 && (
-        <div className="px-5 pb-3">
+        <div className="px-5 pb-3 max-w-[960px] mx-auto w-full">
           <div className="ui-surface px-4 py-3">
             <div className="flex justify-between text-[11px] mb-2">
               <span className="font-medium text-tx-1">Бюджет</span>
@@ -707,7 +703,96 @@ export default function CampaignDetailPage() {
       <div className="flex-1 p-5">
         {/* Info */}
         {activeTab === "info" && (
-          <div className="grid grid-cols-2 gap-4 max-w-[680px]">
+          <div className="grid grid-cols-2 gap-4 max-w-[720px] mx-auto">
+            {/* Platforms card — spans 2 cols */}
+            <div className="ui-surface p-4 col-span-2">
+              <div className="flex items-center justify-between mb-3">
+                <p className="ui-label">Платформы</p>
+                {!editingPlatforms ? (
+                  <button
+                    onClick={() => { setPlatformsDraft([...(campaign.platforms ?? [])]); setEditingPlatforms(true); }}
+                    className="text-[11px] text-accent hover:opacity-80 cursor-pointer"
+                  >
+                    + Изменить
+                  </button>
+                ) : null}
+              </div>
+              {editingPlatforms ? (
+                <div>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 mb-4">
+                    {[
+                      { group: "Соцсети", items: [
+                        { id: "instagram", name: "Instagram" },
+                        { id: "telegram",  name: "Telegram" },
+                        { id: "tiktok",    name: "TikTok" },
+                        { id: "youtube",   name: "YouTube" },
+                      ]},
+                      { group: "Рекл. кабинеты", items: [
+                        { id: "meta",    name: "Meta Ads" },
+                        { id: "google",  name: "Google Ads" },
+                        { id: "yandex",  name: "Яндекс Директ" },
+                      ]},
+                    ].map(({ group, items }) => (
+                      <div key={group}>
+                        <p className="text-[10px] text-tx-3 mb-2 uppercase tracking-wider">{group}</p>
+                        <div className="space-y-1.5">
+                          {items.map((p) => (
+                            <label key={p.id} className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={platformsDraft.includes(p.id)}
+                                onChange={(e) =>
+                                  setPlatformsDraft(e.target.checked
+                                    ? [...platformsDraft, p.id]
+                                    : platformsDraft.filter((x) => x !== p.id))
+                                }
+                                className="accent-accent"
+                              />
+                              <span className="text-[11px] text-tx-1 flex items-center gap-1.5">
+                                <span
+                                  style={{ width: 12, height: 12, borderRadius: 2, background: PLATFORM_META[p.id]?.color, display: "inline-block", flexShrink: 0 }}
+                                />
+                                {p.name}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 pt-3 border-t border-line">
+                    <button
+                      onClick={() => setEditingPlatforms(false)}
+                      className="flex-1 py-2 border border-line rounded-[7px] text-[11px] text-tx-2 hover:bg-hover cursor-pointer"
+                    >
+                      Отмена
+                    </button>
+                    <button
+                      onClick={async () => { await updateCampaign.mutateAsync({ platforms: platformsDraft }); setEditingPlatforms(false); }}
+                      disabled={updateCampaign.isPending}
+                      className="flex-1 py-2 bg-accent text-on-accent text-[11px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-50"
+                    >
+                      Сохранить
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {campaignPlatforms.length === 0 ? (
+                    <p className="text-[11px] text-tx-3">Нет платформ</p>
+                  ) : campaignPlatforms.map((pid: string) => {
+                    const pm = PLATFORM_META[pid];
+                    return pm ? (
+                      <div key={pid} className="flex items-center gap-1.5 px-2 py-1 rounded-[6px] border border-line text-[10px] text-tx-1">
+                        <span style={{ width: 10, height: 10, borderRadius: 2, background: pm.color, display: "inline-block", flexShrink: 0 }} />
+                        {pm.name}
+                      </div>
+                    ) : null;
+                  })}
+                </div>
+              )}
+            </div>
+
             <div className="ui-surface p-4">
               <p className="ui-label mb-3">Основное</p>
               {[
@@ -742,7 +827,7 @@ export default function CampaignDetailPage() {
 
         {/* Schedule */}
         {activeTab === "schedule" && (
-          <div className="max-w-[480px]">
+          <div className="max-w-[480px] mx-auto">
             <p className="text-[12px] text-tx-2 mb-4">Выберите черновик и запланируйте публикацию</p>
             {(creatives as any[]).filter((c: any) => c.status === "draft").length === 0 ? (
               <div className="ui-surface flex flex-col items-center py-10 text-center">
@@ -777,7 +862,7 @@ export default function CampaignDetailPage() {
 
         {/* History */}
         {activeTab === "history" && (
-          <div className="max-w-[560px]">
+          <div className="max-w-[560px] mx-auto">
             <div className="ui-surface flex flex-col items-center py-14 text-center">
               <Clock size={28} className="text-tx-3 mb-3" strokeWidth={1.2} />
               <p className="text-[13px] font-medium text-tx-1 mb-1">История изменений</p>
@@ -792,7 +877,7 @@ export default function CampaignDetailPage() {
           const selectedLanding = (landings as any[]).find((l: any) => l.id === landingId) ?? null;
 
           return (
-            <div className="max-w-[680px]">
+            <div className="max-w-[680px] mx-auto">
               {selectedLanding && (
                 <div className="ui-surface p-4 mb-4">
                   <div className="flex items-center justify-between mb-3">
@@ -878,7 +963,7 @@ export default function CampaignDetailPage() {
           return (
             <div>
               {/* Section tabs */}
-              <div className="flex gap-2 mb-5">
+              <div className="flex gap-2 mb-5 justify-center">
                 {(
                   [
                     { k: "social" as const, l: "Соцсети",             platforms: socialPlatforms, approved: socialPlanApproved },
@@ -906,7 +991,7 @@ export default function CampaignDetailPage() {
               </div>
 
               {/* Active section plan area */}
-              <div className="max-w-[680px] mb-6">
+              <div className="max-w-[680px] mx-auto mb-6">
                 {activeContentSection === "social"
                   ? renderPlanSection(
                       "social", socialPlan, socialPlanLoading, socialPlanError, socialPlanApproved,
@@ -920,7 +1005,7 @@ export default function CampaignDetailPage() {
 
               {/* Generated content cards */}
               {generatedCreatives.length > 0 && (
-                <div>
+                <div className="max-w-[960px] mx-auto">
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-[12px] font-medium text-tx-2">
                       Сгенерированный контент · {generatedCreatives.length}
@@ -978,13 +1063,23 @@ export default function CampaignDetailPage() {
                           <div className="p-3 flex flex-col gap-1.5 flex-1">
                             {isSearch && (
                               <>
+                                {/* Google: headlines array */}
                                 {c.headlines && (c.headlines as string[]).slice(0, 3).map((h: string, i: number) => (
                                   <p key={i} className="text-[11px] font-medium text-blue-500 leading-snug">{h}</p>
                                 ))}
+                                {/* Yandex: single headline */}
+                                {!c.headlines && c.headline && (
+                                  <p className="text-[11px] font-medium text-blue-500 leading-snug">{c.headline}</p>
+                                )}
                                 {c.url && <p className="text-[9px] text-pos truncate">{c.url}</p>}
+                                {/* Google: descriptions array */}
                                 {c.descriptions && (c.descriptions as string[]).slice(0, 2).map((d: string, i: number) => (
                                   <p key={i} className="text-[10px] text-tx-2 leading-relaxed">{d}</p>
                                 ))}
+                                {/* Yandex: text field */}
+                                {!c.descriptions && c.text && (
+                                  <p className="text-[10px] text-tx-2 leading-relaxed">{c.text}</p>
+                                )}
                               </>
                             )}
                             {isMeta && (
@@ -1078,6 +1173,88 @@ export default function CampaignDetailPage() {
           );
         })()}
       </div>
+
+      {/* Plan modal */}
+      {planModal && planModalEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-[3px]" onClick={closePlanModal} />
+          <div className="relative w-full max-w-[520px] bg-panel border border-line rounded-[14px] shadow-[0_20px_60px_rgba(0,0,0,0.18)] flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between p-4 border-b border-line flex-shrink-0">
+              <h2 className="text-[14px] font-semibold text-tx-1">
+                {planModal === "social" ? "План — Соцсети" : "План — Рекламные кабинеты"}
+              </h2>
+              <button onClick={closePlanModal} className="w-7 h-7 flex items-center justify-center rounded-[7px] border border-line hover:bg-hover cursor-pointer text-tx-3 text-[14px]">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1 p-4 space-y-3">
+              {planModalEdit.strategy && (
+                <div className="p-3 bg-accent/5 border border-accent/15 rounded-[8px]">
+                  <p className="text-[10px] font-semibold text-tx-3 uppercase tracking-wider mb-1">Стратегия</p>
+                  <p className="text-[11px] text-tx-2 leading-relaxed">{planModalEdit.strategy}</p>
+                </div>
+              )}
+              {Object.entries(
+                planModal === "social"
+                  ? (planModalEdit.socialMedia ?? {})
+                  : (planModalEdit.adPlatforms ?? {})
+              ).map(([platform, data]: [string, any]) => (
+                <div key={platform} className="ui-surface p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span
+                      className="w-5 h-5 rounded-[4px] flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
+                      style={{ background: PLATFORM_META[platform]?.color ?? "#888" }}
+                    >
+                      {PLATFORM_META[platform]?.abbr ?? platform.slice(0, 2).toUpperCase()}
+                    </span>
+                    <span className="text-[12px] font-medium text-tx-1">{PLATFORM_META[platform]?.name ?? platform}</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {Object.entries(data)
+                      .filter(([k, v]) => k !== "reasoning" && typeof v === "number")
+                      .map(([subtype, count]) => (
+                        <div key={subtype} className="flex items-center justify-between">
+                          <span className="text-[11px] text-tx-3">{subtype}</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={20}
+                            value={String(count)}
+                            onChange={(e) => {
+                              const newVal = Math.max(0, parseInt(e.target.value) || 0);
+                              setPlanModalEdit((prev: any) => {
+                                const next = JSON.parse(JSON.stringify(prev));
+                                const sec = planModal === "social" ? "socialMedia" : "adPlatforms";
+                                next[sec][platform][subtype] = newVal;
+                                return next;
+                              });
+                            }}
+                            className="w-16 px-2 py-1 text-[11px] text-center rounded-[6px] border border-line bg-bg text-tx-1 outline-none focus:border-accent"
+                          />
+                        </div>
+                      ))}
+                  </div>
+                  {data.reasoning && (
+                    <p className="text-[10px] text-tx-3 mt-2 italic leading-relaxed">{data.reasoning}</p>
+                  )}
+                </div>
+              ))}
+              {planModalEdit.postingSchedule && (
+                <div>
+                  <p className="text-[10px] font-semibold text-tx-3 uppercase tracking-wider mb-1">График</p>
+                  <p className="text-[11px] text-tx-2 leading-relaxed">{planModalEdit.postingSchedule}</p>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2 p-4 border-t border-line flex-shrink-0">
+              <button onClick={closePlanModal} className="flex-1 py-2.5 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer">
+                Закрыть
+              </button>
+              <button onClick={applyPlanEdit} className="flex-1 py-2.5 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer">
+                ✓ Применить и утвердить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Schedule modal */}
       {scheduleModal && (
