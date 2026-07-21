@@ -116,7 +116,7 @@ ${trendsBlock || "данные недоступны — опирайся на о
 
   try {
     const message = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: "claude-sonnet-4-6",
       max_tokens: 2000,
       messages: [{ role: "user", content: prompt }],
     });
@@ -136,6 +136,28 @@ ${trendsBlock || "данные недоступны — опирайся на о
         plan.adPlatforms = Object.fromEntries(
           Object.entries(plan.adPlatforms).filter(([k]) => platforms.includes(k))
         );
+      }
+
+      const PLATFORM_DEFAULTS: Record<string, Record<string, number>> = {
+        google:    { search_ad: 3, display_ad: 2 },
+        yandex:    { search_ad: 2, banner: 1 },
+        meta:      { image_ad: 2, video_ad: 1, carousel_ad: 1 },
+        instagram: { post: 2, reels: 3, stories: 4 },
+        telegram:  { post: 3, video: 1 },
+        tiktok:    { video: 3 },
+        youtube:   { video: 1, shorts: 2 },
+      };
+      const socialKeys = ["instagram", "telegram", "tiktok", "youtube"];
+      const adKeys = ["meta", "google", "yandex"];
+      for (const p of (platforms ?? [])) {
+        if (socialKeys.includes(p) && !plan.socialMedia?.[p] && PLATFORM_DEFAULTS[p]) {
+          plan.socialMedia = plan.socialMedia ?? {};
+          plan.socialMedia[p] = { ...PLATFORM_DEFAULTS[p], reasoning: "Базовый набор форматов" };
+        }
+        if (adKeys.includes(p) && !plan.adPlatforms?.[p] && PLATFORM_DEFAULTS[p]) {
+          plan.adPlatforms = plan.adPlatforms ?? {};
+          plan.adPlatforms[p] = { ...PLATFORM_DEFAULTS[p], reasoning: "Базовый набор форматов" };
+        }
       }
 
       return NextResponse.json(plan);

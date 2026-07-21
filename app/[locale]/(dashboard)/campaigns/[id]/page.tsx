@@ -36,7 +36,7 @@ const STATUS_LABEL: Record<string, string> = {
   completed: "Завершена",
 };
 
-type TabKey = "info" | "creatives" | "schedule" | "history" | "landing" | "content";
+type TabKey = "info" | "schedule" | "history" | "landing" | "content";
 
 export default function CampaignDetailPage() {
   const params = useParams();
@@ -680,11 +680,10 @@ export default function CampaignDetailPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 px-5 border-b border-line flex-wrap">
+      <div className="flex gap-1 px-5 border-b border-line flex-wrap justify-center">
         {(
           [
             { k: "info",      l: "Инфо" },
-            { k: "creatives", l: `Креативы · ${(creatives as any[]).length}` },
             { k: "schedule",  l: "Запланировать" },
             { k: "history",   l: "История" },
             { k: "landing",   l: "Лендинг" },
@@ -740,46 +739,6 @@ export default function CampaignDetailPage() {
             </div>
           </div>
         )}
-
-        {/* Creatives */}
-        {activeTab === "creatives" &&
-          ((creatives as any[]).length === 0 ? (
-            <div className="ui-surface flex flex-col items-center py-14 text-center">
-              <p className="text-[32px] mb-3">⬡</p>
-              <p className="text-[13px] font-medium text-tx-1 mb-1">Нет креативов</p>
-              <p className="text-[11px] text-tx-3">Создайте контент во вкладке «Контент ✦»</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-4 gap-3">
-              {(creatives as any[]).map((c: any) => (
-                <div
-                  key={c.id}
-                  onClick={() => setScheduleModal(c)}
-                  className="ui-surface p-3 cursor-pointer hover:border-line-strong transition-colors"
-                >
-                  {c.image_url ? (
-                    <img src={c.image_url} alt="" className="w-full h-24 object-cover rounded-[6px] mb-2" />
-                  ) : (
-                    <div
-                      className="w-full h-24 rounded-[6px] mb-2 flex items-center justify-center text-[22px]"
-                      style={{ background: `linear-gradient(135deg, ${PLATFORM_META[c.platform]?.color ?? "#333"}, #111)` }}
-                    >
-                      {c.platform?.slice(0, 2).toUpperCase()}
-                    </div>
-                  )}
-                  <p className="text-[11px] font-medium text-tx-1 truncate mb-0.5">
-                    {c.title ?? "Без названия"}
-                  </p>
-                  <p className="text-[9px] text-tx-3 mb-2">
-                    {c.platform} · {c.format ?? c.type}
-                  </p>
-                  <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-chip ${c.status === "active" ? "text-pos" : "text-tx-3"}`}>
-                    {({ active: "Активен", draft: "Черновик", paused: "Пауза", winner: "Победитель", failed: "Ошибка" } as Record<string, string>)[c.status] ?? c.status}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ))}
 
         {/* Schedule */}
         {activeTab === "schedule" && (
@@ -985,57 +944,90 @@ export default function CampaignDetailPage() {
                       ))}
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {filteredCreatives.map((c: any) => {
                       const meta = PLATFORM_META[c.platform];
+                      const isSearch = c.platform === "google" || c.platform === "yandex";
+                      const isMeta = c.platform === "meta";
+                      const isInstagram = c.platform === "instagram";
+                      const isTelegram = c.platform === "telegram";
+                      const isTikTok = c.platform === "tiktok";
+                      const isYoutube = c.platform === "youtube";
                       const title =
-                        c.caption?.slice(0, 80) ??
-                        c.headline ??
-                        c.hook?.slice(0, 80) ??
-                        c.text?.slice(0, 80) ??
-                        c.subtype ??
-                        "—";
+                        c.headline ?? c.caption?.slice(0, 80) ??
+                        c.hook?.slice(0, 80) ?? c.text?.slice(0, 80) ?? "—";
                       return (
-                        <div key={c.id} className="ui-surface p-3 flex flex-col gap-2">
-                          {/* Platform header */}
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className="w-5 h-5 rounded-[5px] flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
-                              style={{ background: meta?.color ?? "#888" }}
-                            >
+                        <div key={c.id} className="ui-surface flex flex-col overflow-hidden">
+                          {/* Colored platform header stripe */}
+                          <div
+                            className="px-3 py-2 flex items-center gap-2"
+                            style={{ background: meta?.color ?? "#444" }}
+                          >
+                            <span className="text-[10px] font-bold text-white">
                               {meta?.abbr ?? c.platform?.slice(0, 2).toUpperCase()}
                             </span>
-                            <span className="text-[10px] text-tx-3">{meta?.name ?? c.platform}</span>
+                            <span className="text-[10px] text-white/80 flex-1">{meta?.name ?? c.platform}</span>
                             {c.subtype && (
-                              <span className="ml-auto text-[9px] text-tx-3 bg-chip px-1.5 py-0.5 rounded-full">
+                              <span className="text-[9px] bg-white/20 text-white px-1.5 py-0.5 rounded-full">
                                 {c.subtype}
                               </span>
                             )}
                           </div>
 
-                          {/* Text preview */}
-                          <p className="text-[11px] text-tx-1 leading-relaxed line-clamp-3 flex-1">{title}</p>
-
-                          {/* Extras */}
-                          {c.headlines && (
-                            <div>
-                              {(c.headlines as string[]).slice(0, 2).map((h: string, i: number) => (
-                                <p key={i} className="text-[10px] text-tx-2">· {h}</p>
-                              ))}
-                            </div>
-                          )}
-                          {c.hashtags && (
-                            <p className="text-[10px] text-accent truncate">
-                              {(c.hashtags as string[]).join(" ")}
-                            </p>
-                          )}
+                          {/* Platform-specific content */}
+                          <div className="p-3 flex flex-col gap-1.5 flex-1">
+                            {isSearch && (
+                              <>
+                                {c.headlines && (c.headlines as string[]).slice(0, 3).map((h: string, i: number) => (
+                                  <p key={i} className="text-[11px] font-medium text-blue-500 leading-snug">{h}</p>
+                                ))}
+                                {c.url && <p className="text-[9px] text-pos truncate">{c.url}</p>}
+                                {c.descriptions && (c.descriptions as string[]).slice(0, 2).map((d: string, i: number) => (
+                                  <p key={i} className="text-[10px] text-tx-2 leading-relaxed">{d}</p>
+                                ))}
+                              </>
+                            )}
+                            {isMeta && (
+                              <>
+                                {c.headline && <p className="text-[11px] font-semibold text-tx-1">{c.headline}</p>}
+                                {(c.body ?? c.caption) && <p className="text-[10px] text-tx-2 leading-relaxed line-clamp-3">{c.body ?? c.caption}</p>}
+                                {c.cta && <p className="text-[9px] text-tx-3">CTA: {c.cta}</p>}
+                              </>
+                            )}
+                            {isInstagram && (
+                              <>
+                                {c.caption && <p className="text-[10px] text-tx-1 leading-relaxed line-clamp-4">{c.caption}</p>}
+                                {c.hashtags && <p className="text-[9px] text-accent truncate">{(c.hashtags as string[]).slice(0, 5).join(" ")}</p>}
+                              </>
+                            )}
+                            {isTelegram && (
+                              <>
+                                {c.text && <p className="text-[10px] text-tx-1 leading-relaxed line-clamp-4">{c.text}</p>}
+                                {c.emoji && <p className="text-[14px]">{c.emoji}</p>}
+                              </>
+                            )}
+                            {isTikTok && (
+                              <>
+                                {c.hook && <p className="text-[11px] font-semibold text-tx-1 leading-snug">{c.hook}</p>}
+                                {c.description && <p className="text-[10px] text-tx-2 leading-relaxed line-clamp-3">{c.description}</p>}
+                                {c.hashtags && <p className="text-[9px] text-accent truncate">{(c.hashtags as string[]).slice(0, 4).join(" ")}</p>}
+                              </>
+                            )}
+                            {isYoutube && (
+                              <>
+                                {(c.title ?? c.headline) && <p className="text-[11px] font-semibold text-tx-1 leading-snug">{c.title ?? c.headline}</p>}
+                                {c.description && <p className="text-[10px] text-tx-2 leading-relaxed line-clamp-3">{c.description}</p>}
+                              </>
+                            )}
+                            {!isSearch && !isMeta && !isInstagram && !isTelegram && !isTikTok && !isYoutube && (
+                              <p className="text-[11px] text-tx-1 leading-relaxed line-clamp-3">{title}</p>
+                            )}
+                          </div>
 
                           {/* Actions */}
-                          <div className="flex gap-1.5 pt-2 border-t border-line">
+                          <div className="flex gap-1.5 px-3 pb-3 pt-2 border-t border-line">
                             <button
-                              onClick={() =>
-                                setScheduleModal({ id: c.id, platform: c.platform, title })
-                              }
+                              onClick={() => setScheduleModal({ id: c.id, platform: c.platform, title })}
                               className="flex-1 py-1.5 border border-line rounded-[6px] text-[10px] text-tx-2 hover:bg-hover cursor-pointer"
                             >
                               📅 Запланировать
