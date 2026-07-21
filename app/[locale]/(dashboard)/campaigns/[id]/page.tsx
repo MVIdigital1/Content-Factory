@@ -68,6 +68,7 @@ export default function CampaignDetailPage() {
   const [generating, setGenerating] = useState(false);
   const [creativeFilter, setCreativeFilter] = useState<string>("all");
   const [publishingNow, setPublishingNow] = useState<string | null>(null);
+  const [publishResult, setPublishResult] = useState<{ id: string; ok: boolean; msg: string } | null>(null);
   const [planModal, setPlanModal] = useState<"social" | "ads" | null>(null);
   const [planModalEdit, setPlanModalEdit] = useState<any>(null);
   const [editingPlatforms, setEditingPlatforms] = useState(false);
@@ -1131,27 +1132,40 @@ export default function CampaignDetailPage() {
                               onClick={async () => {
                                 if (!c.id || publishingNow === c.id) return;
                                 setPublishingNow(c.id);
+                                setPublishResult(null);
                                 try {
-                                  await fetch(
-                                    `/api/campaigns/${id}/creatives?creativeId=${c.id}`,
+                                  const res = await fetch(
+                                    `/api/campaigns/${id}/creatives/publish`,
                                     {
-                                      method: "PATCH",
+                                      method: "POST",
                                       headers: { "Content-Type": "application/json" },
-                                      body: JSON.stringify({ status: "active" }),
+                                      body: JSON.stringify({ creativeId: c.id }),
                                     }
                                   );
-                                  refetchCreatives();
+                                  const data = await res.json();
+                                  if (res.ok) {
+                                    setPublishResult({ id: c.id, ok: true, msg: data.via === "make" ? "Отправлено в Make.com" : "Опубликовано!" });
+                                    refetchCreatives();
+                                  } else {
+                                    setPublishResult({ id: c.id, ok: false, msg: data.error ?? "Ошибка публикации" });
+                                  }
                                 } catch {
-                                  // silent
+                                  setPublishResult({ id: c.id, ok: false, msg: "Ошибка сети" });
                                 } finally {
                                   setPublishingNow(null);
+                                  setTimeout(() => setPublishResult(null), 5000);
                                 }
                               }}
                               disabled={publishingNow === c.id}
                               className="flex-1 py-1.5 bg-accent text-on-accent rounded-[6px] text-[10px] font-medium hover:opacity-90 cursor-pointer disabled:opacity-50"
                             >
-                              {publishingNow === c.id ? "..." : "▶ Опубликовать"}
+                              {publishingNow === c.id ? "⟳ Публикую..." : "▶ Опубликовать"}
                             </button>
+                            {publishResult?.id === c.id && (
+                              <p className={`w-full text-center text-[9px] mt-1 ${publishResult?.ok ? "text-green-500" : "text-red-400"}`}>
+                                {publishResult?.ok ? "✓" : "✕"} {publishResult?.msg}
+                              </p>
+                            )}
                           </div>
                         </div>
                       );
