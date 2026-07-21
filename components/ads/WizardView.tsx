@@ -10,14 +10,9 @@ import {
 import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
-import LandingRenderer from "@/components/landing/LandingRenderer";
-import LandingDetail from "@/components/landing/LandingDetail";
-
 const ALL_STEP_DEFS = [
   { key: "goal" as const, label: "Цель" },
-  { key: "landing" as const, label: "Лендинг" },
   { key: "platforms" as const, label: "Платформы" },
-  { key: "content" as const, label: "Контент" },
   { key: "launch" as const, label: "Запуск" },
 ];
 
@@ -517,15 +512,13 @@ export function BulkScheduleModal({
 function LaunchStep({
   name, goal, product, audience, budget,
   selectedPlatforms, realPlatforms,
-  landingId, landingPages,
-  generatedCreatives, projectAgent,
+  projectAgent,
   launchProgress, launching,
   step, setStep, handleLaunch,
 }: {
   name: string; goal: string; product: string; audience: string; budget: string;
   selectedPlatforms: Set<string>; realPlatforms: any[];
-  landingId: string | null; landingPages: any[];
-  generatedCreatives: any[]; projectAgent: any;
+  projectAgent: any;
   launchProgress: string; launching: boolean;
   step: number; setStep: (s: number) => void; handleLaunch: () => void;
 }) {
@@ -533,7 +526,6 @@ function LaunchStep({
   const [explanation, setExplanation] = useState("");
   const [explaining, setExplaining] = useState(false);
 
-  const selectedLanding = landingId ? landingPages.find((l: any) => l.id === landingId) : null;
   const budgetNum = budget ? Number(budget) : null;
 
   const getExplanation = async () => {
@@ -619,34 +611,6 @@ function LaunchStep({
           </div>
         )}
 
-        {/* Landing preview */}
-        {selectedLanding && (
-          <div className="p-4 bg-panel-2 border border-line rounded-[12px]">
-            <p className="text-[11px] font-medium text-tx-2 mb-2">Лендинг</p>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-[8px] bg-accent/10 border border-accent/20 flex items-center justify-center text-lg">🌐</div>
-              <div className="min-w-0">
-                <p className="text-[12px] font-medium text-tx-1 truncate">{selectedLanding.title}</p>
-                {selectedLanding.slug && (
-                  <p className="text-[10px] text-tx-3 truncate">/l/{selectedLanding.slug}</p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Creatives count */}
-        {generatedCreatives.length > 0 && (
-          <div className="p-4 bg-panel-2 border border-line rounded-[12px]">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">🎨</span>
-              <div>
-                <p className="text-[12px] font-medium text-tx-1">{generatedCreatives.length} {generatedCreatives.length === 1 ? "креатив" : "креатива"} готово</p>
-                <p className="text-[10px] text-tx-3">Будут опубликованы при запуске</p>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* AI explanation */}
         <div className="p-4 bg-panel-2 border border-line rounded-[12px]">
@@ -761,7 +725,6 @@ export function WizardView({
 
   const draft = loadDraft(tabId);
 
-  const [showBulkSchedule, setShowBulkSchedule] = useState(false);
   // genMode kept for backward compat but not shown in UI
   const [genMode] = useState<"text" | "image" | "video">("text");
   const [step, setStep] = useState(draft?.step ?? 0);
@@ -794,13 +757,9 @@ export function WizardView({
       ]),
     ),
   );
-  const [landingId, setLandingId] = useState<string | null>(draft?.landingId ?? null);
-  const [landingDetailId, setLandingDetailId] = useState<string | null>(null);
-  const [campaignTools, setCampaignTools] = useState<Set<string>>(() => {
-    const tools = new Set<string>(draft?.campaignTools ?? []);
-    if (draft?.landingId) tools.add("landing");
-    return tools;
-  });
+  const [campaignTools, setCampaignTools] = useState<Set<string>>(
+    () => new Set<string>(draft?.campaignTools ?? [])
+  );
   const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(draft?.selectedAgentId ?? null);
   const [budgetSuggesting, setBudgetSuggesting] = useState(false);
@@ -814,21 +773,6 @@ export function WizardView({
   const [launchProgress, setLaunchProgress] = useState<string>("");
   const [error, setError] = useState("");
 
-  // Schedule
-  const [scheduleModal, setScheduleModal] = useState<{
-    creativeId: string;
-    platform: string;
-    title: string;
-  } | null>(null);
-  const [scheduleTime, setScheduleTime] = useState("");
-  const [scheduling, setScheduling] = useState(false);
-  const [publishingNow, setPublishingNow] = useState<string | null>(null);
-
-  // Generated creatives (real content from AI)
-  const [generatedCreatives, setGeneratedCreatives] = useState<any[]>([]);
-  const [generating, setGenerating] = useState(false);
-  const [creativePlatformFilter, setCreativePlatformFilter] = useState("all");
-  const [creativeFilter, setCreativeFilter] = useState<string>("all");
 
   // Connect platform inline
   const [connectModal, setConnectModal] = useState<string | null>(null);
@@ -857,16 +801,6 @@ export function WizardView({
     null,
   );
 
-  // Content plan step
-  const [socialPlan, setSocialPlan] = useState<any>(null);
-  const [socialPlanLoading, setSocialPlanLoading] = useState(false);
-  const [socialPlanError, setSocialPlanError] = useState("");
-  const [socialPlanApproved, setSocialPlanApproved] = useState(false);
-  const [adsPlan, setAdsPlan] = useState<any>(null);
-  const [adsPlanLoading, setAdsPlanLoading] = useState(false);
-  const [adsPlanError, setAdsPlanError] = useState("");
-  const [adsPlanApproved, setAdsPlanApproved] = useState(false);
-  const [activeContentSection, setActiveContentSection] = useState<"social" | "ads">("social");
 
   const imgRef = useRef<HTMLInputElement>(null);
   const productImgRef = useRef<HTMLInputElement>(null);
@@ -990,18 +924,6 @@ export function WizardView({
     return (aiAgents as any[]).find((a: any) => a.id === proj.ai_agent_id) ?? null;
   })();
 
-  const { data: landingPages = [] } = useQuery({
-    queryKey: ["landings_wizard"],
-    staleTime: 0,
-    refetchOnWindowFocus: true,
-    queryFn: async () => {
-      const res = await fetch("/api/landings");
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data ?? [];
-    },
-  });
-
   // Autosave draft to localStorage + create draft in DB
   useEffect(() => {
     const subtypesSer = Object.fromEntries(
@@ -1021,7 +943,6 @@ export function WizardView({
         platforms: [...selectedPlatforms],
         subtypes: subtypesSer,
         draftId,
-        landingId,
         campaignTools: [...campaignTools],
         step,
         maxStep,
@@ -1046,7 +967,6 @@ export function WizardView({
     projectId,
     selectedPlatforms,
     selectedSubtypes,
-    landingId,
     campaignTools,
     step,
     maxStep,
@@ -1099,13 +1019,12 @@ export function WizardView({
           platforms: [...selectedPlatforms],
           budget_total: budget ? Number(budget) : null,
           project_id: projectId || null,
-          landing_id: landingId ?? null,
         }),
       });
       qc.invalidateQueries({ queryKey: ["ad_campaigns"] });
     }, 800);
     return () => clearTimeout(timer);
-  }, [name, goal, product, budget, projectId, selectedPlatforms, draftId, landingId]);
+  }, [name, goal, product, budget, projectId, selectedPlatforms, draftId]);
 
   const activeProject = projects.find((p: any) => p.id === projectId) as any;
 
@@ -1115,12 +1034,7 @@ export function WizardView({
   const [autofilling, setAutofilling] = useState(false);
 
   // Dynamic steps based on selected tools
-  const activeSteps = ALL_STEP_DEFS.filter(s => {
-    if (s.key === "goal" || s.key === "platforms" || s.key === "launch") return true;
-    if (s.key === "landing") return campaignTools.has("landing");
-    if (s.key === "content") return campaignTools.has("creatives") || campaignTools.has("content") || selectedPlatforms.size > 0;
-    return false;
-  });
+  const activeSteps = ALL_STEP_DEFS;
   const currentStepKey = activeSteps[step]?.key ?? "goal";
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1150,59 +1064,6 @@ export function WizardView({
       setBudgetError(e.message || "Не удалось получить AI совет");
     } finally {
       setBudgetSuggesting(false);
-    }
-  };
-
-  const SOCIAL_KEYS = ["instagram", "telegram", "tiktok", "youtube"];
-  const AD_KEYS = ["meta", "google", "yandex"];
-
-  const generateSocialPlan = async () => {
-    const platforms = [...selectedPlatforms].filter(p => SOCIAL_KEYS.includes(p));
-    setSocialPlanLoading(true);
-    setSocialPlanError("");
-    setSocialPlan(null);
-    setSocialPlanApproved(false);
-    try {
-      const res = await fetch("/api/ai/content-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          niche: campaignNiche || (activeProject as any)?.niche,
-          goal, product, audience, budget, dateFrom, dateTo,
-          platforms,
-        }),
-      });
-      if (!res.ok) throw new Error("Ошибка сервера");
-      setSocialPlan(await res.json());
-    } catch (e: any) {
-      setSocialPlanError(e.message || "Не удалось создать план");
-    } finally {
-      setSocialPlanLoading(false);
-    }
-  };
-
-  const generateAdsPlan = async () => {
-    const platforms = [...selectedPlatforms].filter(p => AD_KEYS.includes(p));
-    setAdsPlanLoading(true);
-    setAdsPlanError("");
-    setAdsPlan(null);
-    setAdsPlanApproved(false);
-    try {
-      const res = await fetch("/api/ai/content-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          niche: campaignNiche || (activeProject as any)?.niche,
-          goal, product, audience, budget, dateFrom, dateTo,
-          platforms,
-        }),
-      });
-      if (!res.ok) throw new Error("Ошибка сервера");
-      setAdsPlan(await res.json());
-    } catch (e: any) {
-      setAdsPlanError(e.message || "Не удалось создать план");
-    } finally {
-      setAdsPlanLoading(false);
     }
   };
 
@@ -1382,133 +1243,6 @@ export function WizardView({
     });
   };
 
-  const generateAllCreatives = async () => {
-    setGenerating(true);
-    const days = dateFrom && dateTo
-      ? Math.max(1, Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000))
-      : 0;
-    const perType = days > 0 ? (days < 7 ? 1 : days < 30 ? 2 : 3) : 2;
-    const tasks: Promise<any>[] = [];
-    let vi = 0;
-    for (const platformKey of selectedPlatforms) {
-      const rp = realPlatforms.find((p) => p.key === platformKey);
-      const subs = selectedSubtypes[platformKey] ?? new Set();
-      for (const subtype of subs) {
-        for (let i = 0; i < perType; i++) {
-          const currentVi = vi++;
-          const id = `${platformKey}__${subtype}__${currentVi}__${i}`;
-          tasks.push(
-            generateCreativeContent({
-              platform: platformKey,
-              subtype,
-              product: product || (activeProject as any)?.description || "",
-              goal,
-              audience,
-              projectName: (activeProject as any)?.name ?? name,
-              niche: (activeProject as any)?.niche ?? "",
-              tone: (activeProject as any)?.tone ?? "",
-              keywords: (activeProject as any)?.keywords ?? "",
-              budget: budget ?? "",
-              variationIndex: currentVi,
-            })
-              .then((content) => ({ id, platform: platformKey, subtype, ...content, rp }))
-              .catch(() => null)
-          );
-        }
-      }
-    }
-    const results = await Promise.all(tasks);
-    setGeneratedCreatives(results.filter(Boolean));
-    setGenerating(false);
-  };
-
-  const generateFromSocialPlan = async () => {
-    if (!socialPlan) return;
-    setGenerating(true);
-    const tasks: Promise<any>[] = [];
-    let vi = 0;
-    const socialData = socialPlan.socialMedia ?? {};
-    for (const [platformKey, data] of Object.entries(socialData)) {
-      const formats = Object.entries(data as Record<string, any>).filter(
-        ([k, v]) => k !== "reasoning" && typeof v === "number"
-      );
-      for (const [subtype, count] of formats) {
-        for (let i = 0; i < (count as number); i++) {
-          const currentVi = vi++;
-          const id = `${platformKey}__${subtype}__${currentVi}`;
-          tasks.push(
-            generateCreativeContent({
-              platform: platformKey, subtype,
-              product: product || (activeProject as any)?.description || "",
-              goal, audience,
-              projectName: (activeProject as any)?.name ?? name,
-              niche: (activeProject as any)?.niche ?? "",
-              tone: (activeProject as any)?.tone ?? "",
-              keywords: (activeProject as any)?.keywords ?? "",
-              budget: budget ?? "",
-              variationIndex: currentVi,
-            })
-              .then((content) => ({ id, platform: platformKey, subtype, ...content }))
-              .catch(() => null)
-          );
-        }
-      }
-    }
-    const results = await Promise.all(tasks);
-    setGeneratedCreatives(prev => [
-      ...(prev as any[]).filter((c: any) => !SOCIAL_KEYS.includes(c.platform)),
-      ...results.filter(Boolean),
-    ]);
-    setGenerating(false);
-  };
-
-  const generateFromAdsPlan = async () => {
-    if (!adsPlan) return;
-    setGenerating(true);
-    const tasks: Promise<any>[] = [];
-    let vi = 0;
-    const adData = adsPlan.adPlatforms ?? {};
-    for (const [platformKey, data] of Object.entries(adData)) {
-      const formats = Object.entries(data as Record<string, any>).filter(
-        ([k, v]) => k !== "reasoning" && typeof v === "number"
-      );
-      for (const [subtype, count] of formats) {
-        for (let i = 0; i < (count as number); i++) {
-          const currentVi = vi++;
-          const id = `${platformKey}__${subtype}__${currentVi}`;
-          tasks.push(
-            generateCreativeContent({
-              platform: platformKey, subtype,
-              product: product || (activeProject as any)?.description || "",
-              goal, audience,
-              projectName: (activeProject as any)?.name ?? name,
-              niche: (activeProject as any)?.niche ?? "",
-              tone: (activeProject as any)?.tone ?? "",
-              keywords: (activeProject as any)?.keywords ?? "",
-              budget: budget ?? "",
-              variationIndex: currentVi,
-            })
-              .then((content) => ({ id, platform: platformKey, subtype, ...content }))
-              .catch(() => null)
-          );
-        }
-      }
-    }
-    const results = await Promise.all(tasks);
-    setGeneratedCreatives(prev => [
-      ...(prev as any[]).filter((c: any) => !AD_KEYS.includes(c.platform)),
-      ...results.filter(Boolean),
-    ]);
-    setGenerating(false);
-  };
-
-  const handleGoToCreatives = () => {
-    const pos = activeSteps.findIndex(s => s.key === "content");
-    const target = pos !== -1 ? pos : activeSteps.length - 1;
-    setStep(target);
-    setMaxStep((prev: number) => Math.max(prev, target));
-  };
-
   // Generate ALL creatives via Claude API then save to DB
   const handleLaunch = async () => {
     if (!name.trim()) {
@@ -1537,7 +1271,6 @@ export function WizardView({
             status: "active",
             budget_total: budget ? Number(budget) : null,
             project_id: projectId || null,
-            landing_id: landingId ?? null,
           }),
         });
       } else {
@@ -1558,47 +1291,13 @@ export function WizardView({
           cpl: 0,
           roas: 0,
           project_id: projectId || undefined,
-          landing_id: landingId ?? undefined,
         });
         campaignId = campaign.id;
       }
 
       qc.invalidateQueries({ queryKey: ["ad_campaigns"] });
-
-      // Save already generated creatives to DB (don't regenerate)
-      const allCreatives: any[] = [];
-      setLaunchProgress(`Сохраняю ${generatedCreatives.length} креативов...`);
-      for (const c of generatedCreatives) {
-        try {
-          const res = await fetch("/api/ad-creatives", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              campaign_id: campaignId,
-              project_id: projectId || null,
-              platform: c.platform,
-              format: c.subtype,
-              title: c.title,
-              caption: c.caption,
-              status: "draft",
-              ai_generated: true,
-              ctr: 0,
-              impressions: 0,
-              clicks: 0,
-              is_winner: false,
-            }),
-          });
-          if (res.ok) allCreatives.push(await res.json());
-        } catch (e) {
-          console.error("Save creative error:", e);
-        }
-      }
-
-      qc.invalidateQueries({ queryKey: ["ad_creatives"] });
-      setGeneratedCreatives(allCreatives);
       clearDraft(tabId);
       setDraftId(null);
-      setLaunchProgress("");
 
       // Go to campaign page
       router.push(`/${locale}/campaigns/${campaignId}`);
@@ -1607,36 +1306,6 @@ export function WizardView({
     } finally {
       setLaunching(false);
       setLaunchProgress("");
-    }
-  };
-
-  const handleScheduleCreative = async () => {
-    if (!scheduleModal || !scheduleTime) return;
-    setScheduling(true);
-    try {
-      await fetch("/api/scheduled-posts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content_id: scheduleModal.creativeId,
-          platform: scheduleModal.platform,
-          scheduled_at: new Date(scheduleTime).toISOString(),
-          status: "pending",
-          retry_count: 0,
-        }),
-      });
-      await fetch(`/api/ad-creatives/${scheduleModal.creativeId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "active" }),
-      });
-      setScheduleModal(null);
-      setScheduleTime("");
-      alert("Запланировано!");
-    } catch (e: any) {
-      alert("Ошибка: " + e.message);
-    } finally {
-      setScheduling(false);
     }
   };
 
@@ -2219,10 +1888,8 @@ export function WizardView({
               <label className="block ui-label mb-2">Инструменты кампании</label>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {[
-                  { key: "landing", label: "Лендинг", icon: "🌐" },
                   { key: "ai_agent", label: "AI-агент", icon: "🤖" },
                   { key: "creatives", label: "Рекламные креативы", icon: "🎨" },
-                  { key: "content", label: "Контент для соцсетей", icon: "📝" },
                 ].map((tool) => {
                   const checked = campaignTools.has(tool.key);
                   return (
@@ -2475,514 +2142,6 @@ export function WizardView({
         );
       })()}
 
-      {/* ══ STEP 1: Лендинг ══ */}
-      {currentStepKey === "landing" && (() => {
-        const selectedLp = (landingPages as any[]).find((lp: any) => lp.id === landingId) ?? null;
-        const pages = landingPages as any[];
-
-        const goToCreate = () => {
-          const params = new URLSearchParams({
-            from: "campaign",
-            goal,
-            ...(product && { product }),
-            ...(audience && { audience }),
-            ...(name && { campaign_name: name }),
-            ...(draftId && { campaign_id: draftId }),
-          });
-          router.push(`/${locale}/landings/create?${params}`);
-        };
-
-        if (landingDetailId !== null) {
-          return (
-            <LandingDetail
-              id={landingDetailId}
-              onBack={() => setLandingDetailId(null)}
-            />
-          );
-        }
-
-        return (
-          <div>
-            {/* Empty state */}
-            {pages.length === 0 ? (
-              <div style={{ padding: "48px 24px", textAlign: "center", border: "1px dashed var(--line)", borderRadius: 14, background: "var(--panel)" }}>
-                <span style={{ fontSize: 48, display: "block", marginBottom: 14 }}>🌐</span>
-                <p style={{ fontSize: 15, fontWeight: 700, color: "var(--tx-1)", margin: "0 0 6px" }}>Нет лендингов</p>
-                <p style={{ fontSize: 12, color: "var(--tx-3)", margin: "0 0 20px" }}>Создайте первый лендинг и свяжите его с кампанией</p>
-                <button
-                  onClick={goToCreate}
-                  style={{ padding: "10px 24px", background: "var(--accent)", color: "var(--on-accent)", border: "none", borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
-                >
-                  + Создать лендинг
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
-                {/* Landing cards */}
-                <div>
-                  <p style={{ fontSize: 11, fontWeight: 600, color: "var(--tx-3)", textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 10px" }}>
-                    {selectedLp ? "Изменить лендинг" : "Выберите лендинг"}
-                  </p>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10, maxHeight: 460, overflowY: "auto" }}>
-                    {pages.map((lp: any) => {
-                      const isSelected = landingId === lp.id;
-                      const cnt = (lp.content ?? {}) as any;
-                      const blocks = cnt.blocks ?? [];
-                      const brandColor = cnt.settings?.brandColor ?? "#6366f1";
-                      const bgImage = cnt.bg_image ?? undefined;
-                      return (
-                        <button
-                          key={lp.id}
-                          onClick={() => {
-                            setLandingId(lp.id);
-                            setLandingDetailId(lp.id);
-                          }}
-                          style={{ display: "flex", flexDirection: "column", gap: 0, padding: 0, cursor: "pointer", border: isSelected ? "1.5px solid var(--accent)" : "1px solid var(--line)", borderRadius: 10, overflow: "hidden", background: "var(--panel-2)", transition: "border-color 0.15s", textAlign: "left" }}
-                        >
-                          <div style={{ height: 90, overflow: "hidden", background: "var(--bg)", position: "relative", borderBottom: "1px solid var(--line)" }}>
-                            {blocks.length > 0 ? (
-                              <div style={{ width: 960, transform: "scale(0.229)", transformOrigin: "top left", pointerEvents: "none" }}>
-                                <LandingRenderer blocks={blocks} brandColor={brandColor} bgImage={bgImage} preview={true} />
-                              </div>
-                            ) : (
-                              <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                <span style={{ fontSize: 28 }}>🌐</span>
-                              </div>
-                            )}
-                            {isSelected && (
-                              <div style={{ position: "absolute", top: 5, right: 5, background: "var(--accent)", color: "var(--on-accent)", borderRadius: "50%", width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700 }}>✓</div>
-                            )}
-                          </div>
-                          <div style={{ padding: "8px 10px" }}>
-                            <p style={{ fontSize: 11, fontWeight: 600, color: "var(--tx-1)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lp.title}</p>
-                            <p style={{ fontSize: 10, color: "var(--tx-3)", margin: "2px 0 0" }}>{lp.published ? "✓ Опубликован" : "○ Черновик"}</p>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <button
-                  onClick={goToCreate}
-                  style={{ padding: "8px", border: "1px dashed var(--line)", borderRadius: 9, fontSize: 12, color: "var(--tx-3)", cursor: "pointer", background: "none", textAlign: "center", fontFamily: "inherit" }}
-                >
-                  + Создать новый лендинг
-                </button>
-              </div>
-            )}
-
-            <div className="flex justify-between pt-3 mt-3 border-t border-line">
-              <button
-                onClick={() => setStep(step - 1)}
-                className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
-              >
-                ← Назад
-              </button>
-              <button
-                onClick={() => {
-                  const next = Math.min(step + 1, activeSteps.length - 1);
-                  setStep(next);
-                  setMaxStep((prev: number) => Math.max(prev, next));
-                }}
-                className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
-              >
-                Далее: {activeSteps[step + 1]?.label ?? "Запуск"} →
-              </button>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ══ STEP 4: Контент ══ */}
-      {currentStepKey === "content" && (() => {
-        const sectionPlatforms = [...selectedPlatforms].filter(p =>
-          activeContentSection === "social" ? SOCIAL_KEYS.includes(p) : AD_KEYS.includes(p)
-        );
-
-        return (
-          <div>
-            {/* Вкладки */}
-            <div className="flex gap-2 mb-5">
-              {[
-                { key: "social" as const, label: "Соцсети", icon: "📱" },
-                { key: "ads" as const, label: "Рекламные кабинеты", icon: "📊" },
-              ].map(sec => (
-                <button
-                  key={sec.key}
-                  onClick={() => setActiveContentSection(sec.key)}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-[8px] text-[12px] font-medium border transition-colors cursor-pointer ${
-                    activeContentSection === sec.key
-                      ? "bg-accent text-on-accent border-accent"
-                      : "border-line text-tx-2 hover:bg-hover"
-                  }`}
-                >
-                  {sec.icon} {sec.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Контент текущей вкладки */}
-            {activeContentSection === "social" ? (
-              <div>
-                {sectionPlatforms.length === 0 ? (
-                  <div className="border border-dashed border-line rounded-xl py-12 text-center text-tx-3 text-[12px] mb-5">
-                    Нет выбранных соцсетей. Добавь их на шаге «Платформы».
-                  </div>
-                ) : (
-                  <div className="flex gap-2 flex-wrap mb-5">
-                    {sectionPlatforms.map(p => {
-                      const meta = (PLATFORM_META as any)[p];
-                      return (
-                        <div key={p} className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] border border-line text-[12px] text-tx-1" style={{ borderColor: meta?.color ?? "var(--line)" }}>
-                          <span style={{ color: meta?.color }}>{meta?.abbr ?? p}</span>
-                          {meta?.name ?? p}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {sectionPlatforms.length > 0 && !socialPlanApproved && (
-                  <>
-                    {!socialPlan && (
-                      <button
-                        onClick={generateSocialPlan}
-                        disabled={socialPlanLoading}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-accent text-on-accent text-[13px] font-medium rounded-[9px] hover:opacity-90 cursor-pointer disabled:opacity-60 mb-4"
-                      >
-                        {socialPlanLoading ? (
-                          <><span className="w-4 h-4 border-2 border-on-accent border-t-transparent rounded-full animate-spin" /> Анализирую тренды...</>
-                        ) : "✦ Создать план контента"}
-                      </button>
-                    )}
-                    {socialPlanError && <p className="text-[12px] text-neg mb-4">{socialPlanError}</p>}
-
-                    {socialPlan && (
-                      <div className="border border-line rounded-[12px] p-4 bg-panel-2 mb-4">
-                        <p className="text-[13px] font-semibold text-tx-1 mb-3">✦ План контента от AI</p>
-                        {socialPlan.strategy && <p className="text-[12px] text-tx-2 mb-4 leading-relaxed">{socialPlan.strategy}</p>}
-                        {socialPlan.socialMedia && Object.keys(socialPlan.socialMedia).length > 0 && (
-                          <div className="mb-4">
-                            {Object.entries(socialPlan.socialMedia).map(([platform, data]: [string, any]) => (
-                              <div key={platform} className="mb-3 p-3 bg-panel rounded-[9px] border border-line">
-                                <p className="text-[12px] font-semibold text-tx-1 mb-1.5 capitalize">{(PLATFORM_META as any)[platform]?.name ?? platform}</p>
-                                <div className="flex flex-wrap gap-2 mb-2">
-                                  {Object.entries(data).filter(([k]) => k !== "reasoning" && typeof data[k] === "number").map(([format, count]) => (
-                                    <span key={format} className="px-2 py-1 bg-accent/10 text-accent text-[11px] rounded-[6px]">{format}: {count as number} шт.</span>
-                                  ))}
-                                </div>
-                                {data.reasoning && <p className="text-[11px] text-tx-3 leading-relaxed">{data.reasoning}</p>}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {socialPlan.postingSchedule && <p className="text-[11px] text-tx-2 border-t border-line pt-3 mt-1">📅 {socialPlan.postingSchedule}</p>}
-                        <div className="flex gap-2 mt-4">
-                          <button onClick={() => { setSocialPlan(null); setSocialPlanApproved(false); }} className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer">
-                            Пересоздать план
-                          </button>
-                          <button onClick={() => { setSocialPlanApproved(true); generateFromSocialPlan(); }} className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[9px] hover:opacity-90 cursor-pointer">
-                            ✓ Одобрить и создать контент
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {socialPlanApproved && (
-                  <div className="flex items-center gap-3 p-3 bg-panel rounded-[9px] border border-line text-[12px] text-tx-2 mb-4">
-                    <span className="text-accent font-medium">✓ План соцсетей одобрен</span>
-                    <button
-                      onClick={() => {
-                        setSocialPlan(null); setSocialPlanApproved(false);
-                        setGeneratedCreatives(prev => (prev as any[]).filter((c: any) => !SOCIAL_KEYS.includes(c.platform)));
-                      }}
-                      className="ml-auto text-tx-3 hover:text-neg text-[11px] cursor-pointer"
-                    >
-                      Пересоздать
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div>
-                {sectionPlatforms.length === 0 ? (
-                  <div className="border border-dashed border-line rounded-xl py-12 text-center text-tx-3 text-[12px] mb-5">
-                    Нет выбранных рекламных кабинетов. Добавь их на шаге «Платформы».
-                  </div>
-                ) : (
-                  <div className="flex gap-2 flex-wrap mb-5">
-                    {sectionPlatforms.map(p => {
-                      const meta = (PLATFORM_META as any)[p];
-                      return (
-                        <div key={p} className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] border border-line text-[12px] text-tx-1" style={{ borderColor: meta?.color ?? "var(--line)" }}>
-                          <span style={{ color: meta?.color }}>{meta?.abbr ?? p}</span>
-                          {meta?.name ?? p}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {sectionPlatforms.length > 0 && !adsPlanApproved && (
-                  <>
-                    {!adsPlan && (
-                      <button
-                        onClick={generateAdsPlan}
-                        disabled={adsPlanLoading}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-accent text-on-accent text-[13px] font-medium rounded-[9px] hover:opacity-90 cursor-pointer disabled:opacity-60 mb-4"
-                      >
-                        {adsPlanLoading ? (
-                          <><span className="w-4 h-4 border-2 border-on-accent border-t-transparent rounded-full animate-spin" /> Анализирую тренды...</>
-                        ) : "✦ Создать план контента"}
-                      </button>
-                    )}
-                    {adsPlanError && <p className="text-[12px] text-neg mb-4">{adsPlanError}</p>}
-
-                    {adsPlan && (
-                      <div className="border border-line rounded-[12px] p-4 bg-panel-2 mb-4">
-                        <p className="text-[13px] font-semibold text-tx-1 mb-3">✦ План рекламных кабинетов от AI</p>
-                        {adsPlan.strategy && <p className="text-[12px] text-tx-2 mb-4 leading-relaxed">{adsPlan.strategy}</p>}
-                        {adsPlan.adPlatforms && Object.keys(adsPlan.adPlatforms).length > 0 && (
-                          <div className="mb-4">
-                            {Object.entries(adsPlan.adPlatforms).map(([platform, data]: [string, any]) => (
-                              <div key={platform} className="mb-3 p-3 bg-panel rounded-[9px] border border-line">
-                                <p className="text-[12px] font-semibold text-tx-1 mb-1.5 capitalize">{(PLATFORM_META as any)[platform]?.name ?? platform}</p>
-                                <div className="flex flex-wrap gap-2 mb-2">
-                                  {Object.entries(data).filter(([k]) => k !== "reasoning" && typeof data[k] === "number").map(([format, count]) => (
-                                    <span key={format} className="px-2 py-1 bg-accent/10 text-accent text-[11px] rounded-[6px]">{format}: {count as number} шт.</span>
-                                  ))}
-                                </div>
-                                {data.reasoning && <p className="text-[11px] text-tx-3 leading-relaxed">{data.reasoning}</p>}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {adsPlan.postingSchedule && <p className="text-[11px] text-tx-2 border-t border-line pt-3 mt-1">📅 {adsPlan.postingSchedule}</p>}
-                        <div className="flex gap-2 mt-4">
-                          <button onClick={() => { setAdsPlan(null); setAdsPlanApproved(false); }} className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer">
-                            Пересоздать план
-                          </button>
-                          <button onClick={() => { setAdsPlanApproved(true); generateFromAdsPlan(); }} className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[9px] hover:opacity-90 cursor-pointer">
-                            ✓ Одобрить и создать контент
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {adsPlanApproved && (
-                  <div className="flex items-center gap-3 p-3 bg-panel rounded-[9px] border border-line text-[12px] text-tx-2 mb-4">
-                    <span className="text-accent font-medium">✓ План рекламных кабинетов одобрен</span>
-                    <button
-                      onClick={() => {
-                        setAdsPlan(null); setAdsPlanApproved(false);
-                        setGeneratedCreatives(prev => (prev as any[]).filter((c: any) => !AD_KEYS.includes(c.platform)));
-                      }}
-                      className="ml-auto text-tx-3 hover:text-neg text-[11px] cursor-pointer"
-                    >
-                      Пересоздать
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Сгенерированный контент */}
-            {(socialPlanApproved || adsPlanApproved) && (
-              <div className="mb-4 mt-2">
-                {generating && generatedCreatives.length === 0 && (
-                  <div className="border border-line rounded-[12px] p-8 bg-panel-2 text-center mb-4">
-                    <div className="w-8 h-8 border-[3px] border-accent border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                    <p className="text-[13px] font-semibold text-tx-1">✦ AI генерирует контент</p>
-                    <p className="text-[11px] text-tx-3 mt-1">Это займёт ~10-20 секунд</p>
-                  </div>
-                )}
-
-                {!generating && generatedCreatives.length === 0 && (
-                  <button
-                    onClick={() => { if (socialPlanApproved) generateFromSocialPlan(); if (adsPlanApproved) generateFromAdsPlan(); }}
-                    className="px-5 py-2.5 bg-accent text-on-accent text-[13px] font-medium rounded-[9px] hover:opacity-90 cursor-pointer mb-4"
-                  >
-                    ✦ Генерировать контент
-                  </button>
-                )}
-
-                {generatedCreatives.length > 0 && (
-                  <div>
-                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                      <p className="text-[13px] font-semibold text-tx-1">✦ Готово: {generatedCreatives.length} единиц контента</p>
-                      <button onClick={() => setShowBulkSchedule(true)} className="flex items-center gap-1.5 px-3 py-1.5 border border-accent text-accent text-[11px] font-medium rounded-[7px] hover:bg-accent/10 cursor-pointer">
-                        🤖 AI распланирует сам
-                      </button>
-                    </div>
-                    {/* Фильтр по платформе */}
-                    {(() => {
-                      const platforms = [...new Set(generatedCreatives.map((c: any) => c.platform))];
-                      if (platforms.length <= 1) return null;
-                      return (
-                        <div className="flex gap-1.5 flex-wrap mb-3">
-                          <button
-                            onClick={() => setCreativeFilter("all")}
-                            className={`px-2.5 py-1 text-[11px] rounded-[7px] border cursor-pointer transition-colors ${creativeFilter === "all" ? "bg-accent text-on-accent border-accent" : "border-line text-tx-2 hover:bg-hover"}`}
-                          >
-                            Все ({generatedCreatives.length})
-                          </button>
-                          {platforms.map(p => {
-                            const meta = (PLATFORM_META as any)[p];
-                            const count = generatedCreatives.filter((c: any) => c.platform === p).length;
-                            return (
-                              <button
-                                key={p}
-                                onClick={() => setCreativeFilter(p)}
-                                className={`px-2.5 py-1 text-[11px] rounded-[7px] border cursor-pointer transition-colors ${creativeFilter === p ? "bg-accent text-on-accent border-accent" : "border-line text-tx-2 hover:bg-hover"}`}
-                              >
-                                {meta?.name ?? p} ({count})
-                              </button>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()}
-
-                    <div className="grid grid-cols-1 gap-3">
-                      {generatedCreatives.filter((c: any) => creativeFilter === "all" || c.platform === creativeFilter).map((c: any) => {
-                        const meta = (PLATFORM_META as any)[c.platform];
-                        return (
-                          <div key={c.id} className="border border-line rounded-[12px] p-4 bg-panel hover:border-line-strong transition-colors">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className="text-[10px] font-bold px-2 py-0.5 rounded-[5px] text-white"
-                                  style={{ background: meta?.color ?? "var(--accent)" }}
-                                >
-                                  {meta?.abbr ?? c.platform}
-                                </span>
-                                <span className="text-[11px] text-tx-2 font-medium">{meta?.name ?? c.platform}</span>
-                                <span className="text-[10px] text-tx-3 capitalize bg-panel-2 px-1.5 py-0.5 rounded-[4px]">{c.subtype}</span>
-                              </div>
-                            </div>
-                            {c.platform === "google" && (
-                              <div className="space-y-1">
-                                <p className="text-[10px] text-tx-3 uppercase tracking-wide mb-1">Заголовки</p>
-                                {(c.headlines ?? []).map((h: string, i: number) => (
-                                  <p key={i} className="text-[13px] font-semibold text-[#1a73e8]">{h}</p>
-                                ))}
-                                <p className="text-[10px] text-tx-3 uppercase tracking-wide mt-2 mb-1">Описания</p>
-                                {(c.descriptions ?? []).map((d: string, i: number) => (
-                                  <p key={i} className="text-[12px] text-tx-2">{d}</p>
-                                ))}
-                              </div>
-                            )}
-                            {c.platform === "yandex" && (
-                              <div>
-                                <p className="text-[13px] font-semibold text-[#fc3f1d]">{c.headline}</p>
-                                <p className="text-[12px] text-tx-2 mt-1">{c.text}</p>
-                              </div>
-                            )}
-                            {c.platform === "meta" && (
-                              <div className="space-y-1">
-                                <p className="text-[12px] text-tx-1 leading-relaxed">{c.primary_text}</p>
-                                <p className="text-[13px] font-semibold text-tx-1">{c.headline}</p>
-                                <p className="text-[11px] text-tx-3">{c.description}</p>
-                              </div>
-                            )}
-                            {c.platform === "instagram" && (
-                              <div>
-                                {c.hook && <p className="text-[11px] font-medium text-accent mb-1">🎬 Hook: {c.hook}</p>}
-                                {c.text && <p className="text-[13px] font-semibold text-tx-1 mb-1">{c.text}</p>}
-                                {c.cta && <span className="inline-block mb-1 px-2 py-0.5 bg-accent/10 text-accent text-[11px] rounded-[5px]">CTA: {c.cta}</span>}
-                                {c.caption && <p className="text-[12px] text-tx-1 leading-relaxed">{c.caption}</p>}
-                                {c.script && <p className="text-[11px] text-tx-2 whitespace-pre-line mt-1">{c.script}</p>}
-                                {c.hashtags && <p className="text-[11px] mt-1 text-[#0095f6]">{(c.hashtags as string[]).join(" ")}</p>}
-                              </div>
-                            )}
-                            {c.platform === "telegram" && (
-                              <div>
-                                {c.hook && <p className="text-[11px] font-medium text-accent mb-1">🎬 Hook: {c.hook}</p>}
-                                {c.caption && <p className="text-[12px] text-tx-1 leading-relaxed whitespace-pre-line">{c.caption}</p>}
-                                {c.script && <p className="text-[11px] text-tx-2 whitespace-pre-line mt-1">{c.script}</p>}
-                              </div>
-                            )}
-                            {c.platform === "tiktok" && (
-                              <div>
-                                {c.hook && <p className="text-[11px] font-medium text-accent mb-1">🎬 Hook: {c.hook}</p>}
-                                {c.script && <p className="text-[11px] text-tx-2 whitespace-pre-line mb-1">{c.script}</p>}
-                                {c.caption && <p className="text-[12px] text-tx-1">{c.caption}</p>}
-                                {c.hashtags && <p className="text-[11px] mt-1 text-[#010101]">{(c.hashtags as string[]).join(" ")}</p>}
-                              </div>
-                            )}
-                            {/* Кнопки публикации */}
-                            <div className="flex gap-2 mt-3 pt-3 border-t border-line">
-                              <button
-                                onClick={() => setScheduleModal({
-                                  creativeId: c.id,
-                                  platform: c.platform,
-                                  title: c.caption || c.headline || c.hook || c.subtype,
-                                })}
-                                className="flex-1 py-1.5 border border-line rounded-[7px] text-[11px] text-tx-2 hover:bg-hover cursor-pointer"
-                              >
-                                📅 Запланировать
-                              </button>
-                              <button
-                                disabled={publishingNow === c.id}
-                                onClick={async () => {
-                                  setPublishingNow(c.id);
-                                  try {
-                                    await fetch("/api/scheduled-posts", {
-                                      method: "POST",
-                                      headers: { "Content-Type": "application/json" },
-                                      body: JSON.stringify({
-                                        content_id: c.id,
-                                        platform: c.platform,
-                                        scheduled_at: new Date().toISOString(),
-                                        status: "pending",
-                                      }),
-                                    });
-                                  } finally {
-                                    setPublishingNow(null);
-                                  }
-                                }}
-                                className="flex-1 py-1.5 bg-accent text-on-accent rounded-[7px] text-[11px] font-medium hover:opacity-90 cursor-pointer disabled:opacity-50"
-                              >
-                                {publishingNow === c.id ? "..." : "▶ Сейчас"}
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Навигация */}
-            <div className="flex justify-between pt-4 mt-4 border-t border-line">
-              <button
-                onClick={() => setStep(step - 1)}
-                className="px-4 py-2 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
-              >
-                ← Назад
-              </button>
-              <button
-                onClick={() => {
-                  const next = Math.min(step + 1, activeSteps.length - 1);
-                  setStep(next);
-                  setMaxStep((prev: number) => Math.max(prev, next));
-                }}
-                className="px-5 py-2 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer"
-              >
-                Далее: {activeSteps[step + 1]?.label ?? "Запуск"} →
-              </button>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* ══ STEP 5: Launch ══ */}
       {currentStepKey === "launch" && (
@@ -2994,9 +2153,6 @@ export function WizardView({
           budget={budget}
           selectedPlatforms={selectedPlatforms}
           realPlatforms={realPlatforms}
-          landingId={landingId}
-          landingPages={landingPages as any[]}
-          generatedCreatives={generatedCreatives}
           projectAgent={projectAgent}
           launchProgress={launchProgress}
           launching={launching}
@@ -3138,63 +2294,6 @@ export function WizardView({
         </div>
       )}
 
-      {/* Schedule modal */}
-      {scheduleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/30 backdrop-blur-[3px]"
-            onClick={() => setScheduleModal(null)}
-          />
-          <div className="relative w-full max-w-[380px] bg-panel border border-line rounded-[14px] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-[14px] font-semibold text-tx-1">
-                Запланировать
-              </h2>
-              <button
-                onClick={() => setScheduleModal(null)}
-                className="w-7 h-7 flex items-center justify-center rounded-[7px] border border-line hover:bg-hover cursor-pointer text-tx-3"
-              >
-                ✕
-              </button>
-            </div>
-            <p className="text-[11px] text-tx-3 mb-4">
-              {scheduleModal.title} · {scheduleModal.platform}
-            </p>
-            <div className="mb-4">
-              <label className="block ui-label mb-1">Дата и время</label>
-              <input
-                type="datetime-local"
-                value={scheduleTime}
-                onChange={(e) => setScheduleTime(e.target.value)}
-                className={inp}
-              />
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setScheduleModal(null)}
-                className="flex-1 py-2.5 border border-line rounded-[7px] text-[12px] text-tx-2 hover:bg-hover cursor-pointer"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={handleScheduleCreative}
-                disabled={!scheduleTime || scheduling}
-                className="flex-1 py-2.5 bg-accent text-on-accent text-[12px] font-medium rounded-[7px] hover:opacity-90 cursor-pointer disabled:opacity-50"
-              >
-                {scheduling ? "..." : "📅 Запланировать"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showBulkSchedule && (
-        <BulkScheduleModal
-          creatives={generatedCreatives}
-          onClose={() => setShowBulkSchedule(false)}
-          onScheduled={() => setShowBulkSchedule(false)}
-        />
-      )}
     </div>
   );
 }
