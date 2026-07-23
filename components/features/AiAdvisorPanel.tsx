@@ -5,7 +5,7 @@ import { RefreshCw, ChevronRight, Sparkles, CheckCircle } from "lucide-react";
 type Tip = { icon: string; text: string; task?: string };
 
 const PANEL_KEY = "ai_advisor_collapsed";
-const CACHE_KEY = "ai_advisor_cache";
+const CACHE_KEY = "ai_advisor_cache_v2";
 const CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours
 
 interface CacheEntry {
