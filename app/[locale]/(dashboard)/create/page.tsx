@@ -1149,6 +1149,218 @@ ${JSON.stringify(postsData, null, 2)}
   );
 }
 
+// ── Niche field config for CreatePostModal ────────────────────────────────
+function detectNicheClient(niche: string): string {
+  const n = (niche ?? "").toLowerCase();
+  if (/ресторан|кафе|еда|food|питание|блюд|кулинар|фастфуд|доставк/.test(n)) return "food";
+  if (/одежд|мода|fashion|магазин|retail/.test(n)) return "retail";
+  if (/красот|салон|барбер|ноготь|маникюр|beauty|spa/.test(n)) return "beauty";
+  if (/фитнес|спорт|gym|здоровь|тренер|йога/.test(n)) return "fitness";
+  if (/недвижим|квартир|дом|строительств/.test(n)) return "realestate";
+  if (/образован|курс|школ|репетитор|обучен/.test(n)) return "education";
+  if (/авто|автомобил|машин|dealer/.test(n)) return "auto";
+  if (/отель|гостиниц|туризм|тур|путешеств/.test(n)) return "travel";
+  if (/клиник|стоматолог|медицин|врач/.test(n)) return "medical";
+  return "default";
+}
+
+type PostField = { key: string; label: string; placeholder: string; multiline?: boolean };
+type PostTypeName = "product" | "promo" | "announcement";
+
+const POST_FIELDS: Record<string, Record<PostTypeName, PostField[]>> = {
+  food: {
+    product: [
+      { key: "name", label: "Название блюда", placeholder: "Плов с бараниной" },
+      { key: "details", label: "Состав / особенность", placeholder: "Баранина от местных фермеров, рис девзира, жёлтая морковь...", multiline: true },
+      { key: "price", label: "Цена", placeholder: "45 000 сум" },
+      { key: "extra", label: "Дополнительно (необязательно)", placeholder: "Порция на 2, подаётся с лепёшкой" },
+    ],
+    promo: [
+      { key: "offer", label: "Что предлагаем", placeholder: "Скидка 20% на все блюда с 12:00 до 15:00" },
+      { key: "condition", label: "Условие / для кого (необязательно)", placeholder: "При заказе от 2 блюд" },
+      { key: "until", label: "До когда", placeholder: "До 31 июля" },
+    ],
+    announcement: [
+      { key: "what", label: "Что происходит", placeholder: "Открываем новый зал на 2 этаже" },
+      { key: "when", label: "Когда", placeholder: "В эту субботу, 26 июля" },
+      { key: "details", label: "Детали (необязательно)", placeholder: "Живая музыка, специальное меню..." },
+    ],
+  },
+  retail: {
+    product: [
+      { key: "name", label: "Название товара", placeholder: "Летнее платье из льна" },
+      { key: "details", label: "Материал / особенность", placeholder: "100% лён, не мнётся, дышит", multiline: true },
+      { key: "sizes", label: "Размеры / варианты (необязательно)", placeholder: "XS, S, M, L, XL — в 4 цветах" },
+      { key: "price", label: "Цена", placeholder: "280 000 сум" },
+    ],
+    promo: [
+      { key: "offer", label: "Что предлагаем", placeholder: "Скидка 30% на летнюю коллекцию" },
+      { key: "condition", label: "Условие (необязательно)", placeholder: "При покупке от 2 вещей" },
+      { key: "until", label: "До когда", placeholder: "Только эти выходные" },
+    ],
+    announcement: [
+      { key: "what", label: "Что происходит", placeholder: "Новая коллекция осень-зима уже в магазине" },
+      { key: "when", label: "Когда", placeholder: "С 25 июля" },
+      { key: "details", label: "Что нового (необязательно)", placeholder: "60+ моделей, размеры 42-58..." },
+    ],
+  },
+  beauty: {
+    product: [
+      { key: "name", label: "Услуга", placeholder: "Ламинирование ресниц" },
+      { key: "details", label: "Что включает", placeholder: "Состав, укладка, ботокс", multiline: true },
+      { key: "duration", label: "Длительность (необязательно)", placeholder: "1.5 часа" },
+      { key: "price", label: "Цена", placeholder: "180 000 сум" },
+    ],
+    promo: [
+      { key: "offer", label: "Акция", placeholder: "Стрижка + укладка за 120 000" },
+      { key: "condition", label: "Условие (необязательно)", placeholder: "При записи онлайн" },
+      { key: "until", label: "До когда", placeholder: "В июле" },
+    ],
+    announcement: [
+      { key: "what", label: "Что происходит", placeholder: "Новый мастер — Малика, специалист по окрашиванию" },
+      { key: "when", label: "Когда", placeholder: "Принимает с 28 июля" },
+      { key: "details", label: "Детали (необязательно)", placeholder: "Опыт 7 лет, сертификат L'Oreal..." },
+    ],
+  },
+  fitness: {
+    product: [
+      { key: "name", label: "Услуга / программа", placeholder: "Персональные тренировки" },
+      { key: "details", label: "Для кого / что даёт", placeholder: "Для тех кто хочет похудеть за 3 месяца", multiline: true },
+      { key: "duration", label: "Формат (необязательно)", placeholder: "3 раза в неделю по 60 мин" },
+      { key: "price", label: "Цена", placeholder: "500 000 сум / месяц" },
+    ],
+    promo: [
+      { key: "offer", label: "Акция", placeholder: "Первая тренировка бесплатно" },
+      { key: "condition", label: "Условие (необязательно)", placeholder: "При покупке абонемента на 3 месяца" },
+      { key: "until", label: "До когда", placeholder: "До конца июля" },
+    ],
+    announcement: [
+      { key: "what", label: "Что происходит", placeholder: "Открываем новый зал с бассейном" },
+      { key: "when", label: "Когда", placeholder: "1 августа" },
+      { key: "details", label: "Детали (необязательно)", placeholder: "25-метровый бассейн, 6 дорожек..." },
+    ],
+  },
+  realestate: {
+    product: [
+      { key: "name", label: "Объект", placeholder: "3-комнатная квартира в ЖК Новый город" },
+      { key: "details", label: "Характеристики", placeholder: "85 м², 12 этаж из 16, евроремонт", multiline: true },
+      { key: "location", label: "Район / адрес (необязательно)", placeholder: "Юнусабад, 5 минут от метро" },
+      { key: "price", label: "Цена", placeholder: "320 000 $ или в ипотеку от 2.8 млн/мес" },
+    ],
+    promo: [
+      { key: "offer", label: "Акция", placeholder: "Паркинг в подарок при покупке до 31 июля" },
+      { key: "condition", label: "Условие (необязательно)", placeholder: "100% оплата или ипотека" },
+      { key: "until", label: "Срок / ограничение", placeholder: "Осталось 5 квартир" },
+    ],
+    announcement: [
+      { key: "what", label: "Что происходит", placeholder: "Старт продаж 2-й очереди ЖК Садовый" },
+      { key: "when", label: "Когда", placeholder: "28 июля" },
+      { key: "details", label: "Детали (необязательно)", placeholder: "120 квартир, сдача Q2 2026..." },
+    ],
+  },
+  education: {
+    product: [
+      { key: "name", label: "Курс / программа", placeholder: "Курс английского с нуля до B2" },
+      { key: "details", label: "Что даёт / для кого", placeholder: "За 6 месяцев — разговорный уровень для работы", multiline: true },
+      { key: "format", label: "Формат (необязательно)", placeholder: "2 раза в неделю, онлайн или офлайн" },
+      { key: "price", label: "Цена", placeholder: "350 000 сум / месяц" },
+    ],
+    promo: [
+      { key: "offer", label: "Акция", placeholder: "Первый месяц за полцены" },
+      { key: "condition", label: "Условие (необязательно)", placeholder: "При записи в июле" },
+      { key: "until", label: "До когда", placeholder: "Набор до 1 августа" },
+    ],
+    announcement: [
+      { key: "what", label: "Что происходит", placeholder: "Новый набор на курс Python" },
+      { key: "when", label: "Когда", placeholder: "Старт 5 августа" },
+      { key: "details", label: "Детали (необязательно)", placeholder: "Группа до 8 человек, преподаватель из Google..." },
+    ],
+  },
+  auto: {
+    product: [
+      { key: "name", label: "Авто / услуга", placeholder: "Chevrolet Tracker 2024" },
+      { key: "details", label: "Характеристики", placeholder: "1.5 турбо, автомат, полный привод", multiline: true },
+      { key: "color", label: "Цвета / комплектация (необязательно)", placeholder: "4 цвета, базовая и премиум" },
+      { key: "price", label: "Цена", placeholder: "от 38 000 $ или рассрочка" },
+    ],
+    promo: [
+      { key: "offer", label: "Акция", placeholder: "Trade-in: сдай старую, доплати разницу" },
+      { key: "condition", label: "Условие (необязательно)", placeholder: "Авто не старше 2018 года" },
+      { key: "until", label: "До когда", placeholder: "Акция в августе" },
+    ],
+    announcement: [
+      { key: "what", label: "Что происходит", placeholder: "Новая модель Kia EV6 поступила в салон" },
+      { key: "when", label: "Когда", placeholder: "Уже доступна для тест-драйва" },
+      { key: "details", label: "Детали (необязательно)", placeholder: "Запас хода 490 км, зарядка 30 мин..." },
+    ],
+  },
+  travel: {
+    product: [
+      { key: "name", label: "Тур / направление", placeholder: "Стамбул на 5 дней" },
+      { key: "details", label: "Что включено", placeholder: "Перелёт, отель 4*, завтраки, экскурсии", multiline: true },
+      { key: "dates", label: "Даты (необязательно)", placeholder: "15-20 августа" },
+      { key: "price", label: "Цена", placeholder: "от 1 200 $ на человека" },
+    ],
+    promo: [
+      { key: "offer", label: "Акция", placeholder: "Раннее бронирование -15%" },
+      { key: "condition", label: "Условие (необязательно)", placeholder: "При оплате до 1 августа" },
+      { key: "until", label: "До когда / ограничение", placeholder: "Осталось 4 места" },
+    ],
+    announcement: [
+      { key: "what", label: "Что происходит", placeholder: "Новое направление — Батуми от нас" },
+      { key: "when", label: "Когда", placeholder: "Туры каждые 2 недели с августа" },
+      { key: "details", label: "Детали (необязательно)", placeholder: "4 дня / 3 ночи, отели у моря..." },
+    ],
+  },
+  medical: {
+    product: [
+      { key: "name", label: "Услуга", placeholder: "Имплантация зуба под ключ" },
+      { key: "details", label: "Что включает", placeholder: "Имплант, коронка, установка — всё в одном", multiline: true },
+      { key: "duration", label: "Длительность / этапы (необязательно)", placeholder: "2 визита, 3-4 месяца до финального результата" },
+      { key: "price", label: "Цена", placeholder: "от 1 500 $ за имплант" },
+    ],
+    promo: [
+      { key: "offer", label: "Акция", placeholder: "Консультация + снимок бесплатно" },
+      { key: "condition", label: "Условие (необязательно)", placeholder: "При записи онлайн" },
+      { key: "until", label: "До когда", placeholder: "В июле" },
+    ],
+    announcement: [
+      { key: "what", label: "Что происходит", placeholder: "Новый аппарат КТ — диагностика за 15 минут" },
+      { key: "when", label: "Когда", placeholder: "Уже принимаем" },
+      { key: "details", label: "Детали (необязательно)", placeholder: "3D-снимок всей челюсти, точность 0.1мм..." },
+    ],
+  },
+  default: {
+    product: [
+      { key: "name", label: "Товар / услуга", placeholder: "Название" },
+      { key: "details", label: "Описание / особенность", placeholder: "Что это, чем отличается...", multiline: true },
+      { key: "price", label: "Цена (необязательно)", placeholder: "Цена или диапазон" },
+    ],
+    promo: [
+      { key: "offer", label: "Что предлагаем", placeholder: "Акция / оффер" },
+      { key: "condition", label: "Условие / для кого (необязательно)", placeholder: "При каком условии" },
+      { key: "until", label: "До когда", placeholder: "Срок акции" },
+    ],
+    announcement: [
+      { key: "what", label: "Что происходит", placeholder: "Событие / новость" },
+      { key: "when", label: "Когда", placeholder: "Дата / время" },
+      { key: "details", label: "Детали (необязательно)", placeholder: "Подробности" },
+    ],
+  },
+};
+
+const POST_TYPE_META: { id: PostTypeName; icon: string; title: string; subtitle: string }[] = [
+  { id: "product", icon: "📦", title: "Описание", subtitle: "Товар, блюдо, услуга — с конкретными деталями" },
+  { id: "promo", icon: "🎯", title: "Акция / Оффер", subtitle: "Скидка, спецпредложение, ограниченный оффер" },
+  { id: "announcement", icon: "📢", title: "Объявление", subtitle: "Новость, событие, открытие, анонс" },
+];
+
+const NICHE_LABELS: Record<string, string> = {
+  food: "Еда / Ресторан", retail: "Магазин", beauty: "Красота",
+  fitness: "Фитнес", realestate: "Недвижимость", education: "Образование",
+  auto: "Авто", travel: "Туризм", medical: "Медицина", default: "Бизнес",
+};
+
 // ── Create post modal ─────────────────────────────────────────────────────
 function CreatePostModal({
   projectId,
@@ -1163,472 +1375,287 @@ function CreatePostModal({
   onClose: () => void;
   onPublished: () => void;
 }) {
-  const [text, setText] = useState("");
-  const [selectedPlatform, setSelectedPlatform] = useState("telegram");
-  const [selectedChannel, setSelectedChannel] = useState("");
+  type Step = "type" | "form" | "preview";
+
+  const [step, setStep] = useState<Step>("type");
+  const [postType, setPostType] = useState<PostTypeName>("product");
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  const [tgSel, setTgSel] = useState(true);
+  const [igSel, setIgSel] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [editedTg, setEditedTg] = useState("");
+  const [editedIg, setEditedIg] = useState("");
   const [publishMode, setPublishMode] = useState<"now" | "schedule">("now");
   const [scheduleTime, setScheduleTime] = useState("");
-  const [generating, setGenerating] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [topic, setTopic] = useState("");
+  const [errMsg, setErrMsg] = useState("");
 
-  const tgChannels = integrations.filter(
-    (i: any) => i.platform === "telegram" && i.is_active,
-  );
-  const igChannels = integrations.filter(
-    (i: any) => i.platform === "instagram" && i.is_active,
-  );
   const activeProject = projects.find((p: any) => p.id === projectId) as any;
+  const nicheCategory = detectNicheClient(activeProject?.niche ?? "");
+  const currentFields: PostField[] = POST_FIELDS[nicheCategory]?.[postType] ?? POST_FIELDS.default[postType];
+  const hasTg = integrations.some((i: any) => i.platform === "telegram" && i.is_active);
+  const hasIg = integrations.some((i: any) => i.platform === "instagram" && i.is_active);
 
   useEffect(() => {
-    if (tgChannels.length > 0) setSelectedChannel(tgChannels[0].channel_id);
-  }, []);
+    setTgSel(hasTg);
+    setIgSel(hasIg && !hasTg);
+  }, [hasTg, hasIg]);
 
-  // Generate text via Claude API
-  const generateText = async () => {
-    if (!topic.trim()) return;
+  const apiPlatform = tgSel && igSel ? "both" : igSel ? "instagram" : "telegram";
+
+  const handleGenerate = async () => {
     setGenerating(true);
+    setErrMsg("");
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/ai/generate-post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [
-            {
-              role: "user",
-              content: `Напиши пост для ${selectedPlatform === "telegram" ? "Telegram" : "Instagram"} канала.
-
-Проект: ${activeProject?.name ?? ""}
-Ниша: ${activeProject?.niche ?? ""}
-Описание: ${activeProject?.description ?? ""}
-Аудитория: ${activeProject?.audience ?? ""}
-Тема поста: ${topic}
-
-Требования:
-- Начни с цепляющего хука
-- Используй эмодзи умеренно
-- В конце добавь призыв к действию
-- Длина: 150-300 слов
-- Пиши на русском
-
-Напиши только текст поста без каких-либо пояснений.`,
-            },
-          ],
-        }),
+        body: JSON.stringify({ postType, platform: apiPlatform, projectId: projectId || null, fields: fieldValues }),
       });
       const data = await res.json();
-      setText(data.content?.[0]?.text ?? "");
-    } catch (e) {
-      console.error("Generate error:", e);
+      if (!res.ok) throw new Error(data.error ?? "Ошибка генерации");
+      setEditedTg(data.telegram ?? "");
+      setEditedIg(data.instagram ?? "");
+      setStep("preview");
+    } catch (e: any) {
+      setErrMsg(e.message);
     }
     setGenerating(false);
   };
 
   const handlePublish = async () => {
-    if (!text.trim()) return;
     setPublishing(true);
+    setErrMsg("");
+    const targets = (["telegram", "instagram"] as const).filter((p) =>
+      p === "telegram" ? tgSel && hasTg : igSel && hasIg
+    );
     try {
-      // Save content to DB
-      const saveRes = await fetch("/api/contents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          project_id: projectId || null,
-          platform: selectedPlatform,
-          body: text,
-          caption: text,
-          title: topic || text.slice(0, 50),
-          content_type: "post",
-          status: publishMode === "now" ? "published" : "scheduled",
-          language: "ru",
-        }),
-      });
-      const content = await saveRes.json();
-      if (!saveRes.ok || !content?.id) throw new Error("Ошибка сохранения");
-
-      if (publishMode === "now") {
-        const res = await fetch("/api/content/publish-now", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contentId: content.id, platform: selectedPlatform }),
-        });
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || "Ошибка публикации");
-        }
-      } else if (publishMode === "schedule" && scheduleTime) {
-        await fetch("/api/scheduled-posts", {
+      for (const p of targets) {
+        const text = p === "telegram" ? editedTg : editedIg;
+        if (!text?.trim()) continue;
+        const title = Object.values(fieldValues)[0]?.slice(0, 50) ?? text.slice(0, 50);
+        const saveRes = await fetch("/api/contents", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            content_id: content.id,
-            platform: selectedPlatform,
-            scheduled_at: new Date(scheduleTime).toISOString(),
+            project_id: projectId || null, platform: p, body: text, caption: text,
+            title, content_type: "post",
+            status: publishMode === "now" ? "published" : "scheduled", language: "ru",
           }),
         });
+        const content = await saveRes.json();
+        if (!saveRes.ok || !content?.id) throw new Error("Ошибка сохранения");
+        if (publishMode === "now") {
+          const pubRes = await fetch("/api/content/publish-now", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contentId: content.id, platform: p }),
+          });
+          if (!pubRes.ok) throw new Error((await pubRes.json()).error ?? "Ошибка публикации");
+        } else if (publishMode === "schedule" && scheduleTime) {
+          await fetch("/api/scheduled-posts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content_id: content.id, platform: p, scheduled_at: new Date(scheduleTime).toISOString() }),
+          });
+        }
       }
-
       onPublished();
     } catch (e: any) {
-      alert("Ошибка: " + e.message);
+      setErrMsg(e.message);
     }
     setPublishing(false);
   };
 
-  const inp =
-    "w-full px-3 py-2.5 rounded-[8px] border border-line text-[12px] outline-none focus:border-line-strong bg-panel text-tx-1 placeholder:text-tx-3 transition-colors";
+  const inp = "w-full px-3 py-2.5 rounded-[8px] border border-line text-[12px] outline-none focus:border-line-strong bg-panel text-tx-1 placeholder:text-tx-3 transition-colors";
+
+  const plBadge = (color: string) => ({
+    display: "inline-flex" as const, alignItems: "center" as const, justifyContent: "center" as const,
+    width: 22, height: 16, borderRadius: 4, background: color,
+    color: "#fff", fontSize: 8, fontWeight: 700, flexShrink: 0 as const,
+  });
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 100,
-        background: "rgba(0,0,0,0.5)",
-        backdropFilter: "blur(4px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-      }}
-    >
-      <div
-        style={{
-          background: "var(--panel)",
-          border: "0.5px solid var(--line)",
-          borderRadius: 16,
-          width: "100%",
-          maxWidth: 600,
-          maxHeight: "90vh",
-          display: "flex",
-          flexDirection: "column",
-          boxShadow: "0 24px 60px rgba(0,0,0,0.3)",
-        }}
-      >
+    <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div style={{ background: "var(--panel)", border: "0.5px solid var(--line)", borderRadius: 16, width: "100%", maxWidth: 540, maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 60px rgba(0,0,0,0.3)" }}>
+
         {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "16px 20px",
-            borderBottom: "0.5px solid var(--line)",
-            flexShrink: 0,
-          }}
-        >
-          <p style={{ fontSize: 15, fontWeight: 700, color: "var(--tx-1)" }}>
-            ✏️ Создать пост
-          </p>
-          <button
-            onClick={onClose}
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 8,
-              border: "0.5px solid var(--line)",
-              background: "transparent",
-              cursor: "pointer",
-              color: "var(--tx-3)",
-              fontSize: 16,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            ✕
-          </button>
-        </div>
-
-        <div
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: "16px 20px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 14,
-          }}
-        >
-          {/* Platform */}
-          <div>
-            <label className="block ui-label mb-2">Платформа</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              {tgChannels.length > 0 && (
-                <button
-                  onClick={() => {
-                    setSelectedPlatform("telegram");
-                    setSelectedChannel(tgChannels[0].channel_id);
-                  }}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "7px 14px",
-                    borderRadius: 8,
-                    border: `0.5px solid ${selectedPlatform === "telegram" ? "var(--accent)" : "var(--line)"}`,
-                    background:
-                      selectedPlatform === "telegram"
-                        ? "var(--accent-dim)"
-                        : "transparent",
-                    color:
-                      selectedPlatform === "telegram"
-                        ? "var(--accent)"
-                        : "var(--tx-2)",
-                    fontSize: 12,
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 16,
-                      height: 12,
-                      borderRadius: 3,
-                      background: "#0088CC",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "#fff",
-                      fontSize: 7,
-                      fontWeight: 700,
-                    }}
-                  >
-                    TG
-                  </div>
-                  Telegram
-                </button>
-              )}
-              {igChannels.length > 0 && (
-                <button
-                  onClick={() => {
-                    setSelectedPlatform("instagram");
-                    setSelectedChannel(igChannels[0].channel_id);
-                  }}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "7px 14px",
-                    borderRadius: 8,
-                    border: `0.5px solid ${selectedPlatform === "instagram" ? "var(--accent)" : "var(--line)"}`,
-                    background:
-                      selectedPlatform === "instagram"
-                        ? "var(--accent-dim)"
-                        : "transparent",
-                    color:
-                      selectedPlatform === "instagram"
-                        ? "var(--accent)"
-                        : "var(--tx-2)",
-                    fontSize: 12,
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 16,
-                      height: 12,
-                      borderRadius: 3,
-                      background: "#E1306C",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "#fff",
-                      fontSize: 7,
-                      fontWeight: 700,
-                    }}
-                  >
-                    IG
-                  </div>
-                  Instagram
-                </button>
-              )}
-            </div>
-            {/* Channel selector for Telegram */}
-            {selectedPlatform === "telegram" && tgChannels.length > 1 && (
-              <div style={{ marginTop: 8 }}>
-                <label className="block ui-label mb-1">Канал</label>
-                <select
-                  value={selectedChannel}
-                  onChange={(e) => setSelectedChannel(e.target.value)}
-                  className={inp}
-                >
-                  {tgChannels.map((ch: any) => (
-                    <option key={ch.id} value={ch.channel_id}>
-                      {ch.channel_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "0.5px solid var(--line)", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {step !== "type" && (
+              <button onClick={() => { setStep(step === "preview" ? "form" : "type"); setErrMsg(""); }}
+                style={{ width: 26, height: 26, borderRadius: 7, border: "0.5px solid var(--line)", background: "transparent", cursor: "pointer", color: "var(--tx-2)", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>←</button>
             )}
-          </div>
-
-          {/* AI Generate */}
-          <div>
-            <label className="block ui-label mb-1">Тема поста (для AI)</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && generateText()}
-                placeholder="Например: акция на выходные, новый продукт..."
-                className={`${inp} flex-1`}
-              />
-              <button
-                onClick={generateText}
-                disabled={!topic.trim() || generating}
-                style={{
-                  padding: "8px 14px",
-                  borderRadius: 8,
-                  border: "none",
-                  background: "var(--accent)",
-                  color: "var(--on-accent)",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  flexShrink: 0,
-                  opacity: !topic.trim() || generating ? 0.6 : 1,
-                }}
-              >
-                {generating ? "⟳" : "✦ AI"}
-              </button>
-            </div>
-          </div>
-
-          {/* Text */}
-          <div>
-            <label className="block ui-label mb-1">Текст поста *</label>
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Напишите текст поста или используйте AI выше..."
-              className={`${inp} resize-none`}
-              style={{ height: 180, fontFamily: "inherit", lineHeight: 1.6 }}
-            />
-            <p style={{ fontSize: 10, color: "var(--tx-3)", marginTop: 4 }}>
-              {text.length} символов
+            <p style={{ fontSize: 14, fontWeight: 700, color: "var(--tx-1)" }}>
+              {step === "type" ? "Создать пост" : step === "form" ? (POST_TYPE_META.find((t) => t.id === postType)?.title ?? "Детали") : "Предпросмотр"}
             </p>
-          </div>
-
-          {/* Publish mode */}
-          <div>
-            <label className="block ui-label mb-2">Публикация</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={() => setPublishMode("now")}
-                style={{
-                  flex: 1,
-                  padding: "10px",
-                  borderRadius: 9,
-                  border: `0.5px solid ${publishMode === "now" ? "var(--accent)" : "var(--line)"}`,
-                  background:
-                    publishMode === "now" ? "var(--accent-dim)" : "transparent",
-                  color:
-                    publishMode === "now" ? "var(--accent)" : "var(--tx-2)",
-                  fontSize: 12,
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                🚀 Опубликовать сейчас
-              </button>
-              <button
-                onClick={() => setPublishMode("schedule")}
-                style={{
-                  flex: 1,
-                  padding: "10px",
-                  borderRadius: 9,
-                  border: `0.5px solid ${publishMode === "schedule" ? "var(--accent)" : "var(--line)"}`,
-                  background:
-                    publishMode === "schedule"
-                      ? "var(--accent-dim)"
-                      : "transparent",
-                  color:
-                    publishMode === "schedule"
-                      ? "var(--accent)"
-                      : "var(--tx-2)",
-                  fontSize: 12,
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                📅 Запланировать
-              </button>
-            </div>
-            {publishMode === "schedule" && (
-              <input
-                type="datetime-local"
-                value={scheduleTime}
-                onChange={(e) => setScheduleTime(e.target.value)}
-                className={inp}
-                style={{ marginTop: 8 }}
-              />
+            {step !== "type" && (
+              <span style={{ fontSize: 10, color: "var(--tx-3)", background: "var(--chip)", borderRadius: 5, padding: "2px 7px" }}>
+                {NICHE_LABELS[nicheCategory] ?? "Бизнес"}
+              </span>
             )}
           </div>
+          <button onClick={onClose} style={{ width: 26, height: 26, borderRadius: 7, border: "0.5px solid var(--line)", background: "transparent", cursor: "pointer", color: "var(--tx-3)", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
         </div>
 
-        {/* Footer */}
-        <div
-          style={{
-            padding: "12px 20px",
-            borderTop: "0.5px solid var(--line)",
-            display: "flex",
-            gap: 8,
-            flexShrink: 0,
-          }}
-        >
-          <button
-            onClick={onClose}
-            style={{
-              flex: 1,
-              padding: "10px",
-              borderRadius: 8,
-              border: "0.5px solid var(--line)",
-              background: "transparent",
-              color: "var(--tx-2)",
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            Отмена
-          </button>
-          <button
-            onClick={handlePublish}
-            disabled={
-              !text.trim() ||
-              publishing ||
-              (publishMode === "schedule" && !scheduleTime)
-            }
-            style={{
-              flex: 2,
-              padding: "10px",
-              borderRadius: 8,
-              border: "none",
-              background: "var(--accent)",
-              color: "var(--on-accent)",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              opacity: !text.trim() || publishing ? 0.6 : 1,
-            }}
-          >
-            {publishing
-              ? "⟳ Публикую..."
-              : publishMode === "now"
-                ? "🚀 Опубликовать"
-                : "📅 Запланировать"}
-          </button>
+        {/* Progress bar */}
+        <div style={{ display: "flex", gap: 3, padding: "8px 18px 0", flexShrink: 0 }}>
+          {(["type", "form", "preview"] as Step[]).map((s, i) => (
+            <div key={s} style={{ flex: 1, height: 3, borderRadius: 2, transition: "background 0.2s", background: (["type", "form", "preview"] as Step[]).indexOf(step) >= i ? "var(--accent)" : "var(--line)" }} />
+          ))}
         </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
+
+          {/* Step 1: choose type */}
+          {step === "type" && (
+            <>
+              <p style={{ fontSize: 12, color: "var(--tx-2)", marginBottom: 4 }}>Что публикуем?</p>
+              {POST_TYPE_META.map((pt) => (
+                <button key={pt.id}
+                  onClick={() => { setPostType(pt.id); setFieldValues({}); setStep("form"); }}
+                  style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 15px", borderRadius: 10, border: "0.5px solid var(--line)", background: "transparent", cursor: "pointer", textAlign: "left", width: "100%", fontFamily: "inherit", transition: "border-color 0.15s, background 0.15s" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "var(--hover)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--line)"; e.currentTarget.style.background = "transparent"; }}>
+                  <span style={{ fontSize: 22, flexShrink: 0 }}>{pt.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)" }}>{pt.title}</p>
+                    <p style={{ fontSize: 11, color: "var(--tx-3)", marginTop: 2 }}>{pt.subtitle}</p>
+                  </div>
+                  <span style={{ color: "var(--tx-3)", fontSize: 15 }}>›</span>
+                </button>
+              ))}
+              <div style={{ marginTop: 4, padding: "10px 12px", borderRadius: 8, background: "var(--hover)", border: "0.5px solid var(--line)" }}>
+                <p style={{ fontSize: 11, color: "var(--tx-3)" }}>
+                  Для рекламных кампаний (Google Ads, Meta, Яндекс) → раздел <strong>Кампании</strong>
+                </p>
+              </div>
+            </>
+          )}
+
+          {/* Step 2: fill fields + choose platform */}
+          {step === "form" && (
+            <>
+              {currentFields.map((field) => (
+                <div key={field.key}>
+                  <label className="block ui-label mb-1">{field.label}</label>
+                  {field.multiline ? (
+                    <textarea value={fieldValues[field.key] ?? ""} onChange={(e) => setFieldValues((p) => ({ ...p, [field.key]: e.target.value }))}
+                      placeholder={field.placeholder} className={`${inp} resize-none`}
+                      style={{ height: 76, fontFamily: "inherit", lineHeight: 1.5 }} />
+                  ) : (
+                    <input value={fieldValues[field.key] ?? ""} onChange={(e) => setFieldValues((p) => ({ ...p, [field.key]: e.target.value }))}
+                      placeholder={field.placeholder} className={inp} />
+                  )}
+                </div>
+              ))}
+
+              {/* Platform selector */}
+              <div style={{ marginTop: 4 }}>
+                <label className="block ui-label mb-2">Куда публикуем</label>
+                {!hasTg && !hasIg ? (
+                  <p style={{ fontSize: 11, color: "var(--tx-3)" }}>Нет подключённых платформ. Зайди в <strong>Интеграции</strong>.</p>
+                ) : (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {hasTg && (
+                      <button onClick={() => setTgSel((v) => v && igSel ? true : !v)}
+                        style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: `0.5px solid ${tgSel ? "var(--accent)" : "var(--line)"}`, background: tgSel ? "var(--accent-dim)" : "transparent", color: tgSel ? "var(--accent)" : "var(--tx-2)", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+                        <span style={plBadge("#0088CC")}>TG</span> Telegram
+                      </button>
+                    )}
+                    {hasIg && (
+                      <button onClick={() => setIgSel((v) => v && tgSel ? true : !v)}
+                        style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: `0.5px solid ${igSel ? "#E1306C" : "var(--line)"}`, background: igSel ? "rgba(225,48,108,0.08)" : "transparent", color: igSel ? "#E1306C" : "var(--tx-2)", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+                        <span style={plBadge("#E1306C")}>IG</span> Instagram
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {errMsg && <p style={{ fontSize: 11, color: "var(--neg)" }}>{errMsg}</p>}
+            </>
+          )}
+
+          {/* Step 3: preview + edit */}
+          {step === "preview" && (
+            <>
+              {tgSel && editedTg && (
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <span style={plBadge("#0088CC")}>TG</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--tx-2)" }}>Telegram</span>
+                    <span style={{ fontSize: 10, color: "var(--tx-3)", marginLeft: "auto" }}>{editedTg.length} симв.</span>
+                  </div>
+                  <textarea value={editedTg} onChange={(e) => setEditedTg(e.target.value)}
+                    className={`${inp} resize-none`} style={{ height: 150, fontFamily: "inherit", lineHeight: 1.6 }} />
+                </div>
+              )}
+              {igSel && editedIg && (
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <span style={plBadge("#E1306C")}>IG</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--tx-2)" }}>Instagram</span>
+                    <span style={{ fontSize: 10, color: "var(--tx-3)", marginLeft: "auto" }}>{editedIg.length} симв.</span>
+                  </div>
+                  <textarea value={editedIg} onChange={(e) => setEditedIg(e.target.value)}
+                    className={`${inp} resize-none`} style={{ height: 150, fontFamily: "inherit", lineHeight: 1.6 }} />
+                </div>
+              )}
+              {tgSel && !editedTg && igSel && !editedIg && (
+                <p style={{ fontSize: 12, color: "var(--tx-3)", textAlign: "center", padding: "20px 0" }}>Нет сгенерированного текста. Вернись и попробуй снова.</p>
+              )}
+
+              {/* Publish mode */}
+              <div style={{ marginTop: 4 }}>
+                <label className="block ui-label mb-2">Публикация</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => setPublishMode("now")}
+                    style={{ flex: 1, padding: "9px", borderRadius: 8, border: `0.5px solid ${publishMode === "now" ? "var(--accent)" : "var(--line)"}`, background: publishMode === "now" ? "var(--accent-dim)" : "transparent", color: publishMode === "now" ? "var(--accent)" : "var(--tx-2)", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+                    Опубликовать сейчас
+                  </button>
+                  <button onClick={() => setPublishMode("schedule")}
+                    style={{ flex: 1, padding: "9px", borderRadius: 8, border: `0.5px solid ${publishMode === "schedule" ? "var(--accent)" : "var(--line)"}`, background: publishMode === "schedule" ? "var(--accent-dim)" : "transparent", color: publishMode === "schedule" ? "var(--accent)" : "var(--tx-2)", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+                    Запланировать
+                  </button>
+                </div>
+                {publishMode === "schedule" && (
+                  <input type="datetime-local" value={scheduleTime} onChange={(e) => setScheduleTime(e.target.value)} className={inp} style={{ marginTop: 8 }} />
+                )}
+              </div>
+
+              {errMsg && <p style={{ fontSize: 11, color: "var(--neg)" }}>{errMsg}</p>}
+            </>
+          )}
+        </div>
+
+        {/* Footer: only for form and preview steps */}
+        {step === "form" && (
+          <div style={{ padding: "12px 18px", borderTop: "0.5px solid var(--line)", flexShrink: 0, display: "flex", gap: 8 }}>
+            <button onClick={() => { setStep("type"); setErrMsg(""); }}
+              style={{ padding: "10px 16px", borderRadius: 8, border: "0.5px solid var(--line)", background: "transparent", color: "var(--tx-2)", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+              ← Назад
+            </button>
+            <button onClick={handleGenerate} disabled={generating || (!hasTg && !hasIg) || (!tgSel && !igSel)}
+              style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", background: "var(--accent)", color: "var(--on-accent)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", opacity: generating || (!tgSel && !igSel) ? 0.6 : 1 }}>
+              {generating ? "✦ AI пишет..." : "✦ Сгенерировать"}
+            </button>
+          </div>
+        )}
+
+        {step === "preview" && (
+          <div style={{ padding: "12px 18px", borderTop: "0.5px solid var(--line)", flexShrink: 0, display: "flex", gap: 8 }}>
+            <button onClick={handleGenerate} disabled={generating}
+              style={{ padding: "10px 14px", borderRadius: 8, border: "0.5px solid var(--line)", background: "transparent", color: "var(--tx-2)", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", opacity: generating ? 0.6 : 1 }}>
+              {generating ? "⟳" : "⟳ Ещё раз"}
+            </button>
+            <button onClick={handlePublish} disabled={publishing || (publishMode === "schedule" && !scheduleTime) || (!editedTg && !editedIg)}
+              style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", background: "var(--accent)", color: "var(--on-accent)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", opacity: publishing ? 0.6 : 1 }}>
+              {publishing ? "⟳ Публикую..." : publishMode === "now" ? "Опубликовать" : "Запланировать"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
