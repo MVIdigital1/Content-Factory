@@ -1368,17 +1368,21 @@ function CreatePostModal({
   integrations,
   onClose,
   onPublished,
+  initialType = "product",
+  initialStep = "type",
 }: {
   projectId: string;
   projects: any[];
   integrations: any[];
   onClose: () => void;
   onPublished: () => void;
+  initialType?: PostTypeName;
+  initialStep?: "type" | "form" | "preview";
 }) {
   type Step = "type" | "form" | "preview";
 
-  const [step, setStep] = useState<Step>("type");
-  const [postType, setPostType] = useState<PostTypeName>("product");
+  const [step, setStep] = useState<Step>(initialStep);
+  const [postType, setPostType] = useState<PostTypeName>(initialType);
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [tgSel, setTgSel] = useState(true);
   const [igSel, setIgSel] = useState(false);
@@ -1669,6 +1673,7 @@ function CreateContentPageInner() {
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
+  const [createPostType, setCreatePostType] = useState<PostTypeName | null>(null);
   const [contentPlan, setContentPlan] = useState<any[]>([]);
   const [projectId, setProjectId] = useState<string>("");
   const [loadingPosts, setLoadingPosts] = useState(false);
@@ -1766,15 +1771,6 @@ function CreateContentPageInner() {
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
 
-    if (
-      allPosts.length === 0 &&
-      (tgChannels.length > 0 || igChannels.length > 0)
-    ) {
-      setError(
-        "Постов не найдено. Опубликуйте хотя бы один пост через PostCentro чтобы он появился здесь.",
-      );
-    }
-
     setPosts(allPosts);
     setLoadingPosts(false);
   };
@@ -1829,7 +1825,7 @@ function CreateContentPageInner() {
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {hasConnected && (
             <button
-              onClick={() => setShowCreatePost(true)}
+              onClick={() => { setCreatePostType(null); setShowCreatePost(true); }}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -2254,85 +2250,73 @@ function CreateContentPageInner() {
 
         {/* Error */}
         {error && !loadingPosts && (
-          <div
-            style={{
-              padding: "12px 16px",
-              background: "rgba(193,18,31,0.08)",
-              border: "0.5px solid var(--neg)",
-              borderRadius: 9,
-              marginBottom: 16,
-            }}
-          >
+          <div style={{ padding: "10px 14px", background: "rgba(193,18,31,0.07)", border: "0.5px solid var(--neg)", borderRadius: 8, marginBottom: 12 }}>
             <p style={{ fontSize: 12, color: "var(--neg)" }}>⚠ {error}</p>
           </div>
         )}
 
         {/* Posts grid */}
         {!loadingPosts && filteredPosts.length > 0 && (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-              gap: 14,
-            }}
-          >
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
             {filteredPosts.map((post) => (
-              <PostCard
-                key={post.id}
-                post={post}
-                onClick={() => setSelectedPost(post)}
-              />
+              <PostCard key={post.id} post={post} onClick={() => setSelectedPost(post)} />
             ))}
           </div>
         )}
 
-        {/* Empty state - connected but no posts */}
-        {!loadingPosts &&
-          hasConnected &&
-          filteredPosts.length === 0 &&
-          !error && (
-            <div style={{ textAlign: "center", padding: "60px 20px" }}>
-              <div style={{ fontSize: 48, marginBottom: 14 }}>📭</div>
-              <p
-                style={{
-                  fontSize: 15,
-                  fontWeight: 600,
-                  color: "var(--tx-1)",
-                  marginBottom: 6,
-                }}
-              >
-                Нет опубликованных постов
+        {/* Empty state — beautiful quick-start */}
+        {!loadingPosts && filteredPosts.length === 0 && !error && (
+          <div style={{ maxWidth: 600, margin: "0 auto", paddingTop: 24 }}>
+            {/* Hero text */}
+            <div style={{ textAlign: "center", marginBottom: 28 }}>
+              <p style={{ fontSize: 22, fontWeight: 700, color: "var(--tx-1)", marginBottom: 8 }}>
+                Создай первый пост
               </p>
-              <p
-                style={{
-                  fontSize: 12,
-                  color: "var(--tx-3)",
-                  marginBottom: 20,
-                  lineHeight: 1.6,
-                }}
-              >
-                Здесь будут посты опубликованные через PostCentro.
-                <br />
-                Нажмите «✏️ Создать пост» чтобы написать и опубликовать первый.
+              <p style={{ fontSize: 13, color: "var(--tx-3)", lineHeight: 1.6 }}>
+                Выбери тип — AI напишет текст под твою нишу за 5 секунд
               </p>
-              <button
-                onClick={() => setShowCreatePost(true)}
-                style={{
-                  padding: "10px 24px",
-                  borderRadius: 9,
-                  background: "var(--accent)",
-                  color: "var(--on-accent)",
-                  border: "none",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                ✏️ Создать первый пост
-              </button>
             </div>
-          )}
+
+            {/* 3 quick-start cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
+              {POST_TYPE_META.map((pt) => (
+                <button key={pt.id}
+                  onClick={() => { setCreatePostType(pt.id); setShowCreatePost(true); }}
+                  style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "20px 12px", borderRadius: 12, border: "0.5px solid var(--line)", background: "var(--panel)", cursor: "pointer", fontFamily: "inherit", transition: "border-color 0.15s, transform 0.12s, box-shadow 0.12s", textAlign: "center" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--line)"; e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}>
+                  <span style={{ fontSize: 28 }}>{pt.icon}</span>
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: "var(--tx-1)", marginBottom: 4 }}>{pt.title}</p>
+                    <p style={{ fontSize: 10, color: "var(--tx-3)", lineHeight: 1.4 }}>{pt.subtitle}</p>
+                  </div>
+                  <span style={{ fontSize: 11, color: "var(--accent)", fontWeight: 600, marginTop: 4 }}>Создать →</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Hint: connect platforms */}
+            {!hasConnected && (
+              <div style={{ padding: "14px 16px", borderRadius: 10, background: "var(--hover)", border: "0.5px solid var(--line)", display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 20 }}>🔌</span>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: "var(--tx-1)", marginBottom: 2 }}>Подключи платформы</p>
+                  <p style={{ fontSize: 11, color: "var(--tx-3)" }}>Подключи Telegram или Instagram чтобы публиковать напрямую</p>
+                </div>
+                <a href={`/${locale}/integrations`}
+                  style={{ padding: "7px 14px", borderRadius: 8, background: "var(--accent)", color: "var(--on-accent)", fontSize: 11, fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" as const }}>
+                  Подключить
+                </a>
+              </div>
+            )}
+
+            {hasConnected && (
+              <p style={{ textAlign: "center", fontSize: 11, color: "var(--tx-3)" }}>
+                После публикации посты появятся здесь с аналитикой
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Modals */}
@@ -2345,10 +2329,9 @@ function CreateContentPageInner() {
           projects={projects}
           integrations={integrations}
           onClose={() => setShowCreatePost(false)}
-          onPublished={() => {
-            setShowCreatePost(false);
-            loadPosts();
-          }}
+          onPublished={() => { setShowCreatePost(false); loadPosts(); }}
+          initialType={createPostType ?? "product"}
+          initialStep={createPostType ? "form" : "type"}
         />
       )}
       {showAnalysis && (
