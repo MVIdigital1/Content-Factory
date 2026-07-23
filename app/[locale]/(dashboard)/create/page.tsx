@@ -1386,6 +1386,8 @@ function CreatePostModal({
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [tgSel, setTgSel] = useState(true);
   const [igSel, setIgSel] = useState(false);
+  const [imageUrl, setImageUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [editedTg, setEditedTg] = useState("");
   const [editedIg, setEditedIg] = useState("");
@@ -1445,17 +1447,23 @@ function CreatePostModal({
             project_id: projectId || null, platform: p, body: text, caption: text,
             title, content_type: "post",
             status: publishMode === "now" ? "published" : "scheduled", language: "ru",
+            source_image_url: imageUrl || null,
           }),
         });
-        const content = await saveRes.json();
-        if (!saveRes.ok || !content?.id) throw new Error("Ошибка сохранения");
+        let content: any;
+        try { content = await saveRes.json(); } catch { throw new Error("Ошибка сохранения"); }
+        if (!saveRes.ok || !content?.id) throw new Error(content?.error ?? "Ошибка сохранения");
         if (publishMode === "now") {
           const pubRes = await fetch("/api/content/publish-now", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ contentId: content.id, platform: p }),
           });
-          if (!pubRes.ok) throw new Error((await pubRes.json()).error ?? "Ошибка публикации");
+          if (!pubRes.ok) {
+            let msg = "Ошибка публикации";
+            try { msg = (await pubRes.json()).error ?? msg; } catch {}
+            throw new Error(msg);
+          }
         } else if (publishMode === "schedule" && scheduleTime) {
           await fetch("/api/scheduled-posts", {
             method: "POST",
@@ -1554,6 +1562,46 @@ function CreatePostModal({
                   )}
                 </div>
               ))}
+
+              {/* Image upload */}
+              <div style={{ marginTop: 4 }}>
+                <label className="block ui-label mb-2">Фото (необязательно)</label>
+                {imageUrl ? (
+                  <div style={{ position: "relative", display: "inline-block" }}>
+                    <img src={imageUrl} alt="" style={{ width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 8, border: "0.5px solid var(--line)" }} />
+                    <button
+                      onClick={() => setImageUrl("")}
+                      style={{ position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: 6, background: "rgba(0,0,0,0.5)", border: "none", color: "#fff", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 8, border: "0.5px dashed var(--line)", cursor: uploading ? "default" : "pointer", background: "var(--hover)", transition: "border-color 0.15s" }}
+                    onMouseEnter={(e) => { if (!uploading) e.currentTarget.style.borderColor = "var(--accent)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--line)"; }}>
+                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setUploading(true);
+                      try {
+                        const fd = new FormData();
+                        fd.append("file", file);
+                        fd.append("folder", "posts");
+                        const res = await fetch("/api/upload", { method: "POST", body: fd });
+                        const data = await res.json();
+                        if (res.ok && data.url) setImageUrl(data.url);
+                        else setErrMsg(data.error ?? "Ошибка загрузки фото");
+                      } catch { setErrMsg("Ошибка загрузки фото"); }
+                      setUploading(false);
+                    }} />
+                    <span style={{ fontSize: 20 }}>{uploading ? "⟳" : "🖼"}</span>
+                    <div>
+                      <p style={{ fontSize: 12, fontWeight: 500, color: "var(--tx-2)" }}>{uploading ? "Загружаю..." : "Добавить фото"}</p>
+                      <p style={{ fontSize: 10, color: "var(--tx-3)" }}>PNG, JPG — для Instagram обязательно</p>
+                    </div>
+                  </label>
+                )}
+              </div>
 
               {/* Platform selector */}
               <div style={{ marginTop: 4 }}>
