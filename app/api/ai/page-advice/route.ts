@@ -157,15 +157,24 @@ export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { pathname } = await req.json();
-  const context = await buildContext(user.id, pathname ?? "");
+  let body: any = {};
+  try { body = await req.json(); } catch {}
+  const pathname: string = body.pathname ?? body.page ?? "";
 
-  const message = await anthropic.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 600,
-    messages: [{
-      role: "user",
-      content: `Ты — AI-советник внутри SMM-платформы для рынка Узбекистана/СНГ.
+  let context = `Страница: ${pathname.split("/").filter(Boolean).pop() ?? "дашборд"}`;
+  try {
+    context = await buildContext(user.id, pathname);
+  } catch (err: any) {
+    console.error("[page-advice] buildContext error:", err?.message);
+  }
+
+  try {
+    const message = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 600,
+      messages: [{
+        role: "user",
+        content: `Ты — AI-советник внутри SMM-платформы для рынка Узбекистана/СНГ.
 
 ТЕКУЩИЙ КОНТЕКСТ:
 ${context}
@@ -181,16 +190,16 @@ ${context}
 
 Верни ТОЛЬКО валидный JSON (без markdown):
 {"tips":[{"icon":"эмодзи","text":"совет","task":"краткое название задачи (до 60 символов)"},{"icon":"эмодзи","text":"совет","task":"задача"},{"icon":"эмодзи","text":"совет","task":"задача"}]}`,
-    }],
-  });
+      }],
+    });
 
-  const raw = message.content[0].type === "text" ? message.content[0].text : "";
-  const cleaned = raw.replace(/^```json\s*/m, "").replace(/```\s*$/m, "").trim();
-
-  try {
+    const raw = message.content[0].type === "text" ? message.content[0].text : "";
+    const cleaned = raw.replace(/^```json\s*/m, "").replace(/```\s*$/m, "").trim();
     const parsed = JSON.parse(cleaned);
-    return NextResponse.json({ tips: parsed.tips ?? [], context: context.split("\n")[1] ?? "" });
-  } catch {
-    return NextResponse.json({ tips: [], context: "" });
+    const contextLabel = context.split("\n").find(l => l.startsWith("Страница:"))?.replace("Страница: ", "") ?? "";
+    return NextResponse.json({ tips: parsed.tips ?? [], context: contextLabel });
+  } catch (err: any) {
+    console.error("[page-advice] error:", err?.message);
+    return NextResponse.json({ tips: [], context: "" }, { status: 500 });
   }
 }
