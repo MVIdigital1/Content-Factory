@@ -1174,15 +1174,94 @@ export default function CampaignDetailPage() {
                 </div>
               )}
 
-              {generatedCreatives.length === 0 && !generating && (
-                <div className="ui-surface flex flex-col items-center py-14 text-center mt-4">
-                  <p className="text-[32px] mb-3">✦</p>
-                  <p className="text-[13px] font-medium text-tx-1 mb-1">Нет сгенерированного контента</p>
-                  <p className="text-[11px] text-tx-3">
-                    Создайте контент-план и утвердите его — контент будет сгенерирован автоматически
-                  </p>
-                </div>
-              )}
+              {generatedCreatives.length === 0 && !generating && (() => {
+                const activePlan = activeContentSection === "social" ? socialPlan : adsPlan;
+                const activePlanApproved = activeContentSection === "social" ? socialPlanApproved : adsPlanApproved;
+                const activePlanLoading = activeContentSection === "social" ? socialPlanLoading : adsPlanLoading;
+                const doActivePlan = activeContentSection === "social" ? generateSocialPlan : generateAdsPlan;
+                const doActiveFromPlan = activeContentSection === "social" ? generateFromSocialPlan : generateFromAdsPlan;
+                const step1Done = !!activePlan;
+                const step2Done = activePlanApproved;
+                const currentStep = !step1Done ? 1 : !step2Done ? 2 : 3;
+                const steps = [
+                  { n: 1, label: "Создай план", desc: "AI составит список форматов и количество постов под твою кампанию" },
+                  { n: 2, label: "Утверди план", desc: "Просмотри что предлагает AI и скорректируй если нужно" },
+                  { n: 3, label: "Получи контент", desc: "AI напишет тексты и заголовки для каждой платформы" },
+                ];
+                return (
+                  <div className="max-w-[540px] mx-auto mt-4">
+                    {/* Step tracker */}
+                    <div className="flex items-center gap-0 mb-8">
+                      {steps.map((s, i) => (
+                        <div key={s.n} className="flex items-center flex-1 last:flex-none">
+                          <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+                            <div
+                              className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold transition-colors"
+                              style={{
+                                background: s.n < currentStep ? "var(--accent)" : s.n === currentStep ? "var(--accent)" : "var(--line)",
+                                color: s.n <= currentStep ? "var(--on-accent)" : "var(--tx-3)",
+                                opacity: s.n > currentStep ? 0.5 : 1,
+                              }}
+                            >
+                              {s.n < currentStep ? "✓" : s.n}
+                            </div>
+                            <span className="text-[10px] font-medium text-center" style={{ color: s.n === currentStep ? "var(--tx-1)" : "var(--tx-3)", whiteSpace: "nowrap" }}>{s.label}</span>
+                          </div>
+                          {i < steps.length - 1 && (
+                            <div className="flex-1 h-[1px] mx-2 mb-5" style={{ background: s.n < currentStep ? "var(--accent)" : "var(--line)" }} />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Active step card */}
+                    <div className="ui-surface p-5 text-center">
+                      <p className="text-[13px] font-semibold text-tx-1 mb-2">{steps[currentStep - 1].desc}</p>
+                      {currentStep === 1 && (
+                        <button
+                          onClick={doActivePlan}
+                          disabled={activePlanLoading}
+                          className="mt-3 px-6 py-2.5 bg-accent text-on-accent text-[12px] font-semibold rounded-[8px] hover:opacity-90 cursor-pointer disabled:opacity-50"
+                        >
+                          {activePlanLoading ? "⟳ Создаю план..." : "✦ Создать план"}
+                        </button>
+                      )}
+                      {currentStep === 2 && (
+                        <button
+                          onClick={() => openPlanModal(activeContentSection)}
+                          className="mt-3 px-6 py-2.5 bg-accent text-on-accent text-[12px] font-semibold rounded-[8px] hover:opacity-90 cursor-pointer"
+                        >
+                          📋 Просмотреть и утвердить план
+                        </button>
+                      )}
+                      {currentStep === 3 && (
+                        <button
+                          onClick={doActiveFromPlan}
+                          disabled={generating}
+                          className="mt-3 px-6 py-2.5 bg-accent text-on-accent text-[12px] font-semibold rounded-[8px] hover:opacity-90 cursor-pointer disabled:opacity-50"
+                        >
+                          {generating ? "⟳ Генерирую..." : "🎨 Создать контент по плану"}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Platform preview chips */}
+                    {(activeContentSection === "social" ? socialPlatforms : adsPlatforms).length > 0 && (
+                      <div className="flex flex-wrap gap-2 justify-center mt-4">
+                        {(activeContentSection === "social" ? socialPlatforms : adsPlatforms).map((p: string) => (
+                          <span key={p} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium border border-line text-tx-2">
+                            <span
+                              className="w-3.5 h-3.5 rounded-[3px] flex items-center justify-center text-[6px] font-bold text-white"
+                              style={{ background: PLATFORM_META[p]?.color ?? "#888" }}
+                            >{PLATFORM_META[p]?.abbr ?? p.slice(0,2).toUpperCase()}</span>
+                            {PLATFORM_META[p]?.name ?? p}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           );
         })()}
